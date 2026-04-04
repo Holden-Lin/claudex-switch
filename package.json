@@ -1,0 +1,25 @@
+{
+  "name": "claudex-switch",
+  "version": "1.0.0",
+  "description": "Switch between Claude Code and Codex accounts with ease",
+  "type": "module",
+  "bin": {
+    "claudex-switch": "./dist/claudex-switch.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "bun build ./src/index.ts --target node --outfile ./dist/claudex-switch.js",
+    "dev": "bun run src/index.ts",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": ["claude", "codex", "account-switcher", "cli"],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "@inquirer/prompts": "^7.5.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.7.0"
+  }
+}
