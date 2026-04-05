@@ -1,7 +1,14 @@
 import { spawn, spawnSync } from "child_process";
 import chalk from "chalk";
 import { select, confirm, password } from "@inquirer/prompts";
-import { loadAliases, addAlias, isValidAlias, isReservedAlias, aliasExists } from "../alias/store";
+import {
+  loadAliases,
+  addAlias,
+  isValidAlias,
+  isReservedAlias,
+  aliasExists,
+  findAliasByTarget,
+} from "../alias/store";
 import {
   profileExists,
   addOAuthProfile,
@@ -258,6 +265,17 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   }
 
   const accountKey = `${userId}::${accountId}`;
+  const existingAlias = findAliasByTarget(await loadAliases(), {
+    provider: "codex",
+    accountKey,
+  });
+
+  if (existingAlias) {
+    blank();
+    error(`This Codex account is already imported as "${existingAlias.alias}".`);
+    blank();
+    process.exit(1);
+  }
 
   // Snapshot the auth file
   await snapshotActiveAuth(accountKey);
@@ -306,6 +324,17 @@ async function addCodexApiKey(alias: string): Promise<void> {
   const { createHash } = await import("crypto");
   const keyHash = createHash("sha256").update(key.trim()).digest("hex").slice(0, 16);
   const accountKey = `apikey::${keyHash}`;
+  const existingAlias = findAliasByTarget(await loadAliases(), {
+    provider: "codex",
+    accountKey,
+  });
+
+  if (existingAlias) {
+    blank();
+    error(`This Codex account is already imported as "${existingAlias.alias}".`);
+    blank();
+    process.exit(1);
+  }
 
   // Create auth file
   const { saveAccountAuth } = await import("../providers/codex/auth");

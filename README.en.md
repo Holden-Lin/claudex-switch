@@ -4,8 +4,6 @@
 
 A unified CLI tool for managing both Claude Code and Codex accounts. Supports alias-based switching and quota display — ideal for frequently switching between personal, team, and API key accounts.
 
-Combines the functionality of [claude-switch](https://github.com/Holden-Lin/claude-switch) and [codex-auth](https://github.com/Loongphy/codex-auth).
-
 ## Features
 
 - Manage Claude Code and Codex accounts in one place
@@ -78,8 +76,10 @@ Then choose an account type:
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch list` | List all accounts with quota info |
+| `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch current` | Show active accounts |
-| `claudex-switch remove <alias>` | Remove an account |
+| `claudex-switch remove <alias>` | Remove an alias only |
+| `claudex-switch purge <alias>` | Delete an account and its linked aliases |
 | `claudex-switch import` | Import from existing data |
 | `claudex-switch help` | Show help |
 
@@ -117,7 +117,7 @@ claudex-switch uses a thin alias layer on top of native storage:
   (Claude native)        (Codex native)
 ```
 
-The alias registry only stores the mapping from aliases to underlying accounts. Credentials are never copied or transformed.
+Day-to-day switching and alias management only operate on this mapping layer. Underlying account data is only deleted when you explicitly run `claudex-switch purge <alias>`.
 
 ### Claude Account Switching
 
@@ -145,6 +145,11 @@ The alias registry only stores the mapping from aliases to underlying accounts. 
 - Codex clients must be restarted after switching for changes to take effect
 - Credential files are set to `0600` permissions, but be aware of the security implications of storing credential copies in `~/.claude-profiles/`
 - Codex quota display uses cached data from `registry.json`; use `codex-auth`'s API mode for real-time refresh
+
+## References
+
+- [Holden-Lin/claude-switch](https://github.com/Holden-Lin/claude-switch)
+- [Loongphy/codex-auth](https://github.com/Loongphy/codex-auth)
 
 ## License
 

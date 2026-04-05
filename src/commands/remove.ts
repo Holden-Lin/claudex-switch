@@ -1,15 +1,6 @@
 import chalk from "chalk";
-import { unlink } from "fs/promises";
 import { confirm } from "@inquirer/prompts";
 import { loadAliases, findAlias, removeAlias } from "../alias/store";
-import { removeProfile, profileExists } from "../providers/claude/profiles";
-import {
-  loadRegistry,
-  saveRegistry,
-  removeAccountFromRegistry,
-} from "../providers/codex/registry";
-import { codexAccountAuthFile } from "../lib/paths";
-import { fileExists } from "../lib/fs";
 import { blank, success, error, formatProvider } from "../lib/ui";
 
 export async function remove(aliasName: string): Promise<void> {
@@ -26,7 +17,7 @@ export async function remove(aliasName: string): Promise<void> {
 
   const provider = entry.target.provider;
   const ok = await confirm({
-    message: `Remove ${formatProvider(provider)} account "${aliasName}"?`,
+    message: `Remove alias "${aliasName}"? The ${formatProvider(provider)} account will be kept.`,
     default: false,
   });
 
@@ -36,39 +27,9 @@ export async function remove(aliasName: string): Promise<void> {
     return;
   }
 
-  // Remove from provider
-  if (entry.target.provider === "claude") {
-    try {
-      if (await profileExists(entry.target.profileName)) {
-        await removeProfile(entry.target.profileName);
-      }
-    } catch {
-      // Profile may already be gone
-    }
-  } else {
-    try {
-      const codexReg = await loadRegistry();
-      const removed = removeAccountFromRegistry(
-        codexReg,
-        entry.target.accountKey,
-      );
-      if (removed) {
-        await saveRegistry(codexReg);
-      }
-      // Also remove the auth snapshot file
-      const authFile = codexAccountAuthFile(entry.target.accountKey);
-      if (await fileExists(authFile)) {
-        await unlink(authFile);
-      }
-    } catch {
-      // Registry may not exist
-    }
-  }
-
-  // Remove alias
   await removeAlias(aliasName);
 
   blank();
-  success(`${chalk.bold(aliasName)} removed`);
+  success(`${chalk.bold(aliasName)} alias removed`);
   blank();
 }

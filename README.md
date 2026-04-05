@@ -4,8 +4,6 @@
 
 一个统一管理 Claude Code 和 Codex 账号的 CLI 工具。支持别名切换、额度查看，适合在多个订阅账号、团队账号、API Key 之间频繁切换。
 
-融合了 [claude-switch](https://github.com/Holden-Lin/claude-switch) 和 [codex-auth](https://github.com/Loongphy/codex-auth) 的功能。
-
 ## 特点
 
 - 统一管理 Claude Code 和 Codex 两套账号体系
@@ -78,8 +76,10 @@ claudex-switch add work
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch list` | 列出所有账号及额度 |
+| `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch current` | 显示当前活跃账号 |
-| `claudex-switch remove <alias>` | 删除指定账号 |
+| `claudex-switch remove <alias>` | 只删除别名，不删除底层账号 |
+| `claudex-switch purge <alias>` | 删除底层账号及其关联别名 |
 | `claudex-switch import` | 从已有数据导入账号 |
 | `claudex-switch help` | 显示帮助 |
 
@@ -117,7 +117,7 @@ claudex-switch 采用「薄别名层」架构：
   (Claude 原生存储)      (Codex 原生存储)
 ```
 
-别名注册表仅存储别名到底层账号的映射关系，不复制或转换凭证数据。
+日常切换和别名管理只操作这层映射关系，不复制或转换底层账号数据。只有显式执行 `claudex-switch purge <alias>` 时，才会删除底层账号数据。
 
 ### Claude 账号切换
 
@@ -145,6 +145,11 @@ claudex-switch 采用「薄别名层」架构：
 - Codex 切换后需要重启客户端才能生效
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
 - Codex 额度显示依赖 `registry.json` 中的缓存数据，如需刷新请使用 `codex-auth` 的 API 模式
+
+## 参考项目
+
+- [Holden-Lin/claude-switch](https://github.com/Holden-Lin/claude-switch)
+- [Loongphy/codex-auth](https://github.com/Loongphy/codex-auth)
 
 ## License
 

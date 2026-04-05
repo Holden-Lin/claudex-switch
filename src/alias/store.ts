@@ -15,6 +15,8 @@ const RESERVED = new Set([
   "ls",
   "remove",
   "rm",
+  "rename",
+  "purge",
   "current",
   "import",
   "help",
@@ -50,6 +52,34 @@ export function findAlias(
   return reg.aliases.find((a) => a.alias.toLowerCase() === lower);
 }
 
+export function targetsEqual(
+  left: AliasTarget,
+  right: AliasTarget,
+): boolean {
+  if (left.provider !== right.provider) return false;
+  if (left.provider === "claude" && right.provider === "claude") {
+    return left.profileName === right.profileName;
+  }
+  if (left.provider === "codex" && right.provider === "codex") {
+    return left.accountKey === right.accountKey;
+  }
+  return false;
+}
+
+export function findAliasByTarget(
+  reg: AliasRegistry,
+  target: AliasTarget,
+): AliasEntry | undefined {
+  return reg.aliases.find((entry) => targetsEqual(entry.target, target));
+}
+
+export function findAliasesByTarget(
+  reg: AliasRegistry,
+  target: AliasTarget,
+): AliasEntry[] {
+  return reg.aliases.filter((entry) => targetsEqual(entry.target, target));
+}
+
 export function aliasExists(reg: AliasRegistry, alias: string): boolean {
   return findAlias(reg, alias) !== undefined;
 }
@@ -75,6 +105,13 @@ export async function addAlias(
     throw new Error(`Alias "${alias}" already exists`);
   }
 
+  const existingTarget = findAliasByTarget(reg, target);
+  if (existingTarget) {
+    throw new Error(
+      `Account already imported as alias "${existingTarget.alias}"`,
+    );
+  }
+
   reg.aliases.push({
     alias,
     target,
@@ -95,6 +132,19 @@ export async function removeAlias(alias: string): Promise<boolean> {
   return true;
 }
 
+export async function removeAliasesByTarget(
+  target: AliasTarget,
+): Promise<number> {
+  const reg = await loadAliases();
+  const before = reg.aliases.length;
+  reg.aliases = reg.aliases.filter((entry) => !targetsEqual(entry.target, target));
+  const removed = before - reg.aliases.length;
+  if (removed > 0) {
+    await saveAliases(reg);
+  }
+  return removed;
+}
+
 export async function updateAlias(
   alias: string,
   target: AliasTarget,
@@ -105,5 +155,29 @@ export async function updateAlias(
     throw new Error(`Alias "${alias}" not found`);
   }
   entry.target = target;
+  await saveAliases(reg);
+}
+
+export async function renameAlias(
+  currentAlias: string,
+  nextAlias: string,
+): Promise<void> {
+  const reg = await loadAliases();
+  const entry = findAlias(reg, currentAlias);
+
+  if (!entry) {
+    throw new Error(`Alias "${currentAlias}" not found`);
+  }
+  if (!isValidAlias(nextAlias)) {
+    throw new Error(`Alias "${nextAlias}" is invalid`);
+  }
+  if (
+    currentAlias.toLowerCase() !== nextAlias.toLowerCase() &&
+    aliasExists(reg, nextAlias)
+  ) {
+    throw new Error(`Alias "${nextAlias}" already exists`);
+  }
+
+  entry.alias = nextAlias;
   await saveAliases(reg);
 }

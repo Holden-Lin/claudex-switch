@@ -9,6 +9,8 @@ import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { list } from "./commands/list";
 import { remove } from "./commands/remove";
+import { rename } from "./commands/rename";
+import { purge } from "./commands/purge";
 import { current } from "./commands/current";
 import { importAccounts } from "./commands/import";
 import { blank, formatProvider } from "./lib/ui";
@@ -22,7 +24,9 @@ const HELP = `
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
-    claudex-switch remove <alias>      Remove an account
+    claudex-switch rename <from> <to>  Rename an alias
+    claudex-switch remove <alias>      Remove an alias only
+    claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
     claudex-switch help                Show this help
@@ -129,6 +133,26 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await remove(args[0]);
+        break;
+
+      case "rename":
+        if (!args[0] || !args[1]) {
+          console.error(
+            chalk.red("\n  Usage: claudex-switch rename <from> <to>\n"),
+          );
+          process.exit(1);
+        }
+        await rename(args[0], args[1]);
+        break;
+
+      case "purge":
+        if (!args[0]) {
+          console.error(
+            chalk.red("\n  Usage: claudex-switch purge <alias>\n"),
+          );
+          process.exit(1);
+        }
+        await purge(args[0]);
         break;
 
       case "current":

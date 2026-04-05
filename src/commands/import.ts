@@ -2,7 +2,13 @@ import chalk from "chalk";
 import { readdir } from "fs/promises";
 import { CLAUDE_PROFILES_DIR } from "../lib/paths";
 import { fileExists } from "../lib/fs";
-import { loadAliases, saveAliases, aliasExists, isValidAlias } from "../alias/store";
+import {
+  loadAliases,
+  saveAliases,
+  aliasExists,
+  isValidAlias,
+  findAliasByTarget,
+} from "../alias/store";
 import { loadRegistry } from "../providers/codex/registry";
 import { blank, success, info, hint } from "../lib/ui";
 import type { AliasRegistry } from "../types";
@@ -35,7 +41,7 @@ export async function importAccounts(): Promise<void> {
     info("No new accounts to import");
   }
   if (skipped > 0) {
-    hint(`${skipped} account(s) skipped (alias already exists)`);
+    hint(`${skipped} account(s) skipped`);
   }
   blank();
 }
@@ -52,6 +58,16 @@ async function importClaudeProfiles(
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const name = entry.name;
+    const target = { provider: "claude" as const, profileName: name };
+    const existing = findAliasByTarget(reg, target);
+
+    if (existing) {
+      console.log(
+        chalk.dim(`  skip  ${name} (already imported as "${existing.alias}")`),
+      );
+      skipped++;
+      continue;
+    }
 
     if (!isValidAlias(name) || aliasExists(reg, name)) {
       console.log(
@@ -63,7 +79,7 @@ async function importClaudeProfiles(
 
     reg.aliases.push({
       alias: name,
-      target: { provider: "claude", profileName: name },
+      target,
       createdAt: Date.now(),
     });
     console.log(`  ${chalk.green("+")} ${name}  ${chalk.dim("(claude)")}`);
@@ -86,6 +102,21 @@ async function importCodexAccounts(
     }
 
     for (const account of codexReg.accounts) {
+      const target = {
+        provider: "codex" as const,
+        accountKey: account.account_key,
+      };
+      const existing = findAliasByTarget(reg, target);
+      if (existing) {
+        console.log(
+          chalk.dim(
+            `  skip  ${account.email || account.account_key} (already imported as "${existing.alias}")`,
+          ),
+        );
+        skipped++;
+        continue;
+      }
+
       // Determine alias: use codex-auth's alias, then email prefix, then account_key
       let alias = account.alias && account.alias.trim()
         ? account.alias.trim()
@@ -121,7 +152,7 @@ async function importCodexAccounts(
 
       reg.aliases.push({
         alias: finalAlias,
-        target: { provider: "codex", accountKey: account.account_key },
+        target,
         createdAt: Date.now(),
       });
       console.log(
