@@ -67,6 +67,10 @@ ensure_bun_on_path() {
   fi
 }
 
+remove_existing_install() {
+  bun remove -g claudex-switch >/dev/null 2>&1 || true
+}
+
 main() {
   local ref spec
   ref="$(resolve_ref)"
@@ -74,6 +78,7 @@ main() {
 
   ensure_bun
   ensure_bun_on_path
+  remove_existing_install
 
   say "Installing claudex-switch from ${ref}"
   bun install -g "$spec"
