@@ -18,11 +18,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Holden-Lin/claudex-swtich.git"
+    "url": "git+https://github.com/Holden-Lin/claudex-switch.git"
   },
-  "homepage": "https://github.com/Holden-Lin/claudex-swtich",
+  "homepage": "https://github.com/Holden-Lin/claudex-switch",
   "bugs": {
-    "url": "https://github.com/Holden-Lin/claudex-swtich/issues"
+    "url": "https://github.com/Holden-Lin/claudex-switch/issues"
   },
   "keywords": ["claude", "codex", "account-switcher", "cli", "bun"],
   "license": "MIT",

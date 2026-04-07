@@ -19,7 +19,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 ### Installer Script (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 ```
 
 By default this installs the latest GitHub Release. If no release exists yet, it falls back to the `main` branch.
@@ -28,16 +28,16 @@ You can also pin a version or ref:
 
 ```bash
 # Install a specific tag
-VERSION=1.0.0 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/install.sh | bash
+VERSION=1.0.0 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 
 # Install a specific branch / commit / tag
-INSTALL_REF=main curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/install.sh | bash
+INSTALL_REF=main curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 ```
 
 ### Bun Global Install
 
 ```bash
-bun install -g git+https://github.com/Holden-Lin/claudex-swtich.git
+bun install -g git+https://github.com/Holden-Lin/claudex-switch.git
 ```
 
 ### Homebrew
@@ -45,14 +45,14 @@ bun install -g git+https://github.com/Holden-Lin/claudex-swtich.git
 After the first `v*` release, the release workflow will generate and update `Formula/claudex-switch.rb` automatically. Then you can install with:
 
 ```bash
-brew install --formula https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/Formula/claudex-switch.rb
+brew install --formula https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/Formula/claudex-switch.rb
 ```
 
 ### Local Development
 
 ```bash
-git clone git@github.com:Holden-Lin/claudex-swtich.git
-cd claudex-swtich
+git clone git@github.com:Holden-Lin/claudex-switch.git
+cd claudex-switch
 bun install
 bun run test
 bun run verify

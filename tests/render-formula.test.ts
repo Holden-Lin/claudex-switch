@@ -36,7 +36,7 @@ describe("render-formula.sh", () => {
       expect(result.stdout).toContain('class ClaudexSwitch < Formula');
       expect(result.stdout).toContain('version "1.2.3"');
       expect(result.stdout).toContain(
-        "https://github.com/Holden-Lin/claudex-swtich/releases/download/v1.2.3/claudex-switch-darwin-arm64.tar.gz",
+        "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.2.3/claudex-switch-darwin-arm64.tar.gz",
       );
 
       const darwinArm64Sha = createHash("sha256")

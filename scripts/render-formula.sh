@@ -3,7 +3,7 @@ set -euo pipefail
 
 VERSION="${1:?usage: render-formula.sh <version> <asset-dir>}"
 ASSET_DIR="${2:?usage: render-formula.sh <version> <asset-dir>}"
-REPO="${REPO:-Holden-Lin/claudex-swtich}"
+REPO="${REPO:-Holden-Lin/claudex-switch}"
 
 if [ ! -d "$ASSET_DIR" ]; then
   printf 'Asset directory not found: %s\n' "$ASSET_DIR" >&2

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${REPO:-Holden-Lin/claudex-swtich}"
+REPO="${REPO:-Holden-Lin/claudex-switch}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 INSTALL_REF="${INSTALL_REF:-}"
 VERSION="${VERSION:-}"

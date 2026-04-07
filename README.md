@@ -19,7 +19,7 @@
 ### 方式一：安装脚本（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 ```
 
 默认会安装最新 GitHub Release；如果仓库还没有发布过 release，会自动回退到 `main` 分支。
@@ -28,16 +28,16 @@ curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/inst
 
 ```bash
 # 安装指定版本 tag
-VERSION=1.0.0 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/install.sh | bash
+VERSION=1.0.0 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 
 # 安装指定分支 / commit / tag
-INSTALL_REF=main curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/install.sh | bash
+INSTALL_REF=main curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 ```
 
 ### 方式二：Bun 全局安装
 
 ```bash
-bun install -g git+https://github.com/Holden-Lin/claudex-swtich.git
+bun install -g git+https://github.com/Holden-Lin/claudex-switch.git
 ```
 
 ### 方式三：Homebrew
@@ -45,14 +45,14 @@ bun install -g git+https://github.com/Holden-Lin/claudex-swtich.git
 推送 `v*` tag 后，release workflow 会自动生成并更新 `Formula/claudex-switch.rb`。之后可以直接：
 
 ```bash
-brew install --formula https://raw.githubusercontent.com/Holden-Lin/claudex-swtich/main/Formula/claudex-switch.rb
+brew install --formula https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/Formula/claudex-switch.rb
 ```
 
 ### 本地开发
 
 ```bash
-git clone git@github.com:Holden-Lin/claudex-swtich.git
-cd claudex-swtich
+git clone git@github.com:Holden-Lin/claudex-switch.git
+cd claudex-switch
 bun install
 bun run test
 bun run verify
