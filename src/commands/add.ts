@@ -9,6 +9,7 @@ import {
   aliasExists,
   findAliasByTarget,
 } from "../alias/store";
+import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
 import {
   profileExists,
   addOAuthProfile,
@@ -172,10 +173,15 @@ async function addClaudeOAuth(alias: string): Promise<void> {
   info("Opening Claude login...");
   blank();
 
-  const proc = spawn("claude", ["auth", "login"], { stdio: "inherit" });
+  const browserScript = createPrivateBrowserScript();
+  const env = browserScript
+    ? { ...process.env, BROWSER: browserScript }
+    : undefined;
+  const proc = spawn("claude", ["auth", "login"], { stdio: "inherit", env });
   const exitCode = await new Promise<number | null>((resolve) =>
     proc.on("close", resolve),
   );
+  cleanupBrowserScript(browserScript);
 
   const newCreds = await readCredentials(CREDENTIALS_FILE);
   if (exitCode !== 0 || !newCreds) {
@@ -229,10 +235,15 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   info("Running codex login...");
   blank();
 
-  const proc = spawn("codex", ["login"], { stdio: "inherit" });
+  const browserScript2 = createPrivateBrowserScript();
+  const env2 = browserScript2
+    ? { ...process.env, BROWSER: browserScript2 }
+    : undefined;
+  const proc = spawn("codex", ["login"], { stdio: "inherit", env: env2 });
   const exitCode = await new Promise<number | null>((resolve) =>
     proc.on("close", resolve),
   );
+  cleanupBrowserScript(browserScript2);
 
   if (exitCode !== 0) {
     blank();

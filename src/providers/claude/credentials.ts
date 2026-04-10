@@ -1,7 +1,7 @@
 import { platform } from "os";
 import { spawnSync } from "child_process";
 import { CREDENTIALS_FILE } from "../../lib/paths";
-import { readJson, writeJson } from "../../lib/fs";
+import { readJson, writeJsonSecure } from "../../lib/fs";
 import type { CredentialsFile } from "../../types";
 
 const KEYCHAIN_SERVICE = "Claude Code-credentials";
@@ -85,7 +85,7 @@ async function writeJsonFile(
   creds: CredentialsFile,
   path: string,
 ): Promise<void> {
-  await writeJson(path, creds);
+  await writeJsonSecure(path, creds);
 }
 
 export async function readCredentials(

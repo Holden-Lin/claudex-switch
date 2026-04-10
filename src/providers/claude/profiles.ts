@@ -118,8 +118,8 @@ export async function switchProfile(name: string): Promise<ProfileData> {
   const state = await readState();
   const targetData = await readProfileData(name);
 
-  // Save current credentials back to old profile
-  if (state.active && state.active !== name) {
+  // Save current credentials back before loading target
+  if (state.active) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
       const currentCreds = await readCredentials(CREDENTIALS_FILE);

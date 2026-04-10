@@ -3688,7 +3688,7 @@ async function readJsonFile(path) {
   return readJson(path, null);
 }
 async function writeJsonFile(creds, path) {
-  await writeJson(path, creds);
+  await writeJsonSecure(path, creds);
 }
 async function readCredentials(path = CREDENTIALS_FILE) {
   if (useKeychain(path)) {
@@ -3882,7 +3882,7 @@ async function switchProfile(name) {
   }
   const state = await readState();
   const targetData = await readProfileData(name);
-  if (state.active && state.active !== name) {
+  if (state.active) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
       const currentCreds = await readCredentials(CREDENTIALS_FILE);
@@ -4009,6 +4009,40 @@ function setActiveAccount(reg, accountKey) {
 
 // src/commands/add.ts
 import { spawn, spawnSync as spawnSync2 } from "child_process";
+
+// src/lib/browser.ts
+import { platform as platform2 } from "os";
+import { join as join2 } from "path";
+import { tmpdir } from "os";
+import { writeFileSync, unlinkSync } from "fs";
+var MACOS_SCRIPT = `#!/bin/bash
+URL="$1"
+if [ -d "/Applications/Google Chrome.app" ]; then
+  open -na "Google Chrome" --args --incognito "$URL"
+elif [ -d "/Applications/Firefox.app" ]; then
+  open -na "Firefox" --args --private-window "$URL"
+elif [ -d "/Applications/Microsoft Edge.app" ]; then
+  open -na "Microsoft Edge" --args --inprivate "$URL"
+else
+  open "$URL"
+fi
+`;
+function createPrivateBrowserScript() {
+  if (platform2() !== "darwin")
+    return null;
+  const path = join2(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
+  writeFileSync(path, MACOS_SCRIPT, { mode: 493 });
+  return path;
+}
+function cleanupBrowserScript(path) {
+  if (!path)
+    return;
+  try {
+    unlinkSync(path);
+  } catch {}
+}
+
+// src/commands/add.ts
 init_paths();
 init_auth();
 function readClaudeAuthStatus() {
@@ -4117,8 +4151,11 @@ async function addClaudeOAuth(alias) {
   }
   info("Opening Claude login...");
   blank();
-  const proc = spawn("claude", ["auth", "login"], { stdio: "inherit" });
+  const browserScript = createPrivateBrowserScript();
+  const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
+  const proc = spawn("claude", ["auth", "login"], { stdio: "inherit", env: env2 });
   const exitCode = await new Promise((resolve) => proc.on("close", resolve));
+  cleanupBrowserScript(browserScript);
   const newCreds = await readCredentials(CREDENTIALS_FILE);
   if (exitCode !== 0 || !newCreds) {
     blank();
@@ -4160,8 +4197,11 @@ async function addCodexChatGPT(alias) {
   }
   info("Running codex login...");
   blank();
-  const proc = spawn("codex", ["login"], { stdio: "inherit" });
+  const browserScript2 = createPrivateBrowserScript();
+  const env2 = browserScript2 ? { ...process.env, BROWSER: browserScript2 } : undefined;
+  const proc = spawn("codex", ["login"], { stdio: "inherit", env: env2 });
   const exitCode = await new Promise((resolve) => proc.on("close", resolve));
+  cleanupBrowserScript(browserScript2);
   if (exitCode !== 0) {
     blank();
     error("Login failed or was cancelled.");
@@ -4878,8 +4918,10 @@ function formatClaudeIdentity(account) {
   return account?.emailAddress ?? account?.accountUuid ?? "unknown";
 }
 async function runLoginCommand(command, args) {
+  const browserScript = createPrivateBrowserScript();
+  const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
-    const proc = spawn2(command, args, { stdio: "inherit" });
+    const proc = spawn2(command, args, { stdio: "inherit", env: env2 });
     return await new Promise((resolve, reject) => {
       proc.on("close", resolve);
       proc.on("error", reject);
@@ -4888,6 +4930,8 @@ async function runLoginCommand(command, args) {
     error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
     blank();
     process.exit(1);
+  } finally {
+    cleanupBrowserScript(browserScript);
   }
 }
 

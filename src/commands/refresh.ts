@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import chalk from "chalk";
 import { findAlias, loadAliases } from "../alias/store";
+import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
 import { readJson } from "../lib/fs";
 import { blank, error, formatPlan, formatProvider, formatType, hint, info, success } from "../lib/ui";
 import { claudeProfileAccountFile } from "../lib/paths";
@@ -243,8 +244,12 @@ async function runLoginCommand(
   command: string,
   args: string[],
 ): Promise<number | null> {
+  const browserScript = createPrivateBrowserScript();
+  const env = browserScript
+    ? { ...process.env, BROWSER: browserScript }
+    : undefined;
   try {
-    const proc = spawn(command, args, { stdio: "inherit" });
+    const proc = spawn(command, args, { stdio: "inherit", env });
     return await new Promise<number | null>((resolve, reject) => {
       proc.on("close", resolve);
       proc.on("error", reject);
@@ -255,5 +260,7 @@ async function runLoginCommand(
     );
     blank();
     process.exit(1);
+  } finally {
+    cleanupBrowserScript(browserScript);
   }
 }
