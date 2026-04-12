@@ -14,6 +14,7 @@ import { purge } from "./commands/purge";
 import { current } from "./commands/current";
 import { importAccounts } from "./commands/import";
 import { refresh } from "./commands/refresh";
+import { version } from "./commands/version";
 import { blank, formatProvider } from "./lib/ui";
 import { runAutoUpdateIfNeeded } from "./lib/update";
 
@@ -32,12 +33,17 @@ const HELP = `
     claudex-switch refresh <alias>     Refresh and resave an account login
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
+    claudex-switch -version            Show version and latest release status
     claudex-switch help                Show this help
 
   ${chalk.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
 `;
+
+function isVersionCommand(command?: string): boolean {
+  return command === "-version" || command === "--version";
+}
 
 async function interactivePicker(): Promise<void> {
   const aliasReg = await loadAliases();
@@ -101,6 +107,11 @@ async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
 
   try {
+    if (isVersionCommand(command)) {
+      await version();
+      return;
+    }
+
     const autoUpdate = await runAutoUpdateIfNeeded();
     if (autoUpdate.action === "restart") {
       process.exit(autoUpdate.exitCode);

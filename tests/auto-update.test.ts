@@ -3,6 +3,7 @@ import {
   compareVersions,
   detectInstallMethod,
   extractVersionFromReleaseUrl,
+  getVersionCheck,
   runAutoUpdateIfNeeded,
 } from "../src/lib/update";
 
@@ -24,6 +25,36 @@ describe("auto update", () => {
         "https://github.com/Holden-Lin/claudex-switch/releases/latest",
       ),
     ).toBeNull();
+  });
+
+  test("reports when the installed version is already the latest", async () => {
+    const result = await getVersionCheck(async () => "1.1.1");
+
+    expect(result).toEqual({
+      currentVersion: "1.1.1",
+      latestVersion: "1.1.1",
+      status: "latest",
+    });
+  });
+
+  test("reports when an update is available", async () => {
+    const result = await getVersionCheck(async () => "1.2.0");
+
+    expect(result).toEqual({
+      currentVersion: "1.1.1",
+      latestVersion: "1.2.0",
+      status: "outdated",
+    });
+  });
+
+  test("reports unknown when the latest release cannot be checked", async () => {
+    const result = await getVersionCheck(async () => null);
+
+    expect(result).toEqual({
+      currentVersion: "1.1.1",
+      latestVersion: null,
+      status: "unknown",
+    });
   });
 
   test("detects a homebrew install from the executable path", () => {

@@ -121,6 +121,7 @@ claudex-switch add work
 | `claudex-switch remove <alias>` | 只删除别名，不删除底层账号 |
 | `claudex-switch purge <alias>` | 删除底层账号及其关联别名 |
 | `claudex-switch import` | 从已有数据导入账号 |
+| `claudex-switch -version` | 显示当前版本，并检查是否已是最新 release |
 | `claudex-switch help` | 显示帮助 |
 
 **快捷方式:** `ls` = `list`，`rm` = `remove`

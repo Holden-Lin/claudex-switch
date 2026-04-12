@@ -37,6 +37,18 @@ export type AutoUpdateResult =
   | { action: "continue" }
   | { action: "restart"; exitCode: number };
 
+export type VersionCheckStatus =
+  | "latest"
+  | "outdated"
+  | "ahead"
+  | "unknown";
+
+export type VersionCheckResult = {
+  currentVersion: string;
+  latestVersion: string | null;
+  status: VersionCheckStatus;
+};
+
 export function normalizeVersion(version: string): string {
   return version.replace(/^v/, "");
 }
@@ -80,6 +92,33 @@ export async function fetchLatestReleaseVersion(
   } catch {
     return null;
   }
+}
+
+export async function getVersionCheck(
+  fetchLatestVersion: () => Promise<string | null> = fetchLatestReleaseVersion,
+): Promise<VersionCheckResult> {
+  const latestVersion = await fetchLatestVersion();
+
+  if (!latestVersion) {
+    return {
+      currentVersion: CURRENT_VERSION,
+      latestVersion: null,
+      status: "unknown",
+    };
+  }
+
+  const comparison = compareVersions(CURRENT_VERSION, latestVersion);
+
+  return {
+    currentVersion: CURRENT_VERSION,
+    latestVersion,
+    status:
+      comparison < 0
+        ? "outdated"
+        : comparison > 0
+          ? "ahead"
+          : "latest",
+  };
 }
 
 export function detectInstallMethod(

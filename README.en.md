@@ -121,6 +121,7 @@ Then choose an account type:
 | `claudex-switch remove <alias>` | Remove an alias only |
 | `claudex-switch purge <alias>` | Delete an account and its linked aliases |
 | `claudex-switch import` | Import from existing data |
+| `claudex-switch -version` | Show the current version and whether it matches the latest release |
 | `claudex-switch help` | Show help |
 
 **Shortcuts:** `ls` = `list`, `rm` = `remove`
