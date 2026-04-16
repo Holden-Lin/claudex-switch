@@ -4943,7 +4943,7 @@ import { spawnSync as spawnSync3 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.2",
+  version: "1.1.4",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
