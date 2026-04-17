@@ -35,7 +35,7 @@ const HELP = `
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
     claudex-switch update              Upgrade to the latest release
-    claudex-switch --version           Show version
+    claudex-switch --version           Show version and auto-update to the latest release
     claudex-switch help                Show this help
 
   ${chalk.dim("Shortcuts:")}
@@ -111,15 +111,13 @@ async function main(): Promise<void> {
 
   try {
     if (isVersionCommand(command)) {
-      version();
-      return;
-    }
-
-    if (command !== "update") {
       const autoUpdate = await runAutoUpdateIfNeeded();
       if (autoUpdate.action === "restart") {
         process.exit(autoUpdate.exitCode);
       }
+
+      version();
+      return;
     }
 
     switch (command) {

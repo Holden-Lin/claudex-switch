@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/inst
 
 默认会安装最新 GitHub Release；如果仓库还没有发布过 release，会自动回退到 `main` 分支。
 
-安装后的 `claudex-switch` 每次运行时都会先检查最新 GitHub Release；如果发现新版本，会自动更新后再继续执行当前命令。
+安装后的 `claudex-switch` 只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；如果发现新版本，会先自动更新，再显示版本号。
 
 如果你想手动触发升级，也可以运行：
 
@@ -131,7 +131,7 @@ claudex-switch add work
 | `claudex-switch purge <alias>` | 删除底层账号及其关联别名 |
 | `claudex-switch import` | 从已有数据导入账号 |
 | `claudex-switch update` | 升级到最新 GitHub Release |
-| `claudex-switch --version` | 显示版本号 |
+| `claudex-switch --version` | 显示版本号；如有新 release，会先自动更新 |
 | `claudex-switch help` | 显示帮助 |
 
 **快捷方式:** `ls` = `list`，`rm` = `remove`，`-V` = `--version`
@@ -205,7 +205,7 @@ claudex-switch 采用「薄别名层」架构：
 ## 注意事项
 
 - 这是非官方工具，依赖 Claude Code 和 Codex 当前的本地认证存储方式
-- 自动更新只检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
+- 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
 - Codex 切换后需要重启客户端才能生效
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
 - Codex 额度显示依赖 `registry.json` 中的缓存数据，如需刷新请使用 `codex-auth` 的 API 模式
@@ -213,7 +213,7 @@ claudex-switch 采用「薄别名层」架构：
 如需临时关闭自动更新，可在当前命令前加上：
 
 ```bash
-CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch list
+CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch --version
 ```
 
 如果你关闭了自动更新，之后仍然可以随时手动执行：

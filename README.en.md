@@ -10,7 +10,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch list` shows all accounts with current quota
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
-- Checks the latest GitHub Release before each run and auto-updates before continuing
+- Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info
 - Claude: OAuth subscriptions + Anthropic API keys
 - Codex: ChatGPT OAuth + OpenAI API keys
 - macOS Keychain credential support
@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/inst
 
 By default this installs the latest GitHub Release. If no release exists yet, it falls back to the `main` branch.
 
-After installation, `claudex-switch` checks the latest GitHub Release before each run. When a newer release exists, it upgrades itself and then continues the original command.
+After installation, `claudex-switch` checks the latest GitHub Release only when you run `claudex-switch --version`. When a newer release exists, it upgrades itself first and then prints the version.
 
 To trigger an upgrade manually, run:
 
@@ -131,7 +131,7 @@ Then choose an account type:
 | `claudex-switch purge <alias>` | Delete an account and its linked aliases |
 | `claudex-switch import` | Import from existing data |
 | `claudex-switch update` | Upgrade to the latest GitHub Release |
-| `claudex-switch --version` | Show version |
+| `claudex-switch --version` | Show version and auto-update first when a newer release exists |
 | `claudex-switch help` | Show help |
 
 **Shortcuts:** `ls` = `list`, `rm` = `remove`, `-V` = `--version`
@@ -205,7 +205,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 ## Caveats
 
 - Unofficial tool — relies on Claude Code's and Codex's local auth storage formats
-- Auto-update only tracks the latest GitHub Release. Changes pushed to `main` are not picked up by installed users until a new release is published
+- Auto-update only runs on `claudex-switch --version` and only tracks the latest GitHub Release. Changes pushed to `main` are not picked up by installed users until a new release is published
 - Codex clients must be restarted after switching for changes to take effect
 - Credential files are set to `0600` permissions, but be aware of the security implications of storing credential copies in `~/.claude-profiles/`
 - Codex quota display uses cached data from `registry.json`; use `codex-auth`'s API mode for real-time refresh
@@ -213,7 +213,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 To temporarily disable auto-update for a single run:
 
 ```bash
-CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch list
+CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch --version
 ```
 
 Even with auto-update disabled, you can still upgrade manually at any time:
