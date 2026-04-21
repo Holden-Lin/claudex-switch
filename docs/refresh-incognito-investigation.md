@@ -2,6 +2,16 @@
 
 日期：2026-04-16
 
+## 2026-04-20 状态更新
+
+主分支现已按下文建议完成修复：
+
+- `Codex add/refresh` 改为走 `codex login --device-auth`
+- `claudex-switch` 自己主动打开 `https://auth.openai.com/codex/device`
+- macOS 继续复用现有私密 / 无痕浏览器脚本
+
+因此，后续如果 `refresh codex` 仍然不是无痕打开，更应优先检查是否还在运行旧 release，而不是继续怀疑这份源码分支本身没有实现。
+
 ## 背景
 
 本地已安装当前项目，但执行 `claudex-switch refresh <alias>` 时，浏览器没有以无痕 / 私密模式打开，需要确认是：

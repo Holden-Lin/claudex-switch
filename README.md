@@ -145,8 +145,10 @@ claudex-switch refresh <alias>
 ```
 
 - Claude OAuth：切换到对应 profile，执行 `claude auth login`，然后把当前凭证重新保存回该 profile
-- Codex ChatGPT：切换到对应账号快照，执行 `codex login`，然后把新的 `~/.codex/auth.json` 回写到该别名
+- Codex ChatGPT：切换到对应账号快照，执行 `codex login --device-auth`，然后把新的 `~/.codex/auth.json` 回写到该别名
 - API Key 类型账号不需要 refresh
+
+在 macOS 上，`claudex-switch` 会主动用私密 / 无痕窗口打开 Codex 的 device auth 页面；如果浏览器没有自动打开，终端里也会显示固定地址让你手动访问。
 
 ## 输出示例
 

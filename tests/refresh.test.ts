@@ -1,48 +1,39 @@
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
-  mock,
   spyOn,
   test,
 } from "bun:test";
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, writeFile } from "fs/promises";
-import * as os from "os";
+import { homedir } from "os";
 
 type SpawnHandler = (
   command: string,
   args: string[],
 ) => number | void | Promise<number | void>;
 
+type SpawnSyncResult = {
+  status: number | null;
+  error?: Error;
+  stdout?: string | Buffer;
+  stderr?: string | Buffer;
+};
+
+type SpawnSyncHandler = (
+  command: string,
+  args: string[],
+) => SpawnSyncResult;
+
 let spawnHandler: SpawnHandler = async () => 0;
-
-mock.module("os", () => ({
-  ...os,
-  homedir: () => process.env.CLAUDEX_TEST_HOME ?? os.homedir(),
-  platform: () => "linux",
-}));
-
-mock.module("child_process", () => ({
-  ...childProcess,
-  spawn: (command: string, args: string[]) => {
-    const proc = new EventEmitter() as EventEmitter & {
-      on(event: string, listener: (...value: unknown[]) => void): unknown;
-    };
-
-    queueMicrotask(async () => {
-      try {
-        const code = (await spawnHandler(command, args)) ?? 0;
-        proc.emit("close", code);
-      } catch (err) {
-        proc.emit("error", err);
-      }
-    });
-
-    return proc;
-  },
-}));
+let spawnSyncHandler: SpawnSyncHandler = () => ({
+  status: 0,
+  stdout: "",
+  stderr: "",
+});
 
 const { saveAliases } = await import("../src/alias/store");
 const { refresh } = await import("../src/commands/refresh");
@@ -90,10 +81,47 @@ function createRegistry(): CodexRegistry {
 }
 
 describe("refresh", () => {
+  afterEach(() => {
+    childProcess.spawn.mockRestore?.();
+    childProcess.spawnSync.mockRestore?.();
+  });
+
   beforeEach(async () => {
     await resetTestHome();
     process.env.CLAUDEX_FORCE_FILE_CREDENTIALS = "1";
     spawnHandler = async () => 0;
+    spawnSyncHandler = () => ({
+      status: 0,
+      stdout: "",
+      stderr: "",
+    });
+
+    spyOn(childProcess, "spawn").mockImplementation((command, args) => {
+      const proc = new EventEmitter() as EventEmitter & {
+        on(event: string, listener: (...value: unknown[]) => void): unknown;
+      };
+
+      queueMicrotask(async () => {
+        try {
+          const code = (await spawnHandler(
+            String(command),
+            (args ?? []).map((value) => String(value)),
+          )) ?? 0;
+          proc.emit("close", code);
+        } catch (err) {
+          proc.emit("error", err);
+        }
+      });
+
+      return proc as ReturnType<typeof childProcess.spawn>;
+    });
+
+    spyOn(childProcess, "spawnSync").mockImplementation((command, args) =>
+      spawnSyncHandler(
+        String(command),
+        (args ?? []).map((value) => String(value)),
+      ) as ReturnType<typeof childProcess.spawnSync>,
+    );
   });
 
   test("refreshes a codex alias by resaving the refreshed auth snapshot", async () => {
@@ -167,14 +195,23 @@ describe("refresh", () => {
       last_refresh: "2026-04-06T00:00:00.000Z",
     };
 
+    const browserCalls: Array<[string, string[]]> = [];
     spawnHandler = async (command, args) => {
       expect(command).toBe("codex");
-      expect(args).toEqual(["login"]);
-      await mkdir(os.homedir(), { recursive: true });
+      expect(args).toEqual(["login", "--device-auth"]);
+      await mkdir(homedir(), { recursive: true });
       await writeFile(
         CODEX_AUTH_FILE,
         JSON.stringify(refreshedAuth, null, 2),
       );
+    };
+    spawnSyncHandler = (command, args) => {
+      browserCalls.push([command, args]);
+      return {
+        status: 0,
+        stdout: "",
+        stderr: "",
+      };
     };
 
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -188,6 +225,20 @@ describe("refresh", () => {
     expect(savedRegistry.active_account_key).toBe(accountKey);
     expect(savedRegistry.accounts[0]?.email).toBe("satoshi.lamm@gmail.com");
     expect(savedRegistry.accounts[0]?.plan).toBe("plus");
+    const browserCall = browserCalls.at(-1);
+    expect(browserCall?.[1]).toEqual([
+      "https://auth.openai.com/codex/device",
+    ]);
+    if (process.platform === "darwin") {
+      expect(browserCall?.[0]).toContain("claudex-private-browser-");
+    } else if (process.platform === "linux") {
+      expect(browserCall?.[0]).toBe("xdg-open");
+    } else if (process.platform === "win32") {
+      expect(browserCall).toEqual([
+        "cmd",
+        ["/c", "start", "", "https://auth.openai.com/codex/device"],
+      ]);
+    }
 
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("Refreshed satoshix");
@@ -208,8 +259,8 @@ describe("refresh", () => {
     };
     await saveAliases(aliases);
 
-    await mkdir(os.homedir(), { recursive: true });
-    await mkdir(`${os.homedir()}/.claude`, { recursive: true });
+    await mkdir(homedir(), { recursive: true });
+    await mkdir(`${homedir()}/.claude`, { recursive: true });
 
     const originalCreds: CredentialsFile = {
       claudeAiOauth: {

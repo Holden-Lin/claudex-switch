@@ -28,6 +28,7 @@ import {
   decodeIdToken,
   snapshotActiveAuth,
 } from "../providers/codex/auth";
+import { runCodexDeviceAuthLogin } from "../providers/codex/login";
 import {
   blank,
   success,
@@ -235,15 +236,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   info("Running codex login...");
   blank();
 
-  const browserScript2 = createPrivateBrowserScript();
-  const env2 = browserScript2
-    ? { ...process.env, BROWSER: browserScript2 }
-    : undefined;
-  const proc = spawn("codex", ["login"], { stdio: "inherit", env: env2 });
-  const exitCode = await new Promise<number | null>((resolve) =>
-    proc.on("close", resolve),
-  );
-  cleanupBrowserScript(browserScript2);
+  const exitCode = await runCodexDeviceAuthLogin();
 
   if (exitCode !== 0) {
     blank();

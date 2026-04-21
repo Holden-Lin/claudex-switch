@@ -1,11 +1,12 @@
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
-  mock,
   spyOn,
   test,
 } from "bun:test";
+import * as prompts from "@inquirer/prompts";
 import { loadAliases, saveAliases } from "../src/alias/store";
 import { codexAccountAuthFile } from "../src/lib/paths";
 import { fileExists } from "../src/lib/fs";
@@ -17,11 +18,7 @@ import {
 import type { AliasRegistry, CodexAuthFile, CodexRegistry } from "../src/types";
 import { resetTestHome } from "./helpers";
 
-mock.module("@inquirer/prompts", () => ({
-  confirm: async () => true,
-}));
-
-const { purge } = await import("../src/commands/purge");
+let purge: typeof import("../src/commands/purge").purge;
 
 function createRegistry(): CodexRegistry {
   return {
@@ -55,8 +52,14 @@ function createRegistry(): CodexRegistry {
 }
 
 describe("purge", () => {
+  afterEach(() => {
+    prompts.confirm.mockRestore?.();
+  });
+
   beforeEach(async () => {
     await resetTestHome();
+    spyOn(prompts, "confirm").mockResolvedValue(true);
+    ({ purge } = await import("../src/commands/purge"));
   });
 
   test("removes linked aliases, registry entry, and auth snapshot for codex accounts", async () => {

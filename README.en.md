@@ -145,8 +145,10 @@ claudex-switch refresh <alias>
 ```
 
 - Claude OAuth: switches to the target profile, runs `claude auth login`, then saves the current credentials back into that profile
-- Codex ChatGPT: switches to the target auth snapshot, runs `codex login`, then writes the new `~/.codex/auth.json` back to that alias
+- Codex ChatGPT: switches to the target auth snapshot, runs `codex login --device-auth`, then writes the new `~/.codex/auth.json` back to that alias
 - API key accounts do not need refresh
+
+On macOS, `claudex-switch` opens Codex's device auth page in a private/incognito browser window when possible. If the browser does not open automatically, the CLI still prints the fixed URL so you can open it manually.
 
 ## Sample Output
 

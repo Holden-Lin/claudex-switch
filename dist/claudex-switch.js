@@ -5,43 +5,25 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: __exportSetter.bind(all, name)
+      set: (newValue) => all[name] = () => newValue
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2192,6 +2174,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2336,7 +2319,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -4028,13 +4011,15 @@ function setActiveAccount(reg, accountKey) {
 }
 
 // src/commands/add.ts
-import { spawn, spawnSync as spawnSync2 } from "child_process";
+import { spawn as spawn2, spawnSync as spawnSync3 } from "child_process";
 
 // src/lib/browser.ts
+import { spawnSync as spawnSync2 } from "child_process";
 import { platform as platform2 } from "os";
 import { join as join2 } from "path";
 import { tmpdir } from "os";
 import { writeFileSync, unlinkSync } from "fs";
+var CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
 var MACOS_SCRIPT = `#!/bin/bash
 URL="$1"
 if [ -d "/Applications/Google Chrome.app" ]; then
@@ -4061,12 +4046,63 @@ function cleanupBrowserScript(path) {
     unlinkSync(path);
   } catch {}
 }
+function getBrowserOpenCommand(url) {
+  switch (platform2()) {
+    case "darwin":
+      return { command: "open", args: [url] };
+    case "linux":
+      return { command: "xdg-open", args: [url] };
+    case "win32":
+      return { command: "cmd", args: ["/c", "start", "", url] };
+    default:
+      return null;
+  }
+}
+function openExternalUrl(url, privateWindow = false) {
+  const browserScript = privateWindow ? createPrivateBrowserScript() : null;
+  const openCommand = browserScript ? { command: browserScript, args: [url] } : getBrowserOpenCommand(url);
+  if (!openCommand)
+    return false;
+  try {
+    const result = spawnSync2(openCommand.command, openCommand.args, {
+      stdio: "ignore"
+    });
+    return result.status === 0 && !result.error;
+  } catch {
+    return false;
+  } finally {
+    cleanupBrowserScript(browserScript);
+  }
+}
 
 // src/commands/add.ts
 init_paths();
 init_auth();
+
+// src/providers/codex/login.ts
+import { spawn } from "child_process";
+async function runCodexDeviceAuthLogin() {
+  try {
+    const proc = spawn("codex", ["login", "--device-auth"], {
+      stdio: "inherit"
+    });
+    if (!openExternalUrl(CODEX_DEVICE_AUTH_URL, true)) {
+      hint(`Open ${source_default.cyan(CODEX_DEVICE_AUTH_URL)} in your browser.`);
+    }
+    return await new Promise((resolve, reject) => {
+      proc.on("close", resolve);
+      proc.on("error", reject);
+    });
+  } catch (err) {
+    error(`Failed to start codex: ${err instanceof Error ? err.message : String(err)}`);
+    blank();
+    process.exit(1);
+  }
+}
+
+// src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result = spawnSync2("claude", ["auth", "status"], {
+  const result = spawnSync3("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
   if (result.status !== 0)
@@ -4158,7 +4194,7 @@ async function addClaudeOAuth(alias) {
     if (authStatus?.loggedIn) {
       info("Logging out current Claude session...");
       blank();
-      const logout = spawnSync2("claude", ["auth", "logout"], {
+      const logout = spawnSync3("claude", ["auth", "logout"], {
         stdio: "inherit"
       });
       if (logout.status !== 0) {
@@ -4173,7 +4209,7 @@ async function addClaudeOAuth(alias) {
   blank();
   const browserScript = createPrivateBrowserScript();
   const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
-  const proc = spawn("claude", ["auth", "login"], { stdio: "inherit", env: env2 });
+  const proc = spawn2("claude", ["auth", "login"], { stdio: "inherit", env: env2 });
   const exitCode = await new Promise((resolve) => proc.on("close", resolve));
   cleanupBrowserScript(browserScript);
   const newCreds = await readCredentials(CREDENTIALS_FILE);
@@ -4206,7 +4242,7 @@ async function addClaudeApiKey(alias) {
   blank();
 }
 async function addCodexChatGPT(alias) {
-  const codexCheck = spawnSync2("codex", ["--version"], {
+  const codexCheck = spawnSync3("codex", ["--version"], {
     encoding: "utf-8"
   });
   const hasCodex = codexCheck.status === 0;
@@ -4217,11 +4253,7 @@ async function addCodexChatGPT(alias) {
   }
   info("Running codex login...");
   blank();
-  const browserScript2 = createPrivateBrowserScript();
-  const env2 = browserScript2 ? { ...process.env, BROWSER: browserScript2 } : undefined;
-  const proc = spawn("codex", ["login"], { stdio: "inherit", env: env2 });
-  const exitCode = await new Promise((resolve) => proc.on("close", resolve));
-  cleanupBrowserScript(browserScript2);
+  const exitCode = await runCodexDeviceAuthLogin();
   if (exitCode !== 0) {
     blank();
     error("Login failed or was cancelled.");
@@ -4787,7 +4819,7 @@ async function importCodexAccounts(reg) {
 }
 
 // src/commands/refresh.ts
-import { spawn as spawn2 } from "child_process";
+import { spawn as spawn3 } from "child_process";
 init_fs();
 init_paths();
 init_auth();
@@ -4885,7 +4917,7 @@ async function refreshCodex(alias, accountKey) {
   await saveRegistry(reg);
   info(`Opening Codex login for ${source_default.bold(alias)}...`);
   blank();
-  const exitCode = await runLoginCommand("codex", ["login"]);
+  const exitCode = await runCodexDeviceAuthLogin();
   if (exitCode !== 0) {
     blank();
     error("Codex login failed or was cancelled.");
@@ -4941,7 +4973,7 @@ async function runLoginCommand(command, args) {
   const browserScript = createPrivateBrowserScript();
   const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
-    const proc = spawn2(command, args, { stdio: "inherit", env: env2 });
+    const proc = spawn3(command, args, { stdio: "inherit", env: env2 });
     return await new Promise((resolve, reject) => {
       proc.on("close", resolve);
       proc.on("error", reject);
@@ -4956,7 +4988,7 @@ async function runLoginCommand(command, args) {
 }
 
 // src/lib/update.ts
-import { spawnSync as spawnSync3 } from "child_process";
+import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
@@ -5044,7 +5076,7 @@ async function fetchLatestReleaseVersion(fetchImpl = fetch) {
     return null;
   }
 }
-function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync3) {
+function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync4) {
   const brewPrefix = readCommandStdout(runCommand("brew", ["--prefix"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"]
@@ -5066,7 +5098,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
   const env2 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
-  const runCommand = options.runCommand ?? spawnSync3;
+  const runCommand = options.runCommand ?? spawnSync4;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
   if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV] === "1" || env2[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {

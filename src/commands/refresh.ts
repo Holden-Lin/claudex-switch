@@ -19,6 +19,7 @@ import {
   snapshotActiveAuth,
   switchToAccount,
 } from "../providers/codex/auth";
+import { runCodexDeviceAuthLogin } from "../providers/codex/login";
 import {
   findAccountByKey,
   loadRegistry,
@@ -168,7 +169,7 @@ async function refreshCodex(
   info(`Opening Codex login for ${chalk.bold(alias)}...`);
   blank();
 
-  const exitCode = await runLoginCommand("codex", ["login"]);
+  const exitCode = await runCodexDeviceAuthLogin();
   if (exitCode !== 0) {
     blank();
     error("Codex login failed or was cancelled.");
