@@ -20,3 +20,8 @@
 - “现在refresh codex账号还是不会用无痕模式打开。你看看是我本地安装有问题还是本身代码没实现好”
 - “做好计划直接改”
 - “先把bun run verify的问题修复了”
+
+## 2026-04-27
+
+- “claudex-switch refresh holdenx 登录成功但报错 'Codex login completed for a different account'，实际邮箱是对的” → 当邮箱一致但 account key 变化（org/team 变更）时，自动迁移 registry 和 alias，而不是报错退出
+- “现在codex login的时候不会打开无痕模式” → 通过 PATH shim 拦截 macOS `open` 命令 + 主动打开 device auth URL 到无痕窗口
