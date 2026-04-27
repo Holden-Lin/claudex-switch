@@ -5,7 +5,7 @@ import {
   createOpenShimDir,
   openExternalUrl,
 } from "../../lib/browser";
-import { blank, error } from "../../lib/ui";
+import { blank, error, hint } from "../../lib/ui";
 
 export async function runCodexDeviceAuthLogin(): Promise<number | null> {
   const shimDir = createOpenShimDir();
@@ -18,7 +18,9 @@ export async function runCodexDeviceAuthLogin(): Promise<number | null> {
       env,
     });
 
-    openExternalUrl(CODEX_DEVICE_AUTH_URL, true);
+    if (!openExternalUrl(CODEX_DEVICE_AUTH_URL, true)) {
+      hint(`Open this URL manually: ${CODEX_DEVICE_AUTH_URL}`);
+    }
 
     return await new Promise<number | null>((resolve, reject) => {
       proc.on("close", resolve);
