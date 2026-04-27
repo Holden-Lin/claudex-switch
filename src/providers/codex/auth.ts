@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, writeFile } from "fs/promises";
+import { chmod, copyFile, mkdir, unlink, writeFile } from "fs/promises";
 import {
   CODEX_AUTH_FILE,
   CODEX_ACCOUNTS_DIR,
@@ -70,6 +70,17 @@ export function decodeIdToken(idToken: string): {
     };
   } catch {
     return null;
+  }
+}
+
+export async function removeAccountAuthFile(
+  accountKey: string,
+): Promise<void> {
+  const path = codexAccountAuthFile(accountKey);
+  try {
+    await unlink(path);
+  } catch {
+    // ignore if already gone
   }
 }
 

@@ -1,17 +1,24 @@
 import { spawn } from "child_process";
-import chalk from "chalk";
-import { CODEX_DEVICE_AUTH_URL, openExternalUrl } from "../../lib/browser";
-import { blank, error, hint } from "../../lib/ui";
+import {
+  CODEX_DEVICE_AUTH_URL,
+  cleanupOpenShimDir,
+  createOpenShimDir,
+  openExternalUrl,
+} from "../../lib/browser";
+import { blank, error } from "../../lib/ui";
 
 export async function runCodexDeviceAuthLogin(): Promise<number | null> {
+  const shimDir = createOpenShimDir();
+  const env = shimDir
+    ? { ...process.env, PATH: `${shimDir}:${process.env.PATH}` }
+    : undefined;
   try {
     const proc = spawn("codex", ["login", "--device-auth"], {
       stdio: "inherit",
+      env,
     });
 
-    if (!openExternalUrl(CODEX_DEVICE_AUTH_URL, true)) {
-      hint(`Open ${chalk.cyan(CODEX_DEVICE_AUTH_URL)} in your browser.`);
-    }
+    openExternalUrl(CODEX_DEVICE_AUTH_URL, true);
 
     return await new Promise<number | null>((resolve, reject) => {
       proc.on("close", resolve);
@@ -23,5 +30,7 @@ export async function runCodexDeviceAuthLogin(): Promise<number | null> {
     );
     blank();
     process.exit(1);
+  } finally {
+    cleanupOpenShimDir(shimDir);
   }
 }

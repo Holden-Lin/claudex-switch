@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import chalk from "chalk";
-import { findAlias, loadAliases } from "../alias/store";
+import { findAlias, loadAliases, updateAlias } from "../alias/store";
 import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
 import { readJson } from "../lib/fs";
 import { blank, error, formatPlan, formatProvider, formatType, hint, info, success } from "../lib/ui";
@@ -16,6 +16,7 @@ import {
 import {
   decodeIdToken,
   readActiveAuth,
+  removeAccountAuthFile,
   snapshotActiveAuth,
   switchToAccount,
 } from "../providers/codex/auth";
@@ -196,16 +197,35 @@ async function refreshCodex(
   const refreshedKey = `${userId}::${accountId}`;
 
   if (refreshedKey !== accountKey) {
-    await switchToAccount(accountKey);
-    blank();
-    error(
-      `Codex login completed for a different account (${email}).`,
+    const savedEmail = account.email?.toLowerCase();
+    const refreshedEmail = tokenInfo?.email?.toLowerCase();
+
+    if (!savedEmail || !refreshedEmail || savedEmail !== refreshedEmail) {
+      await switchToAccount(accountKey);
+      blank();
+      error(
+        `Codex login completed for a different account (${email}).`,
+      );
+      hint(
+        `Retry and sign in as ${chalk.cyan(account.email || alias)}.`,
+      );
+      blank();
+      process.exit(1);
+    }
+
+    info(
+      `Account key changed for ${chalk.bold(email)} (org/team change detected). Migrating...`,
     );
-    hint(
-      `Retry and sign in as ${chalk.cyan(account.email || alias)}.`,
-    );
-    blank();
-    process.exit(1);
+
+    const oldKey = accountKey;
+    accountKey = refreshedKey;
+
+    account.account_key = refreshedKey;
+    account.chatgpt_user_id = userId;
+    account.chatgpt_account_id = accountId;
+
+    await updateAlias(alias, { provider: "codex", accountKey: refreshedKey });
+    await removeAccountAuthFile(oldKey);
   }
 
   await snapshotActiveAuth(accountKey);

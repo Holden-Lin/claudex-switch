@@ -2,7 +2,7 @@ import { spawnSync } from "child_process";
 import { platform } from "os";
 import { join } from "path";
 import { tmpdir } from "os";
-import { writeFileSync, unlinkSync } from "fs";
+import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 
 export const CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
 
@@ -16,6 +16,33 @@ elif [ -d "/Applications/Microsoft Edge.app" ]; then
   open -na "Microsoft Edge" --args --inprivate "$URL"
 else
   open "$URL"
+fi
+`;
+
+const MACOS_OPEN_SHIM = `#!/bin/bash
+# Intercept \`open\` calls: auth URLs go to incognito, everything else to real open.
+AUTH_URL=""
+PASSTHROUGH_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    https://auth.openai.com/*|https://auth0.openai.com/*)
+      AUTH_URL="$arg" ;;
+    *)
+      PASSTHROUGH_ARGS+=("$arg") ;;
+  esac
+done
+if [ -n "$AUTH_URL" ]; then
+  if [ -d "/Applications/Google Chrome.app" ]; then
+    /usr/bin/open -na "Google Chrome" --args --incognito "$AUTH_URL"
+  elif [ -d "/Applications/Firefox.app" ]; then
+    /usr/bin/open -na "Firefox" --args --private-window "$AUTH_URL"
+  elif [ -d "/Applications/Microsoft Edge.app" ]; then
+    /usr/bin/open -na "Microsoft Edge" --args --inprivate "$AUTH_URL"
+  else
+    /usr/bin/open "$AUTH_URL"
+  fi
+else
+  /usr/bin/open "\${PASSTHROUGH_ARGS[@]}"
 fi
 `;
 
@@ -36,6 +63,28 @@ export function cleanupBrowserScript(path: string | null): void {
   if (!path) return;
   try {
     unlinkSync(path);
+  } catch {}
+}
+
+/**
+ * Create a temp directory with an `open` shim that redirects auth URLs
+ * to an incognito window. Returns the directory path to prepend to PATH,
+ * or null on unsupported platforms.
+ */
+export function createOpenShimDir(): string | null {
+  if (platform() !== "darwin") return null;
+
+  const dir = join(tmpdir(), `claudex-open-shim-${process.pid}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "open"), MACOS_OPEN_SHIM, { mode: 0o755 });
+  return dir;
+}
+
+export function cleanupOpenShimDir(dir: string | null): void {
+  if (!dir) return;
+  try {
+    unlinkSync(join(dir, "open"));
+    rmdirSync(dir);
   } catch {}
 }
 

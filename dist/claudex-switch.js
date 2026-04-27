@@ -1624,11 +1624,12 @@ __export(exports_auth, {
   switchToAccount: () => switchToAccount,
   snapshotActiveAuth: () => snapshotActiveAuth,
   saveAccountAuth: () => saveAccountAuth,
+  removeAccountAuthFile: () => removeAccountAuthFile,
   readActiveAuth: () => readActiveAuth,
   readAccountAuth: () => readAccountAuth,
   decodeIdToken: () => decodeIdToken
 });
-import { chmod, copyFile, mkdir as mkdir4, writeFile as writeFile2 } from "fs/promises";
+import { chmod, copyFile, mkdir as mkdir4, unlink, writeFile as writeFile2 } from "fs/promises";
 async function ensureAccountsDir2() {
   await mkdir4(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
@@ -1671,6 +1672,12 @@ function decodeIdToken(idToken) {
   } catch {
     return null;
   }
+}
+async function removeAccountAuthFile(accountKey) {
+  const path = codexAccountAuthFile(accountKey);
+  try {
+    await unlink(path);
+  } catch {}
 }
 async function snapshotActiveAuth(accountKey) {
   if (!await fileExists(CODEX_AUTH_FILE)) {
@@ -3607,6 +3614,15 @@ async function removeAliasesByTarget(target) {
   }
   return removed;
 }
+async function updateAlias(alias, target) {
+  const reg = await loadAliases();
+  const entry = findAlias(reg, alias);
+  if (!entry) {
+    throw new Error(`Alias "${alias}" not found`);
+  }
+  entry.target = target;
+  await saveAliases(reg);
+}
 async function renameAlias(currentAlias, nextAlias) {
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -4018,7 +4034,7 @@ import { spawnSync as spawnSync2 } from "child_process";
 import { platform as platform2 } from "os";
 import { join as join2 } from "path";
 import { tmpdir } from "os";
-import { writeFileSync, unlinkSync } from "fs";
+import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 var CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
 var MACOS_SCRIPT = `#!/bin/bash
 URL="$1"
@@ -4030,6 +4046,32 @@ elif [ -d "/Applications/Microsoft Edge.app" ]; then
   open -na "Microsoft Edge" --args --inprivate "$URL"
 else
   open "$URL"
+fi
+`;
+var MACOS_OPEN_SHIM = `#!/bin/bash
+# Intercept \`open\` calls: auth URLs go to incognito, everything else to real open.
+AUTH_URL=""
+PASSTHROUGH_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    https://auth.openai.com/*|https://auth0.openai.com/*)
+      AUTH_URL="$arg" ;;
+    *)
+      PASSTHROUGH_ARGS+=("$arg") ;;
+  esac
+done
+if [ -n "$AUTH_URL" ]; then
+  if [ -d "/Applications/Google Chrome.app" ]; then
+    /usr/bin/open -na "Google Chrome" --args --incognito "$AUTH_URL"
+  elif [ -d "/Applications/Firefox.app" ]; then
+    /usr/bin/open -na "Firefox" --args --private-window "$AUTH_URL"
+  elif [ -d "/Applications/Microsoft Edge.app" ]; then
+    /usr/bin/open -na "Microsoft Edge" --args --inprivate "$AUTH_URL"
+  else
+    /usr/bin/open "$AUTH_URL"
+  fi
+else
+  /usr/bin/open "\${PASSTHROUGH_ARGS[@]}"
 fi
 `;
 function createPrivateBrowserScript() {
@@ -4044,6 +4086,22 @@ function cleanupBrowserScript(path) {
     return;
   try {
     unlinkSync(path);
+  } catch {}
+}
+function createOpenShimDir() {
+  if (platform2() !== "darwin")
+    return null;
+  const dir = join2(tmpdir(), `claudex-open-shim-${process.pid}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join2(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
+  return dir;
+}
+function cleanupOpenShimDir(dir) {
+  if (!dir)
+    return;
+  try {
+    unlinkSync(join2(dir, "open"));
+    rmdirSync(dir);
   } catch {}
 }
 function getBrowserOpenCommand(url) {
@@ -4082,13 +4140,14 @@ init_auth();
 // src/providers/codex/login.ts
 import { spawn } from "child_process";
 async function runCodexDeviceAuthLogin() {
+  const shimDir = createOpenShimDir();
+  const env2 = shimDir ? { ...process.env, PATH: `${shimDir}:${process.env.PATH}` } : undefined;
   try {
     const proc = spawn("codex", ["login", "--device-auth"], {
-      stdio: "inherit"
+      stdio: "inherit",
+      env: env2
     });
-    if (!openExternalUrl(CODEX_DEVICE_AUTH_URL, true)) {
-      hint(`Open ${source_default.cyan(CODEX_DEVICE_AUTH_URL)} in your browser.`);
-    }
+    openExternalUrl(CODEX_DEVICE_AUTH_URL, true);
     return await new Promise((resolve, reject) => {
       proc.on("close", resolve);
       proc.on("error", reject);
@@ -4097,6 +4156,8 @@ async function runCodexDeviceAuthLogin() {
     error(`Failed to start codex: ${err instanceof Error ? err.message : String(err)}`);
     blank();
     process.exit(1);
+  } finally {
+    cleanupOpenShimDir(shimDir);
   }
 }
 
@@ -4624,7 +4685,7 @@ async function rename(currentAlias, nextAlias) {
 }
 
 // src/commands/purge.ts
-import { unlink } from "fs/promises";
+import { unlink as unlink2 } from "fs/promises";
 init_paths();
 init_fs();
 async function purge(aliasName) {
@@ -4663,7 +4724,7 @@ async function purge(aliasName) {
       }
       const authFile = codexAccountAuthFile(entry.target.accountKey);
       if (await fileExists(authFile)) {
-        await unlink(authFile);
+        await unlink2(authFile);
       }
     } catch {}
   }
@@ -4939,12 +5000,24 @@ async function refreshCodex(alias, accountKey) {
   const accountId = tokenInfo?.chatgpt_account_id ?? auth.tokens.account_id ?? "unknown";
   const refreshedKey = `${userId}::${accountId}`;
   if (refreshedKey !== accountKey) {
-    await switchToAccount(accountKey);
-    blank();
-    error(`Codex login completed for a different account (${email}).`);
-    hint(`Retry and sign in as ${source_default.cyan(account.email || alias)}.`);
-    blank();
-    process.exit(1);
+    const savedEmail = account.email?.toLowerCase();
+    const refreshedEmail = tokenInfo?.email?.toLowerCase();
+    if (!savedEmail || !refreshedEmail || savedEmail !== refreshedEmail) {
+      await switchToAccount(accountKey);
+      blank();
+      error(`Codex login completed for a different account (${email}).`);
+      hint(`Retry and sign in as ${source_default.cyan(account.email || alias)}.`);
+      blank();
+      process.exit(1);
+    }
+    info(`Account key changed for ${source_default.bold(email)} (org/team change detected). Migrating...`);
+    const oldKey = accountKey;
+    accountKey = refreshedKey;
+    account.account_key = refreshedKey;
+    account.chatgpt_user_id = userId;
+    account.chatgpt_account_id = accountId;
+    await updateAlias(alias, { provider: "codex", accountKey: refreshedKey });
+    await removeAccountAuthFile(oldKey);
   }
   await snapshotActiveAuth(accountKey);
   account.email = tokenInfo?.email ?? account.email;
