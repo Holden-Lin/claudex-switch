@@ -9,7 +9,7 @@ import {
   setActiveAccount,
   findAccountByKey,
 } from "../providers/codex/registry";
-import { switchToAccount } from "../providers/codex/auth";
+import { readAccountAuth, switchToAccount } from "../providers/codex/auth";
 import { applyCodexApiProvider } from "../providers/codex/config";
 import {
   blank,
@@ -97,9 +97,12 @@ async function switchCodex(
   }
 
   try {
+    const auth =
+      account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
     await switchToAccount(accountKey);
     await applyCodexApiProvider(
       account.auth_mode === "apikey" ? account.api_provider : null,
+      auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined,
     );
   } catch (err) {
     error(

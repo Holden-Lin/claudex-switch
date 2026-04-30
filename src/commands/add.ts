@@ -371,7 +371,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
-  await applyCodexApiProvider(apiProvider);
+  await applyCodexApiProvider(apiProvider, key.trim());
 
   await addAlias(alias, { provider: "codex", accountKey });
 

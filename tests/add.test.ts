@@ -264,7 +264,8 @@ describe("add", () => {
     expect(config).toContain('model = "gpt-5.3-codex"');
     expect(config).toContain("[model_providers.admin]");
     expect(config).toContain('base_url = "https://newapi.hybaliez.com/v1"');
-    expect(config).toContain('env_key = "OPENAI_API_KEY"');
+    expect(config).toContain('experimental_bearer_token = "sk-test-123456789"');
+    expect(config).not.toContain('env_key = "OPENAI_API_KEY"');
     expect(config).toContain("requires_openai_auth = false");
 
     const output = logSpy.mock.calls.flat().join("\n");

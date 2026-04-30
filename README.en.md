@@ -122,7 +122,7 @@ Then choose an account type:
 After choosing Codex API Key, choose the API source:
 
 - **OpenAI official** — saves only the API key and does not write custom provider config
-- **Custom OpenAI-compatible provider** — also writes `model_provider`, `model`, and `[model_providers.<name>]` to `~/.codex/config.toml`
+- **Custom OpenAI-compatible provider** — also writes `model_provider`, `model`, and `[model_providers.<name>]` to `~/.codex/config.toml`, with file permissions set to `0600`
 
 Example custom provider config:
 
@@ -218,7 +218,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 ### Codex Account Switching
 
 - Copies the corresponding `<key>.auth.json` to `~/.codex/auth.json`
-- Codex API key accounts update `~/.codex/config.toml` based on the saved API source
+- Codex API key accounts update `~/.codex/config.toml` based on the saved API source; custom providers write the active account bearer token so raw `codex` commands work after switching
 - Updates `active_account_key` in `registry.json`
 - `list` refreshes Codex ChatGPT account usage and writes it back to `last_usage` in `registry.json`
 

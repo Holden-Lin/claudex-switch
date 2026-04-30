@@ -122,7 +122,7 @@ claudex-switch add work
 选择 Codex API Key 后会继续选择接口来源：
 
 - **OpenAI official** — 只保存 API key，不写自定义供应商配置
-- **Custom OpenAI-compatible provider** — 同时写入 `~/.codex/config.toml` 的 `model_provider`、`model` 和 `[model_providers.<name>]`
+- **Custom OpenAI-compatible provider** — 同时写入 `~/.codex/config.toml` 的 `model_provider`、`model` 和 `[model_providers.<name>]`，并将文件权限设置为 `0600`
 
 自定义供应商示例配置：
 
@@ -218,7 +218,7 @@ claudex-switch 采用「薄别名层」架构：
 ### Codex 账号切换
 
 - 将对应的 `<key>.auth.json` 复制到 `~/.codex/auth.json`
-- Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`
+- Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`；自定义供应商会写入当前账号的 bearer token，确保切换后直接运行 `codex` 也能使用该账号
 - 更新 `registry.json` 中的 `active_account_key`
 - 执行 `list` 时会刷新 Codex ChatGPT 账号用量，并写回 `registry.json` 中的 `last_usage`
 

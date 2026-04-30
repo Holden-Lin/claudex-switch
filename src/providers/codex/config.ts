@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { CODEX_CONFIG_FILE } from "../../lib/paths";
 import { fileExists } from "../../lib/fs";
@@ -85,12 +85,12 @@ export async function activateCodexOfficialProvider(): Promise<void> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return;
   const config = await readCodexConfig();
   delete config.model_provider;
-  await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile(CODEX_CONFIG_FILE, renderCodexConfig(config));
+  await writeCodexConfig(config);
 }
 
 export async function activateCodexCustomProvider(
   provider: CodexApiProviderConfig,
+  apiKey?: string,
 ): Promise<void> {
   if (
     provider.type !== "custom" ||
@@ -110,23 +110,34 @@ export async function activateCodexCustomProvider(
   if (provider.model) {
     config.model = provider.model;
   }
-  providers[provider.name] = {
+  const providerConfig: TomlObject = {
     name: provider.name,
     base_url: provider.base_url,
-    env_key: provider.env_key,
     requires_openai_auth: false,
   };
+  if (apiKey) {
+    providerConfig.experimental_bearer_token = apiKey;
+  } else {
+    providerConfig.env_key = provider.env_key;
+  }
+  providers[provider.name] = providerConfig;
 
-  await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile(CODEX_CONFIG_FILE, renderCodexConfig(config));
+  await writeCodexConfig(config);
 }
 
 export async function applyCodexApiProvider(
   provider: CodexApiProviderConfig | null | undefined,
+  apiKey?: string,
 ): Promise<void> {
   if (!provider || provider.type === "official") {
     await activateCodexOfficialProvider();
     return;
   }
-  await activateCodexCustomProvider(provider);
+  await activateCodexCustomProvider(provider, apiKey);
+}
+
+async function writeCodexConfig(config: CodexTomlConfig): Promise<void> {
+  await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
+  await writeFile(CODEX_CONFIG_FILE, renderCodexConfig(config), { mode: 0o600 });
+  await chmod(CODEX_CONFIG_FILE, 0o600);
 }

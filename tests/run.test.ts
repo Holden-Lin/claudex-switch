@@ -262,5 +262,6 @@ describe("run alias session", () => {
     expect(config).toContain('model_provider = "admin"');
     expect(config).toContain("[model_providers.admin]");
     expect(config).toContain('base_url = "https://newapi.hybaliez.com/v1"');
+    expect(config).toContain('experimental_bearer_token = "sk-test"');
   });
 });

@@ -1630,7 +1630,7 @@ __export(exports_auth, {
   readAccountAuth: () => readAccountAuth,
   decodeIdToken: () => decodeIdToken
 });
-import { chmod, copyFile, mkdir as mkdir5, unlink, writeFile as writeFile3 } from "fs/promises";
+import { chmod as chmod2, copyFile, mkdir as mkdir5, unlink, writeFile as writeFile3 } from "fs/promises";
 async function ensureAccountsDir2() {
   await mkdir5(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
@@ -1705,7 +1705,7 @@ async function snapshotActiveAuth(accountKey) {
   await ensureAccountsDir2();
   const destPath = codexAccountAuthFile(accountKey);
   await copyFile(CODEX_AUTH_FILE, destPath);
-  await chmod(destPath, 384);
+  await chmod2(destPath, 384);
 }
 var init_auth = __esm(() => {
   init_paths();
@@ -4244,7 +4244,7 @@ init_paths();
 // src/providers/codex/config.ts
 init_paths();
 init_fs();
-import { mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
+import { chmod, mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
 import { dirname } from "path";
 function cloneConfig(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -4307,10 +4307,9 @@ async function activateCodexOfficialProvider() {
     return;
   const config = await readCodexConfig();
   delete config.model_provider;
-  await mkdir4(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile2(CODEX_CONFIG_FILE, renderCodexConfig(config));
+  await writeCodexConfig(config);
 }
-async function activateCodexCustomProvider(provider) {
+async function activateCodexCustomProvider(provider, apiKey) {
   if (provider.type !== "custom" || !provider.name || !provider.base_url || !provider.env_key) {
     throw new Error("Invalid Codex custom provider config");
   }
@@ -4321,21 +4320,30 @@ async function activateCodexCustomProvider(provider) {
   if (provider.model) {
     config.model = provider.model;
   }
-  providers[provider.name] = {
+  const providerConfig = {
     name: provider.name,
     base_url: provider.base_url,
-    env_key: provider.env_key,
     requires_openai_auth: false
   };
-  await mkdir4(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile2(CODEX_CONFIG_FILE, renderCodexConfig(config));
+  if (apiKey) {
+    providerConfig.experimental_bearer_token = apiKey;
+  } else {
+    providerConfig.env_key = provider.env_key;
+  }
+  providers[provider.name] = providerConfig;
+  await writeCodexConfig(config);
 }
-async function applyCodexApiProvider(provider) {
+async function applyCodexApiProvider(provider, apiKey) {
   if (!provider || provider.type === "official") {
     await activateCodexOfficialProvider();
     return;
   }
-  await activateCodexCustomProvider(provider);
+  await activateCodexCustomProvider(provider, apiKey);
+}
+async function writeCodexConfig(config) {
+  await mkdir4(dirname(CODEX_CONFIG_FILE), { recursive: true });
+  await writeFile2(CODEX_CONFIG_FILE, renderCodexConfig(config), { mode: 384 });
+  await chmod(CODEX_CONFIG_FILE, 384);
 }
 
 // src/commands/add.ts
@@ -4630,7 +4638,7 @@ async function addCodexApiKey(alias) {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
-  await applyCodexApiProvider(apiProvider);
+  await applyCodexApiProvider(apiProvider, key.trim());
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
   success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key.trim()))}`);
@@ -4765,8 +4773,9 @@ async function switchCodex(alias, accountKey) {
     process.exit(1);
   }
   try {
+    const auth = account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
     await switchToAccount(accountKey);
-    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null);
+    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined);
   } catch (err) {
     error(`Failed to switch: ${err instanceof Error ? err.message : String(err)}`);
     blank();
@@ -5518,7 +5527,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.8",
+  version: "1.1.9",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

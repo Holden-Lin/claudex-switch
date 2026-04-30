@@ -38,3 +38,4 @@
 - “那增加一个添加供应商的功能吧，先从codex开始”
 - “交互和现在的添加一样，add的时候让用户选到底是oauth/api, api的话选官方还是provider”
 - “switch to api后遇到这个问题” → 修复 Codex API Key auth.json 写入格式，不再写空 tokens；切换 API 账号时自动迁移旧快照；`-run` 自动向 Codex 子进程注入保存的 API key 环境变量
+- “这样的话我不是每次都手工注入？” → 自定义 Codex API provider 切换时写入 `experimental_bearer_token` 并收紧 `config.toml` 权限，确保裸跑 `codex` 也不需要手工 export
