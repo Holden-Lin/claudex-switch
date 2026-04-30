@@ -4564,6 +4564,7 @@ async function addCodexChatGPT(alias) {
   blank();
 }
 async function addCodexApiKey(alias) {
+  const apiProvider = await promptCodexApiProvider();
   const key = await esm_default4({
     message: "Paste your OpenAI API key",
     mask: "*",
@@ -4573,7 +4574,6 @@ async function addCodexApiKey(alias) {
       return true;
     }
   });
-  const apiProvider = await promptCodexApiProvider();
   const { createHash } = await import("crypto");
   const keyHash = createHash("sha256").update(key.trim()).digest("hex").slice(0, 16);
   const accountKey = `apikey::${keyHash}`;
@@ -5484,7 +5484,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.6",
+  version: "1.1.7",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

@@ -210,6 +210,7 @@ describe("add", () => {
   });
 
   test("adds a codex api key with a custom provider config", async () => {
+    const promptOrder: string[] = [];
     const selectValues = ["codex-apikey", "custom"];
     const inputValues = [
       "admin",
@@ -217,9 +218,18 @@ describe("add", () => {
       "gpt-5.3-codex",
       "OPENAI_API_KEY",
     ];
-    selectHandler = async () => selectValues.shift() ?? "custom";
-    inputHandler = async () => inputValues.shift() ?? "";
-    passwordHandler = async () => "sk-test-123456789";
+    selectHandler = async () => {
+      promptOrder.push("select");
+      return selectValues.shift() ?? "custom";
+    };
+    inputHandler = async () => {
+      promptOrder.push("input");
+      return inputValues.shift() ?? "";
+    };
+    passwordHandler = async () => {
+      promptOrder.push("password");
+      return "sk-test-123456789";
+    };
 
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
 
@@ -232,6 +242,15 @@ describe("add", () => {
     const registry = await loadRegistry();
     const account = registry.accounts[0];
     expect(account?.auth_mode).toBe("apikey");
+    expect(promptOrder).toEqual([
+      "select",
+      "select",
+      "input",
+      "input",
+      "input",
+      "input",
+      "password",
+    ]);
     expect(account?.api_provider).toEqual({
       type: "custom",
       name: "admin",

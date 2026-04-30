@@ -317,6 +317,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
 }
 
 async function addCodexApiKey(alias: string): Promise<void> {
+  const apiProvider = await promptCodexApiProvider();
   const key = await password({
     message: "Paste your OpenAI API key",
     mask: "*",
@@ -325,7 +326,6 @@ async function addCodexApiKey(alias: string): Promise<void> {
       return true;
     },
   });
-  const apiProvider = await promptCodexApiProvider();
 
   // Use a hash of the key for the account key to avoid leaking key material
   const { createHash } = await import("crypto");
