@@ -39,3 +39,4 @@
 - “交互和现在的添加一样，add的时候让用户选到底是oauth/api, api的话选官方还是provider”
 - “switch to api后遇到这个问题” → 修复 Codex API Key auth.json 写入格式，不再写空 tokens；切换 API 账号时自动迁移旧快照；`-run` 自动向 Codex 子进程注入保存的 API key 环境变量
 - “这样的话我不是每次都手工注入？” → 自定义 Codex API provider 切换时写入 `experimental_bearer_token` 并收紧 `config.toml` 权限，确保裸跑 `codex` 也不需要手工 export
+- “我升级以后，选添加OpenAI API ，并没让我选provider” → 修复自更新安装方式误判：只有当前可执行文件确实来自 Bun 全局 bin 时才用 Bun 更新，避免更新了 Bun 包但继续运行 nvm/npm link 下的旧版本

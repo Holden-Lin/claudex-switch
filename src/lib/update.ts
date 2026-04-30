@@ -1,3 +1,4 @@
+import { realpathSync } from "fs";
 import { spawnSync, type SpawnSyncOptions } from "child_process";
 import packageJson from "../../package.json";
 import { hint, info } from "./ui";
@@ -156,11 +157,14 @@ export function detectInstallMethod(
     }),
   );
   const cliPath = resolveCliPath(argv, execPath);
+  const realCliPath = resolveRealPath(cliPath);
 
   if (
     brewPrefix &&
-    cliPath &&
-    cliPath.startsWith(brewPrefix)
+    (
+      pathStartsWith(cliPath, brewPrefix) ||
+      pathStartsWith(realCliPath, brewPrefix)
+    )
   ) {
     return "brew";
   }
@@ -169,10 +173,38 @@ export function detectInstallMethod(
     stdio: ["ignore", "ignore", "ignore"],
   });
   if (bunCheck.status === 0 && !bunCheck.error) {
-    return "bun";
+    const bunGlobalBin = readCommandStdout(
+      runCommand("bun", ["pm", "bin", "-g"], {
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }),
+    );
+    if (
+      bunGlobalBin &&
+      (
+        pathStartsWith(cliPath, bunGlobalBin) ||
+        pathStartsWith(realCliPath, bunGlobalBin)
+      )
+    ) {
+      return "bun";
+    }
   }
 
   return null;
+}
+
+function pathStartsWith(path: string | null, prefix: string): boolean {
+  if (!path) return false;
+  return path === prefix || path.startsWith(`${prefix.replace(/\/$/, "")}/`);
+}
+
+function resolveRealPath(path: string | null): string | null {
+  if (!path) return null;
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 }
 
 export async function checkForLatestUpdate(

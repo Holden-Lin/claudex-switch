@@ -78,20 +78,26 @@ describe("auto update", () => {
     expect(commands).toEqual(["brew --prefix"]);
   });
 
-  test("does not mis-detect homebrew when only node comes from homebrew", () => {
+  test("detects a bun install from the executable path", () => {
+    const commands: string[] = [];
     const method = detectInstallMethod(
       [
-        "/opt/homebrew/bin/node",
-        "/Users/test/.bun/install/global/node_modules/claudex-switch/dist/claudex-switch.js",
+        "/Users/test/.bun/bin/claudex-switch",
+        "list",
       ],
-      "/opt/homebrew/Cellar/node/24.0.0/bin/node",
-      (command) => {
+      "/Users/test/.bun/bin/bun",
+      (command, args) => {
+        commands.push(`${command} ${args.join(" ")}`);
         if (command === "brew") {
-          return { status: 0, stdout: "/opt/homebrew\n" };
+          return { status: 1 };
         }
 
-        if (command === "bun") {
+        if (command === "bun" && args[0] === "--version") {
           return { status: 0 };
+        }
+
+        if (command === "bun" && args.join(" ") === "pm bin -g") {
+          return { status: 0, stdout: "/Users/test/.bun/bin\n" };
         }
 
         return { status: 1 };
@@ -99,15 +105,47 @@ describe("auto update", () => {
     );
 
     expect(method).toBe("bun");
+    expect(commands).toEqual([
+      "brew --prefix",
+      "bun --version",
+      "bun pm bin -g",
+    ]);
+  });
+
+  test("does not mis-detect bun when the executable path is outside bun", () => {
+    const method = detectInstallMethod(
+      [
+        "/opt/homebrew/bin/node",
+        "/Users/test/.nvm/versions/node/v20.9.0/lib/node_modules/claudex-switch/dist/claudex-switch.js",
+      ],
+      "/opt/homebrew/Cellar/node/24.0.0/bin/node",
+      (command, args) => {
+        if (command === "brew") {
+          return { status: 0, stdout: "/opt/homebrew\n" };
+        }
+
+        if (command === "bun" && args[0] === "--version") {
+          return { status: 0 };
+        }
+
+        if (command === "bun" && args.join(" ") === "pm bin -g") {
+          return { status: 0, stdout: "/Users/test/.bun/bin\n" };
+        }
+
+        return { status: 1 };
+      },
+    );
+
+    expect(method).toBeNull();
   });
 
   test("updates with bun and restarts the original command", async () => {
     const calls: string[] = [];
 
     const result = await runAutoUpdateIfNeeded({
-      argv: ["node", "/tmp/claudex-switch.js", "list"],
+      argv: ["/Users/test/.bun/bin/claudex-switch", "list"],
       env: {},
-      execPath: "/usr/local/bin/node",
+      execPath: "/Users/test/.bun/bin/bun",
       fetchLatestVersion: async () => "9.8.7",
       runCommand: (command, args, options) => {
         calls.push(`${command} ${args.join(" ")}`);
@@ -123,6 +161,10 @@ describe("auto update", () => {
           return { status: 0 };
         }
 
+        if (command === "bun" && args.join(" ") === "pm bin -g") {
+          return { status: 0, stdout: "/Users/test/.bun/bin\n" };
+        }
+
         if (
           command === "bun" &&
           args[0] === "install"
@@ -131,9 +173,9 @@ describe("auto update", () => {
           return { status: 0 };
         }
 
-        if (command === "node") {
+        if (command === "/Users/test/.bun/bin/claudex-switch") {
           expect(options?.env?.CLAUDEX_SKIP_AUTO_UPDATE).toBe("1");
-          expect(args).toEqual(["/tmp/claudex-switch.js", "list"]);
+          expect(args).toEqual(["list"]);
           return { status: 0 };
         }
 
@@ -145,8 +187,9 @@ describe("auto update", () => {
     expect(calls).toEqual([
       "brew --prefix",
       "bun --version",
+      "bun pm bin -g",
       "bun install -g git+https://github.com/Holden-Lin/claudex-switch.git#v9.8.7",
-      "node /tmp/claudex-switch.js list",
+      "/Users/test/.bun/bin/claudex-switch list",
     ]);
   });
 
@@ -155,9 +198,9 @@ describe("auto update", () => {
 
     const available = await checkForLatestUpdate(
       {
-        argv: ["node", "/tmp/claudex-switch.js", "update"],
+        argv: ["/Users/test/.bun/bin/claudex-switch", "update"],
         env: { CLAUDEX_DISABLE_AUTO_UPDATE: "1" },
-        execPath: "/usr/local/bin/node",
+        execPath: "/Users/test/.bun/bin/bun",
         fetchLatestVersion: async () => "9.8.7",
         runCommand: (command, args, options) => {
           calls.push(`${command} ${args.join(" ")}`);
@@ -168,6 +211,10 @@ describe("auto update", () => {
 
           if (command === "bun" && args[0] === "--version") {
             return { status: 0 };
+          }
+
+          if (command === "bun" && args.join(" ") === "pm bin -g") {
+            return { status: 0, stdout: "/Users/test/.bun/bin\n" };
           }
 
           if (command === "bun" && args[0] === "install") {
@@ -195,6 +242,7 @@ describe("auto update", () => {
     expect(calls).toEqual([
       "brew --prefix",
       "bun --version",
+      "bun pm bin -g",
       "bun install -g git+https://github.com/Holden-Lin/claudex-switch.git#v9.8.7",
     ]);
   });
