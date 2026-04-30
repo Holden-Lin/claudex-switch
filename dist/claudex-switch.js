@@ -1650,12 +1650,30 @@ async function switchToAccount(accountKey) {
   if (!await fileExists(srcPath)) {
     throw new Error(`Auth file not found for account: ${accountKey}`);
   }
+  const auth = await readAccountAuth(accountKey);
+  if (auth?.auth_mode === "apikey") {
+    const normalized = normalizeAuthForCodexCli(auth);
+    await writeAuthFile(srcPath, normalized);
+    await writeAuthFile(CODEX_AUTH_FILE, normalized);
+    return;
+  }
   await copyFile(srcPath, CODEX_AUTH_FILE);
 }
 async function saveAccountAuth(accountKey, authData) {
   await ensureAccountsDir2();
   const destPath = codexAccountAuthFile(accountKey);
-  await writeFile3(destPath, JSON.stringify(authData, null, 2), { mode: 384 });
+  await writeAuthFile(destPath, normalizeAuthForCodexCli(authData));
+}
+async function writeAuthFile(path, authData) {
+  await writeFile3(path, JSON.stringify(authData, null, 2), { mode: 384 });
+}
+function normalizeAuthForCodexCli(authData) {
+  if (authData.auth_mode !== "apikey")
+    return authData;
+  return {
+    auth_mode: "apikey",
+    OPENAI_API_KEY: authData.OPENAI_API_KEY
+  };
 }
 function decodeIdToken(idToken) {
   try {
@@ -4510,7 +4528,7 @@ async function addCodexChatGPT(alias) {
     process.exit(1);
   }
   const auth = await readActiveAuth();
-  if (!auth || !auth.tokens) {
+  if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
     blank();
     error("Could not read Codex auth after login.");
     blank();
@@ -4590,14 +4608,7 @@ async function addCodexApiKey(alias) {
   const { saveAccountAuth: saveAccountAuth2 } = await Promise.resolve().then(() => (init_auth(), exports_auth));
   await saveAccountAuth2(accountKey, {
     auth_mode: "apikey",
-    OPENAI_API_KEY: key.trim(),
-    tokens: {
-      id_token: "",
-      access_token: "",
-      refresh_token: "",
-      account_id: ""
-    },
-    last_refresh: new Date().toISOString()
+    OPENAI_API_KEY: key.trim()
   });
   const reg = await loadRegistry();
   const accountRecord = {
@@ -4766,11 +4777,18 @@ async function switchCodex(alias, accountKey) {
   const plan = formatPlan(account.plan ?? account.last_usage?.plan_type ?? null);
   const email = account.email ? source_default.dim(account.email) : "";
   success(`Switched to ${source_default.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
+  if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
+    const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
+    if (!process.env[envKey]) {
+      hint(`Raw ${source_default.cyan("codex")} needs ${source_default.cyan(envKey)} in the shell; ${source_default.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`);
+    }
+  }
   blank();
 }
 
 // src/commands/run.ts
 import { spawn as spawn3 } from "child_process";
+init_auth();
 var RUN_FLAGS = new Set(["-run", "--run"]);
 function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
@@ -4780,6 +4798,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   const command = entry.target.provider === "claude" ? "claude" : "codex";
   const bypassArg = entry.target.provider === "claude" ? "--dangerously-skip-permissions" : "--dangerously-bypass-approvals-and-sandbox";
   const args = [bypassArg, ...forwardedArgs];
+  const env2 = await getRunEnvironment(entry);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   return new Promise((resolve) => {
     let settled = false;
@@ -4789,7 +4808,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       settled = true;
       resolve(code);
     };
-    const proc = spawnCommand(command, args, { stdio: "inherit" });
+    const proc = spawnCommand(command, args, { stdio: "inherit", env: env2 });
     proc.on("error", (err) => {
       error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
       blank();
@@ -4799,6 +4818,21 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       finish(code ?? 1);
     });
   });
+}
+async function getRunEnvironment(entry) {
+  if (entry.target.provider !== "codex")
+    return;
+  const auth = await readAccountAuth(entry.target.accountKey);
+  if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
+    return;
+  }
+  const reg = await loadRegistry();
+  const account = findAccountByKey(reg, entry.target.accountKey);
+  const envKey = account?.api_provider?.env_key || "OPENAI_API_KEY";
+  return {
+    ...process.env,
+    [envKey]: auth.OPENAI_API_KEY
+  };
 }
 
 // src/commands/list.ts
@@ -5406,7 +5440,7 @@ async function refreshCodex(alias, accountKey) {
     process.exit(1);
   }
   const auth = await readActiveAuth();
-  if (!auth || !auth.tokens) {
+  if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
     await switchToAccount(accountKey);
     blank();
     error("Could not read Codex auth after login.");
@@ -5484,7 +5518,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.7",
+  version: "1.1.8",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

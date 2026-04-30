@@ -7,9 +7,11 @@ import {
 } from "../src/lib/paths";
 import {
   decodeIdToken,
+  readActiveAuth,
   readAccountAuth,
   saveAccountAuth,
   snapshotActiveAuth,
+  switchToAccount,
 } from "../src/providers/codex/auth";
 import type { CodexAuthFile } from "../src/types";
 import { fileMode, makeJwt, resetTestHome } from "./helpers";
@@ -68,5 +70,31 @@ describe("codex auth", () => {
     expect(fileMode((await stat(codexAccountAuthFile(savedKey))).mode)).toBe(
       0o600,
     );
+  });
+
+  test("normalizes api key auth files to Codex CLI format", async () => {
+    const oldApiAuth: CodexAuthFile = {
+      auth_mode: "apikey",
+      OPENAI_API_KEY: "sk-test",
+      tokens: {
+        id_token: "",
+        access_token: "",
+        refresh_token: "",
+        account_id: "",
+      },
+      last_refresh: "2026-04-30T00:00:00.000Z",
+    };
+
+    await saveAccountAuth("apikey::test", oldApiAuth);
+    expect(await readAccountAuth("apikey::test")).toEqual({
+      auth_mode: "apikey",
+      OPENAI_API_KEY: "sk-test",
+    });
+
+    await switchToAccount("apikey::test");
+    expect(await readActiveAuth()).toEqual({
+      auth_mode: "apikey",
+      OPENAI_API_KEY: "sk-test",
+    });
   });
 });

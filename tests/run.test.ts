@@ -29,6 +29,7 @@ type SpawnCall = {
   command: string;
   args: string[];
   stdio: string;
+  env?: NodeJS.ProcessEnv;
 };
 
 function createRegistry(accountKey: string): CodexRegistry {
@@ -71,6 +72,7 @@ function createSpawn(
       command,
       args,
       stdio: options.stdio,
+      env: options.env,
     });
 
     const proc = new EventEmitter();
@@ -131,6 +133,7 @@ describe("run alias session", () => {
         command: "claude",
         args: ["--dangerously-skip-permissions", "--continue"],
         stdio: "inherit",
+        env: undefined,
       },
     ]);
   });
@@ -180,6 +183,7 @@ describe("run alias session", () => {
           "gpt-5",
         ],
         stdio: "inherit",
+        env: undefined,
       },
     ]);
 
@@ -252,6 +256,7 @@ describe("run alias session", () => {
 
     expect(exitCode).toBe(0);
     expect(calls[0]?.command).toBe("codex");
+    expect(calls[0]?.env?.OPENAI_API_KEY).toBe("sk-test");
 
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(config).toContain('model_provider = "admin"');

@@ -182,7 +182,7 @@ async function refreshCodex(
   }
 
   const auth = await readActiveAuth();
-  if (!auth || !auth.tokens) {
+  if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
     await switchToAccount(accountKey);
     blank();
     error("Could not read Codex auth after login.");

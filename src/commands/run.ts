@@ -2,13 +2,20 @@ import chalk from "chalk";
 import { spawn, type ChildProcess } from "child_process";
 import { use } from "./use";
 import { blank, error, info } from "../lib/ui";
+import { readAccountAuth } from "../providers/codex/auth";
+import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 
 const RUN_FLAGS = new Set(["-run", "--run"]);
+
+type SpawnOptions = {
+  stdio: "inherit";
+  env?: NodeJS.ProcessEnv;
+};
 
 type SpawnCommand = (
   command: string,
   args: string[],
-  options: { stdio: "inherit" },
+  options: SpawnOptions,
 ) => ChildProcess;
 
 export function isRunFlag(value?: string): boolean {
@@ -27,6 +34,7 @@ export async function runAliasSession(
       ? "--dangerously-skip-permissions"
       : "--dangerously-bypass-approvals-and-sandbox";
   const args = [bypassArg, ...forwardedArgs];
+  const env = await getRunEnvironment(entry);
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
 
@@ -38,7 +46,7 @@ export async function runAliasSession(
       resolve(code);
     };
 
-    const proc = spawnCommand(command, args, { stdio: "inherit" });
+    const proc = spawnCommand(command, args, { stdio: "inherit", env });
 
     proc.on("error", (err) => {
       error(
@@ -52,4 +60,24 @@ export async function runAliasSession(
       finish(code ?? 1);
     });
   });
+}
+
+async function getRunEnvironment(
+  entry: Awaited<ReturnType<typeof use>>,
+): Promise<NodeJS.ProcessEnv | undefined> {
+  if (entry.target.provider !== "codex") return undefined;
+
+  const auth = await readAccountAuth(entry.target.accountKey);
+  if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
+    return undefined;
+  }
+
+  const reg = await loadRegistry();
+  const account = findAccountByKey(reg, entry.target.accountKey);
+  const envKey = account?.api_provider?.env_key || "OPENAI_API_KEY";
+
+  return {
+    ...process.env,
+    [envKey]: auth.OPENAI_API_KEY,
+  };
 }

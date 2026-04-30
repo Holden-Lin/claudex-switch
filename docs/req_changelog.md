@@ -37,3 +37,4 @@
 - “相当于当前项目只存apikey，但是接口打的还是API官方的？”
 - “那增加一个添加供应商的功能吧，先从codex开始”
 - “交互和现在的添加一样，add的时候让用户选到底是oauth/api, api的话选官方还是provider”
+- “switch to api后遇到这个问题” → 修复 Codex API Key auth.json 写入格式，不再写空 tokens；切换 API 账号时自动迁移旧快照；`-run` 自动向 Codex 子进程注入保存的 API key 环境变量

@@ -29,6 +29,13 @@ export async function switchToAccount(accountKey: string): Promise<void> {
   if (!(await fileExists(srcPath))) {
     throw new Error(`Auth file not found for account: ${accountKey}`);
   }
+  const auth = await readAccountAuth(accountKey);
+  if (auth?.auth_mode === "apikey") {
+    const normalized = normalizeAuthForCodexCli(auth);
+    await writeAuthFile(srcPath, normalized);
+    await writeAuthFile(CODEX_AUTH_FILE, normalized);
+    return;
+  }
   await copyFile(srcPath, CODEX_AUTH_FILE);
 }
 
@@ -38,7 +45,22 @@ export async function saveAccountAuth(
 ): Promise<void> {
   await ensureAccountsDir();
   const destPath = codexAccountAuthFile(accountKey);
-  await writeFile(destPath, JSON.stringify(authData, null, 2), { mode: 0o600 });
+  await writeAuthFile(destPath, normalizeAuthForCodexCli(authData));
+}
+
+async function writeAuthFile(
+  path: string,
+  authData: CodexAuthFile,
+): Promise<void> {
+  await writeFile(path, JSON.stringify(authData, null, 2), { mode: 0o600 });
+}
+
+function normalizeAuthForCodexCli(authData: CodexAuthFile): CodexAuthFile {
+  if (authData.auth_mode !== "apikey") return authData;
+  return {
+    auth_mode: "apikey",
+    OPENAI_API_KEY: authData.OPENAI_API_KEY,
+  };
 }
 
 /**

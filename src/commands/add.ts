@@ -249,7 +249,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
 
   // Read the active auth file that codex just wrote
   const auth = await readActiveAuth();
-  if (!auth || !auth.tokens) {
+  if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
     blank();
     error("Could not read Codex auth after login.");
     blank();
@@ -348,13 +348,6 @@ async function addCodexApiKey(alias: string): Promise<void> {
   await saveAccountAuth(accountKey, {
     auth_mode: "apikey",
     OPENAI_API_KEY: key.trim(),
-    tokens: {
-      id_token: "",
-      access_token: "",
-      refresh_token: "",
-      account_id: "",
-    },
-    last_refresh: new Date().toISOString(),
   });
 
   // Update registry

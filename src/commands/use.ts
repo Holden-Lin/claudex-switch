@@ -120,5 +120,16 @@ async function switchCodex(
   success(
     `Switched to ${chalk.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`,
   );
+  if (
+    account.auth_mode === "apikey" &&
+    account.api_provider?.type === "custom"
+  ) {
+    const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
+    if (!process.env[envKey]) {
+      hint(
+        `Raw ${chalk.cyan("codex")} needs ${chalk.cyan(envKey)} in the shell; ${chalk.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`,
+      );
+    }
+  }
   blank();
 }

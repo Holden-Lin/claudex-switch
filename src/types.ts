@@ -146,12 +146,21 @@ export interface CodexAuthTokens {
   account_id: string;
 }
 
-export interface CodexAuthFile {
-  auth_mode: "chatgpt" | "apikey";
-  OPENAI_API_KEY: string | null;
+export interface CodexChatGptAuthFile {
+  auth_mode: "chatgpt";
+  OPENAI_API_KEY: null;
   tokens: CodexAuthTokens;
   last_refresh: string;
 }
+
+export interface CodexApiKeyAuthFile {
+  auth_mode: "apikey";
+  OPENAI_API_KEY: string;
+  tokens?: CodexAuthTokens;
+  last_refresh?: string;
+}
+
+export type CodexAuthFile = CodexChatGptAuthFile | CodexApiKeyAuthFile;
 
 // -- Unified display model --
 export interface AccountInfo {
