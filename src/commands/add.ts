@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "child_process";
 import chalk from "chalk";
-import { select, confirm, password } from "@inquirer/prompts";
+import { select, confirm, password, input } from "@inquirer/prompts";
 import {
   loadAliases,
   addAlias,
@@ -17,6 +17,7 @@ import {
 } from "../providers/claude/profiles";
 import { readCredentials } from "../providers/claude/credentials";
 import { CREDENTIALS_FILE } from "../lib/paths";
+import { applyCodexApiProvider } from "../providers/codex/config";
 import {
   loadRegistry,
   saveRegistry,
@@ -39,6 +40,7 @@ import {
   maskKey,
 } from "../lib/ui";
 import type { CodexRegistryAccount } from "../types";
+import type { CodexApiProviderConfig } from "../types";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -323,6 +325,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
       return true;
     },
   });
+  const apiProvider = await promptCodexApiProvider();
 
   // Use a hash of the key for the account key to avoid leaking key material
   const { createHash } = await import("crypto");
@@ -365,6 +368,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
     account_name: null,
     plan: null,
     auth_mode: "apikey",
+    api_provider: apiProvider,
     created_at: Math.floor(Date.now() / 1000),
     last_used_at: Math.floor(Date.now() / 1000),
     last_usage: null,
@@ -374,6 +378,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await applyCodexApiProvider(apiProvider);
 
   await addAlias(alias, { provider: "codex", accountKey });
 
@@ -382,4 +387,84 @@ async function addCodexApiKey(alias: string): Promise<void> {
     `${chalk.bold(alias)} created  ${chalk.dim(maskKey(key.trim()))}`,
   );
   blank();
+}
+
+async function promptCodexApiProvider(): Promise<CodexApiProviderConfig> {
+  const providerType = await select({
+    message: "Codex API provider?",
+    choices: [
+      {
+        name: "OpenAI official",
+        value: "official" as const,
+      },
+      {
+        name: "Custom OpenAI-compatible provider",
+        value: "custom" as const,
+      },
+    ],
+  });
+
+  if (providerType === "official") {
+    return {
+      type: "official",
+      name: null,
+      base_url: null,
+      model: null,
+      env_key: null,
+    };
+  }
+
+  const name = await input({
+    message: "Provider name",
+    default: "admin",
+    validate: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed) return "Provider name cannot be empty";
+      if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+        return "Use letters, numbers, hyphens, or underscores.";
+      }
+      return true;
+    },
+  });
+  const baseUrl = await input({
+    message: "Base URL",
+    default: "https://newapi.hybaliez.com/v1",
+    validate: (value) => {
+      if (!value.trim()) return "Base URL cannot be empty";
+      try {
+        new URL(value.trim());
+        return true;
+      } catch {
+        return "Base URL must be a valid URL";
+      }
+    },
+  });
+  const model = await input({
+    message: "Model",
+    default: "gpt-5.3-codex",
+    validate: (value) => {
+      if (!value.trim()) return "Model cannot be empty";
+      return true;
+    },
+  });
+  const envKey = await input({
+    message: "Env key",
+    default: "OPENAI_API_KEY",
+    validate: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed) return "Env key cannot be empty";
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) {
+        return "Env key must be a valid environment variable name";
+      }
+      return true;
+    },
+  });
+
+  return {
+    type: "custom",
+    name: name.trim(),
+    base_url: baseUrl.trim(),
+    model: model.trim(),
+    env_key: envKey.trim(),
+  };
 }

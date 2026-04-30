@@ -2,9 +2,14 @@ import chalk from "chalk";
 import { loadAliases } from "../alias/store";
 import { readState } from "../providers/claude/profiles";
 import { readCredentials } from "../providers/claude/credentials";
-import { claudeProfileAccountFile, claudeProfileCredentials, claudeProfileDataFile } from "../lib/paths";
+import {
+  claudeProfileAccountFile,
+  claudeProfileCredentials,
+  claudeProfileDataFile,
+} from "../lib/paths";
 import { readJson } from "../lib/fs";
-import { loadRegistry } from "../providers/codex/registry";
+import { loadRegistry, saveRegistry } from "../providers/codex/registry";
+import { fetchUsage } from "../providers/codex/usage";
 import {
   blank,
   header,
@@ -20,6 +25,7 @@ import type {
   AliasEntry,
   OAuthAccount,
   AccountInfo,
+  CodexRegistry,
   CodexRegistryAccount,
 } from "../types";
 
@@ -53,6 +59,7 @@ export async function list(): Promise<void> {
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
+    await refreshCodexUsage(codexAliases, codexReg);
   } catch {
     // No codex registry
   }
@@ -79,8 +86,11 @@ export async function list(): Promise<void> {
       const type = formatType(info.authMode);
       const plan = formatPlan(info.plan);
       const email = info.email ? chalk.dim(info.email) : "";
+      const apiProvider = info.apiProvider
+        ? `  ${chalk.dim(info.apiProvider)}`
+        : "";
 
-      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}`);
+      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}`);
     }
   }
 
@@ -103,6 +113,9 @@ export async function list(): Promise<void> {
       const type = formatType(info.authMode);
       const plan = formatPlan(info.plan);
       const email = info.email ? chalk.dim(info.email) : "";
+      const apiProvider = info.apiProvider
+        ? `  ${chalk.dim(info.apiProvider)}`
+        : "";
 
       let usageStr = "";
       if (info.usage) {
@@ -112,12 +125,50 @@ export async function list(): Promise<void> {
       }
 
       console.log(
-        `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${usageStr}`,
+        `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${usageStr}`,
       );
     }
   }
 
   blank();
+}
+
+async function refreshCodexUsage(
+  codexAliases: AliasEntry[],
+  codexReg: CodexRegistry,
+): Promise<void> {
+  if (codexAliases.length === 0) return;
+  if (codexReg.api?.usage === false) return;
+
+  const accountKeys = new Set(
+    codexAliases
+      .filter((entry): entry is AliasEntry & {
+        target: { provider: "codex"; accountKey: string };
+      } => entry.target.provider === "codex")
+      .map((entry) => entry.target.accountKey),
+  );
+  let changed = false;
+
+  for (const accountKey of accountKeys) {
+    const account = codexReg.accounts.find(
+      (item) => item.account_key === accountKey,
+    );
+    if (!account || account.auth_mode !== "chatgpt") continue;
+
+    const usage = await fetchUsage(accountKey);
+    if (!usage) continue;
+
+    account.last_usage = usage;
+    account.last_usage_at = Math.floor(Date.now() / 1000);
+    if (usage.plan_type) {
+      account.plan = usage.plan_type;
+    }
+    changed = true;
+  }
+
+  if (changed) {
+    await saveRegistry(codexReg);
+  }
 }
 
 async function getClaudeAccountInfo(
@@ -162,6 +213,7 @@ async function getClaudeAccountInfo(
     email,
     plan,
     authMode,
+    apiProvider: null,
     isActive: activeProfile === profileName,
     usage: null,
   };
@@ -187,6 +239,7 @@ async function getCodexAccountInfo(
       email: null,
       plan: null,
       authMode: "unknown",
+      apiProvider: null,
       isActive,
       usage: null,
     };
@@ -198,6 +251,12 @@ async function getCodexAccountInfo(
     email: account.email || null,
     plan: account.plan ?? account.last_usage?.plan_type ?? null,
     authMode: account.auth_mode ?? "chatgpt",
+    apiProvider:
+      account.auth_mode === "apikey"
+        ? account.api_provider?.type === "custom"
+          ? account.api_provider.name
+          : "official"
+        : null,
     isActive,
     usage: account.last_usage
       ? {

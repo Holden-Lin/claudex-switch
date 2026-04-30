@@ -25,3 +25,15 @@
 
 - “claudex-switch refresh holdenx 登录成功但报错 'Codex login completed for a different account'，实际邮箱是对的” → 当邮箱一致但 account key 变化（org/team 变更）时，自动迁移 registry 和 alias，而不是报错退出
 - “现在codex login的时候不会打开无痕模式” → 通过 PATH shim 拦截 macOS `open` 命令 + 主动打开 device auth URL 到无痕窗口
+
+## 2026-04-28
+
+- “增加一个功能，可以直接通过claudex-switch alias -run 直接跑pass permission的对应的claudecode/codex session”
+- “还有一个，有办法每次list的时候获取所有账号的用量吗”
+
+## 2026-04-30
+
+- “这是我的api供应商提供的配置方法，现在这个项目支持这么配置吗”
+- “相当于当前项目只存apikey，但是接口打的还是API官方的？”
+- “那增加一个添加供应商的功能吧，先从codex开始”
+- “交互和现在的添加一样，add的时候让用户选到底是oauth/api, api的话选官方还是provider”

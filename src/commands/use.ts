@@ -10,6 +10,7 @@ import {
   findAccountByKey,
 } from "../providers/codex/registry";
 import { switchToAccount } from "../providers/codex/auth";
+import { applyCodexApiProvider } from "../providers/codex/config";
 import {
   blank,
   success,
@@ -20,8 +21,9 @@ import {
   maskKey,
   formatProvider,
 } from "../lib/ui";
+import type { AliasEntry } from "../types";
 
-export async function use(aliasOrName: string): Promise<void> {
+export async function use(aliasOrName: string): Promise<AliasEntry> {
   blank();
 
   const aliasReg = await loadAliases();
@@ -41,6 +43,8 @@ export async function use(aliasOrName: string): Promise<void> {
   } else {
     await switchCodex(entry.alias, entry.target.accountKey);
   }
+
+  return entry;
 }
 
 async function switchClaude(
@@ -94,6 +98,9 @@ async function switchCodex(
 
   try {
     await switchToAccount(accountKey);
+    await applyCodexApiProvider(
+      account.auth_mode === "apikey" ? account.api_provider : null,
+    );
   } catch (err) {
     error(
       `Failed to switch: ${err instanceof Error ? err.message : String(err)}`,

@@ -12,6 +12,7 @@ export const CLAUDE_STATE_FILE = join(CLAUDE_PROFILES_DIR, "state.json");
 // Codex paths
 export const CODEX_DIR = join(homedir(), ".codex");
 export const CODEX_AUTH_FILE = join(CODEX_DIR, "auth.json");
+export const CODEX_CONFIG_FILE = join(CODEX_DIR, "config.toml");
 export const CODEX_ACCOUNTS_DIR = join(CODEX_DIR, "accounts");
 export const CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 

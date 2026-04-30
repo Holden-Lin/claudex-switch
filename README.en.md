@@ -8,7 +8,8 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
-- `claudex-switch list` shows all accounts with current quota
+- `claudex-switch <alias> -run` switches accounts and starts a bypass-permission Claude Code / Codex session
+- `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info
 - Claude: OAuth subscriptions + Anthropic API keys
@@ -80,6 +81,9 @@ claudex-switch list
 # Switch by alias
 claudex-switch holden
 
+# Switch and start a bypass-permission session
+claudex-switch holden -run
+
 # Add a new account
 claudex-switch add my-claude
 claudex-switch add my-codex
@@ -113,7 +117,25 @@ Then choose an account type:
 - **Claude OAuth** — Claude subscription (Pro, Max, Team, etc.)
 - **Claude API Key** — Anthropic API key
 - **Codex ChatGPT** — ChatGPT login (Plus, Pro, Team, etc.)
-- **Codex API Key** — OpenAI API key
+- **Codex API Key** — OpenAI API key, with either the official API or a custom OpenAI-compatible provider
+
+After choosing Codex API Key, choose the API source:
+
+- **OpenAI official** — saves only the API key and does not write custom provider config
+- **Custom OpenAI-compatible provider** — also writes `model_provider`, `model`, and `[model_providers.<name>]` to `~/.codex/config.toml`
+
+Example custom provider config:
+
+```toml
+model_provider = "admin"
+model = "gpt-5.3-codex"
+
+[model_providers.admin]
+name = "admin"
+base_url = "https://newapi.hybaliez.com/v1"
+env_key = "OPENAI_API_KEY"
+requires_openai_auth = false
+```
 
 ## Commands
 
@@ -121,8 +143,10 @@ Then choose an account type:
 |---|---|
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
+| `claudex-switch <alias> -run` | Switch and start a bypass-permission Claude Code / Codex session |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
+| `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
 | `claudex-switch list` | List all accounts with quota info |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |
@@ -194,15 +218,16 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 ### Codex Account Switching
 
 - Copies the corresponding `<key>.auth.json` to `~/.codex/auth.json`
+- Codex API key accounts update `~/.codex/config.toml` based on the saved API source
 - Updates `active_account_key` in `registry.json`
-- Quota data comes from cached `last_usage` in `registry.json`
+- `list` refreshes Codex ChatGPT account usage and writes it back to `last_usage` in `registry.json`
 
 ## Compatibility
 
 - Fully compatible with `claude-switch` and `codex-auth` — all three tools can coexist
 - macOS: verified with Claude Code Keychain JSON format + legacy hex encoding
 - Claude: Pro, Max, Team, Enterprise subscriptions + API keys
-- Codex: Free, Plus, Pro, Team plans + OpenAI API keys
+- Codex: Free, Plus, Pro, Team plans + OpenAI API keys / OpenAI-compatible API providers
 
 ## Caveats
 
@@ -210,7 +235,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - Auto-update only runs on `claudex-switch --version` and only tracks the latest GitHub Release. Changes pushed to `main` are not picked up by installed users until a new release is published
 - Codex clients must be restarted after switching for changes to take effect
 - Credential files are set to `0600` permissions, but be aware of the security implications of storing credential copies in `~/.claude-profiles/`
-- Codex quota display uses cached data from `registry.json`; use `codex-auth`'s API mode for real-time refresh
+- `list` tries to refresh Codex ChatGPT account usage; API key accounts or failed refreshes show existing cache or `n/a`
 
 To temporarily disable auto-update for a single run:
 

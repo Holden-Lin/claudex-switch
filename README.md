@@ -8,9 +8,10 @@
 
 - 统一管理 Claude Code 和 Codex 两套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
-- `claudex-switch list` 同时显示所有账号及当前额度
+- `claudex-switch <alias> -run` 切换账号后直接启动免权限确认的 Claude Code / Codex 会话
+- `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
-- 每次运行前自动检查最新 GitHub Release，有更新时自动升级后继续执行原命令
+- 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级
 - Claude 支持 OAuth 订阅 + API Key
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
 - macOS Keychain 凭证兼容
@@ -80,6 +81,9 @@ claudex-switch list
 # 切换到指定别名
 claudex-switch holden
 
+# 切换账号并直接启动免权限确认的会话
+claudex-switch holden -run
+
 # 添加新账号
 claudex-switch add my-claude
 claudex-switch add my-codex
@@ -113,7 +117,25 @@ claudex-switch add work
 - **Claude OAuth** — 使用 Claude 订阅（Pro、Max、Team 等）
 - **Claude API Key** — 使用 Anthropic API key
 - **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等）
-- **Codex API Key** — 使用 OpenAI API key
+- **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商
+
+选择 Codex API Key 后会继续选择接口来源：
+
+- **OpenAI official** — 只保存 API key，不写自定义供应商配置
+- **Custom OpenAI-compatible provider** — 同时写入 `~/.codex/config.toml` 的 `model_provider`、`model` 和 `[model_providers.<name>]`
+
+自定义供应商示例配置：
+
+```toml
+model_provider = "admin"
+model = "gpt-5.3-codex"
+
+[model_providers.admin]
+name = "admin"
+base_url = "https://newapi.hybaliez.com/v1"
+env_key = "OPENAI_API_KEY"
+requires_openai_auth = false
+```
 
 ## 命令
 
@@ -121,8 +143,10 @@ claudex-switch add work
 |---|---|
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
+| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 免权限确认会话 |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
+| `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
 | `claudex-switch list` | 列出所有账号及额度 |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
@@ -194,15 +218,16 @@ claudex-switch 采用「薄别名层」架构：
 ### Codex 账号切换
 
 - 将对应的 `<key>.auth.json` 复制到 `~/.codex/auth.json`
+- Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`
 - 更新 `registry.json` 中的 `active_account_key`
-- 额度数据来自 `registry.json` 中缓存的 `last_usage`
+- 执行 `list` 时会刷新 Codex ChatGPT 账号用量，并写回 `registry.json` 中的 `last_usage`
 
 ## 兼容性
 
 - 与 `claude-switch`、`codex-auth` 完全兼容，三个工具可以并行使用
 - macOS：已验证 Claude Code Keychain JSON 格式 + 旧版 hex 编码格式
 - Claude：Pro、Max、Team、Enterprise 订阅 + API Key
-- Codex：Free、Plus、Pro、Team 等 + OpenAI API Key
+- Codex：Free、Plus、Pro、Team 等 + OpenAI API Key / OpenAI-compatible API provider
 
 ## 注意事项
 
@@ -210,7 +235,7 @@ claudex-switch 采用「薄别名层」架构：
 - 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
 - Codex 切换后需要重启客户端才能生效
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
-- Codex 额度显示依赖 `registry.json` 中的缓存数据，如需刷新请使用 `codex-auth` 的 API 模式
+- `list` 会尝试刷新 Codex ChatGPT 账号用量；API Key 账号或刷新失败时会显示已有缓存或 `n/a`
 
 如需临时关闭自动更新，可在当前命令前加上：
 

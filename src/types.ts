@@ -94,6 +94,14 @@ export interface CodexUsageSnapshot {
   plan_type: string | null;
 }
 
+export interface CodexApiProviderConfig {
+  type: "official" | "custom";
+  name: string | null;
+  base_url: string | null;
+  model: string | null;
+  env_key: string | null;
+}
+
 export interface CodexRegistryAccount {
   account_key: string;
   chatgpt_account_id: string;
@@ -103,6 +111,7 @@ export interface CodexRegistryAccount {
   account_name: string | null;
   plan: string | null;
   auth_mode: "chatgpt" | "apikey" | null;
+  api_provider?: CodexApiProviderConfig | null;
   created_at: number;
   last_used_at: number | null;
   last_usage: CodexUsageSnapshot | null;
@@ -151,6 +160,7 @@ export interface AccountInfo {
   email: string | null;
   plan: string | null;
   authMode: string;
+  apiProvider: string | null;
   isActive: boolean;
   usage: UsageInfo | null;
 }

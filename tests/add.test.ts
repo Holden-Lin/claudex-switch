@@ -8,7 +8,7 @@ import {
 } from "bun:test";
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 import * as prompts from "@inquirer/prompts";
 
@@ -38,9 +38,10 @@ let spawnSyncHandler: SpawnSyncHandler = () => ({
 let selectHandler = async () => "codex-chatgpt";
 let confirmHandler = async () => true;
 let passwordHandler = async () => "unused";
+let inputHandler = async () => "unused";
 let add: typeof import("../src/commands/add").add;
 const { loadAliases } = await import("../src/alias/store");
-const { CODEX_AUTH_FILE } = await import("../src/lib/paths");
+const { CODEX_AUTH_FILE, CODEX_CONFIG_FILE } = await import("../src/lib/paths");
 const { readActiveAuth, readAccountAuth } = await import(
   "../src/providers/codex/auth"
 );
@@ -56,6 +57,7 @@ describe("add", () => {
     prompts.select.mockRestore?.();
     prompts.confirm.mockRestore?.();
     prompts.password.mockRestore?.();
+    prompts.input.mockRestore?.();
   });
 
   beforeEach(async () => {
@@ -70,10 +72,12 @@ describe("add", () => {
     selectHandler = async () => "codex-chatgpt";
     confirmHandler = async () => true;
     passwordHandler = async () => "unused";
+    inputHandler = async () => "unused";
 
     spyOn(prompts, "select").mockImplementation(() => selectHandler());
     spyOn(prompts, "confirm").mockImplementation(() => confirmHandler());
     spyOn(prompts, "password").mockImplementation(() => passwordHandler());
+    spyOn(prompts, "input").mockImplementation(() => inputHandler());
 
     spyOn(childProcess, "spawn").mockImplementation((command, args) => {
       const proc = new EventEmitter() as EventEmitter & {
@@ -201,6 +205,51 @@ describe("add", () => {
 
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("work-codex created");
+
+    logSpy.mockRestore();
+  });
+
+  test("adds a codex api key with a custom provider config", async () => {
+    const selectValues = ["codex-apikey", "custom"];
+    const inputValues = [
+      "admin",
+      "https://newapi.hybaliez.com/v1",
+      "gpt-5.3-codex",
+      "OPENAI_API_KEY",
+    ];
+    selectHandler = async () => selectValues.shift() ?? "custom";
+    inputHandler = async () => inputValues.shift() ?? "";
+    passwordHandler = async () => "sk-test-123456789";
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await add("custom-codex");
+
+    const aliases = await loadAliases();
+    expect(aliases.aliases).toHaveLength(1);
+    expect(aliases.aliases[0]?.alias).toBe("custom-codex");
+
+    const registry = await loadRegistry();
+    const account = registry.accounts[0];
+    expect(account?.auth_mode).toBe("apikey");
+    expect(account?.api_provider).toEqual({
+      type: "custom",
+      name: "admin",
+      base_url: "https://newapi.hybaliez.com/v1",
+      model: "gpt-5.3-codex",
+      env_key: "OPENAI_API_KEY",
+    });
+
+    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(config).toContain('model_provider = "admin"');
+    expect(config).toContain('model = "gpt-5.3-codex"');
+    expect(config).toContain("[model_providers.admin]");
+    expect(config).toContain('base_url = "https://newapi.hybaliez.com/v1"');
+    expect(config).toContain('env_key = "OPENAI_API_KEY"');
+    expect(config).toContain("requires_openai_auth = false");
+
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("custom-codex created");
 
     logSpy.mockRestore();
   });

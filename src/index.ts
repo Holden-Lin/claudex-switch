@@ -7,6 +7,7 @@ import { readState } from "./providers/claude/profiles";
 import { loadRegistry } from "./providers/codex/registry";
 import { add } from "./commands/add";
 import { use } from "./commands/use";
+import { isRunFlag, runAliasSession } from "./commands/run";
 import { list } from "./commands/list";
 import { remove } from "./commands/remove";
 import { rename } from "./commands/rename";
@@ -25,6 +26,7 @@ const HELP = `
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
+    claudex-switch <alias> -run        Switch and run a bypass-permission session
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
@@ -41,6 +43,7 @@ const HELP = `
   ${chalk.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
+    claudex-switch use <alias> -run    Same as '<alias> -run'
     claudex-switch -V                  Same as '--version'
 `;
 
@@ -134,9 +137,13 @@ async function main(): Promise<void> {
       case "use":
         if (!args[0]) {
           console.error(
-            chalk.red("\n  Usage: claudex-switch use <alias>\n"),
+            chalk.red("\n  Usage: claudex-switch use <alias> [-run]\n"),
           );
           process.exit(1);
+        }
+        if (isRunFlag(args[1])) {
+          const exitCode = await runAliasSession(args[0], args.slice(2));
+          process.exit(exitCode);
         }
         await use(args[0]);
         break;
@@ -219,6 +226,10 @@ async function main(): Promise<void> {
         const aliasReg = await loadAliases();
         const match = findAlias(aliasReg, command);
         if (match) {
+          if (isRunFlag(args[0])) {
+            const exitCode = await runAliasSession(command, args.slice(1));
+            process.exit(exitCode);
+          }
           await use(command);
         } else {
           console.error(chalk.red(`\n  Unknown command: "${command}"`));

@@ -21,6 +21,8 @@ const RESERVED = new Set([
   "import",
   "update",
   "help",
+  "-run",
+  "--run",
   "--help",
   "-h",
   "--version",
