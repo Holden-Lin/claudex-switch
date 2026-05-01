@@ -184,12 +184,11 @@ claudex-switch refresh <alias>
   ▸ satoshi  oauth  Pro  satoshi@example.com
 
   ── Codex ──
-  ▸ cx-main    chatgpt  Plus  alice@gmail.com       5hrem: 55%  wkrem: 88%
-    cx-team    chatgpt  Team  bob@company.com       5hrem: 0%   wkrem: 65%
+  ▸ cx-main    chatgpt  Plus  alice@gmail.com
+    cx-team    chatgpt  Team  bob@company.com
 ```
 
 - `▸` 表示当前活跃账号
-- `5hrem` / `wkrem` 分别表示 5 小时和每周的剩余额度百分比
 
 ## 工作原理
 
@@ -220,7 +219,6 @@ claudex-switch 采用「薄别名层」架构：
 - 将对应的 `<key>.auth.json` 复制到 `~/.codex/auth.json`
 - Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`；自定义供应商会写入当前账号的 bearer token，确保切换后直接运行 `codex` 也能使用该账号
 - 更新 `registry.json` 中的 `active_account_key`
-- 执行 `list` 时会刷新 Codex ChatGPT 账号用量，并写回 `registry.json` 中的 `last_usage`
 
 ## 兼容性
 
@@ -235,7 +233,6 @@ claudex-switch 采用「薄别名层」架构：
 - 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
 - Codex 切换后需要重启客户端才能生效
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
-- `list` 会尝试刷新 Codex ChatGPT 账号用量；API Key 账号或刷新失败时会显示已有缓存或 `n/a`
 
 如需临时关闭自动更新，可在当前命令前加上：
 

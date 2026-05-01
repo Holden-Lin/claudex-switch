@@ -8,8 +8,7 @@ import {
   claudeProfileDataFile,
 } from "../lib/paths";
 import { readJson } from "../lib/fs";
-import { loadRegistry, saveRegistry } from "../providers/codex/registry";
-import { fetchUsage } from "../providers/codex/usage";
+import { loadRegistry } from "../providers/codex/registry";
 import {
   blank,
   header,
@@ -18,14 +17,12 @@ import {
   sectionHeader,
   formatType,
   formatPlan,
-  formatUsage,
   maskKey,
 } from "../lib/ui";
 import type {
   AliasEntry,
   OAuthAccount,
   AccountInfo,
-  CodexRegistry,
   CodexRegistryAccount,
 } from "../types";
 
@@ -59,7 +56,6 @@ export async function list(): Promise<void> {
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
-    await refreshCodexUsage(codexAliases, codexReg);
   } catch {
     // No codex registry
   }
@@ -117,58 +113,13 @@ export async function list(): Promise<void> {
         ? `  ${chalk.dim(info.apiProvider)}`
         : "";
 
-      let usageStr = "";
-      if (info.usage) {
-        const fiveH = formatUsage(info.usage.primaryPercent);
-        const weekly = formatUsage(info.usage.secondaryPercent);
-        usageStr = `  5h${chalk.dim("rem")}: ${fiveH}  wk${chalk.dim("rem")}: ${weekly}`;
-      }
-
       console.log(
-        `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${usageStr}`,
+        `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}`,
       );
     }
   }
 
   blank();
-}
-
-async function refreshCodexUsage(
-  codexAliases: AliasEntry[],
-  codexReg: CodexRegistry,
-): Promise<void> {
-  if (codexAliases.length === 0) return;
-  if (codexReg.api?.usage === false) return;
-
-  const accountKeys = new Set(
-    codexAliases
-      .filter((entry): entry is AliasEntry & {
-        target: { provider: "codex"; accountKey: string };
-      } => entry.target.provider === "codex")
-      .map((entry) => entry.target.accountKey),
-  );
-  let changed = false;
-
-  for (const accountKey of accountKeys) {
-    const account = codexReg.accounts.find(
-      (item) => item.account_key === accountKey,
-    );
-    if (!account || account.auth_mode !== "chatgpt") continue;
-
-    const usage = await fetchUsage(accountKey);
-    if (!usage) continue;
-
-    account.last_usage = usage;
-    account.last_usage_at = Math.floor(Date.now() / 1000);
-    if (usage.plan_type) {
-      account.plan = usage.plan_type;
-    }
-    changed = true;
-  }
-
-  if (changed) {
-    await saveRegistry(codexReg);
-  }
 }
 
 async function getClaudeAccountInfo(
@@ -249,7 +200,7 @@ async function getCodexAccountInfo(
     alias: entry.alias,
     provider: "codex",
     email: account.email || null,
-    plan: account.plan ?? account.last_usage?.plan_type ?? null,
+    plan: account.plan ?? null,
     authMode: account.auth_mode ?? "chatgpt",
     apiProvider:
       account.auth_mode === "apikey"
@@ -258,16 +209,6 @@ async function getCodexAccountInfo(
           : "official"
         : null,
     isActive,
-    usage: account.last_usage
-      ? {
-          primaryPercent: account.last_usage.primary?.used_percent ?? null,
-          secondaryPercent:
-            account.last_usage.secondary?.used_percent ?? null,
-          primaryResetsAt:
-            account.last_usage.primary?.resets_at ?? null,
-          secondaryResetsAt:
-            account.last_usage.secondary?.resets_at ?? null,
-        }
-      : null,
+    usage: null,
   };
 }

@@ -84,6 +84,7 @@ function renderCodexConfig(config: CodexTomlConfig): string {
 export async function activateCodexOfficialProvider(): Promise<void> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return;
   const config = await readCodexConfig();
+  if (!config.model_provider) return;
   delete config.model_provider;
   await writeCodexConfig(config);
 }
@@ -137,7 +138,16 @@ export async function applyCodexApiProvider(
 }
 
 async function writeCodexConfig(config: CodexTomlConfig): Promise<void> {
+  const content = renderCodexConfig(config);
+  try {
+    if ((await readFile(CODEX_CONFIG_FILE, "utf-8")) === content) {
+      await chmod(CODEX_CONFIG_FILE, 0o600);
+      return;
+    }
+  } catch {
+    // Missing or unreadable config should be rewritten below.
+  }
   await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile(CODEX_CONFIG_FILE, renderCodexConfig(config), { mode: 0o600 });
+  await writeFile(CODEX_CONFIG_FILE, content, { mode: 0o600 });
   await chmod(CODEX_CONFIG_FILE, 0o600);
 }

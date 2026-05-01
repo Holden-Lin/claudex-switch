@@ -184,12 +184,11 @@ On macOS, `claudex-switch` opens Codex's device auth page in a private/incognito
   ▸ satoshi  oauth  Pro  satoshi@example.com
 
   ── Codex ──
-  ▸ cx-main    chatgpt  Plus  alice@gmail.com       5hrem: 55%  wkrem: 88%
-    cx-team    chatgpt  Team  bob@company.com       5hrem: 0%   wkrem: 65%
+  ▸ cx-main    chatgpt  Plus  alice@gmail.com
+    cx-team    chatgpt  Team  bob@company.com
 ```
 
 - `▸` marks the currently active account
-- `5hrem` / `wkrem` show remaining quota percentage for 5-hour and weekly windows
 
 ## How It Works
 
@@ -220,7 +219,6 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - Copies the corresponding `<key>.auth.json` to `~/.codex/auth.json`
 - Codex API key accounts update `~/.codex/config.toml` based on the saved API source; custom providers write the active account bearer token so raw `codex` commands work after switching
 - Updates `active_account_key` in `registry.json`
-- `list` refreshes Codex ChatGPT account usage and writes it back to `last_usage` in `registry.json`
 
 ## Compatibility
 
@@ -235,7 +233,6 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - Auto-update only runs on `claudex-switch --version` and only tracks the latest GitHub Release. Changes pushed to `main` are not picked up by installed users until a new release is published
 - Codex clients must be restarted after switching for changes to take effect
 - Credential files are set to `0600` permissions, but be aware of the security implications of storing credential copies in `~/.claude-profiles/`
-- `list` tries to refresh Codex ChatGPT account usage; API key accounts or failed refreshes show existing cache or `n/a`
 
 To temporarily disable auto-update for a single run:
 

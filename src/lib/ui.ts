@@ -74,15 +74,6 @@ export function formatProvider(provider: Provider): string {
     : chalk.green("Codex");
 }
 
-export function formatUsage(usedPercent: number | null): string {
-  if (usedPercent === null || usedPercent === undefined)
-    return chalk.dim("n/a");
-  const remaining = Math.max(0, 100 - usedPercent);
-  if (remaining > 50) return chalk.green(`${remaining.toFixed(0)}%`);
-  if (remaining > 20) return chalk.yellow(`${remaining.toFixed(0)}%`);
-  return chalk.red(`${remaining.toFixed(0)}%`);
-}
-
 export function maskKey(key: string): string {
   if (key.length <= 12) return "••••";
   return key.slice(0, 7) + "••••" + key.slice(-4);

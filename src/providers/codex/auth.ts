@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, unlink, writeFile } from "fs/promises";
+import { chmod, copyFile, mkdir, readFile, unlink, writeFile } from "fs/promises";
 import {
   CODEX_AUTH_FILE,
   CODEX_ACCOUNTS_DIR,
@@ -29,14 +29,16 @@ export async function switchToAccount(accountKey: string): Promise<void> {
   if (!(await fileExists(srcPath))) {
     throw new Error(`Auth file not found for account: ${accountKey}`);
   }
-  const auth = await readAccountAuth(accountKey);
+
+  const srcContent = await readFile(srcPath, "utf-8");
+  const auth = parseAuthContent(srcContent);
   if (auth?.auth_mode === "apikey") {
     const normalized = normalizeAuthForCodexCli(auth);
-    await writeAuthFile(srcPath, normalized);
-    await writeAuthFile(CODEX_AUTH_FILE, normalized);
+    await writeAuthFileIfChanged(srcPath, normalized);
+    await writeAuthFileIfChanged(CODEX_AUTH_FILE, normalized);
     return;
   }
-  await copyFile(srcPath, CODEX_AUTH_FILE);
+  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE, srcContent);
 }
 
 export async function saveAccountAuth(
@@ -55,12 +57,42 @@ async function writeAuthFile(
   await writeFile(path, JSON.stringify(authData, null, 2), { mode: 0o600 });
 }
 
+async function writeAuthFileIfChanged(
+  path: string,
+  authData: CodexAuthFile,
+): Promise<void> {
+  await writeRawAuthFileIfChanged(path, JSON.stringify(authData, null, 2));
+}
+
+async function writeRawAuthFileIfChanged(
+  path: string,
+  content: string,
+): Promise<void> {
+  try {
+    if ((await readFile(path, "utf-8")) === content) {
+      await chmod(path, 0o600);
+      return;
+    }
+  } catch {
+    // Missing or unreadable target should be rewritten below.
+  }
+  await writeFile(path, content, { mode: 0o600 });
+}
+
 function normalizeAuthForCodexCli(authData: CodexAuthFile): CodexAuthFile {
   if (authData.auth_mode !== "apikey") return authData;
   return {
     auth_mode: "apikey",
     OPENAI_API_KEY: authData.OPENAI_API_KEY,
   };
+}
+
+function parseAuthContent(content: string): CodexAuthFile | null {
+  try {
+    return JSON.parse(content) as CodexAuthFile;
+  } catch {
+    return null;
+  }
 }
 
 /**

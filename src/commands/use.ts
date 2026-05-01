@@ -112,8 +112,10 @@ async function switchCodex(
     process.exit(1);
   }
 
-  setActiveAccount(reg, accountKey);
-  await saveRegistry(reg);
+  if (reg.active_account_key !== accountKey) {
+    setActiveAccount(reg, accountKey);
+    await saveRegistry(reg);
+  }
 
   const plan = formatPlan(
     account.plan ?? account.last_usage?.plan_type ?? null,
