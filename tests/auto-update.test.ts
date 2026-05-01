@@ -165,10 +165,12 @@ describe("auto update", () => {
           return { status: 0, stdout: "/Users/test/.bun/bin\n" };
         }
 
-        if (
-          command === "bun" &&
-          args[0] === "install"
-        ) {
+        if (command === "bun" && args.join(" ") === "remove -g claudex-switch") {
+          expect(options?.env?.CLAUDEX_SKIP_AUTO_UPDATE).toBe("1");
+          return { status: 0 };
+        }
+
+        if (command === "bun" && args[0] === "install") {
           expect(options?.env?.CLAUDEX_SKIP_AUTO_UPDATE).toBe("1");
           return { status: 0 };
         }
@@ -188,6 +190,7 @@ describe("auto update", () => {
       "brew --prefix",
       "bun --version",
       "bun pm bin -g",
+      "bun remove -g claudex-switch",
       "bun install -g git+https://github.com/Holden-Lin/claudex-switch.git#v9.8.7",
       "/Users/test/.bun/bin/claudex-switch list",
     ]);
@@ -217,6 +220,12 @@ describe("auto update", () => {
             return { status: 0, stdout: "/Users/test/.bun/bin\n" };
           }
 
+          if (command === "bun" && args.join(" ") === "remove -g claudex-switch") {
+            expect(options?.env?.CLAUDEX_SKIP_AUTO_UPDATE).toBe("1");
+            expect(options?.env?.CLAUDEX_DISABLE_AUTO_UPDATE).toBe("1");
+            return { status: 0 };
+          }
+
           if (command === "bun" && args[0] === "install") {
             expect(options?.env?.CLAUDEX_SKIP_AUTO_UPDATE).toBe("1");
             expect(options?.env?.CLAUDEX_DISABLE_AUTO_UPDATE).toBe("1");
@@ -243,6 +252,7 @@ describe("auto update", () => {
       "brew --prefix",
       "bun --version",
       "bun pm bin -g",
+      "bun remove -g claudex-switch",
       "bun install -g git+https://github.com/Holden-Lin/claudex-switch.git#v9.8.7",
     ]);
   });

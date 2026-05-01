@@ -342,15 +342,6 @@ function updateWithBun(
     "-g",
     `${BUN_INSTALL_SPEC}#v${normalizeVersion(version)}`,
   ];
-  const directInstall = runCommand("bun", installArgs, {
-    env,
-    stdio: "inherit",
-  });
-
-  if (directInstall.status === 0 && !directInstall.error) {
-    return true;
-  }
-
   const remove = runCommand("bun", ["remove", "-g", "claudex-switch"], {
     env,
     stdio: "inherit",
@@ -359,11 +350,11 @@ function updateWithBun(
     return false;
   }
 
-  const reinstall = runCommand("bun", installArgs, {
+  const install = runCommand("bun", installArgs, {
     env,
     stdio: "inherit",
   });
-  return reinstall.status === 0 && !reinstall.error;
+  return install.status === 0 && !install.error;
 }
 
 function readCommandStdout(result: CommandResult): string {

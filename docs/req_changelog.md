@@ -45,3 +45,4 @@
 
 - “现在list的速度很慢，把获取用量的功能去掉吧，因为看起来也是不准的”
 - “另外，把整体性能优化一下，比如每次switch后，都要1.5秒才成功”
+- “claudex-switch update ... error: Package "claudex-switch@github:Holden-Lin/claudex-switch#ddeae39" has a dependency loop ... 把这个error修复一下” → Bun 自更新先移除旧全局包，再安装目标 release，避免同包自依赖解析错误

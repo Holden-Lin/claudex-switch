@@ -5436,7 +5436,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.11",
+  version: "1.1.12",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -5646,13 +5646,6 @@ function updateWithBun(version, runCommand, env2) {
     "-g",
     `${BUN_INSTALL_SPEC}#v${normalizeVersion(version)}`
   ];
-  const directInstall = runCommand("bun", installArgs, {
-    env: env2,
-    stdio: "inherit"
-  });
-  if (directInstall.status === 0 && !directInstall.error) {
-    return true;
-  }
   const remove2 = runCommand("bun", ["remove", "-g", "claudex-switch"], {
     env: env2,
     stdio: "inherit"
@@ -5660,11 +5653,11 @@ function updateWithBun(version, runCommand, env2) {
   if (remove2.status !== 0 || remove2.error) {
     return false;
   }
-  const reinstall = runCommand("bun", installArgs, {
+  const install = runCommand("bun", installArgs, {
     env: env2,
     stdio: "inherit"
   });
-  return reinstall.status === 0 && !reinstall.error;
+  return install.status === 0 && !install.error;
 }
 function readCommandStdout(result) {
   return typeof result.stdout === "string" ? result.stdout.trim() : "";
