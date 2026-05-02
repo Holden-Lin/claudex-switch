@@ -46,3 +46,8 @@
 - “现在list的速度很慢，把获取用量的功能去掉吧，因为看起来也是不准的”
 - “另外，把整体性能优化一下，比如每次switch后，都要1.5秒才成功”
 - “claudex-switch update ... error: Package "claudex-switch@github:Holden-Lin/claudex-switch#ddeae39" has a dependency loop ... 把这个error修复一下” → Bun 自更新先移除旧全局包，再安装目标 release，避免同包自依赖解析错误
+
+## 2026-05-02
+
+- “claudex-switch update ... Could not determine how this claudex-switch install was installed. Automatic update currently supports Bun and Homebrew installs. met this” → 识别 npm/nvm 全局安装并明确提示不支持，阻止之后通过 npm 安装，引导用户改用安装脚本 / Bun / Homebrew
+- “I don't think we want to support npm install, instead we should make sure that no user would install via npm and that is ok” → 移除 npm 自更新支持，保留 npm/nvm 检测仅用于错误提示，并新增 preinstall guard 拦截 npm 安装

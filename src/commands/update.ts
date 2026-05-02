@@ -41,8 +41,15 @@ export async function update(): Promise<void> {
       return;
 
     case "unsupported":
-      error("Could not determine how this claudex-switch install was installed.");
-      hint("Automatic update currently supports Bun and Homebrew installs.");
+      if (result.unsupportedInstallMethod === "npm") {
+        error("This claudex-switch command is installed through npm/nvm, which is not supported.");
+        hint(
+          `Reinstall with the installer script or ${chalk.cyan("bun install -g git+https://github.com/Holden-Lin/claudex-switch.git")}.`,
+        );
+      } else {
+        error("Could not determine how this claudex-switch install was installed.");
+        hint("Automatic update currently supports Bun and Homebrew installs.");
+      }
       blank();
       process.exit(1);
 

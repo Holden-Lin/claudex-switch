@@ -11,7 +11,7 @@
 - `claudex-switch <alias> -run` 切换账号后直接启动免权限确认的 Claude Code / Codex 会话
 - `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
-- 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级
+- 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
 - Claude 支持 OAuth 订阅 + API Key
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
 - macOS Keychain 凭证兼容

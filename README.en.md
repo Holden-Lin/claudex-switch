@@ -11,7 +11,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - `claudex-switch <alias> -run` switches accounts and starts a bypass-permission Claude Code / Codex session
 - `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
-- Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info
+- Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
 - Claude: OAuth subscriptions + Anthropic API keys
 - Codex: ChatGPT OAuth + OpenAI API keys
 - macOS Keychain credential support

@@ -13,6 +13,7 @@ const DISABLE_AUTO_UPDATE_ENV = "CLAUDEX_DISABLE_AUTO_UPDATE";
 export const CURRENT_VERSION = normalizeVersion(packageJson.version);
 
 export type InstallMethod = "brew" | "bun";
+export type UnsupportedInstallMethod = "npm";
 
 type CommandResult = {
   error?: Error;
@@ -54,6 +55,7 @@ export type UpdateCheckResult =
       status: "up-to-date" | "unsupported";
       currentVersion: string;
       latestVersion: string;
+      unsupportedInstallMethod?: UnsupportedInstallMethod;
     }
   | AvailableUpdate;
 
@@ -193,6 +195,51 @@ export function detectInstallMethod(
   return null;
 }
 
+function detectUnsupportedInstallMethod(
+  argv: string[],
+  execPath: string,
+  runCommand: RunCommand,
+): UnsupportedInstallMethod | null {
+  const cliPath = resolveCliPath(argv, execPath);
+  const realCliPath = resolveRealPath(cliPath);
+  const npmCheck = runCommand("npm", ["--version"], {
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+
+  if (npmCheck.status === 0 && !npmCheck.error) {
+    const npmPrefix = readCommandStdout(
+      runCommand("npm", ["prefix", "-g"], {
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }),
+    );
+    const npmRoot = readCommandStdout(
+      runCommand("npm", ["root", "-g"], {
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }),
+    );
+    const npmBin = npmPrefix ? `${npmPrefix.replace(/\/$/, "")}/bin` : "";
+
+    if (
+      (npmBin &&
+        (
+          pathStartsWith(cliPath, npmBin) ||
+          pathStartsWith(realCliPath, npmBin)
+        )) ||
+      (npmRoot &&
+        (
+          pathStartsWith(cliPath, npmRoot) ||
+          pathStartsWith(realCliPath, npmRoot)
+        ))
+    ) {
+      return "npm";
+    }
+  }
+
+  return null;
+}
+
 function pathStartsWith(path: string | null, prefix: string): boolean {
   if (!path) return false;
   return path === prefix || path.startsWith(`${prefix.replace(/\/$/, "")}/`);
@@ -254,6 +301,11 @@ export async function checkForLatestUpdate(
       status: "unsupported",
       currentVersion: CURRENT_VERSION,
       latestVersion,
+      unsupportedInstallMethod: detectUnsupportedInstallMethod(
+        argv,
+        execPath,
+        runCommand,
+      ) ?? undefined,
     };
   }
 

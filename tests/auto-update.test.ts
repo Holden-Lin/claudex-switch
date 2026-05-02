@@ -139,6 +139,59 @@ describe("auto update", () => {
     expect(method).toBeNull();
   });
 
+  test("reports npm installs as unsupported", async () => {
+    const calls: string[] = [];
+
+    const result = await checkForLatestUpdate({
+      argv: ["/Users/test/.nvm/versions/node/v20.9.0/bin/claudex-switch", "update"],
+      env: {},
+      execPath: "/Users/test/.nvm/versions/node/v20.9.0/bin/node",
+      fetchLatestVersion: async () => "9.8.7",
+      runCommand: (command, args) => {
+        calls.push(`${command} ${args.join(" ")}`);
+
+        if (command === "brew") {
+          return { status: 1 };
+        }
+
+        if (command === "bun" && args[0] === "--version") {
+          return { status: 1 };
+        }
+
+        if (command === "npm" && args[0] === "--version") {
+          return { status: 0 };
+        }
+
+        if (command === "npm" && args.join(" ") === "prefix -g") {
+          return { status: 0, stdout: "/Users/test/.nvm/versions/node/v20.9.0\n" };
+        }
+
+        if (command === "npm" && args.join(" ") === "root -g") {
+          return {
+            status: 0,
+            stdout: "/Users/test/.nvm/versions/node/v20.9.0/lib/node_modules\n",
+          };
+        }
+
+        throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+      },
+    });
+
+    expect(result).toEqual({
+      status: "unsupported",
+      currentVersion: packageJson.version,
+      latestVersion: "9.8.7",
+      unsupportedInstallMethod: "npm",
+    });
+    expect(calls).toEqual([
+      "brew --prefix",
+      "bun --version",
+      "npm --version",
+      "npm prefix -g",
+      "npm root -g",
+    ]);
+  });
+
   test("updates with bun and restarts the original command", async () => {
     const calls: string[] = [];
 

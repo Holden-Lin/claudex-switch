@@ -5,25 +5,43 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2220,7 +2238,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2365,7 +2382,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -5436,18 +5453,19 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.12",
+  version: "1.1.13",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
     "claudex-switch": "./dist/claudex-switch.js"
   },
-  files: ["dist"],
+  files: ["dist", "scripts/guard-package-manager.js"],
   scripts: {
     build: "bun build ./src/index.ts --target node --outfile ./dist/claudex-switch.js",
     "build:binary": "bun build ./src/index.ts --compile --outfile ./dist/claudex-switch",
     "build:release": "./scripts/build-release-assets.sh ./release",
     dev: "bun run src/index.ts",
+    preinstall: "node ./scripts/guard-package-manager.js",
     test: "bun test --preload ./tests/preload.ts",
     verify: "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
@@ -5544,6 +5562,28 @@ function detectInstallMethod(argv = process.argv, execPath = process.execPath, r
   }
   return null;
 }
+function detectUnsupportedInstallMethod(argv, execPath, runCommand) {
+  const cliPath = resolveCliPath(argv, execPath);
+  const realCliPath = resolveRealPath(cliPath);
+  const npmCheck = runCommand("npm", ["--version"], {
+    stdio: ["ignore", "ignore", "ignore"]
+  });
+  if (npmCheck.status === 0 && !npmCheck.error) {
+    const npmPrefix = readCommandStdout(runCommand("npm", ["prefix", "-g"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }));
+    const npmRoot = readCommandStdout(runCommand("npm", ["root", "-g"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }));
+    const npmBin = npmPrefix ? `${npmPrefix.replace(/\/$/, "")}/bin` : "";
+    if (npmBin && (pathStartsWith(cliPath, npmBin) || pathStartsWith(realCliPath, npmBin)) || npmRoot && (pathStartsWith(cliPath, npmRoot) || pathStartsWith(realCliPath, npmRoot))) {
+      return "npm";
+    }
+  }
+  return null;
+}
 function pathStartsWith(path, prefix) {
   if (!path)
     return false;
@@ -5590,7 +5630,8 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
     return {
       status: "unsupported",
       currentVersion: CURRENT_VERSION,
-      latestVersion
+      latestVersion,
+      unsupportedInstallMethod: detectUnsupportedInstallMethod(argv, execPath, runCommand) ?? undefined
     };
   }
   return {
@@ -5702,8 +5743,13 @@ async function update() {
       blank();
       return;
     case "unsupported":
-      error("Could not determine how this claudex-switch install was installed.");
-      hint("Automatic update currently supports Bun and Homebrew installs.");
+      if (result.unsupportedInstallMethod === "npm") {
+        error("This claudex-switch command is installed through npm/nvm, which is not supported.");
+        hint(`Reinstall with the installer script or ${source_default.cyan("bun install -g git+https://github.com/Holden-Lin/claudex-switch.git")}.`);
+      } else {
+        error("Could not determine how this claudex-switch install was installed.");
+        hint("Automatic update currently supports Bun and Homebrew installs.");
+      }
       blank();
       process.exit(1);
     case "unavailable":

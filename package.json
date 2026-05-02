@@ -1,17 +1,18 @@
 {
   "name": "claudex-switch",
-  "version": "1.1.12",
+  "version": "1.1.13",
   "description": "Switch between Claude Code and Codex accounts with ease",
   "type": "module",
   "bin": {
     "claudex-switch": "./dist/claudex-switch.js"
   },
-  "files": ["dist"],
+  "files": ["dist", "scripts/guard-package-manager.js"],
   "scripts": {
     "build": "bun build ./src/index.ts --target node --outfile ./dist/claudex-switch.js",
     "build:binary": "bun build ./src/index.ts --compile --outfile ./dist/claudex-switch",
     "build:release": "./scripts/build-release-assets.sh ./release",
     "dev": "bun run src/index.ts",
+    "preinstall": "node ./scripts/guard-package-manager.js",
     "test": "bun test --preload ./tests/preload.ts",
     "verify": "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
