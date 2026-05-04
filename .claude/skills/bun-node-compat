@@ -1,0 +1,37 @@
+# Bun → Node Runtime Compatibility
+
+When building with `bun build --target node`, the output runs under Node.js, not Bun. Any Bun-only API silently breaks at runtime.
+
+## Forbidden in bundled code
+
+These exist only in the Bun runtime and will throw `ReferenceError: Bun is not defined` under Node:
+
+- `Bun.TOML.parse` — use a custom parser or `smol-toml`
+- `Bun.file()` / `Bun.write()` — use `fs/promises`
+- `Bun.spawn()` / `Bun.spawnSync()` — use `child_process`
+- `Bun.sleep()` — use `setTimeout` or `timers/promises`
+- `Bun.env` — use `process.env`
+- `Bun.hash()` — use `crypto`
+- `Bun.Glob` — use `fast-glob` or `fs.glob`
+- `Bun.serve()` — use `http` / `express` / `hono`
+- `Bun.dns` — use `dns/promises`
+
+## Why this is hard to catch
+
+- `bun test` runs under Bun → all Bun APIs work → tests pass
+- `bun run src/index.ts` also works during dev
+- The bug only manifests in the **installed binary** running under Node
+- If the call is inside a try/catch (common for file I/O), it silently degrades
+
+## Prevention checklist
+
+1. After `bun run build`, always verify critical paths with `node ./dist/<output>.js`
+2. Grep the dist bundle for `Bun.` references: `grep -n 'Bun\.' dist/*.js`
+3. In CI or `bun run verify`, add a Node smoke test for the dist output
+4. Never use `Bun.*` in `src/` code that will be bundled — only in test files, scripts, or dev-only tooling
+
+## When Bun APIs are safe to use
+
+- Test files (`tests/*.ts`) — always run with `bun test`
+- Build scripts (`scripts/*.ts`) — run directly with `bun`
+- Dev-only tooling that won't be bundled
