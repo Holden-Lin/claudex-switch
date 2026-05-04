@@ -37,21 +37,44 @@ function formatScalar(value: string | number | boolean): string {
   return String(value);
 }
 
-function writeScalarLines(
+const BARE_KEY_RE = /^[A-Za-z0-9_-]+$/;
+
+function formatKey(key: string): string {
+  if (BARE_KEY_RE.test(key)) return key;
+  return JSON.stringify(key);
+}
+
+function renderTable(
   lines: string[],
   table: TomlObject,
-  skipKeys: Set<string>,
+  prefix: string,
 ): void {
+  const scalars: [string, string | number | boolean][] = [];
+  const subtables: [string, TomlObject][] = [];
+
   for (const [key, value] of Object.entries(table)) {
-    if (skipKeys.has(key)) continue;
-    if (value === null || value === undefined || isSimpleTable(value)) continue;
-    if (
+    if (value === null || value === undefined) continue;
+    if (isSimpleTable(value)) {
+      subtables.push([key, value]);
+    } else if (
       typeof value === "string" ||
       typeof value === "number" ||
       typeof value === "boolean"
     ) {
-      lines.push(`${key} = ${formatScalar(value)}`);
+      scalars.push([key, value]);
     }
+  }
+
+  for (const [key, value] of scalars) {
+    lines.push(`${formatKey(key)} = ${formatScalar(value)}`);
+  }
+
+  for (const [key, subtable] of subtables) {
+    const quotedKey = formatKey(key);
+    const fullKey = prefix ? `${prefix}.${quotedKey}` : quotedKey;
+    if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+    lines.push(`[${fullKey}]`);
+    renderTable(lines, subtable, fullKey);
   }
 }
 
@@ -65,17 +88,27 @@ function renderCodexConfig(config: CodexTomlConfig): string {
     lines.push(`model = ${formatScalar(config.model)}`);
   }
 
-  writeScalarLines(lines, config, new Set(["model_provider", "model", "model_providers"]));
+  // Top-level scalars (excluding model_provider/model which are already rendered)
+  const skipKeys = new Set(["model_provider", "model"]);
+  for (const [key, value] of Object.entries(config)) {
+    if (skipKeys.has(key)) continue;
+    if (value === null || value === undefined || isSimpleTable(value)) continue;
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      lines.push(`${key} = ${formatScalar(value)}`);
+    }
+  }
 
-  const providers = isSimpleTable(config.model_providers)
-    ? config.model_providers
-    : {};
-
-  for (const [name, rawProvider] of Object.entries(providers)) {
-    if (!isSimpleTable(rawProvider)) continue;
+  // All table sections
+  for (const [key, value] of Object.entries(config)) {
+    if (skipKeys.has(key)) continue;
+    if (!isSimpleTable(value)) continue;
     if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
-    lines.push(`[model_providers.${name}]`);
-    writeScalarLines(lines, rawProvider, new Set());
+    lines.push(`[${key}]`);
+    renderTable(lines, value, key);
   }
 
   return `${lines.join("\n")}\n`;
@@ -84,8 +117,22 @@ function renderCodexConfig(config: CodexTomlConfig): string {
 export async function activateCodexOfficialProvider(): Promise<void> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return;
   const config = await readCodexConfig();
-  if (!config.model_provider) return;
+  if (!config.model_provider && !config.model) return;
   delete config.model_provider;
+  delete config.model;
+
+  // Remove provider entries that have an embedded bearer token
+  if (isSimpleTable(config.model_providers)) {
+    for (const [name, rawProvider] of Object.entries(config.model_providers)) {
+      if (isSimpleTable(rawProvider) && rawProvider.experimental_bearer_token) {
+        delete config.model_providers[name];
+      }
+    }
+    if (Object.keys(config.model_providers).length === 0) {
+      delete config.model_providers;
+    }
+  }
+
   await writeCodexConfig(config);
 }
 

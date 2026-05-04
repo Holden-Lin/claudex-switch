@@ -9,7 +9,7 @@ import {
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, writeFile } from "fs/promises";
-import { homedir } from "os";
+import { dirname } from "path";
 
 type SpawnHandler = (
   command: string,
@@ -199,7 +199,7 @@ describe("refresh", () => {
     spawnHandler = async (command, args) => {
       expect(command).toBe("codex");
       expect(args).toEqual(["login", "--device-auth"]);
-      await mkdir(homedir(), { recursive: true });
+      await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
       await writeFile(
         CODEX_AUTH_FILE,
         JSON.stringify(refreshedAuth, null, 2),
@@ -259,8 +259,7 @@ describe("refresh", () => {
     };
     await saveAliases(aliases);
 
-    await mkdir(homedir(), { recursive: true });
-    await mkdir(`${homedir()}/.claude`, { recursive: true });
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
 
     const originalCreds: CredentialsFile = {
       claudeAiOauth: {

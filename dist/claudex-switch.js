@@ -1594,20 +1594,21 @@ function codexAccountAuthFile(accountKey) {
   const fileKey = needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
   return join(CODEX_ACCOUNTS_DIR, `${fileKey}.auth.json`);
 }
-var CLAUDE_DIR, CLAUDE_JSON, CREDENTIALS_FILE, SETTINGS_FILE, CLAUDE_PROFILES_DIR, CLAUDE_STATE_FILE, CODEX_DIR, CODEX_AUTH_FILE, CODEX_CONFIG_FILE, CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE, CLAUDEX_DIR, ALIAS_REGISTRY_FILE;
+var HOME, CLAUDE_DIR, CLAUDE_JSON, CREDENTIALS_FILE, SETTINGS_FILE, CLAUDE_PROFILES_DIR, CLAUDE_STATE_FILE, CODEX_DIR, CODEX_AUTH_FILE, CODEX_CONFIG_FILE, CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE, CLAUDEX_DIR, ALIAS_REGISTRY_FILE;
 var init_paths = __esm(() => {
-  CLAUDE_DIR = join(homedir(), ".claude");
-  CLAUDE_JSON = join(homedir(), ".claude.json");
+  HOME = process.env.CLAUDEX_TEST_HOME ?? homedir();
+  CLAUDE_DIR = join(HOME, ".claude");
+  CLAUDE_JSON = join(HOME, ".claude.json");
   CREDENTIALS_FILE = join(CLAUDE_DIR, ".credentials.json");
   SETTINGS_FILE = join(CLAUDE_DIR, "settings.json");
-  CLAUDE_PROFILES_DIR = join(homedir(), ".claude-profiles");
+  CLAUDE_PROFILES_DIR = join(HOME, ".claude-profiles");
   CLAUDE_STATE_FILE = join(CLAUDE_PROFILES_DIR, "state.json");
-  CODEX_DIR = join(homedir(), ".codex");
+  CODEX_DIR = join(HOME, ".codex");
   CODEX_AUTH_FILE = join(CODEX_DIR, "auth.json");
   CODEX_CONFIG_FILE = join(CODEX_DIR, "config.toml");
   CODEX_ACCOUNTS_DIR = join(CODEX_DIR, "accounts");
   CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
-  CLAUDEX_DIR = join(homedir(), ".claudex-switch");
+  CLAUDEX_DIR = join(HOME, ".claudex-switch");
   ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 });
 
@@ -4303,15 +4304,34 @@ function formatScalar(value) {
     return JSON.stringify(value);
   return String(value);
 }
-function writeScalarLines(lines, table, skipKeys) {
+var BARE_KEY_RE = /^[A-Za-z0-9_-]+$/;
+function formatKey(key) {
+  if (BARE_KEY_RE.test(key))
+    return key;
+  return JSON.stringify(key);
+}
+function renderTable(lines, table, prefix) {
+  const scalars = [];
+  const subtables = [];
   for (const [key, value] of Object.entries(table)) {
-    if (skipKeys.has(key))
+    if (value === null || value === undefined)
       continue;
-    if (value === null || value === undefined || isSimpleTable(value))
-      continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      lines.push(`${key} = ${formatScalar(value)}`);
+    if (isSimpleTable(value)) {
+      subtables.push([key, value]);
+    } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      scalars.push([key, value]);
     }
+  }
+  for (const [key, value] of scalars) {
+    lines.push(`${formatKey(key)} = ${formatScalar(value)}`);
+  }
+  for (const [key, subtable] of subtables) {
+    const quotedKey = formatKey(key);
+    const fullKey = prefix ? `${prefix}.${quotedKey}` : quotedKey;
+    if (lines.length > 0 && lines[lines.length - 1] !== "")
+      lines.push("");
+    lines.push(`[${fullKey}]`);
+    renderTable(lines, subtable, fullKey);
   }
 }
 function renderCodexConfig(config) {
@@ -4322,15 +4342,25 @@ function renderCodexConfig(config) {
   if (config.model) {
     lines.push(`model = ${formatScalar(config.model)}`);
   }
-  writeScalarLines(lines, config, new Set(["model_provider", "model", "model_providers"]));
-  const providers = isSimpleTable(config.model_providers) ? config.model_providers : {};
-  for (const [name, rawProvider] of Object.entries(providers)) {
-    if (!isSimpleTable(rawProvider))
+  const skipKeys = new Set(["model_provider", "model"]);
+  for (const [key, value] of Object.entries(config)) {
+    if (skipKeys.has(key))
+      continue;
+    if (value === null || value === undefined || isSimpleTable(value))
+      continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      lines.push(`${key} = ${formatScalar(value)}`);
+    }
+  }
+  for (const [key, value] of Object.entries(config)) {
+    if (skipKeys.has(key))
+      continue;
+    if (!isSimpleTable(value))
       continue;
     if (lines.length > 0 && lines[lines.length - 1] !== "")
       lines.push("");
-    lines.push(`[model_providers.${name}]`);
-    writeScalarLines(lines, rawProvider, new Set);
+    lines.push(`[${key}]`);
+    renderTable(lines, value, key);
   }
   return `${lines.join(`
 `)}
@@ -4340,9 +4370,20 @@ async function activateCodexOfficialProvider() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return;
   const config = await readCodexConfig();
-  if (!config.model_provider)
+  if (!config.model_provider && !config.model)
     return;
   delete config.model_provider;
+  delete config.model;
+  if (isSimpleTable(config.model_providers)) {
+    for (const [name, rawProvider] of Object.entries(config.model_providers)) {
+      if (isSimpleTable(rawProvider) && rawProvider.experimental_bearer_token) {
+        delete config.model_providers[name];
+      }
+    }
+    if (Object.keys(config.model_providers).length === 0) {
+      delete config.model_providers;
+    }
+  }
   await writeCodexConfig(config);
 }
 async function activateCodexCustomProvider(provider, apiKey) {

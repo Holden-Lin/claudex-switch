@@ -1,23 +1,25 @@
 import { homedir } from "os";
 import { join } from "path";
 
+const HOME = process.env.CLAUDEX_TEST_HOME ?? homedir();
+
 // Claude paths
-export const CLAUDE_DIR = join(homedir(), ".claude");
-export const CLAUDE_JSON = join(homedir(), ".claude.json");
+export const CLAUDE_DIR = join(HOME, ".claude");
+export const CLAUDE_JSON = join(HOME, ".claude.json");
 export const CREDENTIALS_FILE = join(CLAUDE_DIR, ".credentials.json");
 export const SETTINGS_FILE = join(CLAUDE_DIR, "settings.json");
-export const CLAUDE_PROFILES_DIR = join(homedir(), ".claude-profiles");
+export const CLAUDE_PROFILES_DIR = join(HOME, ".claude-profiles");
 export const CLAUDE_STATE_FILE = join(CLAUDE_PROFILES_DIR, "state.json");
 
 // Codex paths
-export const CODEX_DIR = join(homedir(), ".codex");
+export const CODEX_DIR = join(HOME, ".codex");
 export const CODEX_AUTH_FILE = join(CODEX_DIR, "auth.json");
 export const CODEX_CONFIG_FILE = join(CODEX_DIR, "config.toml");
 export const CODEX_ACCOUNTS_DIR = join(CODEX_DIR, "accounts");
 export const CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 
 // claudex-switch paths
-export const CLAUDEX_DIR = join(homedir(), ".claudex-switch");
+export const CLAUDEX_DIR = join(HOME, ".claudex-switch");
 export const ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 
 // Claude profile helpers
