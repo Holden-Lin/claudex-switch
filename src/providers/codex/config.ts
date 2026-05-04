@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { CODEX_CONFIG_FILE } from "../../lib/paths";
 import { fileExists } from "../../lib/fs";
+import { parseToml } from "../../lib/toml";
 import type { CodexApiProviderConfig } from "../../types";
 
 type TomlValue = string | number | boolean | null | undefined | TomlObject;
@@ -22,7 +23,7 @@ async function readCodexConfig(): Promise<CodexTomlConfig> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return {};
   try {
     const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
-    return cloneConfig(Bun.TOML.parse(content));
+    return cloneConfig(parseToml(content));
   } catch {
     return {};
   }

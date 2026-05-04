@@ -4281,6 +4281,127 @@ init_paths();
 init_fs();
 import { chmod, mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
 import { dirname } from "path";
+
+// src/lib/toml.ts
+function parseKeyPath(path) {
+  const keys = [];
+  let i = 0;
+  while (i < path.length) {
+    while (i < path.length && path[i] === " ")
+      i++;
+    if (i >= path.length)
+      break;
+    if (path[i] === '"') {
+      i++;
+      let key = "";
+      while (i < path.length && path[i] !== '"') {
+        if (path[i] === "\\" && i + 1 < path.length) {
+          i++;
+          if (path[i] === "n")
+            key += `
+`;
+          else if (path[i] === "t")
+            key += "\t";
+          else
+            key += path[i];
+        } else {
+          key += path[i];
+        }
+        i++;
+      }
+      i++;
+      keys.push(key);
+    } else {
+      let key = "";
+      while (i < path.length && path[i] !== ".") {
+        key += path[i];
+        i++;
+      }
+      keys.push(key.trim());
+    }
+    while (i < path.length && path[i] === " ")
+      i++;
+    if (i < path.length && path[i] === ".")
+      i++;
+  }
+  return keys;
+}
+function parseValue(raw) {
+  if (raw === "true")
+    return true;
+  if (raw === "false")
+    return false;
+  if (raw.startsWith('"')) {
+    let result = "";
+    let i = 1;
+    while (i < raw.length && raw[i] !== '"') {
+      if (raw[i] === "\\" && i + 1 < raw.length) {
+        i++;
+        if (raw[i] === "n")
+          result += `
+`;
+        else if (raw[i] === "t")
+          result += "\t";
+        else
+          result += raw[i];
+      } else {
+        result += raw[i];
+      }
+      i++;
+    }
+    return result;
+  }
+  const num = Number(raw);
+  if (!Number.isNaN(num) && raw !== "")
+    return num;
+  return raw;
+}
+function ensureTable(root, keys) {
+  let current = root;
+  for (const key of keys) {
+    if (!(key in current) || typeof current[key] !== "object") {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  return current;
+}
+function parseToml(input) {
+  const root = {};
+  let current = root;
+  for (const raw of input.split(/\r?\n/)) {
+    const commentIdx = findCommentStart(raw);
+    const line = (commentIdx >= 0 ? raw.slice(0, commentIdx) : raw).trim();
+    if (!line)
+      continue;
+    const headerMatch = line.match(/^\[(.+)\]$/);
+    if (headerMatch) {
+      current = ensureTable(root, parseKeyPath(headerMatch[1]));
+      continue;
+    }
+    const eqIdx = line.indexOf("=");
+    if (eqIdx === -1)
+      continue;
+    const keyPart = line.slice(0, eqIdx).trim();
+    const valuePart = line.slice(eqIdx + 1).trim();
+    const key = keyPart.startsWith('"') ? parseValue(keyPart) : keyPart;
+    current[key] = parseValue(valuePart);
+  }
+  return root;
+}
+function findCommentStart(line) {
+  let inString = false;
+  for (let i = 0;i < line.length; i++) {
+    if (line[i] === '"' && (i === 0 || line[i - 1] !== "\\")) {
+      inString = !inString;
+    } else if (line[i] === "#" && !inString) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// src/providers/codex/config.ts
 function cloneConfig(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return {};
@@ -4291,7 +4412,7 @@ async function readCodexConfig() {
     return {};
   try {
     const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
-    return cloneConfig(Bun.TOML.parse(content));
+    return cloneConfig(parseToml(content));
   } catch {
     return {};
   }
@@ -5494,7 +5615,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.14",
+  version: "1.1.15",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
