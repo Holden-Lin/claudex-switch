@@ -51,3 +51,7 @@
 
 - “claudex-switch update ... Could not determine how this claudex-switch install was installed. Automatic update currently supports Bun and Homebrew installs. met this” → 识别 npm/nvm 全局安装并明确提示不支持，阻止之后通过 npm 安装，引导用户改用安装脚本 / Bun / Homebrew
 - “I don't think we want to support npm install, instead we should make sure that no user would install via npm and that is ok” → 移除 npm 自更新支持，保留 npm/nvm 检测仅用于错误提示，并新增 preinstall guard 拦截 npm 安装
+
+## 2026-05-04
+
+- “现在如果切了codex api后，会出现无法再切回oauth账号的情况” → 修复 activateCodexOfficialProvider 未清理 model 和 bearer-token provider 条目导致切回 chatgpt OAuth 账号时 codex CLI 报错；同时修复 TOML renderer 丢失非 model_providers 配置段的问题
