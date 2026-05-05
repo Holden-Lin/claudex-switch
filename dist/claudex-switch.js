@@ -3924,6 +3924,11 @@ async function clearApiKey() {
   }
   await write(settings);
 }
+async function getApiKey() {
+  const settings = await read();
+  const env2 = settings.env;
+  return env2?.ANTHROPIC_API_KEY ?? null;
+}
 
 // src/lib/ui.ts
 var icons = {
@@ -4038,35 +4043,57 @@ async function switchProfile(name) {
   }
   const state = await readState();
   const targetData = await readProfileData(name);
-  if (state.active === name) {
+  if (state.active === name && await isProfileApplied(name, targetData)) {
     return targetData;
   }
-  if (state.active) {
+  if (state.active && state.active !== name) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
-      const currentCreds = await readCredentials(CREDENTIALS_FILE);
-      if (currentCreds) {
-        await ensureDir2(claudeProfileDir(state.active));
-        await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(state.active));
-      }
-      const currentAccount = await readOAuthAccount();
-      if (currentAccount) {
-        await writeJson(claudeProfileAccountFile(state.active), currentAccount);
-      }
+      await snapshotCurrentOAuthProfile(state.active);
     }
   }
+  await activateProfile(name, targetData);
+  await writeState({ active: name });
+  return targetData;
+}
+async function snapshotCurrentOAuthProfile(name) {
+  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  if (currentCreds) {
+    await ensureDir2(claudeProfileDir(name));
+    await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
+  }
+  const currentAccount = await readOAuthAccount();
+  if (currentAccount) {
+    await writeJson(claudeProfileAccountFile(name), currentAccount);
+  }
+}
+async function activateProfile(name, targetData) {
   if (targetData.type === "api-key" && targetData.apiKey) {
     await setApiKey(targetData.apiKey);
   } else {
     await clearApiKey();
     await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
     const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-    if (savedAccount) {
-      await writeOAuthAccount(savedAccount);
-    }
+    await writeOAuthAccount(savedAccount);
   }
-  await writeState({ active: name });
-  return targetData;
+}
+async function isProfileApplied(name, targetData) {
+  if (targetData.type === "api-key") {
+    return Boolean(targetData.apiKey) && await getApiKey() === targetData.apiKey;
+  }
+  if (await getApiKey())
+    return false;
+  if (!await readCredentials(CREDENTIALS_FILE))
+    return false;
+  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+  if (!savedAccount)
+    return true;
+  return sameOAuthAccount(savedAccount, await readOAuthAccount());
+}
+function sameOAuthAccount(expected, actual) {
+  const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
+  const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
+  return Boolean(expectedId && actualId && expectedId === actualId);
 }
 async function snapshotActiveOAuthProfile(name) {
   if (!await profileExists(name)) {
@@ -5615,7 +5642,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.15",
+  version: "1.1.16",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

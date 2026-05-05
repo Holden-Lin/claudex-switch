@@ -11,7 +11,7 @@ import {
 import { readCredentials, copyCredentials } from "./credentials";
 import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
-import { setApiKey, clearApiKey } from "./settings";
+import { setApiKey, clearApiKey, getApiKey } from "./settings";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
@@ -117,30 +117,43 @@ export async function switchProfile(name: string): Promise<ProfileData> {
 
   const state = await readState();
   const targetData = await readProfileData(name);
-  if (state.active === name) {
+  if (state.active === name && (await isProfileApplied(name, targetData))) {
     return targetData;
   }
 
   // Save current credentials back before loading target
-  if (state.active) {
+  if (state.active && state.active !== name) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
-      const currentCreds = await readCredentials(CREDENTIALS_FILE);
-      if (currentCreds) {
-        await ensureDir(claudeProfileDir(state.active));
-        await copyCredentials(
-          CREDENTIALS_FILE,
-          claudeProfileCredentials(state.active),
-        );
-      }
-      const currentAccount = await readOAuthAccount();
-      if (currentAccount) {
-        await writeJson(claudeProfileAccountFile(state.active), currentAccount);
-      }
+      await snapshotCurrentOAuthProfile(state.active);
     }
   }
 
-  // Activate the target profile
+  await activateProfile(name, targetData);
+  await writeState({ active: name });
+  return targetData;
+}
+
+async function snapshotCurrentOAuthProfile(name: string): Promise<void> {
+  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  if (currentCreds) {
+    await ensureDir(claudeProfileDir(name));
+    await copyCredentials(
+      CREDENTIALS_FILE,
+      claudeProfileCredentials(name),
+    );
+  }
+
+  const currentAccount = await readOAuthAccount();
+  if (currentAccount) {
+    await writeJson(claudeProfileAccountFile(name), currentAccount);
+  }
+}
+
+async function activateProfile(
+  name: string,
+  targetData: ProfileData,
+): Promise<void> {
   if (targetData.type === "api-key" && targetData.apiKey) {
     await setApiKey(targetData.apiKey);
   } else {
@@ -151,13 +164,40 @@ export async function switchProfile(name: string): Promise<ProfileData> {
       claudeProfileAccountFile(name),
       null,
     );
-    if (savedAccount) {
-      await writeOAuthAccount(savedAccount);
-    }
+    await writeOAuthAccount(savedAccount);
+  }
+}
+
+async function isProfileApplied(
+  name: string,
+  targetData: ProfileData,
+): Promise<boolean> {
+  if (targetData.type === "api-key") {
+    return (
+      Boolean(targetData.apiKey) &&
+      (await getApiKey()) === targetData.apiKey
+    );
   }
 
-  await writeState({ active: name });
-  return targetData;
+  if (await getApiKey()) return false;
+  if (!(await readCredentials(CREDENTIALS_FILE))) return false;
+
+  const savedAccount = await readJson<OAuthAccount | null>(
+    claudeProfileAccountFile(name),
+    null,
+  );
+  if (!savedAccount) return true;
+
+  return sameOAuthAccount(savedAccount, await readOAuthAccount());
+}
+
+function sameOAuthAccount(
+  expected: OAuthAccount,
+  actual: OAuthAccount | null,
+): boolean {
+  const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
+  const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
+  return Boolean(expectedId && actualId && expectedId === actualId);
 }
 
 export async function snapshotActiveOAuthProfile(

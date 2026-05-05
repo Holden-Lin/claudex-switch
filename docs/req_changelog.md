@@ -55,3 +55,7 @@
 ## 2026-05-04
 
 - “现在如果切了codex api后，会出现无法再切回oauth账号的情况” → 修复 activateCodexOfficialProvider 未清理 model 和 bearer-token provider 条目导致切回 chatgpt OAuth 账号时 codex CLI 报错；同时修复 TOML renderer 丢失非 model_providers 配置段的问题
+
+## 2026-05-05
+
+- “昨天改好codex api切换后，现在切换claude账号不行了” → 修复 Claude profile 状态与真实 Claude Code 配置漂移时的同名切换 no-op；状态显示已激活但实际凭据、oauthAccount 或 ANTHROPIC_API_KEY 不一致时会重新应用目标 Claude 账号
