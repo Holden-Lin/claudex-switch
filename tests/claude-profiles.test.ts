@@ -142,4 +142,52 @@ describe("claude profiles", () => {
       theme: "dark",
     });
   });
+
+  test("keeps active Claude auth single-mode when switching between oauth and api key", async () => {
+    const creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "oauth-access",
+        refreshToken: "oauth-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const account: OAuthAccount = {
+      accountUuid: "acct-oauth",
+      emailAddress: "oauth@example.com",
+      organizationUuid: "org-oauth",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: account }, null, 2),
+    );
+    await addOAuthProfile("oauth");
+
+    await addApiKeyProfile("api", { apiKey: "sk-ant-live" });
+
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toBeNull();
+    expect(await readJson<Record<string, unknown>>(CLAUDE_JSON, {})).toEqual(
+      {},
+    );
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      env: { ANTHROPIC_API_KEY: "sk-ant-live" },
+    });
+
+    await switchProfile("oauth");
+
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(creds);
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+      .toEqual({ oauthAccount: account });
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
+      {},
+    );
+  });
 });

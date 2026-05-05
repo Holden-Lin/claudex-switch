@@ -214,6 +214,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - Syncs `oauthAccount` in `~/.claude.json`
 - API key mode writes to `~/.claude/settings.json`
 - Claude API key accounts always sync `ANTHROPIC_API_KEY`; when configured, switching also writes `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, and `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`
+- Switching to a Claude API key account clears the active Claude OAuth token so Claude Code does not see both a claude.ai token and `ANTHROPIC_API_KEY`; switching back to OAuth restores the token from the profile
 
 ### Codex Account Switching
 

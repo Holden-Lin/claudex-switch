@@ -3784,13 +3784,14 @@ async function renameAlias(currentAlias, nextAlias) {
 
 // src/providers/claude/profiles.ts
 init_paths();
-import { mkdir as mkdir3, readdir, rm } from "fs/promises";
+import { mkdir as mkdir3, readdir, rm as rm2 } from "fs/promises";
 
 // src/providers/claude/credentials.ts
 init_paths();
 init_fs();
 import { platform } from "os";
 import { spawnSync } from "child_process";
+import { rm } from "fs/promises";
 var KEYCHAIN_SERVICE = "Claude Code-credentials";
 var HEX_PATTERN = /^[0-9a-f]+$/i;
 function useKeychain(path) {
@@ -3846,11 +3847,26 @@ async function writeKeychain(creds) {
     throw new Error("Failed to write to macOS Keychain");
   }
 }
+async function deleteKeychain() {
+  const result = spawnSync("security", [
+    "delete-generic-password",
+    "-s",
+    KEYCHAIN_SERVICE,
+    "-a",
+    getKeychainAccount()
+  ]);
+  if (result.status !== 0 && await readKeychain()) {
+    throw new Error("Failed to delete macOS Keychain credentials");
+  }
+}
 async function readJsonFile(path) {
   return readJson(path, null);
 }
 async function writeJsonFile(creds, path) {
   await writeJsonSecure(path, creds);
+}
+async function deleteJsonFile(path) {
+  await rm(path, { force: true });
 }
 async function readCredentials(path = CREDENTIALS_FILE) {
   if (useKeychain(path)) {
@@ -3863,6 +3879,12 @@ async function writeCredentials(creds, path = CREDENTIALS_FILE) {
     return writeKeychain(creds);
   }
   await writeJsonFile(creds, path);
+}
+async function deleteCredentials(path = CREDENTIALS_FILE) {
+  if (useKeychain(path)) {
+    return deleteKeychain();
+  }
+  await deleteJsonFile(path);
 }
 async function copyCredentials(from, to) {
   const creds = await readCredentials(from);
@@ -4092,10 +4114,18 @@ async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE) {
   await writeState({ active: name });
 }
 async function addApiKeyProfile(name, config) {
+  const state = await readState();
+  if (state.active && state.active !== name && await profileExists(state.active)) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfile(state.active);
+    }
+  }
   await ensureDir2(claudeProfileDir(name));
-  await writeProfileData(name, normalizeApiKeyProfileData(config));
+  const data = normalizeApiKeyProfileData(config);
+  await writeProfileData(name, data);
+  await activateProfile(name, data);
   await writeState({ active: name });
-  await applyApiConfig(config);
 }
 async function switchProfile(name) {
   if (!await profileExists(name)) {
@@ -4129,6 +4159,8 @@ async function snapshotCurrentOAuthProfile(name) {
 }
 async function activateProfile(name, targetData) {
   if (targetData.type === "api-key") {
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
     await applyApiConfig(targetData);
   } else {
     await clearApiConfig();
@@ -4183,7 +4215,7 @@ async function removeProfile(name) {
   if (state.active === name && data.type === "api-key") {
     await clearApiConfig();
   }
-  await rm(claudeProfileDir(name), { recursive: true });
+  await rm2(claudeProfileDir(name), { recursive: true });
   if (state.active === name) {
     await writeState({ active: null });
   }
@@ -5186,8 +5218,13 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   });
 }
 async function getRunEnvironment(entry) {
-  if (entry.target.provider !== "codex")
-    return;
+  if (entry.target.provider === "claude") {
+    const profile = await getProfileData(entry.target.profileName);
+    if (profile.type === "api-key") {
+      return buildClaudeApiEnvironment(profile);
+    }
+    return stripClaudeApiEnvironment();
+  }
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
     return;
@@ -5199,6 +5236,34 @@ async function getRunEnvironment(entry) {
     ...process.env,
     [envKey]: auth.OPENAI_API_KEY
   };
+}
+function stripClaudeApiEnvironment() {
+  if (!CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
+    return;
+  }
+  const env2 = { ...process.env };
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env2[key];
+  }
+  return env2;
+}
+function buildClaudeApiEnvironment(config) {
+  const env2 = { ...process.env };
+  setOptionalEnv(env2, "ANTHROPIC_API_KEY", config.apiKey);
+  setOptionalEnv(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setOptionalEnv(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
+  setOptionalEnv(env2, "ANTHROPIC_MODEL", config.model);
+  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
+  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
+  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
+  return env2;
+}
+function setOptionalEnv(env2, key, value) {
+  if (value) {
+    env2[key] = value;
+    return;
+  }
+  delete env2[key];
 }
 
 // src/commands/list.ts
@@ -5765,7 +5830,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.17",
+  version: "1.1.18",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

@@ -8,7 +8,11 @@ import {
   claudeProfileDataFile,
   claudeProfileAccountFile,
 } from "../../lib/paths";
-import { readCredentials, copyCredentials } from "./credentials";
+import {
+  readCredentials,
+  copyCredentials,
+  deleteCredentials,
+} from "./credentials";
 import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
 import { applyApiConfig, clearApiConfig, getApiConfig } from "./settings";
@@ -106,10 +110,23 @@ export async function addApiKeyProfile(
   name: string,
   config: ClaudeApiProfileConfig,
 ): Promise<void> {
+  const state = await readState();
+  if (
+    state.active &&
+    state.active !== name &&
+    (await profileExists(state.active))
+  ) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfile(state.active);
+    }
+  }
+
   await ensureDir(claudeProfileDir(name));
-  await writeProfileData(name, normalizeApiKeyProfileData(config));
+  const data = normalizeApiKeyProfileData(config);
+  await writeProfileData(name, data);
+  await activateProfile(name, data);
   await writeState({ active: name });
-  await applyApiConfig(config);
 }
 
 export async function switchProfile(name: string): Promise<ProfileData> {
@@ -157,6 +174,8 @@ async function activateProfile(
   targetData: ProfileData,
 ): Promise<void> {
   if (targetData.type === "api-key") {
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
     await applyApiConfig(targetData);
   } else {
     await clearApiConfig();

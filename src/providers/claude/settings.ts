@@ -7,7 +7,7 @@ import type { ClaudeApiProfileConfig } from "../../types";
 type Settings = Record<string, unknown>;
 type SettingsEnv = Record<string, string>;
 
-const CLAUDE_ENV_KEYS = [
+export const CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_AUTH_TOKEN",
@@ -17,7 +17,7 @@ const CLAUDE_ENV_KEYS = [
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ] as const;
 
-type ClaudeEnvKey = (typeof CLAUDE_ENV_KEYS)[number];
+export type ClaudeEnvKey = (typeof CLAUDE_ENV_KEYS)[number];
 
 async function read(): Promise<Settings> {
   return readJson<Settings>(SETTINGS_FILE, {});

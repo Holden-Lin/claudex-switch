@@ -214,6 +214,7 @@ claudex-switch 采用「薄别名层」架构：
 - 同步 `~/.claude.json` 中的 `oauthAccount`
 - API Key 模式写入 `~/.claude/settings.json`
 - Claude API Key 账号会同步写入 `ANTHROPIC_API_KEY`；如果该 profile 配置了 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` 或 `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`，切换时也会一并覆盖
+- 切到 Claude API Key 账号时会清理当前 active 的 Claude OAuth token，避免 Claude Code 同时检测到 claude.ai token 和 `ANTHROPIC_API_KEY`；切回 OAuth 账号时会从 profile 恢复 token
 
 ### Codex 账号切换
 

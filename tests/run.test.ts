@@ -14,7 +14,10 @@ import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
 import { CODEX_CONFIG_FILE, CREDENTIALS_FILE } from "../src/lib/paths";
 import { writeCredentials } from "../src/providers/claude/credentials";
-import { addOAuthProfile } from "../src/providers/claude/profiles";
+import {
+  addOAuthProfile,
+  addApiKeyProfile,
+} from "../src/providers/claude/profiles";
 import { saveAccountAuth } from "../src/providers/codex/auth";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
 import { makeJwt, resetTestHome } from "./helpers";
@@ -128,14 +131,104 @@ describe("run alias session", () => {
     );
 
     expect(exitCode).toBe(7);
-    expect(calls).toEqual([
-      {
-        command: "claude",
-        args: ["--dangerously-skip-permissions", "--continue"],
-        stdio: "inherit",
-        env: undefined,
-      },
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.command).toBe("claude");
+    expect(calls[0]?.args).toEqual([
+      "--dangerously-skip-permissions",
+      "--continue",
     ]);
+    expect(calls[0]?.stdio).toBe("inherit");
+    expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
+  test("runs Claude OAuth without inherited Anthropic API env", async () => {
+    const oldApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-shell";
+
+    try {
+      const creds: CredentialsFile = {
+        claudeAiOauth: {
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          expiresAt: Date.now() + 1000,
+          scopes: [],
+          subscriptionType: "pro",
+        },
+      };
+      await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+      await writeCredentials(creds, CREDENTIALS_FILE);
+      await addOAuthProfile("holden");
+
+      await saveAliases({
+        version: 1,
+        aliases: [
+          {
+            alias: "holden",
+            target: { provider: "claude", profileName: "holden" },
+            createdAt: 1,
+          },
+        ],
+      });
+
+      const calls: SpawnCall[] = [];
+      await runAliasSession("holden", [], createSpawn(calls));
+
+      expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBeUndefined();
+    } finally {
+      if (oldApiKey === undefined) {
+        delete process.env.ANTHROPIC_API_KEY;
+      } else {
+        process.env.ANTHROPIC_API_KEY = oldApiKey;
+      }
+    }
+  });
+
+  test("runs Claude API key with the selected profile env", async () => {
+    const oldApiKey = process.env.ANTHROPIC_API_KEY;
+    const oldModel = process.env.ANTHROPIC_MODEL;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-shell";
+    process.env.ANTHROPIC_MODEL = "stale-model";
+
+    try {
+      await addApiKeyProfile("api", {
+        apiKey: "sk-ant-profile",
+        baseUrl: "https://proxy.example.com",
+        model: "claude-opus-4-6",
+      });
+
+      await saveAliases({
+        version: 1,
+        aliases: [
+          {
+            alias: "api",
+            target: { provider: "claude", profileName: "api" },
+            createdAt: 1,
+          },
+        ],
+      });
+
+      const calls: SpawnCall[] = [];
+      await runAliasSession("api", [], createSpawn(calls));
+
+      expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
+      expect(calls[0]?.env?.ANTHROPIC_BASE_URL).toBe(
+        "https://proxy.example.com",
+      );
+      expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe("claude-opus-4-6");
+      expect(calls[0]?.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeUndefined();
+    } finally {
+      if (oldApiKey === undefined) {
+        delete process.env.ANTHROPIC_API_KEY;
+      } else {
+        process.env.ANTHROPIC_API_KEY = oldApiKey;
+      }
+
+      if (oldModel === undefined) {
+        delete process.env.ANTHROPIC_MODEL;
+      } else {
+        process.env.ANTHROPIC_MODEL = oldModel;
+      }
+    }
   });
 
   test("runs Codex with bypass approvals and sandbox after switching", async () => {

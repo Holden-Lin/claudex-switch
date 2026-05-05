@@ -1,5 +1,6 @@
 import { platform } from "os";
 import { spawnSync } from "child_process";
+import { rm } from "fs/promises";
 import { CREDENTIALS_FILE } from "../../lib/paths";
 import { readJson, writeJsonSecure } from "../../lib/fs";
 import type { CredentialsFile } from "../../types";
@@ -75,6 +76,20 @@ async function writeKeychain(creds: CredentialsFile): Promise<void> {
   }
 }
 
+async function deleteKeychain(): Promise<void> {
+  const result = spawnSync("security", [
+    "delete-generic-password",
+    "-s",
+    KEYCHAIN_SERVICE,
+    "-a",
+    getKeychainAccount(),
+  ]);
+
+  if (result.status !== 0 && (await readKeychain())) {
+    throw new Error("Failed to delete macOS Keychain credentials");
+  }
+}
+
 async function readJsonFile(
   path: string,
 ): Promise<CredentialsFile | null> {
@@ -86,6 +101,10 @@ async function writeJsonFile(
   path: string,
 ): Promise<void> {
   await writeJsonSecure(path, creds);
+}
+
+async function deleteJsonFile(path: string): Promise<void> {
+  await rm(path, { force: true });
 }
 
 export async function readCredentials(
@@ -105,6 +124,15 @@ export async function writeCredentials(
     return writeKeychain(creds);
   }
   await writeJsonFile(creds, path);
+}
+
+export async function deleteCredentials(
+  path: string = CREDENTIALS_FILE,
+): Promise<void> {
+  if (useKeychain(path)) {
+    return deleteKeychain();
+  }
+  await deleteJsonFile(path);
 }
 
 export async function copyCredentials(

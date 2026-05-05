@@ -2,8 +2,11 @@ import chalk from "chalk";
 import { spawn, type ChildProcess } from "child_process";
 import { use } from "./use";
 import { blank, error, info } from "../lib/ui";
+import { getProfileData } from "../providers/claude/profiles";
+import { CLAUDE_ENV_KEYS } from "../providers/claude/settings";
 import { readAccountAuth } from "../providers/codex/auth";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
+import type { ClaudeApiProfileConfig } from "../types";
 
 const RUN_FLAGS = new Set(["-run", "--run"]);
 
@@ -65,7 +68,13 @@ export async function runAliasSession(
 async function getRunEnvironment(
   entry: Awaited<ReturnType<typeof use>>,
 ): Promise<NodeJS.ProcessEnv | undefined> {
-  if (entry.target.provider !== "codex") return undefined;
+  if (entry.target.provider === "claude") {
+    const profile = await getProfileData(entry.target.profileName);
+    if (profile.type === "api-key") {
+      return buildClaudeApiEnvironment(profile);
+    }
+    return stripClaudeApiEnvironment();
+  }
 
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
@@ -80,4 +89,57 @@ async function getRunEnvironment(
     ...process.env,
     [envKey]: auth.OPENAI_API_KEY,
   };
+}
+
+function stripClaudeApiEnvironment(): NodeJS.ProcessEnv | undefined {
+  if (!CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
+    return undefined;
+  }
+
+  const env = { ...process.env };
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env[key];
+  }
+  return env;
+}
+
+function buildClaudeApiEnvironment(
+  config: ClaudeApiProfileConfig,
+): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+
+  setOptionalEnv(env, "ANTHROPIC_API_KEY", config.apiKey);
+  setOptionalEnv(env, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setOptionalEnv(env, "ANTHROPIC_AUTH_TOKEN", config.authToken);
+  setOptionalEnv(env, "ANTHROPIC_MODEL", config.model);
+  setOptionalEnv(
+    env,
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    config.defaultSonnetModel,
+  );
+  setOptionalEnv(
+    env,
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    config.defaultOpusModel,
+  );
+  setOptionalEnv(
+    env,
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    config.defaultHaikuModel,
+  );
+
+  return env;
+}
+
+function setOptionalEnv(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  value: string | undefined,
+): void {
+  if (value) {
+    env[key] = value;
+    return;
+  }
+
+  delete env[key];
 }
