@@ -194,7 +194,10 @@ async function isProfileApplied(
   targetData: ProfileData,
 ): Promise<boolean> {
   if (targetData.type === "api-key") {
-    return sameApiConfig(targetData, await getApiConfig());
+    if (!sameApiConfig(targetData, await getApiConfig())) return false;
+    if (await readCredentials(CREDENTIALS_FILE)) return false;
+    if (await readOAuthAccount()) return false;
+    return true;
   }
 
   if (await getApiConfig()) return false;

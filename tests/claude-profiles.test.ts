@@ -190,4 +190,42 @@ describe("claude profiles", () => {
       {},
     );
   });
+
+  test("reapplies an active api key profile when legacy oauth auth remains", async () => {
+    await addApiKeyProfile("api", { apiKey: "sk-ant-live" });
+
+    const staleCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "stale-access",
+        refreshToken: "stale-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const staleAccount: OAuthAccount = {
+      accountUuid: "acct-stale",
+      emailAddress: "stale@example.com",
+      organizationUuid: "org-stale",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(staleCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: staleAccount }, null, 2),
+    );
+
+    await switchProfile("api");
+
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toBeNull();
+    expect(await readJson<Record<string, unknown>>(CLAUDE_JSON, {})).toEqual(
+      {},
+    );
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      env: { ANTHROPIC_API_KEY: "sk-ant-live" },
+    });
+  });
 });

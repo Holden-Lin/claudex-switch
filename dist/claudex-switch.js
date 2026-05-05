@@ -4171,7 +4171,13 @@ async function activateProfile(name, targetData) {
 }
 async function isProfileApplied(name, targetData) {
   if (targetData.type === "api-key") {
-    return sameApiConfig(targetData, await getApiConfig());
+    if (!sameApiConfig(targetData, await getApiConfig()))
+      return false;
+    if (await readCredentials(CREDENTIALS_FILE))
+      return false;
+    if (await readOAuthAccount())
+      return false;
+    return true;
   }
   if (await getApiConfig())
     return false;
@@ -5830,7 +5836,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.18",
+  version: "1.1.19",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

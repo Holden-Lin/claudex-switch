@@ -63,3 +63,4 @@
 - “可以，那些交互如果不填的话是要把默认值删掉再按enter吗？另外auth token是什么”
 - “I am using this project to switch to api. I want this project to handle this issue well”
 - “you refer to how cc switch project handle this issue” → 切换到 Claude API Key profile 时清理 active OAuth token 和 oauthAccount，切回 OAuth 时恢复；`-run` 会按目标 Claude profile 注入或移除 Anthropic API 环境变量，避免 Claude Code auth conflict warning
+- “我现在的claude这个已有的冲突是不是要帮我手工解决一下” → 修复已处于 active Claude API profile 时旧 OAuth token 残留不会触发重应用的问题，并用本地新逻辑清理当前机器上的 Keychain OAuth token / oauthAccount 冲突状态
