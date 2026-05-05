@@ -10,10 +10,15 @@ import { readJson } from "../src/lib/fs";
 import { writeCredentials } from "../src/providers/claude/credentials";
 import {
   addOAuthProfile,
+  addApiKeyProfile,
   switchProfile,
 } from "../src/providers/claude/profiles";
 import { resetTestHome } from "./helpers";
-import type { CredentialsFile, OAuthAccount } from "../src/types";
+import type {
+  ClaudeApiProfileConfig,
+  CredentialsFile,
+  OAuthAccount,
+} from "../src/types";
 
 describe("claude profiles", () => {
   beforeEach(async () => {
@@ -70,8 +75,15 @@ describe("claude profiles", () => {
       JSON.stringify({
         env: {
           ANTHROPIC_API_KEY: "sk-ant-stale",
+          ANTHROPIC_BASE_URL: "https://stale.example.com",
+          ANTHROPIC_AUTH_TOKEN: "stale-token",
+          ANTHROPIC_MODEL: "opus",
+          ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-stale",
+          ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-stale",
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-stale",
           KEEP_ME: "1",
         },
+        model: "opus",
         theme: "dark",
       }, null, 2),
     );
@@ -85,6 +97,48 @@ describe("claude profiles", () => {
       .toEqual({ oauthAccount: savedAccount });
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
       env: { KEEP_ME: "1" },
+      theme: "dark",
+    });
+  });
+
+  test("applies the full Claude API config for api-key profiles", async () => {
+    const config: ClaudeApiProfileConfig = {
+      apiKey: "sk-ant-live",
+      baseUrl: "https://proxy.example.com",
+      authToken: "proxy-token",
+      model: "sonnet",
+      defaultSonnetModel: "claude-sonnet-4-20250514",
+      defaultOpusModel: "claude-opus-4-20250514",
+      defaultHaikuModel: "claude-3-5-haiku-20241022",
+    };
+
+    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+    await writeFile(
+      SETTINGS_FILE,
+      JSON.stringify(
+        {
+          env: { KEEP_ME: "1", ANTHROPIC_API_KEY: "sk-ant-old" },
+          theme: "dark",
+        },
+        null,
+        2,
+      ),
+    );
+
+    await addApiKeyProfile("api-work", config);
+
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      env: {
+        KEEP_ME: "1",
+        ANTHROPIC_API_KEY: "sk-ant-live",
+        ANTHROPIC_BASE_URL: "https://proxy.example.com",
+        ANTHROPIC_AUTH_TOKEN: "proxy-token",
+        ANTHROPIC_MODEL: "sonnet",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-20250514",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-20250514",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-3-5-haiku-20241022",
+      },
+      model: "sonnet",
       theme: "dark",
     });
   });

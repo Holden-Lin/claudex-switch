@@ -59,3 +59,5 @@
 ## 2026-05-05
 
 - “昨天改好codex api切换后，现在切换claude账号不行了” → 修复 Claude profile 状态与真实 Claude Code 配置漂移时的同名切换 no-op；状态显示已激活但实际凭据、oauthAccount 或 ANTHROPIC_API_KEY 不一致时会重新应用目标 Claude 账号
+- “claude的api应该支持配置多模型，比如它的sonnet对应什么，opus对应什么等。可以参考一下cc switch”
+- “可以，那些交互如果不填的话是要把默认值删掉再按enter吗？另外auth token是什么”

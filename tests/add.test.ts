@@ -41,7 +41,9 @@ let passwordHandler = async () => "unused";
 let inputHandler = async () => "unused";
 let add: typeof import("../src/commands/add").add;
 const { loadAliases } = await import("../src/alias/store");
-const { CODEX_AUTH_FILE, CODEX_CONFIG_FILE } = await import("../src/lib/paths");
+const { CODEX_AUTH_FILE, CODEX_CONFIG_FILE, SETTINGS_FILE } = await import(
+  "../src/lib/paths"
+);
 const { readActiveAuth, readAccountAuth } = await import(
   "../src/providers/codex/auth"
 );
@@ -270,6 +272,77 @@ describe("add", () => {
 
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("custom-codex created");
+
+    logSpy.mockRestore();
+  });
+
+  test("adds a claude api key with model mapping config", async () => {
+    const promptOrder: string[] = [];
+    const selectValues = ["claude-apikey"];
+    const inputValues = [
+      "https://claude-proxy.example.com",
+      "sonnet",
+      "claude-sonnet-4-20250514",
+      "claude-opus-4-20250514",
+      "claude-3-5-haiku-20241022",
+    ];
+    const passwordValues = ["sk-ant-test-123456789", "proxy-token-1"];
+
+    selectHandler = async () => {
+      promptOrder.push("select");
+      return selectValues.shift() ?? "claude-apikey";
+    };
+    inputHandler = async () => {
+      promptOrder.push("input");
+      return inputValues.shift() ?? "";
+    };
+    passwordHandler = async () => {
+      promptOrder.push("password");
+      return passwordValues.shift() ?? "";
+    };
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await add("custom-claude");
+
+    const aliases = await loadAliases();
+    expect(aliases.aliases).toEqual([
+      {
+        alias: "custom-claude",
+        target: {
+          provider: "claude",
+          profileName: "custom-claude",
+        },
+        createdAt: expect.any(Number),
+      },
+    ]);
+    expect(promptOrder).toEqual([
+      "select",
+      "password",
+      "input",
+      "password",
+      "input",
+      "input",
+      "input",
+      "input",
+    ]);
+
+    const settings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    expect(settings).toEqual({
+      model: "sonnet",
+      env: {
+        ANTHROPIC_API_KEY: "sk-ant-test-123456789",
+        ANTHROPIC_BASE_URL: "https://claude-proxy.example.com",
+        ANTHROPIC_AUTH_TOKEN: "proxy-token-1",
+        ANTHROPIC_MODEL: "sonnet",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-20250514",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-20250514",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-3-5-haiku-20241022",
+      },
+    });
+
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("custom-claude created");
 
     logSpy.mockRestore();
   });

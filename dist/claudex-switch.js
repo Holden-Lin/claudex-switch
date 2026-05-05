@@ -1649,9 +1649,9 @@ __export(exports_auth, {
   readAccountAuth: () => readAccountAuth,
   decodeIdToken: () => decodeIdToken
 });
-import { chmod as chmod2, copyFile, mkdir as mkdir5, readFile as readFile3, unlink, writeFile as writeFile3 } from "fs/promises";
+import { chmod as chmod2, copyFile, mkdir as mkdir6, readFile as readFile3, unlink, writeFile as writeFile3 } from "fs/promises";
 async function ensureAccountsDir2() {
-  await mkdir5(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function readActiveAuth() {
   if (!await fileExists(CODEX_AUTH_FILE))
@@ -3784,7 +3784,7 @@ async function renameAlias(currentAlias, nextAlias) {
 
 // src/providers/claude/profiles.ts
 init_paths();
-import { mkdir as mkdir2, readdir, rm } from "fs/promises";
+import { mkdir as mkdir3, readdir, rm } from "fs/promises";
 
 // src/providers/claude/credentials.ts
 init_paths();
@@ -3896,38 +3896,98 @@ init_fs();
 // src/providers/claude/settings.ts
 init_paths();
 init_fs();
+import { mkdir as mkdir2 } from "fs/promises";
+import { dirname } from "path";
+var CLAUDE_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+];
 async function read() {
   return readJson(SETTINGS_FILE, {});
 }
 async function write(settings) {
+  await mkdir2(dirname(SETTINGS_FILE), { recursive: true });
   await writeJson(SETTINGS_FILE, settings);
 }
-async function setApiKey(key) {
-  const settings = await read();
-  const env2 = settings.env ?? {};
-  if (env2.ANTHROPIC_API_KEY === key)
-    return;
-  env2.ANTHROPIC_API_KEY = key;
-  settings.env = env2;
-  await write(settings);
+function normalizeEnv(settings) {
+  const env2 = settings.env;
+  if (!env2 || typeof env2 !== "object" || Array.isArray(env2)) {
+    return {};
+  }
+  const result = {};
+  for (const [key, value] of Object.entries(env2)) {
+    if (typeof value === "string") {
+      result[key] = value;
+    }
+  }
+  return result;
 }
-async function clearApiKey() {
-  const settings = await read();
-  const env2 = settings.env ?? {};
-  if (!env2.ANTHROPIC_API_KEY)
+function setEnvValue(env2, key, value) {
+  if (value) {
+    env2[key] = value;
     return;
-  delete env2.ANTHROPIC_API_KEY;
+  }
+  delete env2[key];
+}
+async function applyApiConfig(config) {
+  const settings = await read();
+  const env2 = normalizeEnv(settings);
+  setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
+  setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setEnvValue(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
+  setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
   if (Object.keys(env2).length === 0) {
     delete settings.env;
   } else {
     settings.env = env2;
   }
+  if (config.model) {
+    settings.model = config.model;
+  } else {
+    delete settings.model;
+  }
   await write(settings);
 }
-async function getApiKey() {
+async function clearApiConfig() {
   const settings = await read();
-  const env2 = settings.env;
-  return env2?.ANTHROPIC_API_KEY ?? null;
+  const env2 = normalizeEnv(settings);
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env2[key];
+  }
+  if (Object.keys(env2).length === 0) {
+    delete settings.env;
+  } else {
+    settings.env = env2;
+  }
+  delete settings.model;
+  await write(settings);
+}
+async function getApiConfig() {
+  const settings = await read();
+  const env2 = normalizeEnv(settings);
+  const apiKey = env2.ANTHROPIC_API_KEY;
+  if (!apiKey)
+    return null;
+  const topLevelModel = typeof settings.model === "string" ? settings.model : undefined;
+  const envModel = env2.ANTHROPIC_MODEL;
+  const model = topLevelModel ?? envModel;
+  return {
+    apiKey,
+    baseUrl: env2.ANTHROPIC_BASE_URL,
+    authToken: env2.ANTHROPIC_AUTH_TOKEN,
+    model,
+    defaultSonnetModel: env2.ANTHROPIC_DEFAULT_SONNET_MODEL,
+    defaultOpusModel: env2.ANTHROPIC_DEFAULT_OPUS_MODEL,
+    defaultHaikuModel: env2.ANTHROPIC_DEFAULT_HAIKU_MODEL
+  };
 }
 
 // src/lib/ui.ts
@@ -4000,7 +4060,7 @@ function maskKey(key) {
 
 // src/providers/claude/profiles.ts
 async function ensureDir2(path) {
-  await mkdir2(path, { recursive: true });
+  await mkdir3(path, { recursive: true });
 }
 async function readState() {
   return readJson(CLAUDE_STATE_FILE, { active: null });
@@ -4031,11 +4091,11 @@ async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE) {
   }
   await writeState({ active: name });
 }
-async function addApiKeyProfile(name, apiKey) {
+async function addApiKeyProfile(name, config) {
   await ensureDir2(claudeProfileDir(name));
-  await writeProfileData(name, { type: "api-key", apiKey });
+  await writeProfileData(name, normalizeApiKeyProfileData(config));
   await writeState({ active: name });
-  await setApiKey(apiKey);
+  await applyApiConfig(config);
 }
 async function switchProfile(name) {
   if (!await profileExists(name)) {
@@ -4068,10 +4128,10 @@ async function snapshotCurrentOAuthProfile(name) {
   }
 }
 async function activateProfile(name, targetData) {
-  if (targetData.type === "api-key" && targetData.apiKey) {
-    await setApiKey(targetData.apiKey);
+  if (targetData.type === "api-key") {
+    await applyApiConfig(targetData);
   } else {
-    await clearApiKey();
+    await clearApiConfig();
     await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
     const savedAccount = await readJson(claudeProfileAccountFile(name), null);
     await writeOAuthAccount(savedAccount);
@@ -4079,9 +4139,9 @@ async function activateProfile(name, targetData) {
 }
 async function isProfileApplied(name, targetData) {
   if (targetData.type === "api-key") {
-    return Boolean(targetData.apiKey) && await getApiKey() === targetData.apiKey;
+    return sameApiConfig(targetData, await getApiConfig());
   }
-  if (await getApiKey())
+  if (await getApiConfig())
     return false;
   if (!await readCredentials(CREDENTIALS_FILE))
     return false;
@@ -4121,18 +4181,39 @@ async function removeProfile(name) {
   const state = await readState();
   const data = await readProfileData(name);
   if (state.active === name && data.type === "api-key") {
-    await clearApiKey();
+    await clearApiConfig();
   }
   await rm(claudeProfileDir(name), { recursive: true });
   if (state.active === name) {
     await writeState({ active: null });
   }
 }
+function normalizeOptionalValue(value) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+function normalizeApiKeyProfileData(config) {
+  return {
+    type: "api-key",
+    apiKey: config.apiKey.trim(),
+    ...normalizeOptionalValue(config.baseUrl) ? { baseUrl: normalizeOptionalValue(config.baseUrl) } : {},
+    ...normalizeOptionalValue(config.authToken) ? { authToken: normalizeOptionalValue(config.authToken) } : {},
+    ...normalizeOptionalValue(config.model) ? { model: normalizeOptionalValue(config.model) } : {},
+    ...normalizeOptionalValue(config.defaultSonnetModel) ? { defaultSonnetModel: normalizeOptionalValue(config.defaultSonnetModel) } : {},
+    ...normalizeOptionalValue(config.defaultOpusModel) ? { defaultOpusModel: normalizeOptionalValue(config.defaultOpusModel) } : {},
+    ...normalizeOptionalValue(config.defaultHaikuModel) ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) } : {}
+  };
+}
+function sameApiConfig(expected, actual) {
+  if (!actual)
+    return false;
+  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel);
+}
 
 // src/providers/codex/registry.ts
 init_paths();
 init_fs();
-import { mkdir as mkdir3 } from "fs/promises";
+import { mkdir as mkdir4 } from "fs/promises";
 var DEFAULT_REGISTRY = {
   schema_version: 3,
   active_account_key: null,
@@ -4146,7 +4227,7 @@ var DEFAULT_REGISTRY = {
   accounts: []
 };
 async function ensureAccountsDir() {
-  await mkdir3(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir4(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function loadRegistry() {
   if (!await fileExists(CODEX_REGISTRY_FILE)) {
@@ -4306,8 +4387,8 @@ init_paths();
 // src/providers/codex/config.ts
 init_paths();
 init_fs();
-import { chmod, mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
-import { dirname } from "path";
+import { chmod, mkdir as mkdir5, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
+import { dirname as dirname2 } from "path";
 
 // src/lib/toml.ts
 function parseKeyPath(path) {
@@ -4573,7 +4654,7 @@ async function writeCodexConfig(config) {
       return;
     }
   } catch {}
-  await mkdir4(dirname(CODEX_CONFIG_FILE), { recursive: true });
+  await mkdir5(dirname2(CODEX_CONFIG_FILE), { recursive: true });
   await writeFile2(CODEX_CONFIG_FILE, content, { mode: 384 });
   await chmod(CODEX_CONFIG_FILE, 384);
 }
@@ -4733,7 +4814,15 @@ async function addClaudeOAuth(alias) {
   blank();
 }
 async function addClaudeApiKey(alias) {
-  const key = await esm_default4({
+  const config = await promptClaudeApiConfig();
+  await addApiKeyProfile(alias, config);
+  await addAlias(alias, { provider: "claude", profileName: alias });
+  blank();
+  success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(config.apiKey))}`);
+  blank();
+}
+async function promptClaudeApiConfig() {
+  const apiKey = await esm_default4({
     message: "Paste your Anthropic API key",
     mask: "*",
     validate: (v) => {
@@ -4742,11 +4831,45 @@ async function addClaudeApiKey(alias) {
       return true;
     }
   });
-  await addApiKeyProfile(alias, key.trim());
-  await addAlias(alias, { provider: "claude", profileName: alias });
-  blank();
-  success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key.trim()))}`);
-  blank();
+  const baseUrl = await esm_default3({
+    message: "Base URL (optional, for proxy/custom endpoint)",
+    validate: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed)
+        return true;
+      try {
+        new URL(trimmed);
+        return true;
+      } catch {
+        return "Base URL must be a valid URL";
+      }
+    }
+  });
+  const authToken = await esm_default4({
+    message: "Auth token (optional, only if your provider requires it)",
+    mask: "*"
+  });
+  const model = await esm_default3({
+    message: "Default model (optional)"
+  });
+  const defaultSonnetModel = await esm_default3({
+    message: "Sonnet model mapping (optional)"
+  });
+  const defaultOpusModel = await esm_default3({
+    message: "Opus model mapping (optional)"
+  });
+  const defaultHaikuModel = await esm_default3({
+    message: "Haiku model mapping (optional)"
+  });
+  return {
+    apiKey: apiKey.trim(),
+    baseUrl: baseUrl.trim() || undefined,
+    authToken: authToken.trim() || undefined,
+    model: model.trim() || undefined,
+    defaultSonnetModel: defaultSonnetModel.trim() || undefined,
+    defaultOpusModel: defaultOpusModel.trim() || undefined,
+    defaultHaikuModel: defaultHaikuModel.trim() || undefined
+  };
 }
 async function addCodexChatGPT(alias) {
   const codexCheck = spawnSync3("codex", ["--version"], {

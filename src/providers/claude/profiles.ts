@@ -11,13 +11,15 @@ import {
 import { readCredentials, copyCredentials } from "./credentials";
 import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
-import { setApiKey, clearApiKey, getApiKey } from "./settings";
+import { applyApiConfig, clearApiConfig, getApiConfig } from "./settings";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
   ProfileInfo,
   ProfileData,
   OAuthAccount,
+  ClaudeApiProfileConfig,
+  ApiKeyProfileData,
 } from "../../types";
 
 async function ensureDir(path: string): Promise<void> {
@@ -102,12 +104,12 @@ export async function addOAuthProfile(
 
 export async function addApiKeyProfile(
   name: string,
-  apiKey: string,
+  config: ClaudeApiProfileConfig,
 ): Promise<void> {
   await ensureDir(claudeProfileDir(name));
-  await writeProfileData(name, { type: "api-key", apiKey });
+  await writeProfileData(name, normalizeApiKeyProfileData(config));
   await writeState({ active: name });
-  await setApiKey(apiKey);
+  await applyApiConfig(config);
 }
 
 export async function switchProfile(name: string): Promise<ProfileData> {
@@ -154,10 +156,10 @@ async function activateProfile(
   name: string,
   targetData: ProfileData,
 ): Promise<void> {
-  if (targetData.type === "api-key" && targetData.apiKey) {
-    await setApiKey(targetData.apiKey);
+  if (targetData.type === "api-key") {
+    await applyApiConfig(targetData);
   } else {
-    await clearApiKey();
+    await clearApiConfig();
     await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
 
     const savedAccount = await readJson<OAuthAccount | null>(
@@ -173,13 +175,10 @@ async function isProfileApplied(
   targetData: ProfileData,
 ): Promise<boolean> {
   if (targetData.type === "api-key") {
-    return (
-      Boolean(targetData.apiKey) &&
-      (await getApiKey()) === targetData.apiKey
-    );
+    return sameApiConfig(targetData, await getApiConfig());
   }
 
-  if (await getApiKey()) return false;
+  if (await getApiConfig()) return false;
   if (!(await readCredentials(CREDENTIALS_FILE))) return false;
 
   const savedAccount = await readJson<OAuthAccount | null>(
@@ -235,7 +234,7 @@ export async function removeProfile(name: string): Promise<void> {
   const data = await readProfileData(name);
 
   if (state.active === name && data.type === "api-key") {
-    await clearApiKey();
+    await clearApiConfig();
   }
 
   await rm(claudeProfileDir(name), { recursive: true });
@@ -243,4 +242,59 @@ export async function removeProfile(name: string): Promise<void> {
   if (state.active === name) {
     await writeState({ active: null });
   }
+}
+
+function normalizeOptionalValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function normalizeApiKeyProfileData(
+  config: ClaudeApiProfileConfig,
+): ApiKeyProfileData {
+  return {
+    type: "api-key",
+    apiKey: config.apiKey.trim(),
+    ...(normalizeOptionalValue(config.baseUrl)
+      ? { baseUrl: normalizeOptionalValue(config.baseUrl) }
+      : {}),
+    ...(normalizeOptionalValue(config.authToken)
+      ? { authToken: normalizeOptionalValue(config.authToken) }
+      : {}),
+    ...(normalizeOptionalValue(config.model)
+      ? { model: normalizeOptionalValue(config.model) }
+      : {}),
+    ...(normalizeOptionalValue(config.defaultSonnetModel)
+      ? { defaultSonnetModel: normalizeOptionalValue(config.defaultSonnetModel) }
+      : {}),
+    ...(normalizeOptionalValue(config.defaultOpusModel)
+      ? { defaultOpusModel: normalizeOptionalValue(config.defaultOpusModel) }
+      : {}),
+    ...(normalizeOptionalValue(config.defaultHaikuModel)
+      ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) }
+      : {}),
+  };
+}
+
+function sameApiConfig(
+  expected: ClaudeApiProfileConfig,
+  actual: ClaudeApiProfileConfig | null,
+): boolean {
+  if (!actual) return false;
+
+  return (
+    expected.apiKey === actual.apiKey &&
+    normalizeOptionalValue(expected.baseUrl) ===
+      normalizeOptionalValue(actual.baseUrl) &&
+    normalizeOptionalValue(expected.authToken) ===
+      normalizeOptionalValue(actual.authToken) &&
+    normalizeOptionalValue(expected.model) ===
+      normalizeOptionalValue(actual.model) &&
+    normalizeOptionalValue(expected.defaultSonnetModel) ===
+      normalizeOptionalValue(actual.defaultSonnetModel) &&
+    normalizeOptionalValue(expected.defaultOpusModel) ===
+      normalizeOptionalValue(actual.defaultOpusModel) &&
+    normalizeOptionalValue(expected.defaultHaikuModel) ===
+      normalizeOptionalValue(actual.defaultHaikuModel)
+  );
 }

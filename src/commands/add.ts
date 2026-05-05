@@ -40,7 +40,10 @@ import {
   maskKey,
 } from "../lib/ui";
 import type { CodexRegistryAccount } from "../types";
-import type { CodexApiProviderConfig } from "../types";
+import type {
+  ClaudeApiProfileConfig,
+  CodexApiProviderConfig,
+} from "../types";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -202,7 +205,19 @@ async function addClaudeOAuth(alias: string): Promise<void> {
 }
 
 async function addClaudeApiKey(alias: string): Promise<void> {
-  const key = await password({
+  const config = await promptClaudeApiConfig();
+
+  await addApiKeyProfile(alias, config);
+  await addAlias(alias, { provider: "claude", profileName: alias });
+  blank();
+  success(
+    `${chalk.bold(alias)} created  ${chalk.dim(maskKey(config.apiKey))}`,
+  );
+  blank();
+}
+
+async function promptClaudeApiConfig(): Promise<ClaudeApiProfileConfig> {
+  const apiKey = await password({
     message: "Paste your Anthropic API key",
     mask: "*",
     validate: (v) => {
@@ -211,13 +226,50 @@ async function addClaudeApiKey(alias: string): Promise<void> {
     },
   });
 
-  await addApiKeyProfile(alias, key.trim());
-  await addAlias(alias, { provider: "claude", profileName: alias });
-  blank();
-  success(
-    `${chalk.bold(alias)} created  ${chalk.dim(maskKey(key.trim()))}`,
-  );
-  blank();
+  const baseUrl = await input({
+    message: "Base URL (optional, for proxy/custom endpoint)",
+    validate: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed) return true;
+      try {
+        new URL(trimmed);
+        return true;
+      } catch {
+        return "Base URL must be a valid URL";
+      }
+    },
+  });
+
+  const authToken = await password({
+    message: "Auth token (optional, only if your provider requires it)",
+    mask: "*",
+  });
+
+  const model = await input({
+    message: "Default model (optional)",
+  });
+
+  const defaultSonnetModel = await input({
+    message: "Sonnet model mapping (optional)",
+  });
+
+  const defaultOpusModel = await input({
+    message: "Opus model mapping (optional)",
+  });
+
+  const defaultHaikuModel = await input({
+    message: "Haiku model mapping (optional)",
+  });
+
+  return {
+    apiKey: apiKey.trim(),
+    baseUrl: baseUrl.trim() || undefined,
+    authToken: authToken.trim() || undefined,
+    model: model.trim() || undefined,
+    defaultSonnetModel: defaultSonnetModel.trim() || undefined,
+    defaultOpusModel: defaultOpusModel.trim() || undefined,
+    defaultHaikuModel: defaultHaikuModel.trim() || undefined,
+  };
 }
 
 async function addCodexChatGPT(alias: string): Promise<void> {

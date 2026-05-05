@@ -12,7 +12,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
-- Claude: OAuth subscriptions + Anthropic API keys
+- Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs and Sonnet / Opus / Haiku model mapping
 - Codex: ChatGPT OAuth + OpenAI API keys
 - macOS Keychain credential support
 
@@ -115,7 +115,7 @@ claudex-switch add work
 Then choose an account type:
 
 - **Claude OAuth** — Claude subscription (Pro, Max, Team, etc.)
-- **Claude API Key** — Anthropic API key
+- **Claude API Key** — Anthropic API key, with optional Base URL, auth token, default model, and Sonnet / Opus / Haiku model mapping
 - **Codex ChatGPT** — ChatGPT login (Plus, Pro, Team, etc.)
 - **Codex API Key** — OpenAI API key, with either the official API or a custom OpenAI-compatible provider
 
@@ -213,6 +213,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - Other platforms: reads/writes `~/.claude/.credentials.json`
 - Syncs `oauthAccount` in `~/.claude.json`
 - API key mode writes to `~/.claude/settings.json`
+- Claude API key accounts always sync `ANTHROPIC_API_KEY`; when configured, switching also writes `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, and `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`
 
 ### Codex Account Switching
 

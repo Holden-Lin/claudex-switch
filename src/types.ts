@@ -58,10 +58,25 @@ export interface OAuthAccount {
 
 export type ProfileType = "oauth" | "api-key";
 
-export interface ProfileData {
-  type: ProfileType;
-  apiKey?: string;
+export interface ClaudeApiProfileConfig {
+  apiKey: string;
+  baseUrl?: string;
+  authToken?: string;
+  model?: string;
+  defaultSonnetModel?: string;
+  defaultOpusModel?: string;
+  defaultHaikuModel?: string;
 }
+
+export interface OAuthProfileData {
+  type: "oauth";
+}
+
+export interface ApiKeyProfileData extends ClaudeApiProfileConfig {
+  type: "api-key";
+}
+
+export type ProfileData = OAuthProfileData | ApiKeyProfileData;
 
 export interface ProfileState {
   active: string | null;

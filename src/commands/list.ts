@@ -24,6 +24,7 @@ import type {
   OAuthAccount,
   AccountInfo,
   CodexRegistryAccount,
+  ProfileData,
 } from "../types";
 
 export async function list(): Promise<void> {
@@ -134,7 +135,7 @@ async function getClaudeAccountInfo(
   let authMode = "oauth";
 
   try {
-    const profileData = await readJson<{ type: string; apiKey?: string }>(
+    const profileData = await readJson<ProfileData>(
       claudeProfileDataFile(profileName),
       { type: "oauth" },
     );

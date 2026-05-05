@@ -12,7 +12,7 @@
 - `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
-- Claude 支持 OAuth 订阅 + API Key
+- Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型和 Sonnet / Opus / Haiku 模型映射）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
 - macOS Keychain 凭证兼容
 
@@ -115,7 +115,7 @@ claudex-switch add work
 然后选择账号类型：
 
 - **Claude OAuth** — 使用 Claude 订阅（Pro、Max、Team 等）
-- **Claude API Key** — 使用 Anthropic API key
+- **Claude API Key** — 使用 Anthropic API key，可选自定义 Base URL、Auth Token、默认模型和 Sonnet / Opus / Haiku 模型映射
 - **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等）
 - **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商
 
@@ -213,6 +213,7 @@ claudex-switch 采用「薄别名层」架构：
 - 其他系统读写 `~/.claude/.credentials.json`
 - 同步 `~/.claude.json` 中的 `oauthAccount`
 - API Key 模式写入 `~/.claude/settings.json`
+- Claude API Key 账号会同步写入 `ANTHROPIC_API_KEY`；如果该 profile 配置了 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` 或 `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`，切换时也会一并覆盖
 
 ### Codex 账号切换
 
