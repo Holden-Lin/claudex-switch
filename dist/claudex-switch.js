@@ -3645,6 +3645,7 @@ var RESERVED = new Set([
   "rename",
   "purge",
   "current",
+  "model",
   "import",
   "update",
   "help",
@@ -4101,6 +4102,26 @@ async function profileExists(name) {
 }
 async function getProfileData(name) {
   return readProfileData(name);
+}
+async function updateProfileDefaultModel(name, model) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const currentData = await readProfileData(name);
+  const normalizedModel = normalizeOptionalValue(model);
+  if (!normalizedModel) {
+    throw new Error("Default model cannot be empty");
+  }
+  const nextData = currentData.type === "api-key" ? normalizeApiKeyProfileData({
+    ...currentData,
+    model: normalizedModel
+  }) : normalizeOAuthProfileData({ defaultModel: normalizedModel });
+  await writeProfileData(name, nextData);
+  const state = await readState();
+  if (state.active === name) {
+    await activateProfile(name, nextData);
+  }
+  return nextData;
 }
 async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
   const data = normalizeOAuthProfileData(config);
@@ -4592,6 +4613,14 @@ function addAccountToRegistry(reg, account) {
   } else {
     reg.accounts.push(account);
   }
+}
+function updateAccountDefaultModel(reg, accountKey, model) {
+  const account = findAccountByKey(reg, accountKey);
+  if (!account) {
+    throw new Error(`Codex account not found: ${accountKey}`);
+  }
+  account.default_model = resolveCodexModel(model);
+  return account;
 }
 function removeAccountFromRegistry(reg, accountKey) {
   const idx = reg.accounts.findIndex((a) => a.account_key === accountKey);
@@ -5885,13 +5914,55 @@ async function runLoginCommand(command, args) {
   }
 }
 
+// src/commands/model.ts
+init_auth();
+async function model(aliasOrName, defaultModel) {
+  blank();
+  const normalizedModel = defaultModel.trim();
+  if (!normalizedModel) {
+    error("Default model cannot be empty.");
+    blank();
+    process.exit(1);
+  }
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
+  if (!entry) {
+    error(`Alias "${aliasOrName}" not found.`);
+    blank();
+    process.exit(1);
+  }
+  if (entry.target.provider === "claude") {
+    const profile = await updateProfileDefaultModel(entry.target.profileName, normalizedModel);
+    blank();
+    success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider("claude")}  ${formatType(profile.type)}  ${source_default.dim(normalizedModel)}`);
+    blank();
+    return;
+  }
+  const reg = await loadRegistry();
+  const existing = findAccountByKey(reg, entry.target.accountKey);
+  if (!existing) {
+    error("Codex account not found in registry.");
+    blank();
+    process.exit(1);
+  }
+  const account = updateAccountDefaultModel(reg, entry.target.accountKey, normalizedModel);
+  await saveRegistry(reg);
+  if (reg.active_account_key === entry.target.accountKey) {
+    const auth = account.auth_mode === "apikey" ? await readAccountAuth(entry.target.accountKey) : null;
+    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
+  }
+  blank();
+  success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider("codex")}  ${formatType(account.auth_mode ?? "unknown")}  ${source_default.dim(normalizedModel)}`);
+  blank();
+}
+
 // src/lib/update.ts
 import { realpathSync } from "fs";
 import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.20",
+  version: "1.1.21",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6214,6 +6285,7 @@ var HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
     claudex-switch rename <from> <to>  Rename an alias
+    claudex-switch model <alias> <model>  Update an account's default model
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
@@ -6316,6 +6388,15 @@ async function main() {
           process.exit(1);
         }
         await remove(args[0]);
+        break;
+      case "model":
+        if (!args[0] || !args[1]) {
+          console.error(source_default.red(`
+  Usage: claudex-switch model <alias> <model>
+`));
+          process.exit(1);
+        }
+        await model(args[0], args[1]);
         break;
       case "rename":
         if (!args[0] || !args[1]) {

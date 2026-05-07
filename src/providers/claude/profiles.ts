@@ -97,6 +97,38 @@ export async function getProfileData(name: string): Promise<ProfileData> {
   return readProfileData(name);
 }
 
+export async function updateProfileDefaultModel(
+  name: string,
+  model: string,
+): Promise<ProfileData> {
+  if (!(await profileExists(name))) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+
+  const currentData = await readProfileData(name);
+  const normalizedModel = normalizeOptionalValue(model);
+  if (!normalizedModel) {
+    throw new Error("Default model cannot be empty");
+  }
+
+  const nextData =
+    currentData.type === "api-key"
+      ? normalizeApiKeyProfileData({
+          ...currentData,
+          model: normalizedModel,
+        })
+      : normalizeOAuthProfileData({ defaultModel: normalizedModel });
+
+  await writeProfileData(name, nextData);
+
+  const state = await readState();
+  if (state.active === name) {
+    await activateProfile(name, nextData);
+  }
+
+  return nextData;
+}
+
 export async function addOAuthProfile(
   name: string,
   fromCredentials: string = CREDENTIALS_FILE,

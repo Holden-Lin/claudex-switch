@@ -1,0 +1,90 @@
+import chalk from "chalk";
+import { loadAliases, findAlias } from "../alias/store";
+import {
+  getProfileData,
+  updateProfileDefaultModel,
+} from "../providers/claude/profiles";
+import { readAccountAuth } from "../providers/codex/auth";
+import { applyCodexApiProvider } from "../providers/codex/config";
+import {
+  findAccountByKey,
+  loadRegistry,
+  saveRegistry,
+  updateAccountDefaultModel,
+} from "../providers/codex/registry";
+import {
+  blank,
+  error,
+  formatProvider,
+  formatType,
+  success,
+} from "../lib/ui";
+
+export async function model(
+  aliasOrName: string,
+  defaultModel: string,
+): Promise<void> {
+  blank();
+
+  const normalizedModel = defaultModel.trim();
+  if (!normalizedModel) {
+    error("Default model cannot be empty.");
+    blank();
+    process.exit(1);
+  }
+
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
+
+  if (!entry) {
+    error(`Alias "${aliasOrName}" not found.`);
+    blank();
+    process.exit(1);
+  }
+
+  if (entry.target.provider === "claude") {
+    const profile = await updateProfileDefaultModel(
+      entry.target.profileName,
+      normalizedModel,
+    );
+    blank();
+    success(
+      `Updated ${chalk.bold(entry.alias)}  ${formatProvider("claude")}  ${formatType(profile.type)}  ${chalk.dim(normalizedModel)}`,
+    );
+    blank();
+    return;
+  }
+
+  const reg = await loadRegistry();
+  const existing = findAccountByKey(reg, entry.target.accountKey);
+  if (!existing) {
+    error("Codex account not found in registry.");
+    blank();
+    process.exit(1);
+  }
+
+  const account = updateAccountDefaultModel(
+    reg,
+    entry.target.accountKey,
+    normalizedModel,
+  );
+  await saveRegistry(reg);
+
+  if (reg.active_account_key === entry.target.accountKey) {
+    const auth =
+      account.auth_mode === "apikey"
+        ? await readAccountAuth(entry.target.accountKey)
+        : null;
+    await applyCodexApiProvider(
+      account.auth_mode === "apikey" ? account.api_provider : null,
+      auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined,
+      account.default_model,
+    );
+  }
+
+  blank();
+  success(
+    `Updated ${chalk.bold(entry.alias)}  ${formatProvider("codex")}  ${formatType(account.auth_mode ?? "unknown")}  ${chalk.dim(normalizedModel)}`,
+  );
+  blank();
+}

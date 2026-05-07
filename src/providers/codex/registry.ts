@@ -99,6 +99,20 @@ export function addAccountToRegistry(
   }
 }
 
+export function updateAccountDefaultModel(
+  reg: CodexRegistry,
+  accountKey: string,
+  model: string,
+): CodexRegistryAccount {
+  const account = findAccountByKey(reg, accountKey);
+  if (!account) {
+    throw new Error(`Codex account not found: ${accountKey}`);
+  }
+
+  account.default_model = resolveCodexModel(model);
+  return account;
+}
+
 export function removeAccountFromRegistry(
   reg: CodexRegistry,
   accountKey: string,

@@ -154,6 +154,7 @@ requires_openai_auth = false
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
 | `claudex-switch list` | 列出所有账号、认证类型和默认模型 |
+| `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置 |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
 | `claudex-switch current` | 显示当前活跃账号 |

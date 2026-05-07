@@ -18,6 +18,7 @@ const RESERVED = new Set([
   "rename",
   "purge",
   "current",
+  "model",
   "import",
   "update",
   "help",

@@ -62,6 +62,7 @@ describe("alias store", () => {
 
   test("rejects reserved version flags as aliases", () => {
     expect(isValidAlias("update")).toBe(false);
+    expect(isValidAlias("model")).toBe(false);
     expect(isValidAlias("--version")).toBe(false);
     expect(isValidAlias("-V")).toBe(false);
   });

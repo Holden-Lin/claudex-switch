@@ -15,6 +15,7 @@ import { purge } from "./commands/purge";
 import { current } from "./commands/current";
 import { importAccounts } from "./commands/import";
 import { refresh } from "./commands/refresh";
+import { model } from "./commands/model";
 import { version } from "./commands/version";
 import { update } from "./commands/update";
 import { blank, formatProvider } from "./lib/ui";
@@ -31,6 +32,7 @@ const HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
     claudex-switch rename <from> <to>  Rename an alias
+    claudex-switch model <alias> <model>  Update an account's default model
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
@@ -162,6 +164,16 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await remove(args[0]);
+        break;
+
+      case "model":
+        if (!args[0] || !args[1]) {
+          console.error(
+            chalk.red("\n  Usage: claudex-switch model <alias> <model>\n"),
+          );
+          process.exit(1);
+        }
+        await model(args[0], args[1]);
         break;
 
       case "rename":

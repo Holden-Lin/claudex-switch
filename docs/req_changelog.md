@@ -71,3 +71,4 @@
 - “帮我把本地和release都改了”
 - “然后增加一个defaul_model参数，用户可以自己定制cc或者codex的默认模型”
 - “可以，然后你帮我把所有本地codex帐号default为gpt5.4”
+- “已存在的 Claude / Codex 账号单独改默认模型的命令也要支持改”

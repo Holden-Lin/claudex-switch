@@ -154,6 +154,7 @@ requires_openai_auth = false
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
 | `claudex-switch list` | List all accounts, auth types, and default models |
+| `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |
 | `claudex-switch current` | Show active accounts |
