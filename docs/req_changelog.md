@@ -72,3 +72,5 @@
 - “然后增加一个defaul_model参数，用户可以自己定制cc或者codex的默认模型”
 - “可以，然后你帮我把所有本地codex帐号default为gpt5.4”
 - “已存在的 Claude / Codex 账号单独改默认模型的命令也要支持改”
+- “现在切换claude oauth > api会影响正在进行的session,之前codex是没这个问题的，cc有办法避免吗” → `claudex-switch <claude-api-alias> -run` 改为隔离启动：直接用 `claude --bare` + profile 环境变量运行，不再先全局切换 Claude 状态；因此新开的 Claude API 会话不会把正在进行中的 Claude OAuth session 切走
+- “readme补一下，然后claudex-switch <alias> -run 的时候也支持-model指定默认模型” → README 补充 Claude API `-run` 的隔离行为说明，并支持 `claudex-switch <alias> -run -model <model>` 只覆盖本次启动模型，不持久化写回账号默认模型

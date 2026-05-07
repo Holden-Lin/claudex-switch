@@ -9,6 +9,7 @@
 - 统一管理 Claude Code 和 Codex 两套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
 - `claudex-switch <alias> -run` 切换账号后直接启动免权限确认的 Claude Code / Codex 会话
+- `claudex-switch <alias> -run -model <model>` 可只对这次会话临时覆盖模型，不修改保存的默认模型
 - `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
@@ -84,6 +85,9 @@ claudex-switch holden
 # 切换账号并直接启动免权限确认的会话
 claudex-switch holden -run
 
+# 只对这次运行临时指定模型，不修改账号保存的默认模型
+claudex-switch holden -run -model claude-sonnet-4-20250514
+
 # 添加新账号
 claudex-switch add my-claude
 claudex-switch add my-codex
@@ -150,6 +154,7 @@ requires_openai_auth = false
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
 | `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 免权限确认会话 |
+| `claudex-switch <alias> -run -model <model>` | 仅对这次 `-run` 会话临时覆盖模型，不改写账号保存的默认模型 |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
@@ -222,6 +227,8 @@ claudex-switch 采用「薄别名层」架构：
 - API Key 模式写入 `~/.claude/settings.json`
 - Claude API Key 账号会同步写入 `ANTHROPIC_API_KEY`；如果该 profile 配置了 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` 或 `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`，切换时也会一并覆盖
 - 切到 Claude API Key 账号时会清理当前 active 的 Claude OAuth token，避免 Claude Code 同时检测到 claude.ai token 和 `ANTHROPIC_API_KEY`；切回 OAuth 账号时会从 profile 恢复 token
+- 当使用 `claudex-switch <claude-api-alias> -run` 时，当前版本会直接用 `claude --bare` + profile 环境变量启动临时会话，不再先改写全局 `~/.claude*` 状态；这样新开的 Claude API 会话不会把正在进行中的 Claude OAuth session 切走
+- 这个隔离只适用于 Claude API 的 `-run`。普通 `use` / 直接切换，以及 Claude OAuth，会继续沿用 Claude Code 当前的全局凭据机制
 
 ### Codex 账号切换
 
@@ -241,6 +248,7 @@ claudex-switch 采用「薄别名层」架构：
 - 这是非官方工具，依赖 Claude Code 和 Codex 当前的本地认证存储方式
 - 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
 - Codex 切换后需要重启客户端才能生效
+- `-run -model <model>` 只覆盖本次启动命令行，不会持久化写回账号默认模型；如果要永久修改，仍然使用 `claudex-switch model <alias> <model>`
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
 
 如需临时关闭自动更新，可在当前命令前加上：

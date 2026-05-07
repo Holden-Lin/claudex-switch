@@ -13,10 +13,13 @@ import { dirname } from "path";
 import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
 import { CODEX_CONFIG_FILE, CREDENTIALS_FILE } from "../src/lib/paths";
+import { readJson } from "../src/lib/fs";
 import { writeCredentials } from "../src/providers/claude/credentials";
 import {
   addOAuthProfile,
   addApiKeyProfile,
+  readState,
+  switchProfile,
 } from "../src/providers/claude/profiles";
 import { saveAccountAuth } from "../src/providers/codex/auth";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
@@ -210,6 +213,10 @@ describe("run alias session", () => {
       const calls: SpawnCall[] = [];
       await runAliasSession("api", [], createSpawn(calls));
 
+      expect(calls[0]?.args).toEqual([
+        "--bare",
+        "--dangerously-skip-permissions",
+      ]);
       expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
       expect(calls[0]?.env?.ANTHROPIC_BASE_URL).toBe(
         "https://proxy.example.com",
@@ -229,6 +236,92 @@ describe("run alias session", () => {
         process.env.ANTHROPIC_MODEL = oldModel;
       }
     }
+  });
+
+  test("maps -model to a one-shot Claude run override", async () => {
+    await addApiKeyProfile("api", {
+      apiKey: "sk-ant-profile",
+      model: "claude-opus-4-6",
+    });
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "api",
+          target: { provider: "claude", profileName: "api" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession(
+      "api",
+      ["-model", "claude-sonnet-4-20250514", "--continue"],
+      createSpawn(calls),
+    );
+
+    expect(calls[0]?.args).toEqual([
+      "--bare",
+      "--dangerously-skip-permissions",
+      "--model",
+      "claude-sonnet-4-20250514",
+      "--continue",
+    ]);
+    expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe("claude-opus-4-6");
+  });
+
+  test("runs Claude API key aliases without changing the active global Claude auth", async () => {
+    const oauthCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "oauth-access",
+        refreshToken: "oauth-refresh",
+        expiresAt: Date.now() + 1000,
+        scopes: [],
+        subscriptionType: "max",
+      },
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(oauthCreds, CREDENTIALS_FILE);
+    await addOAuthProfile("holden");
+    await addApiKeyProfile("api", {
+      apiKey: "sk-ant-profile",
+      model: "claude-opus-4-6",
+    });
+    await switchProfile("holden");
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "holden",
+          target: { provider: "claude", profileName: "holden" },
+          createdAt: 1,
+        },
+        {
+          alias: "api",
+          target: { provider: "claude", profileName: "api" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession("api", ["--continue"], createSpawn(calls));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toEqual([
+      "--bare",
+      "--dangerously-skip-permissions",
+      "--continue",
+    ]);
+    expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
+    expect(await readState()).toEqual({ active: "holden" });
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(oauthCreds);
   });
 
   test("runs Codex with bypass approvals and sandbox after switching", async () => {
@@ -285,6 +378,50 @@ describe("run alias session", () => {
 
     const registry = await loadRegistry();
     expect(registry.active_account_key).toBe(accountKey);
+  });
+
+  test("maps -model to a one-shot Codex run override without persisting it", async () => {
+    const accountKey = "user-1::acct-1";
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "codex", accountKey },
+          createdAt: 1,
+        },
+      ],
+    });
+    await saveRegistry(createRegistry(accountKey));
+    await saveAccountAuth(accountKey, {
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({ sub: "user-1" }),
+        access_token: makeJwt({ sub: "user-1" }),
+        refresh_token: "refresh-token",
+        account_id: "acct-1",
+      },
+      last_refresh: "2026-04-28T00:00:00.000Z",
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession(
+      "cx",
+      ["-model", "gpt-5-mini", "--continue"],
+      createSpawn(calls),
+    );
+
+    expect(calls[0]?.args).toEqual([
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--model",
+      "gpt-5-mini",
+      "--continue",
+    ]);
+
+    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(config).toContain('model = "gpt-5.4"');
+    expect(config).not.toContain('model = "gpt-5-mini"');
   });
 
   test("activates a custom Codex provider before running an api key alias", async () => {

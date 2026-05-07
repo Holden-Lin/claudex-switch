@@ -1,12 +1,17 @@
 import chalk from "chalk";
 import { spawn, type ChildProcess } from "child_process";
+import { findAlias, loadAliases } from "../alias/store";
 import { use } from "./use";
-import { blank, error, info } from "../lib/ui";
+import { blank, error, hint, info } from "../lib/ui";
 import { getProfileData } from "../providers/claude/profiles";
 import { CLAUDE_ENV_KEYS } from "../providers/claude/settings";
 import { readAccountAuth } from "../providers/codex/auth";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
-import type { ClaudeApiProfileConfig } from "../types";
+import type {
+  AliasEntry,
+  ClaudeApiProfileConfig,
+  ProfileData,
+} from "../types";
 
 const RUN_FLAGS = new Set(["-run", "--run"]);
 
@@ -21,6 +26,11 @@ type SpawnCommand = (
   options: SpawnOptions,
 ) => ChildProcess;
 
+type RunArgumentOptions = {
+  forwardedArgs: string[];
+  modelOverride?: string;
+};
+
 export function isRunFlag(value?: string): boolean {
   return value !== undefined && RUN_FLAGS.has(value);
 }
@@ -30,14 +40,32 @@ export async function runAliasSession(
   forwardedArgs: string[] = [],
   spawnCommand: SpawnCommand = spawn,
 ): Promise<number> {
-  const entry = await use(aliasOrName);
+  const runOptions = parseRunArgumentOptions(forwardedArgs);
+  const entry = await resolveAliasOrExit(aliasOrName);
+  const profile =
+    entry.target.provider === "claude"
+      ? await getProfileData(entry.target.profileName)
+      : null;
+  const isolatedClaudeApi = profile?.type === "api-key";
+
+  if (!isolatedClaudeApi) {
+    await use(aliasOrName);
+  }
+
   const command = entry.target.provider === "claude" ? "claude" : "codex";
   const bypassArg =
     entry.target.provider === "claude"
       ? "--dangerously-skip-permissions"
       : "--dangerously-bypass-approvals-and-sandbox";
-  const args = [bypassArg, ...forwardedArgs];
-  const env = await getRunEnvironment(entry);
+  const args = [
+    ...(isolatedClaudeApi ? ["--bare"] : []),
+    bypassArg,
+    ...(runOptions.modelOverride
+      ? ["--model", runOptions.modelOverride]
+      : []),
+    ...runOptions.forwardedArgs,
+  ];
+  const env = await getRunEnvironment(entry, profile);
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
 
@@ -66,11 +94,11 @@ export async function runAliasSession(
 }
 
 async function getRunEnvironment(
-  entry: Awaited<ReturnType<typeof use>>,
+  entry: AliasEntry,
+  profile: ProfileData | null,
 ): Promise<NodeJS.ProcessEnv | undefined> {
   if (entry.target.provider === "claude") {
-    const profile = await getProfileData(entry.target.profileName);
-    if (profile.type === "api-key") {
+    if (profile?.type === "api-key") {
       return buildClaudeApiEnvironment(profile);
     }
     return stripClaudeApiEnvironment();
@@ -89,6 +117,48 @@ async function getRunEnvironment(
     ...process.env,
     [envKey]: auth.OPENAI_API_KEY,
   };
+}
+
+async function resolveAliasOrExit(aliasOrName: string): Promise<AliasEntry> {
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
+
+  if (entry) {
+    return entry;
+  }
+
+  error(`Alias "${aliasOrName}" not found.`);
+  hint(`Run ${chalk.cyan("claudex-switch list")} to see your accounts`);
+  blank();
+  process.exit(1);
+}
+
+function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
+  const forwardedArgs: string[] = [];
+  let modelOverride: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg !== "-model") {
+      forwardedArgs.push(arg);
+      continue;
+    }
+
+    const nextValue = args[index + 1]?.trim();
+    if (!nextValue) {
+      error("Missing model name after -model.");
+      hint(
+        `Example: ${chalk.cyan("claudex-switch <alias> -run -model claude-sonnet-4-20250514")}`,
+      );
+      blank();
+      process.exit(1);
+    }
+
+    modelOverride = nextValue;
+    index += 1;
+  }
+
+  return { forwardedArgs, modelOverride };
 }
 
 function stripClaudeApiEnvironment(): NodeJS.ProcessEnv | undefined {

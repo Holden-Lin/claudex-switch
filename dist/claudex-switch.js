@@ -5274,11 +5274,22 @@ function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
 }
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn3) {
-  const entry = await use(aliasOrName);
+  const runOptions = parseRunArgumentOptions(forwardedArgs);
+  const entry = await resolveAliasOrExit(aliasOrName);
+  const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
+  const isolatedClaudeApi = profile?.type === "api-key";
+  if (!isolatedClaudeApi) {
+    await use(aliasOrName);
+  }
   const command = entry.target.provider === "claude" ? "claude" : "codex";
   const bypassArg = entry.target.provider === "claude" ? "--dangerously-skip-permissions" : "--dangerously-bypass-approvals-and-sandbox";
-  const args = [bypassArg, ...forwardedArgs];
-  const env2 = await getRunEnvironment(entry);
+  const args = [
+    ...isolatedClaudeApi ? ["--bare"] : [],
+    bypassArg,
+    ...runOptions.modelOverride ? ["--model", runOptions.modelOverride] : [],
+    ...runOptions.forwardedArgs
+  ];
+  const env2 = await getRunEnvironment(entry, profile);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   return new Promise((resolve) => {
     let settled = false;
@@ -5299,10 +5310,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     });
   });
 }
-async function getRunEnvironment(entry) {
+async function getRunEnvironment(entry, profile) {
   if (entry.target.provider === "claude") {
-    const profile = await getProfileData(entry.target.profileName);
-    if (profile.type === "api-key") {
+    if (profile?.type === "api-key") {
       return buildClaudeApiEnvironment(profile);
     }
     return stripClaudeApiEnvironment();
@@ -5318,6 +5328,38 @@ async function getRunEnvironment(entry) {
     ...process.env,
     [envKey]: auth.OPENAI_API_KEY
   };
+}
+async function resolveAliasOrExit(aliasOrName) {
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
+  if (entry) {
+    return entry;
+  }
+  error(`Alias "${aliasOrName}" not found.`);
+  hint(`Run ${source_default.cyan("claudex-switch list")} to see your accounts`);
+  blank();
+  process.exit(1);
+}
+function parseRunArgumentOptions(args) {
+  const forwardedArgs = [];
+  let modelOverride;
+  for (let index = 0;index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg !== "-model") {
+      forwardedArgs.push(arg);
+      continue;
+    }
+    const nextValue = args[index + 1]?.trim();
+    if (!nextValue) {
+      error("Missing model name after -model.");
+      hint(`Example: ${source_default.cyan("claudex-switch <alias> -run -model claude-sonnet-4-20250514")}`);
+      blank();
+      process.exit(1);
+    }
+    modelOverride = nextValue;
+    index += 1;
+  }
+  return { forwardedArgs, modelOverride };
 }
 function stripClaudeApiEnvironment() {
   if (!CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
@@ -5962,7 +6004,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.21",
+  version: "1.1.22",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6280,7 +6322,7 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run        Switch and run a bypass-permission session
+    claudex-switch <alias> -run [-model <model>] [args...]  Switch and run a bypass-permission session
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
@@ -6365,7 +6407,7 @@ async function main() {
       case "use":
         if (!args[0]) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run]
+  Usage: claudex-switch use <alias> [-run [-model <model>] [args...]]
 `));
           process.exit(1);
         }

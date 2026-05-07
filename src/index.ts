@@ -27,7 +27,7 @@ const HELP = `
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run        Switch and run a bypass-permission session
+    claudex-switch <alias> -run [-model <model>] [args...]  Switch and run a bypass-permission session
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
@@ -139,7 +139,9 @@ async function main(): Promise<void> {
       case "use":
         if (!args[0]) {
           console.error(
-            chalk.red("\n  Usage: claudex-switch use <alias> [-run]\n"),
+            chalk.red(
+              "\n  Usage: claudex-switch use <alias> [-run [-model <model>] [args...]]\n",
+            ),
           );
           process.exit(1);
         }
