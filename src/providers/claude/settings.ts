@@ -58,6 +58,24 @@ function setEnvValue(
   delete env[key];
 }
 
+function normalizeModelValue(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function setTopLevelModel(
+  settings: Settings,
+  model: string | undefined,
+): void {
+  if (model) {
+    settings.model = model;
+    return;
+  }
+
+  delete settings.model;
+}
+
 export async function applyApiConfig(
   config: ClaudeApiProfileConfig,
 ): Promise<void> {
@@ -90,16 +108,14 @@ export async function applyApiConfig(
     settings.env = env;
   }
 
-  if (config.model) {
-    settings.model = config.model;
-  } else {
-    delete settings.model;
-  }
+  setTopLevelModel(settings, config.model);
 
   await write(settings);
 }
 
-export async function clearApiConfig(): Promise<void> {
+export async function applyOAuthConfig(
+  model?: string,
+): Promise<void> {
   const settings = await read();
   const env = normalizeEnv(settings);
 
@@ -113,8 +129,17 @@ export async function clearApiConfig(): Promise<void> {
     settings.env = env;
   }
 
-  delete settings.model;
+  setTopLevelModel(settings, model);
   await write(settings);
+}
+
+export async function clearApiConfig(): Promise<void> {
+  await applyOAuthConfig();
+}
+
+export async function getConfiguredModel(): Promise<string | undefined> {
+  const settings = await read();
+  return normalizeModelValue(settings.model);
 }
 
 export async function getApiConfig(): Promise<ClaudeApiProfileConfig | null> {
@@ -123,8 +148,7 @@ export async function getApiConfig(): Promise<ClaudeApiProfileConfig | null> {
   const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const topLevelModel =
-    typeof settings.model === "string" ? settings.model : undefined;
+  const topLevelModel = normalizeModelValue(settings.model);
   const envModel = env.ANTHROPIC_MODEL;
   const model = topLevelModel ?? envModel;
 

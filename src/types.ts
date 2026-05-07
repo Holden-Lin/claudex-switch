@@ -58,6 +58,10 @@ export interface OAuthAccount {
 
 export type ProfileType = "oauth" | "api-key";
 
+export interface ClaudeOAuthProfileConfig {
+  defaultModel?: string;
+}
+
 export interface ClaudeApiProfileConfig {
   apiKey: string;
   baseUrl?: string;
@@ -70,6 +74,7 @@ export interface ClaudeApiProfileConfig {
 
 export interface OAuthProfileData {
   type: "oauth";
+  defaultModel?: string;
 }
 
 export interface ApiKeyProfileData extends ClaudeApiProfileConfig {
@@ -126,6 +131,7 @@ export interface CodexRegistryAccount {
   account_name: string | null;
   plan: string | null;
   auth_mode: "chatgpt" | "apikey" | null;
+  default_model?: string | null;
   api_provider?: CodexApiProviderConfig | null;
   created_at: number;
   last_used_at: number | null;
@@ -185,6 +191,7 @@ export interface AccountInfo {
   plan: string | null;
   authMode: string;
   apiProvider: string | null;
+  defaultModel: string | null;
   isActive: boolean;
   usage: UsageInfo | null;
 }

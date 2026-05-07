@@ -8,7 +8,7 @@ import {
 } from "bun:test";
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 
 type SpawnHandler = (
@@ -40,6 +40,7 @@ const { refresh } = await import("../src/commands/refresh");
 const {
   CLAUDE_JSON,
   CODEX_AUTH_FILE,
+  CODEX_CONFIG_FILE,
   CREDENTIALS_FILE,
   claudeProfileCredentials,
 } = await import("../src/lib/paths");
@@ -220,6 +221,9 @@ describe("refresh", () => {
 
     expect(await readActiveAuth()).toEqual(refreshedAuth);
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
+    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toContain(
+      'model = "gpt-5.4"',
+    );
 
     const savedRegistry = await loadRegistry();
     expect(savedRegistry.active_account_key).toBe(accountKey);

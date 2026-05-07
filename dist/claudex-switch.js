@@ -5,43 +5,25 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: __exportSetter.bind(all, name)
+      set: (newValue) => all[name] = () => newValue
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2239,6 +2221,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2383,7 +2366,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3956,6 +3939,19 @@ function setEnvValue(env2, key, value) {
   }
   delete env2[key];
 }
+function normalizeModelValue(value) {
+  if (typeof value !== "string")
+    return;
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+function setTopLevelModel(settings, model) {
+  if (model) {
+    settings.model = model;
+    return;
+  }
+  delete settings.model;
+}
 async function applyApiConfig(config) {
   const settings = await read();
   const env2 = normalizeEnv(settings);
@@ -3971,14 +3967,10 @@ async function applyApiConfig(config) {
   } else {
     settings.env = env2;
   }
-  if (config.model) {
-    settings.model = config.model;
-  } else {
-    delete settings.model;
-  }
+  setTopLevelModel(settings, config.model);
   await write(settings);
 }
-async function clearApiConfig() {
+async function applyOAuthConfig(model) {
   const settings = await read();
   const env2 = normalizeEnv(settings);
   for (const key of CLAUDE_ENV_KEYS) {
@@ -3989,8 +3981,15 @@ async function clearApiConfig() {
   } else {
     settings.env = env2;
   }
-  delete settings.model;
+  setTopLevelModel(settings, model);
   await write(settings);
+}
+async function clearApiConfig() {
+  await applyOAuthConfig();
+}
+async function getConfiguredModel() {
+  const settings = await read();
+  return normalizeModelValue(settings.model);
 }
 async function getApiConfig() {
   const settings = await read();
@@ -3998,7 +3997,7 @@ async function getApiConfig() {
   const apiKey = env2.ANTHROPIC_API_KEY;
   if (!apiKey)
     return null;
-  const topLevelModel = typeof settings.model === "string" ? settings.model : undefined;
+  const topLevelModel = normalizeModelValue(settings.model);
   const envModel = env2.ANTHROPIC_MODEL;
   const model = topLevelModel ?? envModel;
   return {
@@ -4103,14 +4102,16 @@ async function profileExists(name) {
 async function getProfileData(name) {
   return readProfileData(name);
 }
-async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE) {
+async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
+  const data = normalizeOAuthProfileData(config);
   await ensureDir2(claudeProfileDir(name));
   await copyCredentials(fromCredentials, claudeProfileCredentials(name));
-  await writeProfileData(name, { type: "oauth" });
+  await writeProfileData(name, data);
   const account = await readOAuthAccount();
   if (account) {
     await writeJson(claudeProfileAccountFile(name), account);
   }
+  await activateProfile(name, data);
   await writeState({ active: name });
 }
 async function addApiKeyProfile(name, config) {
@@ -4163,7 +4164,7 @@ async function activateProfile(name, targetData) {
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
   } else {
-    await clearApiConfig();
+    await applyOAuthConfig(targetData.defaultModel);
     await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
     const savedAccount = await readJson(claudeProfileAccountFile(name), null);
     await writeOAuthAccount(savedAccount);
@@ -4181,6 +4182,9 @@ async function isProfileApplied(name, targetData) {
   }
   if (await getApiConfig())
     return false;
+  if (normalizeOptionalValue(targetData.defaultModel) !== normalizeOptionalValue(await getConfiguredModel())) {
+    return false;
+  }
   if (!await readCredentials(CREDENTIALS_FILE))
     return false;
   const savedAccount = await readJson(claudeProfileAccountFile(name), null);
@@ -4242,6 +4246,13 @@ function normalizeApiKeyProfileData(config) {
     ...normalizeOptionalValue(config.defaultHaikuModel) ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) } : {}
   };
 }
+function normalizeOAuthProfileData(config) {
+  const defaultModel = normalizeOptionalValue(config.defaultModel);
+  if (defaultModel) {
+    return { type: "oauth", defaultModel };
+  }
+  return { type: "oauth" };
+}
 function sameApiConfig(expected, actual) {
   if (!actual)
     return false;
@@ -4251,7 +4262,286 @@ function sameApiConfig(expected, actual) {
 // src/providers/codex/registry.ts
 init_paths();
 init_fs();
-import { mkdir as mkdir4 } from "fs/promises";
+import { mkdir as mkdir5 } from "fs/promises";
+
+// src/providers/codex/config.ts
+init_paths();
+init_fs();
+import { chmod, mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
+import { dirname as dirname2 } from "path";
+
+// src/lib/toml.ts
+function parseKeyPath(path) {
+  const keys = [];
+  let i = 0;
+  while (i < path.length) {
+    while (i < path.length && path[i] === " ")
+      i++;
+    if (i >= path.length)
+      break;
+    if (path[i] === '"') {
+      i++;
+      let key = "";
+      while (i < path.length && path[i] !== '"') {
+        if (path[i] === "\\" && i + 1 < path.length) {
+          i++;
+          if (path[i] === "n")
+            key += `
+`;
+          else if (path[i] === "t")
+            key += "\t";
+          else
+            key += path[i];
+        } else {
+          key += path[i];
+        }
+        i++;
+      }
+      i++;
+      keys.push(key);
+    } else {
+      let key = "";
+      while (i < path.length && path[i] !== ".") {
+        key += path[i];
+        i++;
+      }
+      keys.push(key.trim());
+    }
+    while (i < path.length && path[i] === " ")
+      i++;
+    if (i < path.length && path[i] === ".")
+      i++;
+  }
+  return keys;
+}
+function parseValue(raw) {
+  if (raw === "true")
+    return true;
+  if (raw === "false")
+    return false;
+  if (raw.startsWith('"')) {
+    let result = "";
+    let i = 1;
+    while (i < raw.length && raw[i] !== '"') {
+      if (raw[i] === "\\" && i + 1 < raw.length) {
+        i++;
+        if (raw[i] === "n")
+          result += `
+`;
+        else if (raw[i] === "t")
+          result += "\t";
+        else
+          result += raw[i];
+      } else {
+        result += raw[i];
+      }
+      i++;
+    }
+    return result;
+  }
+  const num = Number(raw);
+  if (!Number.isNaN(num) && raw !== "")
+    return num;
+  return raw;
+}
+function ensureTable(root, keys) {
+  let current = root;
+  for (const key of keys) {
+    if (!(key in current) || typeof current[key] !== "object") {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  return current;
+}
+function parseToml(input) {
+  const root = {};
+  let current = root;
+  for (const raw of input.split(/\r?\n/)) {
+    const commentIdx = findCommentStart(raw);
+    const line = (commentIdx >= 0 ? raw.slice(0, commentIdx) : raw).trim();
+    if (!line)
+      continue;
+    const headerMatch = line.match(/^\[(.+)\]$/);
+    if (headerMatch) {
+      current = ensureTable(root, parseKeyPath(headerMatch[1]));
+      continue;
+    }
+    const eqIdx = line.indexOf("=");
+    if (eqIdx === -1)
+      continue;
+    const keyPart = line.slice(0, eqIdx).trim();
+    const valuePart = line.slice(eqIdx + 1).trim();
+    const key = keyPart.startsWith('"') ? parseValue(keyPart) : keyPart;
+    current[key] = parseValue(valuePart);
+  }
+  return root;
+}
+function findCommentStart(line) {
+  let inString = false;
+  for (let i = 0;i < line.length; i++) {
+    if (line[i] === '"' && (i === 0 || line[i - 1] !== "\\")) {
+      inString = !inString;
+    } else if (line[i] === "#" && !inString) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// src/providers/codex/config.ts
+var DEFAULT_CODEX_MODEL = "gpt-5.4";
+function normalizeCodexModel(value) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+function resolveCodexModel(defaultModel, providerModel) {
+  return normalizeCodexModel(defaultModel) ?? normalizeCodexModel(providerModel) ?? DEFAULT_CODEX_MODEL;
+}
+function cloneConfig(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return {};
+  return JSON.parse(JSON.stringify(value));
+}
+async function readCodexConfig() {
+  if (!await fileExists(CODEX_CONFIG_FILE))
+    return {};
+  try {
+    const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
+    return cloneConfig(parseToml(content));
+  } catch {
+    return {};
+  }
+}
+function isSimpleTable(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function formatScalar(value) {
+  if (typeof value === "string")
+    return JSON.stringify(value);
+  return String(value);
+}
+var BARE_KEY_RE = /^[A-Za-z0-9_-]+$/;
+function formatKey(key) {
+  if (BARE_KEY_RE.test(key))
+    return key;
+  return JSON.stringify(key);
+}
+function renderTable(lines, table, prefix) {
+  const scalars = [];
+  const subtables = [];
+  for (const [key, value] of Object.entries(table)) {
+    if (value === null || value === undefined)
+      continue;
+    if (isSimpleTable(value)) {
+      subtables.push([key, value]);
+    } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      scalars.push([key, value]);
+    }
+  }
+  for (const [key, value] of scalars) {
+    lines.push(`${formatKey(key)} = ${formatScalar(value)}`);
+  }
+  for (const [key, subtable] of subtables) {
+    const quotedKey = formatKey(key);
+    const fullKey = prefix ? `${prefix}.${quotedKey}` : quotedKey;
+    if (lines.length > 0 && lines[lines.length - 1] !== "")
+      lines.push("");
+    lines.push(`[${fullKey}]`);
+    renderTable(lines, subtable, fullKey);
+  }
+}
+function renderCodexConfig(config) {
+  const lines = [];
+  if (config.model_provider) {
+    lines.push(`model_provider = ${formatScalar(config.model_provider)}`);
+  }
+  if (config.model) {
+    lines.push(`model = ${formatScalar(config.model)}`);
+  }
+  const skipKeys = new Set(["model_provider", "model"]);
+  for (const [key, value] of Object.entries(config)) {
+    if (skipKeys.has(key))
+      continue;
+    if (value === null || value === undefined || isSimpleTable(value))
+      continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      lines.push(`${key} = ${formatScalar(value)}`);
+    }
+  }
+  for (const [key, value] of Object.entries(config)) {
+    if (skipKeys.has(key))
+      continue;
+    if (!isSimpleTable(value))
+      continue;
+    if (lines.length > 0 && lines[lines.length - 1] !== "")
+      lines.push("");
+    lines.push(`[${key}]`);
+    renderTable(lines, value, key);
+  }
+  return `${lines.join(`
+`)}
+`;
+}
+async function activateCodexOfficialProvider(defaultModel) {
+  const config = await fileExists(CODEX_CONFIG_FILE) ? await readCodexConfig() : {};
+  delete config.model_provider;
+  config.model = resolveCodexModel(defaultModel);
+  if (isSimpleTable(config.model_providers)) {
+    for (const [name, rawProvider] of Object.entries(config.model_providers)) {
+      if (isSimpleTable(rawProvider) && rawProvider.experimental_bearer_token) {
+        delete config.model_providers[name];
+      }
+    }
+    if (Object.keys(config.model_providers).length === 0) {
+      delete config.model_providers;
+    }
+  }
+  await writeCodexConfig(config);
+}
+async function activateCodexCustomProvider(provider, apiKey, defaultModel) {
+  if (provider.type !== "custom" || !provider.name || !provider.base_url || !provider.env_key) {
+    throw new Error("Invalid Codex custom provider config");
+  }
+  const config = await readCodexConfig();
+  const providers = isSimpleTable(config.model_providers) ? config.model_providers : {};
+  config.model_providers = providers;
+  config.model_provider = provider.name;
+  config.model = resolveCodexModel(defaultModel, provider.model);
+  const providerConfig = {
+    name: provider.name,
+    base_url: provider.base_url,
+    requires_openai_auth: false
+  };
+  if (apiKey) {
+    providerConfig.experimental_bearer_token = apiKey;
+  } else {
+    providerConfig.env_key = provider.env_key;
+  }
+  providers[provider.name] = providerConfig;
+  await writeCodexConfig(config);
+}
+async function applyCodexApiProvider(provider, apiKey, defaultModel) {
+  if (!provider || provider.type === "official") {
+    await activateCodexOfficialProvider(defaultModel);
+    return;
+  }
+  await activateCodexCustomProvider(provider, apiKey, defaultModel);
+}
+async function writeCodexConfig(config) {
+  const content = renderCodexConfig(config);
+  try {
+    if (await readFile2(CODEX_CONFIG_FILE, "utf-8") === content) {
+      await chmod(CODEX_CONFIG_FILE, 384);
+      return;
+    }
+  } catch {}
+  await mkdir4(dirname2(CODEX_CONFIG_FILE), { recursive: true });
+  await writeFile2(CODEX_CONFIG_FILE, content, { mode: 384 });
+  await chmod(CODEX_CONFIG_FILE, 384);
+}
+
+// src/providers/codex/registry.ts
 var DEFAULT_REGISTRY = {
   schema_version: 3,
   active_account_key: null,
@@ -4265,7 +4555,7 @@ var DEFAULT_REGISTRY = {
   accounts: []
 };
 async function ensureAccountsDir() {
-  await mkdir4(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir5(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function loadRegistry() {
   if (!await fileExists(CODEX_REGISTRY_FILE)) {
@@ -4274,6 +4564,17 @@ async function loadRegistry() {
   const reg = await readJson(CODEX_REGISTRY_FILE, DEFAULT_REGISTRY);
   if (!Array.isArray(reg.accounts)) {
     reg.accounts = [];
+  }
+  let changed = false;
+  for (const account of reg.accounts) {
+    const resolvedModel = resolveCodexModel(account.default_model, account.api_provider?.model ?? null);
+    if (account.default_model !== resolvedModel) {
+      account.default_model = resolvedModel;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await saveRegistry(reg);
   }
   return reg;
 }
@@ -4421,283 +4722,6 @@ function openExternalUrl(url, privateWindow = false) {
 
 // src/commands/add.ts
 init_paths();
-
-// src/providers/codex/config.ts
-init_paths();
-init_fs();
-import { chmod, mkdir as mkdir5, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
-import { dirname as dirname2 } from "path";
-
-// src/lib/toml.ts
-function parseKeyPath(path) {
-  const keys = [];
-  let i = 0;
-  while (i < path.length) {
-    while (i < path.length && path[i] === " ")
-      i++;
-    if (i >= path.length)
-      break;
-    if (path[i] === '"') {
-      i++;
-      let key = "";
-      while (i < path.length && path[i] !== '"') {
-        if (path[i] === "\\" && i + 1 < path.length) {
-          i++;
-          if (path[i] === "n")
-            key += `
-`;
-          else if (path[i] === "t")
-            key += "\t";
-          else
-            key += path[i];
-        } else {
-          key += path[i];
-        }
-        i++;
-      }
-      i++;
-      keys.push(key);
-    } else {
-      let key = "";
-      while (i < path.length && path[i] !== ".") {
-        key += path[i];
-        i++;
-      }
-      keys.push(key.trim());
-    }
-    while (i < path.length && path[i] === " ")
-      i++;
-    if (i < path.length && path[i] === ".")
-      i++;
-  }
-  return keys;
-}
-function parseValue(raw) {
-  if (raw === "true")
-    return true;
-  if (raw === "false")
-    return false;
-  if (raw.startsWith('"')) {
-    let result = "";
-    let i = 1;
-    while (i < raw.length && raw[i] !== '"') {
-      if (raw[i] === "\\" && i + 1 < raw.length) {
-        i++;
-        if (raw[i] === "n")
-          result += `
-`;
-        else if (raw[i] === "t")
-          result += "\t";
-        else
-          result += raw[i];
-      } else {
-        result += raw[i];
-      }
-      i++;
-    }
-    return result;
-  }
-  const num = Number(raw);
-  if (!Number.isNaN(num) && raw !== "")
-    return num;
-  return raw;
-}
-function ensureTable(root, keys) {
-  let current = root;
-  for (const key of keys) {
-    if (!(key in current) || typeof current[key] !== "object") {
-      current[key] = {};
-    }
-    current = current[key];
-  }
-  return current;
-}
-function parseToml(input) {
-  const root = {};
-  let current = root;
-  for (const raw of input.split(/\r?\n/)) {
-    const commentIdx = findCommentStart(raw);
-    const line = (commentIdx >= 0 ? raw.slice(0, commentIdx) : raw).trim();
-    if (!line)
-      continue;
-    const headerMatch = line.match(/^\[(.+)\]$/);
-    if (headerMatch) {
-      current = ensureTable(root, parseKeyPath(headerMatch[1]));
-      continue;
-    }
-    const eqIdx = line.indexOf("=");
-    if (eqIdx === -1)
-      continue;
-    const keyPart = line.slice(0, eqIdx).trim();
-    const valuePart = line.slice(eqIdx + 1).trim();
-    const key = keyPart.startsWith('"') ? parseValue(keyPart) : keyPart;
-    current[key] = parseValue(valuePart);
-  }
-  return root;
-}
-function findCommentStart(line) {
-  let inString = false;
-  for (let i = 0;i < line.length; i++) {
-    if (line[i] === '"' && (i === 0 || line[i - 1] !== "\\")) {
-      inString = !inString;
-    } else if (line[i] === "#" && !inString) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-// src/providers/codex/config.ts
-function cloneConfig(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return {};
-  return JSON.parse(JSON.stringify(value));
-}
-async function readCodexConfig() {
-  if (!await fileExists(CODEX_CONFIG_FILE))
-    return {};
-  try {
-    const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
-    return cloneConfig(parseToml(content));
-  } catch {
-    return {};
-  }
-}
-function isSimpleTable(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function formatScalar(value) {
-  if (typeof value === "string")
-    return JSON.stringify(value);
-  return String(value);
-}
-var BARE_KEY_RE = /^[A-Za-z0-9_-]+$/;
-function formatKey(key) {
-  if (BARE_KEY_RE.test(key))
-    return key;
-  return JSON.stringify(key);
-}
-function renderTable(lines, table, prefix) {
-  const scalars = [];
-  const subtables = [];
-  for (const [key, value] of Object.entries(table)) {
-    if (value === null || value === undefined)
-      continue;
-    if (isSimpleTable(value)) {
-      subtables.push([key, value]);
-    } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      scalars.push([key, value]);
-    }
-  }
-  for (const [key, value] of scalars) {
-    lines.push(`${formatKey(key)} = ${formatScalar(value)}`);
-  }
-  for (const [key, subtable] of subtables) {
-    const quotedKey = formatKey(key);
-    const fullKey = prefix ? `${prefix}.${quotedKey}` : quotedKey;
-    if (lines.length > 0 && lines[lines.length - 1] !== "")
-      lines.push("");
-    lines.push(`[${fullKey}]`);
-    renderTable(lines, subtable, fullKey);
-  }
-}
-function renderCodexConfig(config) {
-  const lines = [];
-  if (config.model_provider) {
-    lines.push(`model_provider = ${formatScalar(config.model_provider)}`);
-  }
-  if (config.model) {
-    lines.push(`model = ${formatScalar(config.model)}`);
-  }
-  const skipKeys = new Set(["model_provider", "model"]);
-  for (const [key, value] of Object.entries(config)) {
-    if (skipKeys.has(key))
-      continue;
-    if (value === null || value === undefined || isSimpleTable(value))
-      continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      lines.push(`${key} = ${formatScalar(value)}`);
-    }
-  }
-  for (const [key, value] of Object.entries(config)) {
-    if (skipKeys.has(key))
-      continue;
-    if (!isSimpleTable(value))
-      continue;
-    if (lines.length > 0 && lines[lines.length - 1] !== "")
-      lines.push("");
-    lines.push(`[${key}]`);
-    renderTable(lines, value, key);
-  }
-  return `${lines.join(`
-`)}
-`;
-}
-async function activateCodexOfficialProvider() {
-  if (!await fileExists(CODEX_CONFIG_FILE))
-    return;
-  const config = await readCodexConfig();
-  if (!config.model_provider && !config.model)
-    return;
-  delete config.model_provider;
-  delete config.model;
-  if (isSimpleTable(config.model_providers)) {
-    for (const [name, rawProvider] of Object.entries(config.model_providers)) {
-      if (isSimpleTable(rawProvider) && rawProvider.experimental_bearer_token) {
-        delete config.model_providers[name];
-      }
-    }
-    if (Object.keys(config.model_providers).length === 0) {
-      delete config.model_providers;
-    }
-  }
-  await writeCodexConfig(config);
-}
-async function activateCodexCustomProvider(provider, apiKey) {
-  if (provider.type !== "custom" || !provider.name || !provider.base_url || !provider.env_key) {
-    throw new Error("Invalid Codex custom provider config");
-  }
-  const config = await readCodexConfig();
-  const providers = isSimpleTable(config.model_providers) ? config.model_providers : {};
-  config.model_providers = providers;
-  config.model_provider = provider.name;
-  if (provider.model) {
-    config.model = provider.model;
-  }
-  const providerConfig = {
-    name: provider.name,
-    base_url: provider.base_url,
-    requires_openai_auth: false
-  };
-  if (apiKey) {
-    providerConfig.experimental_bearer_token = apiKey;
-  } else {
-    providerConfig.env_key = provider.env_key;
-  }
-  providers[provider.name] = providerConfig;
-  await writeCodexConfig(config);
-}
-async function applyCodexApiProvider(provider, apiKey) {
-  if (!provider || provider.type === "official") {
-    await activateCodexOfficialProvider();
-    return;
-  }
-  await activateCodexCustomProvider(provider, apiKey);
-}
-async function writeCodexConfig(config) {
-  const content = renderCodexConfig(config);
-  try {
-    if (await readFile2(CODEX_CONFIG_FILE, "utf-8") === content) {
-      await chmod(CODEX_CONFIG_FILE, 384);
-      return;
-    }
-  } catch {}
-  await mkdir5(dirname2(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile2(CODEX_CONFIG_FILE, content, { mode: 384 });
-  await chmod(CODEX_CONFIG_FILE, 384);
-}
-
-// src/commands/add.ts
 init_auth();
 
 // src/providers/codex/login.ts
@@ -4810,7 +4834,8 @@ async function addClaudeOAuth(alias) {
         blank();
         process.exit(1);
       }
-      await addOAuthProfile(alias, CREDENTIALS_FILE);
+      const defaultModel2 = await promptClaudeDefaultModel();
+      await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel: defaultModel2 });
       await addAlias(alias, { provider: "claude", profileName: alias });
       blank();
       success(`${source_default.bold(alias)} created from current Claude session`);
@@ -4845,7 +4870,8 @@ async function addClaudeOAuth(alias) {
     blank();
     process.exit(1);
   }
-  await addOAuthProfile(alias, CREDENTIALS_FILE);
+  const defaultModel = await promptClaudeDefaultModel();
+  await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
   success(`${source_default.bold(alias)} created`);
@@ -4909,6 +4935,13 @@ async function promptClaudeApiConfig() {
     defaultHaikuModel: defaultHaikuModel.trim() || undefined
   };
 }
+async function promptClaudeDefaultModel() {
+  const defaultModel = await esm_default3({
+    message: "Default model (optional)"
+  });
+  const normalized = defaultModel.trim();
+  return normalized || undefined;
+}
 async function addCodexChatGPT(alias) {
   const codexCheck = spawnSync3("codex", ["--version"], {
     encoding: "utf-8"
@@ -4919,6 +4952,7 @@ async function addCodexChatGPT(alias) {
     blank();
     process.exit(1);
   }
+  const defaultModel = await promptCodexDefaultModel();
   info("Running codex login...");
   blank();
   const exitCode = await runCodexDeviceAuthLogin();
@@ -4968,6 +5002,7 @@ async function addCodexChatGPT(alias) {
     account_name: null,
     plan: planType,
     auth_mode: "chatgpt",
+    default_model: defaultModel,
     created_at: Math.floor(Date.now() / 1000),
     last_used_at: Math.floor(Date.now() / 1000),
     last_usage: null,
@@ -4977,13 +5012,14 @@ async function addCodexChatGPT(alias) {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await applyCodexApiProvider(null, undefined, defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
   success(`${source_default.bold(alias)} created  ${source_default.dim(email)}`);
   blank();
 }
 async function addCodexApiKey(alias) {
-  const apiProvider = await promptCodexApiProvider();
+  const { provider: apiProvider, defaultModel } = await promptCodexApiProvider();
   const key = await esm_default4({
     message: "Paste your OpenAI API key",
     mask: "*",
@@ -5021,6 +5057,7 @@ async function addCodexApiKey(alias) {
     account_name: null,
     plan: null,
     auth_mode: "apikey",
+    default_model: defaultModel,
     api_provider: apiProvider,
     created_at: Math.floor(Date.now() / 1000),
     last_used_at: Math.floor(Date.now() / 1000),
@@ -5031,11 +5068,23 @@ async function addCodexApiKey(alias) {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
-  await applyCodexApiProvider(apiProvider, key.trim());
+  await applyCodexApiProvider(apiProvider, key.trim(), defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
   success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key.trim()))}`);
   blank();
+}
+async function promptCodexDefaultModel() {
+  const model = await esm_default3({
+    message: "Default model",
+    default: DEFAULT_CODEX_MODEL,
+    validate: (value) => {
+      if (!value.trim())
+        return "Default model cannot be empty";
+      return true;
+    }
+  });
+  return model.trim();
 }
 async function promptCodexApiProvider() {
   const providerType = await esm_default5({
@@ -5053,11 +5102,14 @@ async function promptCodexApiProvider() {
   });
   if (providerType === "official") {
     return {
-      type: "official",
-      name: null,
-      base_url: null,
-      model: null,
-      env_key: null
+      provider: {
+        type: "official",
+        name: null,
+        base_url: null,
+        model: null,
+        env_key: null
+      },
+      defaultModel: await promptCodexDefaultModel()
     };
   }
   const name = await esm_default3({
@@ -5087,15 +5139,7 @@ async function promptCodexApiProvider() {
       }
     }
   });
-  const model = await esm_default3({
-    message: "Model",
-    default: "gpt-5.3-codex",
-    validate: (value) => {
-      if (!value.trim())
-        return "Model cannot be empty";
-      return true;
-    }
-  });
+  const model = await promptCodexDefaultModel();
   const envKey = await esm_default3({
     message: "Env key",
     default: "OPENAI_API_KEY",
@@ -5110,11 +5154,14 @@ async function promptCodexApiProvider() {
     }
   });
   return {
-    type: "custom",
-    name: name.trim(),
-    base_url: baseUrl.trim(),
-    model: model.trim(),
-    env_key: envKey.trim()
+    provider: {
+      type: "custom",
+      name: name.trim(),
+      base_url: baseUrl.trim(),
+      model,
+      env_key: envKey.trim()
+    },
+    defaultModel: model
   };
 }
 
@@ -5168,7 +5215,7 @@ async function switchCodex(alias, accountKey) {
   try {
     const auth = account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
     await switchToAccount(accountKey);
-    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined);
+    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
   } catch (err) {
     error(`Failed to switch: ${err instanceof Error ? err.message : String(err)}`);
     blank();
@@ -5308,7 +5355,8 @@ async function list() {
       const plan = formatPlan(info2.plan);
       const email = info2.email ? source_default.dim(info2.email) : "";
       const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}`);
+      const model = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
+      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}`);
     }
   }
   if (codexAliases.length > 0) {
@@ -5324,7 +5372,8 @@ async function list() {
       const plan = formatPlan(info2.plan);
       const email = info2.email ? source_default.dim(info2.email) : "";
       const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}`);
+      const model = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
+      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}`);
     }
   }
   blank();
@@ -5336,9 +5385,11 @@ async function getClaudeAccountInfo(entry, activeProfile) {
   let plan = null;
   let email = null;
   let authMode = "oauth";
+  let defaultModel = null;
   try {
     const profileData = await readJson(claudeProfileDataFile(profileName), { type: "oauth" });
     authMode = profileData.type;
+    defaultModel = profileData.type === "api-key" ? profileData.model ?? null : profileData.defaultModel ?? null;
     if (profileData.type === "api-key" && profileData.apiKey) {
       plan = maskKey(profileData.apiKey);
     } else {
@@ -5355,6 +5406,7 @@ async function getClaudeAccountInfo(entry, activeProfile) {
     plan,
     authMode,
     apiProvider: null,
+    defaultModel,
     isActive: activeProfile === profileName,
     usage: null
   };
@@ -5373,6 +5425,7 @@ async function getCodexAccountInfo(entry, codexReg) {
       plan: null,
       authMode: "unknown",
       apiProvider: null,
+      defaultModel: null,
       isActive,
       usage: null
     };
@@ -5384,6 +5437,7 @@ async function getCodexAccountInfo(entry, codexReg) {
     plan: account.plan ?? null,
     authMode: account.auth_mode ?? "chatgpt",
     apiProvider: account.auth_mode === "apikey" ? account.api_provider?.type === "custom" ? account.api_provider.name : "official" : null,
+    defaultModel: resolveCodexModel(account.default_model, account.api_provider?.model ?? null),
     isActive,
     usage: null
   };
@@ -5795,6 +5849,7 @@ async function refreshCodex(alias, accountKey) {
   account.chatgpt_account_id = accountId;
   account.plan = tokenInfo?.plan_type ?? account.plan;
   account.auth_mode = "chatgpt";
+  await applyCodexApiProvider(null, undefined, account.default_model);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
   success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${source_default.dim(account.email || "")}`);
@@ -5836,7 +5891,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.19",
+  version: "1.1.20",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

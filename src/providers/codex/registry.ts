@@ -1,6 +1,7 @@
 import { mkdir } from "fs/promises";
 import { CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE } from "../../lib/paths";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
+import { resolveCodexModel } from "./config";
 import type { CodexRegistry, CodexRegistryAccount } from "../../types";
 
 const DEFAULT_REGISTRY: CodexRegistry = {
@@ -31,6 +32,20 @@ export async function loadRegistry(): Promise<CodexRegistry> {
   // Ensure accounts is always an array
   if (!Array.isArray(reg.accounts)) {
     reg.accounts = [];
+  }
+  let changed = false;
+  for (const account of reg.accounts) {
+    const resolvedModel = resolveCodexModel(
+      account.default_model,
+      account.api_provider?.model ?? null,
+    );
+    if (account.default_model !== resolvedModel) {
+      account.default_model = resolvedModel;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await saveRegistry(reg);
   }
   return reg;
 }

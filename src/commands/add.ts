@@ -17,7 +17,10 @@ import {
 } from "../providers/claude/profiles";
 import { readCredentials } from "../providers/claude/credentials";
 import { CREDENTIALS_FILE } from "../lib/paths";
-import { applyCodexApiProvider } from "../providers/codex/config";
+import {
+  applyCodexApiProvider,
+  DEFAULT_CODEX_MODEL,
+} from "../providers/codex/config";
 import {
   loadRegistry,
   saveRegistry,
@@ -153,7 +156,8 @@ async function addClaudeOAuth(alias: string): Promise<void> {
         process.exit(1);
       }
 
-      await addOAuthProfile(alias, CREDENTIALS_FILE);
+      const defaultModel = await promptClaudeDefaultModel();
+      await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
       await addAlias(alias, { provider: "claude", profileName: alias });
       blank();
       success(`${chalk.bold(alias)} created from current Claude session`);
@@ -197,7 +201,8 @@ async function addClaudeOAuth(alias: string): Promise<void> {
     process.exit(1);
   }
 
-  await addOAuthProfile(alias, CREDENTIALS_FILE);
+  const defaultModel = await promptClaudeDefaultModel();
+  await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
   success(`${chalk.bold(alias)} created`);
@@ -272,6 +277,15 @@ async function promptClaudeApiConfig(): Promise<ClaudeApiProfileConfig> {
   };
 }
 
+async function promptClaudeDefaultModel(): Promise<string | undefined> {
+  const defaultModel = await input({
+    message: "Default model (optional)",
+  });
+
+  const normalized = defaultModel.trim();
+  return normalized || undefined;
+}
+
 async function addCodexChatGPT(alias: string): Promise<void> {
   // Check if codex CLI is available
   const codexCheck = spawnSync("codex", ["--version"], {
@@ -286,6 +300,8 @@ async function addCodexChatGPT(alias: string): Promise<void> {
     blank();
     process.exit(1);
   }
+
+  const defaultModel = await promptCodexDefaultModel();
 
   info("Running codex login...");
   blank();
@@ -349,6 +365,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
     account_name: null,
     plan: planType,
     auth_mode: "chatgpt",
+    default_model: defaultModel,
     created_at: Math.floor(Date.now() / 1000),
     last_used_at: Math.floor(Date.now() / 1000),
     last_usage: null,
@@ -358,6 +375,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await applyCodexApiProvider(null, undefined, defaultModel);
 
   await addAlias(alias, { provider: "codex", accountKey });
 
@@ -369,7 +387,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
 }
 
 async function addCodexApiKey(alias: string): Promise<void> {
-  const apiProvider = await promptCodexApiProvider();
+  const { provider: apiProvider, defaultModel } = await promptCodexApiProvider();
   const key = await password({
     message: "Paste your OpenAI API key",
     mask: "*",
@@ -413,6 +431,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
     account_name: null,
     plan: null,
     auth_mode: "apikey",
+    default_model: defaultModel,
     api_provider: apiProvider,
     created_at: Math.floor(Date.now() / 1000),
     last_used_at: Math.floor(Date.now() / 1000),
@@ -423,7 +442,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
-  await applyCodexApiProvider(apiProvider, key.trim());
+  await applyCodexApiProvider(apiProvider, key.trim(), defaultModel);
 
   await addAlias(alias, { provider: "codex", accountKey });
 
@@ -434,7 +453,23 @@ async function addCodexApiKey(alias: string): Promise<void> {
   blank();
 }
 
-async function promptCodexApiProvider(): Promise<CodexApiProviderConfig> {
+async function promptCodexDefaultModel(): Promise<string> {
+  const model = await input({
+    message: "Default model",
+    default: DEFAULT_CODEX_MODEL,
+    validate: (value) => {
+      if (!value.trim()) return "Default model cannot be empty";
+      return true;
+    },
+  });
+
+  return model.trim();
+}
+
+async function promptCodexApiProvider(): Promise<{
+  provider: CodexApiProviderConfig;
+  defaultModel: string;
+}> {
   const providerType = await select({
     message: "Codex API provider?",
     choices: [
@@ -451,11 +486,14 @@ async function promptCodexApiProvider(): Promise<CodexApiProviderConfig> {
 
   if (providerType === "official") {
     return {
-      type: "official",
-      name: null,
-      base_url: null,
-      model: null,
-      env_key: null,
+      provider: {
+        type: "official",
+        name: null,
+        base_url: null,
+        model: null,
+        env_key: null,
+      },
+      defaultModel: await promptCodexDefaultModel(),
     };
   }
 
@@ -484,14 +522,7 @@ async function promptCodexApiProvider(): Promise<CodexApiProviderConfig> {
       }
     },
   });
-  const model = await input({
-    message: "Model",
-    default: "gpt-5.3-codex",
-    validate: (value) => {
-      if (!value.trim()) return "Model cannot be empty";
-      return true;
-    },
-  });
+  const model = await promptCodexDefaultModel();
   const envKey = await input({
     message: "Env key",
     default: "OPENAI_API_KEY",
@@ -506,10 +537,13 @@ async function promptCodexApiProvider(): Promise<CodexApiProviderConfig> {
   });
 
   return {
-    type: "custom",
-    name: name.trim(),
-    base_url: baseUrl.trim(),
-    model: model.trim(),
-    env_key: envKey.trim(),
+    provider: {
+      type: "custom",
+      name: name.trim(),
+      base_url: baseUrl.trim(),
+      model,
+      env_key: envKey.trim(),
+    },
+    defaultModel: model,
   };
 }

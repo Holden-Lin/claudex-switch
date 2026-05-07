@@ -28,6 +28,7 @@ function createRegistry(): CodexRegistry {
         account_name: null,
         plan: null,
         auth_mode: "chatgpt",
+        default_model: "gpt-5.4",
         created_at: 1,
         last_used_at: null,
         last_usage: null,
@@ -43,6 +44,7 @@ function createRegistry(): CodexRegistry {
         account_name: null,
         plan: null,
         auth_mode: "chatgpt",
+        default_model: "gpt-4.1",
         created_at: 1,
         last_used_at: null,
         last_usage: null,
@@ -58,6 +60,7 @@ function createRegistry(): CodexRegistry {
         account_name: null,
         plan: null,
         auth_mode: "apikey",
+        default_model: "gpt-5.4",
         created_at: 1,
         last_used_at: null,
         last_usage: null,
@@ -140,6 +143,8 @@ describe("list", () => {
     const output = console.log.mock.calls.flat().join("\n");
     expect(output).toContain("one");
     expect(output).toContain("Plus");
+    expect(output).toContain("gpt-5.4");
+    expect(output).toContain("gpt-4.1");
     expect(output).not.toContain("5h");
     expect(output).not.toContain("wk");
   });

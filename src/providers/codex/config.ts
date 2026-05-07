@@ -5,6 +5,26 @@ import { fileExists } from "../../lib/fs";
 import { parseToml } from "../../lib/toml";
 import type { CodexApiProviderConfig } from "../../types";
 
+export const DEFAULT_CODEX_MODEL = "gpt-5.4";
+
+function normalizeCodexModel(
+  value: string | null | undefined,
+): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+export function resolveCodexModel(
+  defaultModel?: string | null,
+  providerModel?: string | null,
+): string {
+  return (
+    normalizeCodexModel(defaultModel) ??
+    normalizeCodexModel(providerModel) ??
+    DEFAULT_CODEX_MODEL
+  );
+}
+
 type TomlValue = string | number | boolean | null | undefined | TomlObject;
 type TomlObject = { [key: string]: TomlValue };
 
@@ -115,12 +135,14 @@ function renderCodexConfig(config: CodexTomlConfig): string {
   return `${lines.join("\n")}\n`;
 }
 
-export async function activateCodexOfficialProvider(): Promise<void> {
-  if (!(await fileExists(CODEX_CONFIG_FILE))) return;
-  const config = await readCodexConfig();
-  if (!config.model_provider && !config.model) return;
+export async function activateCodexOfficialProvider(
+  defaultModel?: string | null,
+): Promise<void> {
+  const config = (await fileExists(CODEX_CONFIG_FILE))
+    ? await readCodexConfig()
+    : {};
   delete config.model_provider;
-  delete config.model;
+  config.model = resolveCodexModel(defaultModel);
 
   // Remove provider entries that have an embedded bearer token
   if (isSimpleTable(config.model_providers)) {
@@ -140,6 +162,7 @@ export async function activateCodexOfficialProvider(): Promise<void> {
 export async function activateCodexCustomProvider(
   provider: CodexApiProviderConfig,
   apiKey?: string,
+  defaultModel?: string | null,
 ): Promise<void> {
   if (
     provider.type !== "custom" ||
@@ -156,9 +179,7 @@ export async function activateCodexCustomProvider(
     : {};
   config.model_providers = providers;
   config.model_provider = provider.name;
-  if (provider.model) {
-    config.model = provider.model;
-  }
+  config.model = resolveCodexModel(defaultModel, provider.model);
   const providerConfig: TomlObject = {
     name: provider.name,
     base_url: provider.base_url,
@@ -177,12 +198,13 @@ export async function activateCodexCustomProvider(
 export async function applyCodexApiProvider(
   provider: CodexApiProviderConfig | null | undefined,
   apiKey?: string,
+  defaultModel?: string | null,
 ): Promise<void> {
   if (!provider || provider.type === "official") {
-    await activateCodexOfficialProvider();
+    await activateCodexOfficialProvider(defaultModel);
     return;
   }
-  await activateCodexCustomProvider(provider, apiKey);
+  await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
 
 async function writeCodexConfig(config: CodexTomlConfig): Promise<void> {

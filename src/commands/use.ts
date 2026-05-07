@@ -103,6 +103,7 @@ async function switchCodex(
     await applyCodexApiProvider(
       account.auth_mode === "apikey" ? account.api_provider : null,
       auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined,
+      account.default_model,
     );
   } catch (err) {
     error(

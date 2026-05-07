@@ -15,7 +15,13 @@ import {
 } from "./credentials";
 import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
-import { applyApiConfig, clearApiConfig, getApiConfig } from "./settings";
+import {
+  applyApiConfig,
+  applyOAuthConfig,
+  clearApiConfig,
+  getApiConfig,
+  getConfiguredModel,
+} from "./settings";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
@@ -23,6 +29,7 @@ import type {
   ProfileData,
   OAuthAccount,
   ClaudeApiProfileConfig,
+  ClaudeOAuthProfileConfig,
   ApiKeyProfileData,
 } from "../../types";
 
@@ -93,16 +100,19 @@ export async function getProfileData(name: string): Promise<ProfileData> {
 export async function addOAuthProfile(
   name: string,
   fromCredentials: string = CREDENTIALS_FILE,
+  config: ClaudeOAuthProfileConfig = {},
 ): Promise<void> {
+  const data = normalizeOAuthProfileData(config);
   await ensureDir(claudeProfileDir(name));
   await copyCredentials(fromCredentials, claudeProfileCredentials(name));
-  await writeProfileData(name, { type: "oauth" });
+  await writeProfileData(name, data);
 
   const account = await readOAuthAccount();
   if (account) {
     await writeJson(claudeProfileAccountFile(name), account);
   }
 
+  await activateProfile(name, data);
   await writeState({ active: name });
 }
 
@@ -178,7 +188,7 @@ async function activateProfile(
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
   } else {
-    await clearApiConfig();
+    await applyOAuthConfig(targetData.defaultModel);
     await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
 
     const savedAccount = await readJson<OAuthAccount | null>(
@@ -201,6 +211,12 @@ async function isProfileApplied(
   }
 
   if (await getApiConfig()) return false;
+  if (
+    normalizeOptionalValue(targetData.defaultModel) !==
+      normalizeOptionalValue(await getConfiguredModel())
+  ) {
+    return false;
+  }
   if (!(await readCredentials(CREDENTIALS_FILE))) return false;
 
   const savedAccount = await readJson<OAuthAccount | null>(
@@ -296,6 +312,17 @@ function normalizeApiKeyProfileData(
       ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) }
       : {}),
   };
+}
+
+function normalizeOAuthProfileData(
+  config: ClaudeOAuthProfileConfig,
+): ProfileData {
+  const defaultModel = normalizeOptionalValue(config.defaultModel);
+  if (defaultModel) {
+    return { type: "oauth", defaultModel };
+  }
+
+  return { type: "oauth" };
 }
 
 function sameApiConfig(

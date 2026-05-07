@@ -116,19 +116,25 @@ claudex-switch add work
 
 - **Claude OAuth** — 使用 Claude 订阅（Pro、Max、Team 等）
 - **Claude API Key** — 使用 Anthropic API key，可选自定义 Base URL、Auth Token、默认模型和 Sonnet / Opus / Haiku 模型映射
-- **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等）
-- **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商
+- **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等），可为该账号保存默认模型
+- **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商，并为该账号保存默认模型
 
 选择 Codex API Key 后会继续选择接口来源：
 
 - **OpenAI official** — 只保存 API key，不写自定义供应商配置
 - **Custom OpenAI-compatible provider** — 同时写入 `~/.codex/config.toml` 的 `model_provider`、`model` 和 `[model_providers.<name>]`，并将文件权限设置为 `0600`
 
+切换账号时会按账号同步默认模型：
+
+- Claude OAuth / API Key 会同步到 Claude Code 的 `settings.model`
+- Codex ChatGPT / API Key 会同步到 `~/.codex/config.toml` 的 `model`
+- 旧的 Codex 本地账号会在首次加载时自动补上 `default_model`
+
 自定义供应商示例配置：
 
 ```toml
 model_provider = "admin"
-model = "gpt-5.3-codex"
+model = "gpt-5.4"
 
 [model_providers.admin]
 name = "admin"
@@ -147,7 +153,7 @@ requires_openai_auth = false
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
-| `claudex-switch list` | 列出所有账号及额度 |
+| `claudex-switch list` | 列出所有账号、认证类型和默认模型 |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
 | `claudex-switch current` | 显示当前活跃账号 |

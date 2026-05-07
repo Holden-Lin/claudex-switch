@@ -116,19 +116,25 @@ Then choose an account type:
 
 - **Claude OAuth** — Claude subscription (Pro, Max, Team, etc.)
 - **Claude API Key** — Anthropic API key, with optional Base URL, auth token, default model, and Sonnet / Opus / Haiku model mapping
-- **Codex ChatGPT** — ChatGPT login (Plus, Pro, Team, etc.)
-- **Codex API Key** — OpenAI API key, with either the official API or a custom OpenAI-compatible provider
+- **Codex ChatGPT** — ChatGPT login (Plus, Pro, Team, etc.), with a saved default model per account
+- **Codex API Key** — OpenAI API key, with either the official API or a custom OpenAI-compatible provider, plus a saved default model per account
 
 After choosing Codex API Key, choose the API source:
 
 - **OpenAI official** — saves only the API key and does not write custom provider config
 - **Custom OpenAI-compatible provider** — also writes `model_provider`, `model`, and `[model_providers.<name>]` to `~/.codex/config.toml`, with file permissions set to `0600`
 
+When switching accounts, `claudex-switch` also syncs the saved default model for that account:
+
+- Claude OAuth / API Key accounts write to Claude Code `settings.model`
+- Codex ChatGPT / API Key accounts write to `~/.codex/config.toml` `model`
+- Existing local Codex accounts get `default_model` backfilled on first load
+
 Example custom provider config:
 
 ```toml
 model_provider = "admin"
-model = "gpt-5.3-codex"
+model = "gpt-5.4"
 
 [model_providers.admin]
 name = "admin"
@@ -147,7 +153,7 @@ requires_openai_auth = false
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
-| `claudex-switch list` | List all accounts with quota info |
+| `claudex-switch list` | List all accounts, auth types, and default models |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |
 | `claudex-switch current` | Show active accounts |

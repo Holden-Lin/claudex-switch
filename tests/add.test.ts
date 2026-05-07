@@ -132,6 +132,7 @@ describe("add", () => {
     };
 
     const spawnSyncCalls: Array<[string, string[]]> = [];
+    inputHandler = async () => "gpt-5.4";
     spawnSyncHandler = (command, args) => {
       spawnSyncCalls.push([command, args]);
 
@@ -187,9 +188,13 @@ describe("add", () => {
     expect(registry.accounts[0]?.email).toBe("dev@example.com");
     expect(registry.accounts[0]?.plan).toBe("team");
     expect(registry.accounts[0]?.auth_mode).toBe("chatgpt");
+    expect(registry.accounts[0]?.default_model).toBe("gpt-5.4");
 
     expect(await readActiveAuth()).toEqual(authData);
     expect(await readAccountAuth("user-9::acct-9")).toEqual(authData);
+    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(config).toContain('model = "gpt-5.4"');
+    expect(config).not.toContain("model_provider =");
     const browserCall = spawnSyncCalls.find(([, args]) =>
       args.includes(CODEX_DEVICE_AUTH_URL),
     );
@@ -217,7 +222,7 @@ describe("add", () => {
     const inputValues = [
       "admin",
       "https://newapi.hybaliez.com/v1",
-      "gpt-5.3-codex",
+      "gpt-5.4",
       "OPENAI_API_KEY",
     ];
     selectHandler = async () => {
@@ -244,6 +249,7 @@ describe("add", () => {
     const registry = await loadRegistry();
     const account = registry.accounts[0];
     expect(account?.auth_mode).toBe("apikey");
+    expect(account?.default_model).toBe("gpt-5.4");
     expect(promptOrder).toEqual([
       "select",
       "select",
@@ -257,13 +263,13 @@ describe("add", () => {
       type: "custom",
       name: "admin",
       base_url: "https://newapi.hybaliez.com/v1",
-      model: "gpt-5.3-codex",
+      model: "gpt-5.4",
       env_key: "OPENAI_API_KEY",
     });
 
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(config).toContain('model_provider = "admin"');
-    expect(config).toContain('model = "gpt-5.3-codex"');
+    expect(config).toContain('model = "gpt-5.4"');
     expect(config).toContain("[model_providers.admin]");
     expect(config).toContain('base_url = "https://newapi.hybaliez.com/v1"');
     expect(config).toContain('experimental_bearer_token = "sk-test-123456789"');

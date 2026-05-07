@@ -279,6 +279,9 @@ describe("run alias session", () => {
         env: undefined,
       },
     ]);
+    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(config).toContain('model = "gpt-5.4"');
+    expect(config).not.toContain("model_provider =");
 
     const registry = await loadRegistry();
     expect(registry.active_account_key).toBe(accountKey);
@@ -321,7 +324,7 @@ describe("run alias session", () => {
             type: "custom",
             name: "admin",
             base_url: "https://newapi.hybaliez.com/v1",
-            model: "gpt-5.3-codex",
+            model: "gpt-5.4",
             env_key: "OPENAI_API_KEY",
           },
           created_at: 1,

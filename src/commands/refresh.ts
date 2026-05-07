@@ -20,6 +20,7 @@ import {
   snapshotActiveAuth,
   switchToAccount,
 } from "../providers/codex/auth";
+import { applyCodexApiProvider } from "../providers/codex/config";
 import { runCodexDeviceAuthLogin } from "../providers/codex/login";
 import {
   findAccountByKey,
@@ -235,6 +236,7 @@ async function refreshCodex(
   account.chatgpt_account_id = accountId;
   account.plan = tokenInfo?.plan_type ?? account.plan;
   account.auth_mode = "chatgpt";
+  await applyCodexApiProvider(null, undefined, account.default_model);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
 

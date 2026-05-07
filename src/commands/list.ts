@@ -9,6 +9,7 @@ import {
 } from "../lib/paths";
 import { readJson } from "../lib/fs";
 import { loadRegistry } from "../providers/codex/registry";
+import { resolveCodexModel } from "../providers/codex/config";
 import {
   blank,
   header,
@@ -86,8 +87,11 @@ export async function list(): Promise<void> {
       const apiProvider = info.apiProvider
         ? `  ${chalk.dim(info.apiProvider)}`
         : "";
+      const model = info.defaultModel
+        ? `  ${chalk.dim(info.defaultModel)}`
+        : "";
 
-      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}`);
+      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}`);
     }
   }
 
@@ -113,9 +117,12 @@ export async function list(): Promise<void> {
       const apiProvider = info.apiProvider
         ? `  ${chalk.dim(info.apiProvider)}`
         : "";
+      const model = info.defaultModel
+        ? `  ${chalk.dim(info.defaultModel)}`
+        : "";
 
       console.log(
-        `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}`,
+        `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}`,
       );
     }
   }
@@ -133,6 +140,7 @@ async function getClaudeAccountInfo(
   let plan: string | null = null;
   let email: string | null = null;
   let authMode = "oauth";
+  let defaultModel: string | null = null;
 
   try {
     const profileData = await readJson<ProfileData>(
@@ -140,6 +148,10 @@ async function getClaudeAccountInfo(
       { type: "oauth" },
     );
     authMode = profileData.type;
+    defaultModel =
+      profileData.type === "api-key"
+        ? profileData.model ?? null
+        : profileData.defaultModel ?? null;
 
     if (profileData.type === "api-key" && profileData.apiKey) {
       plan = maskKey(profileData.apiKey);
@@ -166,6 +178,7 @@ async function getClaudeAccountInfo(
     plan,
     authMode,
     apiProvider: null,
+    defaultModel,
     isActive: activeProfile === profileName,
     usage: null,
   };
@@ -192,6 +205,7 @@ async function getCodexAccountInfo(
       plan: null,
       authMode: "unknown",
       apiProvider: null,
+      defaultModel: null,
       isActive,
       usage: null,
     };
@@ -209,6 +223,10 @@ async function getCodexAccountInfo(
           ? account.api_provider.name
           : "official"
         : null,
+    defaultModel: resolveCodexModel(
+      account.default_model,
+      account.api_provider?.model ?? null,
+    ),
     isActive,
     usage: null,
   };

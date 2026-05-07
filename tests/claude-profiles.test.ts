@@ -191,6 +191,43 @@ describe("claude profiles", () => {
     );
   });
 
+  test("applies an oauth profile default model without API env", async () => {
+    const creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "oauth-access",
+        refreshToken: "oauth-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "pro",
+      },
+    };
+    const account: OAuthAccount = {
+      accountUuid: "acct-oauth",
+      emailAddress: "oauth@example.com",
+      organizationUuid: "org-oauth",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: account }, null, 2),
+    );
+    await addOAuthProfile("oauth-model", CREDENTIALS_FILE, {
+      defaultModel: "claude-sonnet-4-20250514",
+    });
+
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      model: "claude-sonnet-4-20250514",
+    });
+
+    await switchProfile("oauth-model");
+
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      model: "claude-sonnet-4-20250514",
+    });
+  });
+
   test("reapplies an active api key profile when legacy oauth auth remains", async () => {
     await addApiKeyProfile("api", { apiKey: "sk-ant-live" });
 
