@@ -8,7 +8,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
-- `claudex-switch <alias> -run` switches accounts and starts a bypass-permission Claude Code / Codex session
+- `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
 - `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
@@ -81,7 +81,7 @@ claudex-switch list
 # Switch by alias
 claudex-switch holden
 
-# Switch and start a bypass-permission session
+# Switch and start a session; Claude Code defaults to auto permission mode
 claudex-switch holden -run
 
 # Add a new account
@@ -149,7 +149,7 @@ requires_openai_auth = false
 |---|---|
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
-| `claudex-switch <alias> -run` | Switch and start a bypass-permission Claude Code / Codex session |
+| `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session; Claude Code defaults to `--permission-mode auto` |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |

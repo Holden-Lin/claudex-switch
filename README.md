@@ -8,7 +8,7 @@
 
 - 统一管理 Claude Code 和 Codex 两套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
-- `claudex-switch <alias> -run` 切换账号后直接启动免权限确认的 Claude Code / Codex 会话
+- `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`
 - `claudex-switch <alias> -run -model <model>` 可只对这次会话临时覆盖模型，不修改保存的默认模型
 - `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
@@ -82,7 +82,7 @@ claudex-switch list
 # 切换到指定别名
 claudex-switch holden
 
-# 切换账号并直接启动免权限确认的会话
+# 切换账号并直接启动会话；Claude Code 默认使用 auto 权限模式
 claudex-switch holden -run
 
 # 只对这次运行临时指定模型，不修改账号保存的默认模型
@@ -153,7 +153,7 @@ requires_openai_auth = false
 |---|---|
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
-| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 免权限确认会话 |
+| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话；Claude Code 默认使用 `--permission-mode auto` |
 | `claudex-switch <alias> -run -model <model>` | 仅对这次 `-run` 会话临时覆盖模型，不改写账号保存的默认模型 |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |

@@ -53,13 +53,13 @@ export async function runAliasSession(
   }
 
   const command = entry.target.provider === "claude" ? "claude" : "codex";
-  const bypassArg =
+  const defaultPermissionArgs =
     entry.target.provider === "claude"
-      ? "--dangerously-skip-permissions"
-      : "--dangerously-bypass-approvals-and-sandbox";
+      ? ["--permission-mode", "auto"]
+      : ["--dangerously-bypass-approvals-and-sandbox"];
   const args = [
     ...(isolatedClaudeApi ? ["--bare"] : []),
-    bypassArg,
+    ...defaultPermissionArgs,
     ...(runOptions.modelOverride
       ? ["--model", runOptions.modelOverride]
       : []),

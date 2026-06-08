@@ -100,7 +100,7 @@ describe("run alias session", () => {
     spyOn(console, "log").mockImplementation(() => {});
   });
 
-  test("runs Claude Code with bypass permissions after switching", async () => {
+  test("runs Claude Code with auto permission mode after switching", async () => {
     const creds: CredentialsFile = {
       claudeAiOauth: {
         accessToken: "access-token",
@@ -137,7 +137,8 @@ describe("run alias session", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.command).toBe("claude");
     expect(calls[0]?.args).toEqual([
-      "--dangerously-skip-permissions",
+      "--permission-mode",
+      "auto",
       "--continue",
     ]);
     expect(calls[0]?.stdio).toBe("inherit");
@@ -215,7 +216,8 @@ describe("run alias session", () => {
 
       expect(calls[0]?.args).toEqual([
         "--bare",
-        "--dangerously-skip-permissions",
+        "--permission-mode",
+        "auto",
       ]);
       expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
       expect(calls[0]?.env?.ANTHROPIC_BASE_URL).toBe(
@@ -264,7 +266,8 @@ describe("run alias session", () => {
 
     expect(calls[0]?.args).toEqual([
       "--bare",
-      "--dangerously-skip-permissions",
+      "--permission-mode",
+      "auto",
       "--model",
       "claude-sonnet-4-20250514",
       "--continue",
@@ -314,7 +317,8 @@ describe("run alias session", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.args).toEqual([
       "--bare",
-      "--dangerously-skip-permissions",
+      "--permission-mode",
+      "auto",
       "--continue",
     ]);
     expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
