@@ -14,6 +14,8 @@ import type {
 } from "../types";
 
 const RUN_FLAGS = new Set(["-run", "--run"]);
+const HEADER_FLAGS = new Set(["--attribution-header"]);
+const CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 
 type SpawnOptions = {
   stdio: "inherit";
@@ -29,6 +31,7 @@ type SpawnCommand = (
 type RunArgumentOptions = {
   forwardedArgs: string[];
   modelOverride?: string;
+  headerEnabled?: boolean;
 };
 
 export function isRunFlag(value?: string): boolean {
@@ -65,7 +68,7 @@ export async function runAliasSession(
       : []),
     ...runOptions.forwardedArgs,
   ];
-  const env = await getRunEnvironment(entry, profile);
+  const env = await getRunEnvironment(entry, profile, runOptions.headerEnabled);
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
 
@@ -96,12 +99,19 @@ export async function runAliasSession(
 async function getRunEnvironment(
   entry: AliasEntry,
   profile: ProfileData | null,
+  headerEnabled?: boolean,
 ): Promise<NodeJS.ProcessEnv | undefined> {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
-      return buildClaudeApiEnvironment(profile);
+      return applyClaudeAttributionHeader(
+        buildClaudeApiEnvironment(profile),
+        headerEnabled,
+      );
     }
-    return stripClaudeApiEnvironment();
+    return applyClaudeAttributionHeader(
+      stripClaudeApiEnvironment(),
+      headerEnabled,
+    );
   }
 
   const auth = await readAccountAuth(entry.target.accountKey);
@@ -136,10 +146,30 @@ async function resolveAliasOrExit(aliasOrName: string): Promise<AliasEntry> {
 function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
   const forwardedArgs: string[] = [];
   let modelOverride: string | undefined;
+  let headerEnabled: boolean | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg !== "-model") {
+      if (HEADER_FLAGS.has(arg)) {
+        const nextValue = args[index + 1]?.trim().toLowerCase();
+        if (
+          !nextValue ||
+          !["true", "false", "1", "0"].includes(nextValue)
+        ) {
+          error("Missing header toggle after --attribution-header.");
+          hint(
+            `Example: ${chalk.cyan("claudex-switch <alias> -run --attribution-header false")}`,
+          );
+          blank();
+          process.exit(1);
+        }
+
+        headerEnabled = nextValue === "true" || nextValue === "1";
+        index += 1;
+        continue;
+      }
+
       forwardedArgs.push(arg);
       continue;
     }
@@ -158,7 +188,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
     index += 1;
   }
 
-  return { forwardedArgs, modelOverride };
+  return { forwardedArgs, modelOverride, headerEnabled };
 }
 
 function stripClaudeApiEnvironment(): NodeJS.ProcessEnv | undefined {
@@ -198,6 +228,25 @@ function buildClaudeApiEnvironment(
     config.defaultHaikuModel,
   );
 
+  return env;
+}
+
+function applyClaudeAttributionHeader(
+  baseEnv: NodeJS.ProcessEnv | undefined,
+  headerEnabled: boolean | undefined,
+): NodeJS.ProcessEnv | undefined {
+  if (headerEnabled === undefined) {
+    return baseEnv;
+  }
+
+  const env = baseEnv ? { ...baseEnv } : { ...process.env };
+
+  if (headerEnabled) {
+    delete env[CLAUDE_ATTRIBUTION_HEADER_ENV];
+    return env;
+  }
+
+  env[CLAUDE_ATTRIBUTION_HEADER_ENV] = "0";
   return env;
 }
 

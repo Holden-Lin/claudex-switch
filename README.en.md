@@ -9,6 +9,8 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
+- `claudex-switch <alias> -run -model <model>` overrides the model for this run only without changing the saved default
+- `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
 - `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
@@ -84,6 +86,12 @@ claudex-switch holden
 # Switch and start a session; Claude Code defaults to auto permission mode
 claudex-switch holden -run
 
+# Override the model for this run only
+claudex-switch holden -run -model claude-sonnet-4-20250514
+
+# Disable the attribution header for this Claude run only
+claudex-switch holden -run --attribution-header false
+
 # Add a new account
 claudex-switch add my-claude
 claudex-switch add my-codex
@@ -150,6 +158,8 @@ requires_openai_auth = false
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
 | `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session; Claude Code defaults to `--permission-mode auto` |
+| `claudex-switch <alias> -run -model <model>` | Override the model for this `-run` session only without changing the saved default model |
+| `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
@@ -241,6 +251,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - Unofficial tool — relies on Claude Code's and Codex's local auth storage formats
 - Auto-update only runs on `claudex-switch --version` and only tracks the latest GitHub Release. Changes pushed to `main` are not picked up by installed users until a new release is published
 - Codex clients must be restarted after switching for changes to take effect
+- `-run --attribution-header false` affects only that Claude launch and does not change your shell config; `true` explicitly removes the env var for that run
 - Credential files are set to `0600` permissions, but be aware of the security implications of storing credential copies in `~/.claude-profiles/`
 
 To temporarily disable auto-update for a single run:

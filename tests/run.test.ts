@@ -187,6 +187,56 @@ describe("run alias session", () => {
     }
   });
 
+  test("disables the Claude attribution header only for a one-shot run", async () => {
+    const oldHeader = process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+
+    try {
+      const creds: CredentialsFile = {
+        claudeAiOauth: {
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          expiresAt: Date.now() + 1000,
+          scopes: [],
+          subscriptionType: "pro",
+        },
+      };
+      await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+      await writeCredentials(creds, CREDENTIALS_FILE);
+      await addOAuthProfile("holden");
+
+      await saveAliases({
+        version: 1,
+        aliases: [
+          {
+            alias: "holden",
+            target: { provider: "claude", profileName: "holden" },
+            createdAt: 1,
+          },
+        ],
+      });
+
+      const calls: SpawnCall[] = [];
+      await runAliasSession(
+        "holden",
+        ["--attribution-header", "false", "--continue"],
+        createSpawn(calls),
+      );
+
+      expect(calls[0]?.args).toEqual([
+        "--permission-mode",
+        "auto",
+        "--continue",
+      ]);
+      expect(calls[0]?.env?.CLAUDE_CODE_ATTRIBUTION_HEADER).toBe("0");
+    } finally {
+      if (oldHeader === undefined) {
+        delete process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+      } else {
+        process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = oldHeader;
+      }
+    }
+  });
+
   test("runs Claude API key with the selected profile env", async () => {
     const oldApiKey = process.env.ANTHROPIC_API_KEY;
     const oldModel = process.env.ANTHROPIC_MODEL;
@@ -273,6 +323,49 @@ describe("run alias session", () => {
       "--continue",
     ]);
     expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe("claude-opus-4-6");
+  });
+
+  test("re-enables the attribution header for a one-shot Claude run", async () => {
+    const oldHeader = process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+    process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = "0";
+
+    try {
+      await addApiKeyProfile("api", {
+        apiKey: "sk-ant-profile",
+        model: "claude-opus-4-6",
+      });
+
+      await saveAliases({
+        version: 1,
+        aliases: [
+          {
+            alias: "api",
+            target: { provider: "claude", profileName: "api" },
+            createdAt: 1,
+          },
+        ],
+      });
+
+      const calls: SpawnCall[] = [];
+      await runAliasSession(
+        "api",
+        ["--attribution-header", "true"],
+        createSpawn(calls),
+      );
+
+      expect(calls[0]?.args).toEqual([
+        "--bare",
+        "--permission-mode",
+        "auto",
+      ]);
+      expect(calls[0]?.env?.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
+    } finally {
+      if (oldHeader === undefined) {
+        delete process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+      } else {
+        process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = oldHeader;
+      }
+    }
   });
 
   test("runs Claude API key aliases without changing the active global Claude auth", async () => {

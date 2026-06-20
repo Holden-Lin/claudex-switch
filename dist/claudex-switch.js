@@ -5,25 +5,43 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2221,7 +2239,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2366,7 +2383,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -5270,6 +5287,8 @@ async function switchCodex(alias, accountKey) {
 import { spawn as spawn3 } from "child_process";
 init_auth();
 var RUN_FLAGS = new Set(["-run", "--run"]);
+var HEADER_FLAGS = new Set(["--attribution-header"]);
+var CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
 }
@@ -5289,7 +5308,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     ...runOptions.modelOverride ? ["--model", runOptions.modelOverride] : [],
     ...runOptions.forwardedArgs
   ];
-  const env2 = await getRunEnvironment(entry, profile);
+  const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   return new Promise((resolve) => {
     let settled = false;
@@ -5310,12 +5329,12 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     });
   });
 }
-async function getRunEnvironment(entry, profile) {
+async function getRunEnvironment(entry, profile, headerEnabled) {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
-      return buildClaudeApiEnvironment(profile);
+      return applyClaudeAttributionHeader(buildClaudeApiEnvironment(profile), headerEnabled);
     }
-    return stripClaudeApiEnvironment();
+    return applyClaudeAttributionHeader(stripClaudeApiEnvironment(), headerEnabled);
   }
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
@@ -5343,9 +5362,22 @@ async function resolveAliasOrExit(aliasOrName) {
 function parseRunArgumentOptions(args) {
   const forwardedArgs = [];
   let modelOverride;
+  let headerEnabled;
   for (let index = 0;index < args.length; index += 1) {
     const arg = args[index];
     if (arg !== "-model") {
+      if (HEADER_FLAGS.has(arg)) {
+        const nextValue2 = args[index + 1]?.trim().toLowerCase();
+        if (!nextValue2 || !["true", "false", "1", "0"].includes(nextValue2)) {
+          error("Missing header toggle after --attribution-header.");
+          hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --attribution-header false")}`);
+          blank();
+          process.exit(1);
+        }
+        headerEnabled = nextValue2 === "true" || nextValue2 === "1";
+        index += 1;
+        continue;
+      }
       forwardedArgs.push(arg);
       continue;
     }
@@ -5359,7 +5391,7 @@ function parseRunArgumentOptions(args) {
     modelOverride = nextValue;
     index += 1;
   }
-  return { forwardedArgs, modelOverride };
+  return { forwardedArgs, modelOverride, headerEnabled };
 }
 function stripClaudeApiEnvironment() {
   if (!CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
@@ -5380,6 +5412,18 @@ function buildClaudeApiEnvironment(config) {
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
+  return env2;
+}
+function applyClaudeAttributionHeader(baseEnv, headerEnabled) {
+  if (headerEnabled === undefined) {
+    return baseEnv;
+  }
+  const env2 = baseEnv ? { ...baseEnv } : { ...process.env };
+  if (headerEnabled) {
+    delete env2[CLAUDE_ATTRIBUTION_HEADER_ENV];
+    return env2;
+  }
+  env2[CLAUDE_ATTRIBUTION_HEADER_ENV] = "0";
   return env2;
 }
 function setOptionalEnv(env2, key, value) {
@@ -6004,7 +6048,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.22",
+  version: "1.1.23",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6322,7 +6366,7 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [-model <model>] [args...]  Switch and run with the default permission mode
+    claudex-switch <alias> -run [-model <model>] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
@@ -6407,7 +6451,7 @@ async function main() {
       case "use":
         if (!args[0]) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run [-model <model>] [args...]]
+  Usage: claudex-switch use <alias> [-run [-model <model>] [--attribution-header <true|false>] [args...]]
 `));
           process.exit(1);
         }
