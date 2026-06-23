@@ -19,6 +19,7 @@ import {
   formatType,
   success,
 } from "../lib/ui";
+import { resolveModelShorthand } from "../lib/model-shorthand";
 
 export async function model(
   aliasOrName: string,
@@ -26,8 +27,7 @@ export async function model(
 ): Promise<void> {
   blank();
 
-  const normalizedModel = defaultModel.trim();
-  if (!normalizedModel) {
+  if (!defaultModel.trim()) {
     error("Default model cannot be empty.");
     blank();
     process.exit(1);
@@ -41,6 +41,11 @@ export async function model(
     blank();
     process.exit(1);
   }
+
+  const normalizedModel = resolveModelShorthand(
+    entry.target.provider,
+    defaultModel,
+  );
 
   if (entry.target.provider === "claude") {
     const profile = await updateProfileDefaultModel(

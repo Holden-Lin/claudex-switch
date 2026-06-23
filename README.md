@@ -9,7 +9,7 @@
 - 统一管理 Claude Code 和 Codex 两套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
 - `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`
-- `claudex-switch <alias> -run -model <model>` 可只对这次会话临时覆盖模型，不修改保存的默认模型
+- `claudex-switch <alias> -run --model <model>` 可只对这次会话临时覆盖模型，不修改保存的默认模型；支持缩写，例如 Claude 用 `4.8` / `opus-4.7` / `sonnet-4.6`，Codex 用 `5.5` / `5.4`
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
 - `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
@@ -87,7 +87,9 @@ claudex-switch holden
 claudex-switch holden -run
 
 # 只对这次运行临时指定模型，不修改账号保存的默认模型
-claudex-switch holden -run -model claude-sonnet-4-20250514
+# 支持缩写：Claude 默认走 opus 系列 (e.g. 4.8 → claude-opus-4-8)，Codex 走 gpt 系列 (e.g. 5.5 → gpt-5.5)
+claudex-switch holden -run --model 4.8
+claudex-switch cx -run --model 5.5
 
 # 只对这次 Claude 运行临时关闭 attribution header
 claudex-switch holden -run --attribution-header false
@@ -158,13 +160,13 @@ requires_openai_auth = false
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
 | `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话；Claude Code 默认使用 `--permission-mode auto` |
-| `claudex-switch <alias> -run -model <model>` | 仅对这次 `-run` 会话临时覆盖模型，不改写账号保存的默认模型 |
+| `claudex-switch <alias> -run --model <model>` | 仅对这次 `-run` 会话临时覆盖模型，不改写账号保存的默认模型；支持缩写（Claude `4.8` / `opus-4.7`，Codex `5.5`） |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
 | `claudex-switch list` | 列出所有账号、认证类型和默认模型 |
-| `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置 |
+| `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置；支持缩写（Claude `4.8` / `sonnet-4.6`，Codex `5.5`） |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
 | `claudex-switch current` | 显示当前活跃账号 |
@@ -253,7 +255,7 @@ claudex-switch 采用「薄别名层」架构：
 - 这是非官方工具，依赖 Claude Code 和 Codex 当前的本地认证存储方式
 - 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
 - Codex 切换后需要重启客户端才能生效
-- `-run -model <model>` 只覆盖本次启动命令行，不会持久化写回账号默认模型；如果要永久修改，仍然使用 `claudex-switch model <alias> <model>`
+- `-run --model <model>`（同 `-model`）只覆盖本次启动命令行，不会持久化写回账号默认模型；模型支持缩写：Claude 默认是 opus 系列（如 `4.8` → `claude-opus-4-8`，也可显式 `sonnet-4.6`），Codex 走 gpt 系列（如 `5.5` → `gpt-5.5`）。如果要永久修改，仍然使用 `claudex-switch model <alias> <model>`
 - `-run --attribution-header false` 只影响这次 Claude 启动，不会修改你的 shell 配置；`true` 表示显式移除这个环境变量
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
 

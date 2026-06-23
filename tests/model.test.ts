@@ -108,6 +108,28 @@ describe("model command", () => {
     });
   });
 
+  test("expands a Claude opus shorthand into the canonical model id", async () => {
+    await addApiKeyProfile("api-shorthand", { apiKey: "sk-ant-live" });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "api-shorthand",
+          target: { provider: "claude", profileName: "api-shorthand" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    await model("api-shorthand", "4.8");
+
+    expect(await getProfileData("api-shorthand")).toEqual({
+      type: "api-key",
+      apiKey: "sk-ant-live",
+      model: "claude-opus-4-8",
+    });
+  });
+
   test("updates an active Codex API key account default model", async () => {
     const accountKey = "apikey::custom";
     const aliases: AliasRegistry = {

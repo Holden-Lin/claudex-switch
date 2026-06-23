@@ -325,6 +325,80 @@ describe("run alias session", () => {
     expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe("claude-opus-4-6");
   });
 
+  test("expands a Claude --model shorthand into the canonical model id", async () => {
+    await addApiKeyProfile("api", {
+      apiKey: "sk-ant-profile",
+      model: "claude-opus-4-6",
+    });
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "api",
+          target: { provider: "claude", profileName: "api" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession(
+      "api",
+      ["--model", "4.8", "--continue"],
+      createSpawn(calls),
+    );
+
+    expect(calls[0]?.args).toEqual([
+      "--bare",
+      "--permission-mode",
+      "auto",
+      "--model",
+      "claude-opus-4-8",
+      "--continue",
+    ]);
+  });
+
+  test("expands a Codex --model shorthand into a gpt model id", async () => {
+    const accountKey = "user-1::acct-1";
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "codex", accountKey },
+          createdAt: 1,
+        },
+      ],
+    });
+    await saveRegistry(createRegistry(accountKey));
+    await saveAccountAuth(accountKey, {
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({ sub: "user-1" }),
+        access_token: makeJwt({ sub: "user-1" }),
+        refresh_token: "refresh-token",
+        account_id: "acct-1",
+      },
+      last_refresh: "2026-04-28T00:00:00.000Z",
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession(
+      "cx",
+      ["--model", "5.5", "--continue"],
+      createSpawn(calls),
+    );
+
+    expect(calls[0]?.args).toEqual([
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--model",
+      "gpt-5.5",
+      "--continue",
+    ]);
+  });
+
   test("re-enables the attribution header for a one-shot Claude run", async () => {
     const oldHeader = process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
     process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = "0";

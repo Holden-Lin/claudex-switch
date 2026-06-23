@@ -5,43 +5,25 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: __exportSetter.bind(all, name)
+      set: (newValue) => all[name] = () => newValue
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2239,6 +2221,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2383,7 +2366,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -5285,9 +5268,35 @@ async function switchCodex(alias, accountKey) {
 
 // src/commands/run.ts
 import { spawn as spawn3 } from "child_process";
+
+// src/lib/model-shorthand.ts
+var CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
+var CODEX_SHORTHAND = /^(?:gpt-?)?(\d+(?:\.\d+)*)$/i;
+function resolveModelShorthand(provider, input) {
+  const trimmed = input.trim();
+  if (!trimmed)
+    return trimmed;
+  if (provider === "claude") {
+    const match2 = trimmed.match(CLAUDE_SHORTHAND);
+    if (match2) {
+      const series = (match2[1] ?? "opus").toLowerCase();
+      const version = match2[2].replace(/\./g, "-");
+      return `claude-${series}-${version}`;
+    }
+    return trimmed;
+  }
+  const match = trimmed.match(CODEX_SHORTHAND);
+  if (match) {
+    return `gpt-${match[1]}`;
+  }
+  return trimmed;
+}
+
+// src/commands/run.ts
 init_auth();
 var RUN_FLAGS = new Set(["-run", "--run"]);
 var HEADER_FLAGS = new Set(["--attribution-header"]);
+var MODEL_FLAGS = new Set(["-model", "--model"]);
 var CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
@@ -5302,10 +5311,11 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   const command = entry.target.provider === "claude" ? "claude" : "codex";
   const defaultPermissionArgs = entry.target.provider === "claude" ? ["--permission-mode", "auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
+  const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : undefined;
   const args = [
     ...isolatedClaudeApi ? ["--bare"] : [],
     ...defaultPermissionArgs,
-    ...runOptions.modelOverride ? ["--model", runOptions.modelOverride] : [],
+    ...resolvedModel ? ["--model", resolvedModel] : [],
     ...runOptions.forwardedArgs
   ];
   const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled);
@@ -5365,31 +5375,31 @@ function parseRunArgumentOptions(args) {
   let headerEnabled;
   for (let index = 0;index < args.length; index += 1) {
     const arg = args[index];
-    if (arg !== "-model") {
-      if (HEADER_FLAGS.has(arg)) {
-        const nextValue2 = args[index + 1]?.trim().toLowerCase();
-        if (!nextValue2 || !["true", "false", "1", "0"].includes(nextValue2)) {
-          error("Missing header toggle after --attribution-header.");
-          hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --attribution-header false")}`);
-          blank();
-          process.exit(1);
-        }
-        headerEnabled = nextValue2 === "true" || nextValue2 === "1";
-        index += 1;
-        continue;
+    if (MODEL_FLAGS.has(arg)) {
+      const nextValue = args[index + 1]?.trim();
+      if (!nextValue) {
+        error(`Missing model name after ${arg}.`);
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --model 4.8")}`);
+        blank();
+        process.exit(1);
       }
-      forwardedArgs.push(arg);
+      modelOverride = nextValue;
+      index += 1;
       continue;
     }
-    const nextValue = args[index + 1]?.trim();
-    if (!nextValue) {
-      error("Missing model name after -model.");
-      hint(`Example: ${source_default.cyan("claudex-switch <alias> -run -model claude-sonnet-4-20250514")}`);
-      blank();
-      process.exit(1);
+    if (HEADER_FLAGS.has(arg)) {
+      const nextValue = args[index + 1]?.trim().toLowerCase();
+      if (!nextValue || !["true", "false", "1", "0"].includes(nextValue)) {
+        error("Missing header toggle after --attribution-header.");
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --attribution-header false")}`);
+        blank();
+        process.exit(1);
+      }
+      headerEnabled = nextValue === "true" || nextValue === "1";
+      index += 1;
+      continue;
     }
-    modelOverride = nextValue;
-    index += 1;
+    forwardedArgs.push(arg);
   }
   return { forwardedArgs, modelOverride, headerEnabled };
 }
@@ -6004,8 +6014,7 @@ async function runLoginCommand(command, args) {
 init_auth();
 async function model(aliasOrName, defaultModel) {
   blank();
-  const normalizedModel = defaultModel.trim();
-  if (!normalizedModel) {
+  if (!defaultModel.trim()) {
     error("Default model cannot be empty.");
     blank();
     process.exit(1);
@@ -6017,6 +6026,7 @@ async function model(aliasOrName, defaultModel) {
     blank();
     process.exit(1);
   }
+  const normalizedModel = resolveModelShorthand(entry.target.provider, defaultModel);
   if (entry.target.provider === "claude") {
     const profile = await updateProfileDefaultModel(entry.target.profileName, normalizedModel);
     blank();
@@ -6048,7 +6058,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.23",
+  version: "1.1.24",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6366,12 +6376,12 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [-model <model>] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
+    claudex-switch <alias> -run [--model <model>] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model
+    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok, e.g. 4.8, opus-4.7, 5.5)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
@@ -6451,7 +6461,7 @@ async function main() {
       case "use":
         if (!args[0]) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run [-model <model>] [--attribution-header <true|false>] [args...]]
+  Usage: claudex-switch use <alias> [-run [--model <model>] [--attribution-header <true|false>] [args...]]
 `));
           process.exit(1);
         }

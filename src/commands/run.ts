@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
 import { use } from "./use";
 import { blank, error, hint, info } from "../lib/ui";
+import { resolveModelShorthand } from "../lib/model-shorthand";
 import { getProfileData } from "../providers/claude/profiles";
 import { CLAUDE_ENV_KEYS } from "../providers/claude/settings";
 import { readAccountAuth } from "../providers/codex/auth";
@@ -15,6 +16,7 @@ import type {
 
 const RUN_FLAGS = new Set(["-run", "--run"]);
 const HEADER_FLAGS = new Set(["--attribution-header"]);
+const MODEL_FLAGS = new Set(["-model", "--model"]);
 const CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 
 type SpawnOptions = {
@@ -60,12 +62,13 @@ export async function runAliasSession(
     entry.target.provider === "claude"
       ? ["--permission-mode", "auto"]
       : ["--dangerously-bypass-approvals-and-sandbox"];
+  const resolvedModel = runOptions.modelOverride
+    ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
+    : undefined;
   const args = [
     ...(isolatedClaudeApi ? ["--bare"] : []),
     ...defaultPermissionArgs,
-    ...(runOptions.modelOverride
-      ? ["--model", runOptions.modelOverride]
-      : []),
+    ...(resolvedModel ? ["--model", resolvedModel] : []),
     ...runOptions.forwardedArgs,
   ];
   const env = await getRunEnvironment(entry, profile, runOptions.headerEnabled);
@@ -150,42 +153,43 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg !== "-model") {
-      if (HEADER_FLAGS.has(arg)) {
-        const nextValue = args[index + 1]?.trim().toLowerCase();
-        if (
-          !nextValue ||
-          !["true", "false", "1", "0"].includes(nextValue)
-        ) {
-          error("Missing header toggle after --attribution-header.");
-          hint(
-            `Example: ${chalk.cyan("claudex-switch <alias> -run --attribution-header false")}`,
-          );
-          blank();
-          process.exit(1);
-        }
 
-        headerEnabled = nextValue === "true" || nextValue === "1";
-        index += 1;
-        continue;
+    if (MODEL_FLAGS.has(arg)) {
+      const nextValue = args[index + 1]?.trim();
+      if (!nextValue) {
+        error(`Missing model name after ${arg}.`);
+        hint(
+          `Example: ${chalk.cyan("claudex-switch <alias> -run --model 4.8")}`,
+        );
+        blank();
+        process.exit(1);
       }
 
-      forwardedArgs.push(arg);
+      modelOverride = nextValue;
+      index += 1;
       continue;
     }
 
-    const nextValue = args[index + 1]?.trim();
-    if (!nextValue) {
-      error("Missing model name after -model.");
-      hint(
-        `Example: ${chalk.cyan("claudex-switch <alias> -run -model claude-sonnet-4-20250514")}`,
-      );
-      blank();
-      process.exit(1);
+    if (HEADER_FLAGS.has(arg)) {
+      const nextValue = args[index + 1]?.trim().toLowerCase();
+      if (
+        !nextValue ||
+        !["true", "false", "1", "0"].includes(nextValue)
+      ) {
+        error("Missing header toggle after --attribution-header.");
+        hint(
+          `Example: ${chalk.cyan("claudex-switch <alias> -run --attribution-header false")}`,
+        );
+        blank();
+        process.exit(1);
+      }
+
+      headerEnabled = nextValue === "true" || nextValue === "1";
+      index += 1;
+      continue;
     }
 
-    modelOverride = nextValue;
-    index += 1;
+    forwardedArgs.push(arg);
   }
 
   return { forwardedArgs, modelOverride, headerEnabled };
