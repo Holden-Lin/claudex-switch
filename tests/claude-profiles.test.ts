@@ -5,6 +5,7 @@ import {
   CLAUDE_JSON,
   CREDENTIALS_FILE,
   SETTINGS_FILE,
+  claudeProfileCredentials,
 } from "../src/lib/paths";
 import { readJson } from "../src/lib/fs";
 import { writeCredentials } from "../src/providers/claude/credentials";
@@ -99,6 +100,132 @@ describe("claude profiles", () => {
       env: { KEEP_ME: "1" },
       theme: "dark",
     });
+  });
+
+  test("keeps freshly refreshed live credentials when re-activating the same account", async () => {
+    const snapshotCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "snapshot-access",
+        refreshToken: "snapshot-refresh",
+        expiresAt: 1,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const account: OAuthAccount = {
+      accountUuid: "acct-holden",
+      emailAddress: "holden@example.com",
+      organizationUuid: "org-holden",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(snapshotCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: account }, null, 2),
+    );
+    await addOAuthProfile("holden");
+
+    // A running session for the same account rotates its refresh token; the
+    // live store now holds fresher credentials than the on-disk snapshot.
+    const rotatedCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "rotated-access",
+        refreshToken: "rotated-refresh",
+        expiresAt: 999,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    await writeCredentials(rotatedCreds, CREDENTIALS_FILE);
+    // Force re-activation (mimics `--model` drift making the profile look
+    // unapplied) so switchProfile does not early-return.
+    await writeFile(
+      SETTINGS_FILE,
+      JSON.stringify({ model: "claude-opus-4-8" }, null, 2),
+    );
+
+    await switchProfile("holden");
+
+    // Live credentials must stay the rotated (valid) ones, not be clobbered by
+    // the stale snapshot, otherwise the running session is forced to re-login.
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(rotatedCreds);
+    // The on-disk snapshot is refreshed from the live credentials.
+    expect(
+      await readJson<CredentialsFile | null>(
+        claudeProfileCredentials("holden"),
+        null,
+      ),
+    ).toEqual(rotatedCreds);
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
+      {},
+    );
+  });
+
+  test("restores the target org when two profiles share a login", async () => {
+    // Profile for org 1.
+    const org1Creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "org1-access",
+        refreshToken: "org1-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const org1Account: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-1",
+    };
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(org1Creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: org1Account }, null, 2),
+    );
+    await addOAuthProfile("work-org1");
+
+    // Profile for org 2 under the same login — becomes the active profile.
+    const org2Creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "org2-access",
+        refreshToken: "org2-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const org2Account: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-2",
+    };
+    await writeCredentials(org2Creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: org2Account }, null, 2),
+    );
+    await addOAuthProfile("work-org2");
+
+    // Switch back to org 1: the live session is still org 2 (same login), so we
+    // must restore org 1's snapshot rather than keep the org 2 session.
+    await switchProfile("work-org1");
+
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(org1Creds);
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+      .toEqual({ oauthAccount: org1Account });
+    // The org 1 snapshot must not be corrupted with the org 2 session.
+    expect(
+      await readJson<CredentialsFile | null>(
+        claudeProfileCredentials("work-org1"),
+        null,
+      ),
+    ).toEqual(org1Creds);
   });
 
   test("applies the full Claude API config for api-key profiles", async () => {

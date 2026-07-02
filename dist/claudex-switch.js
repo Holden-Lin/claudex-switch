@@ -4186,10 +4186,21 @@ async function activateProfile(name, targetData) {
     await applyApiConfig(targetData);
   } else {
     await applyOAuthConfig(targetData.defaultModel);
-    await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
-    const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-    await writeOAuthAccount(savedAccount);
+    await restoreOAuthCredentials(name);
   }
+}
+async function restoreOAuthCredentials(name) {
+  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+  if (savedAccount) {
+    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveAccount = await readOAuthAccount();
+    if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
+      await snapshotCurrentOAuthProfile(name);
+      return;
+    }
+  }
+  await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
+  await writeOAuthAccount(savedAccount);
 }
 async function isProfileApplied(name, targetData) {
   if (targetData.type === "api-key") {
@@ -4217,6 +4228,9 @@ function sameOAuthAccount(expected, actual) {
   const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
   const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
   return Boolean(expectedId && actualId && expectedId === actualId);
+}
+function sameOAuthSession(expected, actual) {
+  return sameOAuthAccount(expected, actual) && expected.organizationUuid === actual?.organizationUuid;
 }
 async function snapshotActiveOAuthProfile(name) {
   if (!await profileExists(name)) {

@@ -221,14 +221,34 @@ async function activateProfile(
     await applyApiConfig(targetData);
   } else {
     await applyOAuthConfig(targetData.defaultModel);
-    await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
-
-    const savedAccount = await readJson<OAuthAccount | null>(
-      claudeProfileAccountFile(name),
-      null,
-    );
-    await writeOAuthAccount(savedAccount);
+    await restoreOAuthCredentials(name);
   }
+}
+
+async function restoreOAuthCredentials(name: string): Promise<void> {
+  const savedAccount = await readJson<OAuthAccount | null>(
+    claudeProfileAccountFile(name),
+    null,
+  );
+
+  // A running session for this same account keeps refreshing its OAuth token in
+  // the live store, and Anthropic rotates the refresh token on every refresh so
+  // the previous one is invalidated. The on-disk snapshot only updates when we
+  // switch away, so it can hold a rotated-out (dead) refresh token. If the live
+  // credentials already belong to this profile's account, they are the fresher
+  // copy: keep them and refresh the snapshot instead of clobbering the live
+  // token, which would otherwise force the running session to log in again.
+  if (savedAccount) {
+    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveAccount = await readOAuthAccount();
+    if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
+      await snapshotCurrentOAuthProfile(name);
+      return;
+    }
+  }
+
+  await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
+  await writeOAuthAccount(savedAccount);
 }
 
 async function isProfileApplied(
@@ -267,6 +287,21 @@ function sameOAuthAccount(
   const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
   const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
   return Boolean(expectedId && actualId && expectedId === actualId);
+}
+
+// Whether the live credentials belong to the exact same login *and*
+// organization as the target profile. Two profiles can share a login
+// (accountUuid/email) but point at different orgs; those must not be treated as
+// interchangeable, otherwise we would keep the wrong org's live session and
+// overwrite the target profile's snapshot with it.
+function sameOAuthSession(
+  expected: OAuthAccount,
+  actual: OAuthAccount | null,
+): boolean {
+  return (
+    sameOAuthAccount(expected, actual) &&
+    expected.organizationUuid === actual?.organizationUuid
+  );
 }
 
 export async function snapshotActiveOAuthProfile(
