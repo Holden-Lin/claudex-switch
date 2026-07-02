@@ -221,14 +221,34 @@ async function activateProfile(
     await applyApiConfig(targetData);
   } else {
     await applyOAuthConfig(targetData.defaultModel);
-    await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
-
-    const savedAccount = await readJson<OAuthAccount | null>(
-      claudeProfileAccountFile(name),
-      null,
-    );
-    await writeOAuthAccount(savedAccount);
+    await restoreOAuthCredentials(name);
   }
+}
+
+async function restoreOAuthCredentials(name: string): Promise<void> {
+  const savedAccount = await readJson<OAuthAccount | null>(
+    claudeProfileAccountFile(name),
+    null,
+  );
+
+  // A running session for this same account keeps refreshing its OAuth token in
+  // the live store, and Anthropic rotates the refresh token on every refresh so
+  // the previous one is invalidated. The on-disk snapshot only updates when we
+  // switch away, so it can hold a rotated-out (dead) refresh token. If the live
+  // credentials already belong to this profile's account, they are the fresher
+  // copy: keep them and refresh the snapshot instead of clobbering the live
+  // token, which would otherwise force the running session to log in again.
+  if (savedAccount) {
+    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveAccount = await readOAuthAccount();
+    if (liveCreds && sameOAuthAccount(savedAccount, liveAccount)) {
+      await snapshotCurrentOAuthProfile(name);
+      return;
+    }
+  }
+
+  await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
+  await writeOAuthAccount(savedAccount);
 }
 
 async function isProfileApplied(

@@ -5,6 +5,7 @@ import {
   CLAUDE_JSON,
   CREDENTIALS_FILE,
   SETTINGS_FILE,
+  claudeProfileCredentials,
 } from "../src/lib/paths";
 import { readJson } from "../src/lib/fs";
 import { writeCredentials } from "../src/providers/claude/credentials";
@@ -99,6 +100,68 @@ describe("claude profiles", () => {
       env: { KEEP_ME: "1" },
       theme: "dark",
     });
+  });
+
+  test("keeps freshly refreshed live credentials when re-activating the same account", async () => {
+    const snapshotCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "snapshot-access",
+        refreshToken: "snapshot-refresh",
+        expiresAt: 1,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const account: OAuthAccount = {
+      accountUuid: "acct-holden",
+      emailAddress: "holden@example.com",
+      organizationUuid: "org-holden",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(snapshotCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: account }, null, 2),
+    );
+    await addOAuthProfile("holden");
+
+    // A running session for the same account rotates its refresh token; the
+    // live store now holds fresher credentials than the on-disk snapshot.
+    const rotatedCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "rotated-access",
+        refreshToken: "rotated-refresh",
+        expiresAt: 999,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    await writeCredentials(rotatedCreds, CREDENTIALS_FILE);
+    // Force re-activation (mimics `--model` drift making the profile look
+    // unapplied) so switchProfile does not early-return.
+    await writeFile(
+      SETTINGS_FILE,
+      JSON.stringify({ model: "claude-opus-4-8" }, null, 2),
+    );
+
+    await switchProfile("holden");
+
+    // Live credentials must stay the rotated (valid) ones, not be clobbered by
+    // the stale snapshot, otherwise the running session is forced to re-login.
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(rotatedCreds);
+    // The on-disk snapshot is refreshed from the live credentials.
+    expect(
+      await readJson<CredentialsFile | null>(
+        claudeProfileCredentials("holden"),
+        null,
+      ),
+    ).toEqual(rotatedCreds);
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
+      {},
+    );
   });
 
   test("applies the full Claude API config for api-key profiles", async () => {
