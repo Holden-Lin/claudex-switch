@@ -241,7 +241,7 @@ async function restoreOAuthCredentials(name: string): Promise<void> {
   if (savedAccount) {
     const liveCreds = await readCredentials(CREDENTIALS_FILE);
     const liveAccount = await readOAuthAccount();
-    if (liveCreds && sameOAuthAccount(savedAccount, liveAccount)) {
+    if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
       await snapshotCurrentOAuthProfile(name);
       return;
     }
@@ -287,6 +287,21 @@ function sameOAuthAccount(
   const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
   const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
   return Boolean(expectedId && actualId && expectedId === actualId);
+}
+
+// Whether the live credentials belong to the exact same login *and*
+// organization as the target profile. Two profiles can share a login
+// (accountUuid/email) but point at different orgs; those must not be treated as
+// interchangeable, otherwise we would keep the wrong org's live session and
+// overwrite the target profile's snapshot with it.
+function sameOAuthSession(
+  expected: OAuthAccount,
+  actual: OAuthAccount | null,
+): boolean {
+  return (
+    sameOAuthAccount(expected, actual) &&
+    expected.organizationUuid === actual?.organizationUuid
+  );
 }
 
 export async function snapshotActiveOAuthProfile(

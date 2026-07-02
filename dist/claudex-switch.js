@@ -4194,7 +4194,7 @@ async function restoreOAuthCredentials(name) {
   if (savedAccount) {
     const liveCreds = await readCredentials(CREDENTIALS_FILE);
     const liveAccount = await readOAuthAccount();
-    if (liveCreds && sameOAuthAccount(savedAccount, liveAccount)) {
+    if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
       await snapshotCurrentOAuthProfile(name);
       return;
     }
@@ -4228,6 +4228,9 @@ function sameOAuthAccount(expected, actual) {
   const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
   const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
   return Boolean(expectedId && actualId && expectedId === actualId);
+}
+function sameOAuthSession(expected, actual) {
+  return sameOAuthAccount(expected, actual) && expected.organizationUuid === actual?.organizationUuid;
 }
 async function snapshotActiveOAuthProfile(name) {
   if (!await profileExists(name)) {

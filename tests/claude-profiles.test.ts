@@ -164,6 +164,70 @@ describe("claude profiles", () => {
     );
   });
 
+  test("restores the target org when two profiles share a login", async () => {
+    // Profile for org 1.
+    const org1Creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "org1-access",
+        refreshToken: "org1-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const org1Account: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-1",
+    };
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(org1Creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: org1Account }, null, 2),
+    );
+    await addOAuthProfile("work-org1");
+
+    // Profile for org 2 under the same login — becomes the active profile.
+    const org2Creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "org2-access",
+        refreshToken: "org2-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const org2Account: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-2",
+    };
+    await writeCredentials(org2Creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: org2Account }, null, 2),
+    );
+    await addOAuthProfile("work-org2");
+
+    // Switch back to org 1: the live session is still org 2 (same login), so we
+    // must restore org 1's snapshot rather than keep the org 2 session.
+    await switchProfile("work-org1");
+
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(org1Creds);
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+      .toEqual({ oauthAccount: org1Account });
+    // The org 1 snapshot must not be corrupted with the org 2 session.
+    expect(
+      await readJson<CredentialsFile | null>(
+        claudeProfileCredentials("work-org1"),
+        null,
+      ),
+    ).toEqual(org1Creds);
+  });
+
   test("applies the full Claude API config for api-key profiles", async () => {
     const config: ClaudeApiProfileConfig = {
       apiKey: "sk-ant-live",
