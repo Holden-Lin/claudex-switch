@@ -5,6 +5,7 @@ import {
   CLAUDE_JSON,
   CREDENTIALS_FILE,
   SETTINGS_FILE,
+  claudeProfileAccountFile,
   claudeProfileCredentials,
 } from "../src/lib/paths";
 import { readJson } from "../src/lib/fs";
@@ -279,6 +280,92 @@ describe("claude profiles", () => {
     ).toEqual(targetCreds);
     expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
       .toEqual({ oauthAccount: targetAccount });
+  });
+
+  test("does not corrupt a stale active profile snapshot when switching away", async () => {
+    const holdenCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "holden-access",
+        refreshToken: "holden-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const holdenAccount: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-holden",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(holdenCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: holdenAccount }, null, 2),
+    );
+    await addOAuthProfile("holden");
+
+    const satoshiCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "satoshi-access",
+        refreshToken: "satoshi-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "pro",
+      },
+    };
+    const satoshiAccount: OAuthAccount = {
+      accountUuid: "acct-satoshi",
+      emailAddress: "satoshi@example.com",
+      organizationUuid: "org-satoshi",
+    };
+    await writeCredentials(satoshiCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: satoshiAccount }, null, 2),
+    );
+    await addOAuthProfile("satoshi");
+
+    await switchProfile("holden");
+
+    const driftedCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "drifted-access",
+        refreshToken: "drifted-refresh",
+        expiresAt: 999,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const driftedAccount: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-drifted",
+    };
+    await writeCredentials(driftedCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: driftedAccount }, null, 2),
+    );
+
+    await switchProfile("satoshi");
+
+    expect(
+      await readJson<CredentialsFile | null>(
+        claudeProfileCredentials("holden"),
+        null,
+      ),
+    ).toEqual(holdenCreds);
+    expect(
+      await readJson<OAuthAccount | null>(
+        claudeProfileAccountFile("holden"),
+        null,
+      ),
+    ).toEqual(holdenAccount);
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(satoshiCreds);
   });
 
   test("applies the full Claude API config for api-key profiles", async () => {

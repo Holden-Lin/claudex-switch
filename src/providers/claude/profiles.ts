@@ -160,7 +160,7 @@ export async function addApiKeyProfile(
   ) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfile(state.active);
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
     }
   }
 
@@ -186,7 +186,7 @@ export async function switchProfile(name: string): Promise<ProfileData> {
   if (state.active && state.active !== name) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfile(state.active);
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
     }
   }
 
@@ -209,6 +209,25 @@ async function snapshotCurrentOAuthProfile(name: string): Promise<void> {
   if (currentAccount) {
     await writeJson(claudeProfileAccountFile(name), currentAccount);
   }
+}
+
+async function snapshotCurrentOAuthProfileIfLiveMatches(
+  name: string,
+): Promise<boolean> {
+  const savedAccount = await readJson<OAuthAccount | null>(
+    claudeProfileAccountFile(name),
+    null,
+  );
+
+  if (savedAccount) {
+    const liveAccount = await readOAuthAccount();
+    if (!sameOAuthSession(savedAccount, liveAccount)) {
+      return false;
+    }
+  }
+
+  await snapshotCurrentOAuthProfile(name);
+  return true;
 }
 
 async function activateProfile(

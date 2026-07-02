@@ -4140,7 +4140,7 @@ async function addApiKeyProfile(name, config) {
   if (state.active && state.active !== name && await profileExists(state.active)) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfile(state.active);
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
     }
   }
   await ensureDir2(claudeProfileDir(name));
@@ -4161,7 +4161,7 @@ async function switchProfile(name) {
   if (state.active && state.active !== name) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfile(state.active);
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
     }
   }
   await activateProfile(name, targetData);
@@ -4178,6 +4178,17 @@ async function snapshotCurrentOAuthProfile(name) {
   if (currentAccount) {
     await writeJson(claudeProfileAccountFile(name), currentAccount);
   }
+}
+async function snapshotCurrentOAuthProfileIfLiveMatches(name) {
+  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+  if (savedAccount) {
+    const liveAccount = await readOAuthAccount();
+    if (!sameOAuthSession(savedAccount, liveAccount)) {
+      return false;
+    }
+  }
+  await snapshotCurrentOAuthProfile(name);
+  return true;
 }
 async function activateProfile(name, targetData) {
   if (targetData.type === "api-key") {
@@ -6072,7 +6083,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.26",
+  version: "1.1.27",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
