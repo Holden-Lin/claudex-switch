@@ -3628,6 +3628,10 @@ var esm_default5 = createPrompt((config, done) => {
 `).trimEnd();
   return `${lines}${cursorHide}`;
 });
+// src/index.ts
+import { existsSync, readFileSync } from "fs";
+import { basename, dirname as dirname3, join as join3, resolve } from "path";
+
 // src/alias/store.ts
 init_paths();
 init_fs();
@@ -6083,7 +6087,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.27",
+  version: "1.1.28",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6425,6 +6429,49 @@ var HELP = `
 function isVersionCommand(command) {
   return command === "--version" || command === "-V";
 }
+function isHelpCommand(command) {
+  return command === "help" || command === "--help" || command === "-h";
+}
+function isRepoLocalEntrypoint(scriptPath) {
+  if (!scriptPath)
+    return false;
+  const entry = resolve(scriptPath);
+  const entryName = basename(entry);
+  const parentName = basename(dirname3(entry));
+  let root = null;
+  if (parentName === "src" && entryName === "index.ts") {
+    root = dirname3(dirname3(entry));
+  } else if (parentName === "dist" && (entryName === "claudex-switch.js" || entryName === "claudex-switch")) {
+    root = dirname3(dirname3(entry));
+  }
+  if (!root)
+    return false;
+  const packageFile = join3(root, "package.json");
+  if (!existsSync(packageFile))
+    return false;
+  try {
+    const pkg = JSON.parse(readFileSync(packageFile, "utf-8"));
+    return pkg.name === "claudex-switch";
+  } catch {
+    return false;
+  }
+}
+function enforceRepoLocalHomeSafety(command) {
+  if (process.env.CLAUDEX_TEST_HOME)
+    return;
+  if (process.env.CLAUDEX_ALLOW_REAL_HOME === "1")
+    return;
+  if (!isRepoLocalEntrypoint(process.argv[1]))
+    return;
+  if (isVersionCommand(command) || isHelpCommand(command))
+    return;
+  blank();
+  error("Refusing to run repo-local claudex-switch against your real HOME.");
+  hint(`Use ${source_default.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`);
+  hint(`Set ${source_default.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`);
+  blank();
+  process.exit(1);
+}
 async function interactivePicker() {
   const aliasReg = await loadAliases();
   if (aliasReg.aliases.length === 0) {
@@ -6465,6 +6512,7 @@ async function interactivePicker() {
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   try {
+    enforceRepoLocalHomeSafety(command);
     if (isVersionCommand(command)) {
       const autoUpdate = await runAutoUpdateIfNeeded();
       if (autoUpdate.action === "restart") {

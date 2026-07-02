@@ -2,6 +2,8 @@
 
 import chalk from "chalk";
 import { select } from "@inquirer/prompts";
+import { existsSync, readFileSync } from "fs";
+import { basename, dirname, join, resolve } from "path";
 import { loadAliases, findAlias } from "./alias/store";
 import { readState } from "./providers/claude/profiles";
 import { loadRegistry } from "./providers/codex/registry";
@@ -18,7 +20,7 @@ import { refresh } from "./commands/refresh";
 import { model } from "./commands/model";
 import { version } from "./commands/version";
 import { update } from "./commands/update";
-import { blank, formatProvider } from "./lib/ui";
+import { blank, error, formatProvider, hint } from "./lib/ui";
 import { runAutoUpdateIfNeeded } from "./lib/update";
 
 const HELP = `
@@ -51,6 +53,60 @@ const HELP = `
 
 function isVersionCommand(command?: string): boolean {
   return command === "--version" || command === "-V";
+}
+
+function isHelpCommand(command?: string): boolean {
+  return command === "help" || command === "--help" || command === "-h";
+}
+
+function isRepoLocalEntrypoint(scriptPath?: string): boolean {
+  if (!scriptPath) return false;
+
+  const entry = resolve(scriptPath);
+  const entryName = basename(entry);
+  const parentName = basename(dirname(entry));
+
+  let root: string | null = null;
+  if (parentName === "src" && entryName === "index.ts") {
+    root = dirname(dirname(entry));
+  } else if (
+    parentName === "dist" &&
+    (entryName === "claudex-switch.js" || entryName === "claudex-switch")
+  ) {
+    root = dirname(dirname(entry));
+  }
+
+  if (!root) return false;
+
+  const packageFile = join(root, "package.json");
+  if (!existsSync(packageFile)) return false;
+
+  try {
+    const pkg = JSON.parse(readFileSync(packageFile, "utf-8")) as {
+      name?: string;
+    };
+    return pkg.name === "claudex-switch";
+  } catch {
+    return false;
+  }
+}
+
+function enforceRepoLocalHomeSafety(command?: string): void {
+  if (process.env.CLAUDEX_TEST_HOME) return;
+  if (process.env.CLAUDEX_ALLOW_REAL_HOME === "1") return;
+  if (!isRepoLocalEntrypoint(process.argv[1])) return;
+  if (isVersionCommand(command) || isHelpCommand(command)) return;
+
+  blank();
+  error("Refusing to run repo-local claudex-switch against your real HOME.");
+  hint(
+    `Use ${chalk.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`,
+  );
+  hint(
+    `Set ${chalk.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`,
+  );
+  blank();
+  process.exit(1);
 }
 
 async function interactivePicker(): Promise<void> {
@@ -115,6 +171,8 @@ async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
 
   try {
+    enforceRepoLocalHomeSafety(command);
+
     if (isVersionCommand(command)) {
       const autoUpdate = await runAutoUpdateIfNeeded();
       if (autoUpdate.action === "restart") {
