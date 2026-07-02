@@ -277,7 +277,7 @@ async function isProfileApplied(
   );
   if (!savedAccount) return true;
 
-  return sameOAuthAccount(savedAccount, await readOAuthAccount());
+  return sameOAuthSession(savedAccount, await readOAuthAccount());
 }
 
 function sameOAuthAccount(

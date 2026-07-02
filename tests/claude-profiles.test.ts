@@ -228,6 +228,59 @@ describe("claude profiles", () => {
     ).toEqual(org1Creds);
   });
 
+  test("reapplies an active profile when the live org drifts under the same login", async () => {
+    const targetCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "target-access",
+        refreshToken: "target-refresh",
+        expiresAt: 2,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const targetAccount: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-target",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(targetCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: targetAccount }, null, 2),
+    );
+    await addOAuthProfile("holden");
+
+    const driftedCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "drifted-access",
+        refreshToken: "drifted-refresh",
+        expiresAt: 999,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const driftedAccount: OAuthAccount = {
+      accountUuid: "acct-shared",
+      emailAddress: "shared@example.com",
+      organizationUuid: "org-drifted",
+    };
+    await writeCredentials(driftedCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: driftedAccount }, null, 2),
+    );
+
+    await switchProfile("holden");
+
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(targetCreds);
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+      .toEqual({ oauthAccount: targetAccount });
+  });
+
   test("applies the full Claude API config for api-key profiles", async () => {
     const config: ClaudeApiProfileConfig = {
       apiKey: "sk-ant-live",

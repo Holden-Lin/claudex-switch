@@ -4222,7 +4222,7 @@ async function isProfileApplied(name, targetData) {
   const savedAccount = await readJson(claudeProfileAccountFile(name), null);
   if (!savedAccount)
     return true;
-  return sameOAuthAccount(savedAccount, await readOAuthAccount());
+  return sameOAuthSession(savedAccount, await readOAuthAccount());
 }
 function sameOAuthAccount(expected, actual) {
   const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
@@ -6072,7 +6072,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.25",
+  version: "1.1.26",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
