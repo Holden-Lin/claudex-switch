@@ -12,9 +12,16 @@ import { mkdir, readFile } from "fs/promises";
 import { dirname } from "path";
 import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
-import { CODEX_CONFIG_FILE, CREDENTIALS_FILE } from "../src/lib/paths";
+import {
+  CODEX_CONFIG_FILE,
+  CREDENTIALS_FILE,
+  claudeProfileDir,
+} from "../src/lib/paths";
 import { readJson } from "../src/lib/fs";
-import { writeCredentials } from "../src/providers/claude/credentials";
+import {
+  readCredentials,
+  writeCredentials,
+} from "../src/providers/claude/credentials";
 import {
   addOAuthProfile,
   addApiKeyProfile,
@@ -143,6 +150,131 @@ describe("run alias session", () => {
     ]);
     expect(calls[0]?.stdio).toBe("inherit");
     expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
+  test("isolates a Claude OAuth run from the global account state", async () => {
+    const makeCreds = (token: string): CredentialsFile => ({
+      claudeAiOauth: {
+        accessToken: token,
+        refreshToken: `${token}-refresh`,
+        expiresAt: Date.now() + 1000,
+        scopes: [],
+        subscriptionType: "pro",
+      },
+    });
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(makeCreds("token-a"), CREDENTIALS_FILE);
+    await addOAuthProfile("a");
+    await writeCredentials(makeCreds("token-b"), CREDENTIALS_FILE);
+    await addOAuthProfile("b");
+    await switchProfile("a");
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "b",
+          target: { provider: "claude", profileName: "b" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession("b", [], createSpawn(calls));
+
+    // The run must not touch the globally active account...
+    const state = await readState();
+    expect(state.active).toBe("a");
+    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    expect(liveCreds?.claudeAiOauth?.accessToken).toBe("token-a");
+
+    // ...and the session must use the per-profile credential store.
+    expect(calls[0]?.env?.CLAUDE_SECURESTORAGE_CONFIG_DIR).toBe(
+      claudeProfileDir("b"),
+    );
+    expect(calls[0]?.args).toEqual(["--permission-mode", "auto"]);
+  });
+
+  test("neutralizes global API settings env for an isolated OAuth run", async () => {
+    const creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "oauth-token",
+        refreshToken: "oauth-refresh",
+        expiresAt: Date.now() + 1000,
+        scopes: [],
+        subscriptionType: "pro",
+      },
+    };
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE);
+    await addOAuthProfile("oauth");
+    await addApiKeyProfile("api", {
+      apiKey: "sk-ant-active",
+      model: "custom-model",
+    });
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "oauth",
+          target: { provider: "claude", profileName: "oauth" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession("oauth", [], createSpawn(calls));
+
+    const state = await readState();
+    expect(state.active).toBe("api");
+
+    const settingsIndex = calls[0]?.args.indexOf("--settings") ?? -1;
+    expect(settingsIndex).toBeGreaterThanOrEqual(0);
+    const override = JSON.parse(calls[0]?.args[settingsIndex + 1] ?? "{}");
+    expect(override.env.ANTHROPIC_API_KEY).toBe("");
+    expect(override.env.ANTHROPIC_MODEL).toBe("");
+  });
+
+  test("applies the OAuth profile default model to isolated runs", async () => {
+    const creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "oauth-token",
+        refreshToken: "oauth-refresh",
+        expiresAt: Date.now() + 1000,
+        scopes: [],
+        subscriptionType: "pro",
+      },
+    };
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE);
+    await addOAuthProfile("holden", CREDENTIALS_FILE, {
+      defaultModel: "claude-opus-4-6",
+    });
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "holden",
+          target: { provider: "claude", profileName: "holden" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession("holden", [], createSpawn(calls));
+
+    expect(calls[0]?.args).toEqual([
+      "--permission-mode",
+      "auto",
+      "--model",
+      "claude-opus-4-6",
+    ]);
   });
 
   test("runs Claude OAuth without inherited Anthropic API env", async () => {

@@ -4,8 +4,15 @@ import { findAlias, loadAliases } from "../alias/store";
 import { use } from "./use";
 import { blank, error, hint, info } from "../lib/ui";
 import { resolveModelShorthand } from "../lib/model-shorthand";
-import { getProfileData } from "../providers/claude/profiles";
-import { CLAUDE_ENV_KEYS } from "../providers/claude/settings";
+import {
+  getProfileData,
+  prepareIsolatedOAuthRun,
+  syncIsolatedOAuthSnapshot,
+} from "../providers/claude/profiles";
+import {
+  CLAUDE_ENV_KEYS,
+  getClaudeEnvNeutralizer,
+} from "../providers/claude/settings";
 import { readAccountAuth } from "../providers/codex/auth";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 import type {
@@ -47,31 +54,62 @@ export async function runAliasSession(
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
-  const profile =
-    entry.target.provider === "claude"
-      ? await getProfileData(entry.target.profileName)
-      : null;
+  const claudeProfileName =
+    entry.target.provider === "claude" ? entry.target.profileName : null;
+  const isClaude = claudeProfileName !== null;
+  const profile = claudeProfileName
+    ? await getProfileData(claudeProfileName)
+    : null;
   const isolatedClaudeApi = profile?.type === "api-key";
+  const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
 
-  if (!isolatedClaudeApi) {
+  // Claude sessions run isolated from the global account state: API-key
+  // profiles get their config via env vars, OAuth profiles get a per-profile
+  // credential store. Neither touches (or is touched by) the active account,
+  // so switching accounts can never flip a running session. Codex still
+  // switches globally.
+  if (!isClaude) {
     await use(aliasOrName);
   }
 
-  const command = entry.target.provider === "claude" ? "claude" : "codex";
-  const defaultPermissionArgs =
-    entry.target.provider === "claude"
-      ? ["--permission-mode", "auto"]
-      : ["--dangerously-bypass-approvals-and-sandbox"];
+  let secureStorageDir: string | undefined;
+  let settingsNeutralizer: string | null = null;
+  if (isolatedClaudeOAuth && claudeProfileName) {
+    try {
+      secureStorageDir = await prepareIsolatedOAuthRun(claudeProfileName);
+    } catch (err) {
+      error(err instanceof Error ? err.message : String(err));
+      hint(
+        `Run ${chalk.cyan(`claudex-switch ${aliasOrName}`)} to switch globally, then log in with ${chalk.cyan("claude")}.`,
+      );
+      blank();
+      process.exit(1);
+    }
+    settingsNeutralizer = await getClaudeEnvNeutralizer();
+  }
+
+  const command = isClaude ? "claude" : "codex";
+  const defaultPermissionArgs = isClaude
+    ? ["--permission-mode", "auto"]
+    : ["--dangerously-bypass-approvals-and-sandbox"];
   const resolvedModel = runOptions.modelOverride
     ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
-    : undefined;
+    : isolatedClaudeOAuth && profile?.type === "oauth"
+      ? profile.defaultModel
+      : undefined;
   const args = [
     ...(isolatedClaudeApi ? ["--bare"] : []),
     ...defaultPermissionArgs,
     ...(resolvedModel ? ["--model", resolvedModel] : []),
+    ...(settingsNeutralizer ? ["--settings", settingsNeutralizer] : []),
     ...runOptions.forwardedArgs,
   ];
-  const env = await getRunEnvironment(entry, profile, runOptions.headerEnabled);
+  const env = await getRunEnvironment(
+    entry,
+    profile,
+    runOptions.headerEnabled,
+    secureStorageDir,
+  );
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
 
@@ -94,7 +132,18 @@ export async function runAliasSession(
     });
 
     proc.on("close", (code) => {
-      finish(code ?? 1);
+      void (async () => {
+        if (isolatedClaudeOAuth && claudeProfileName) {
+          // The session refreshed tokens in the per-profile store; fold them
+          // back into the snapshot so global switches restore live tokens.
+          try {
+            await syncIsolatedOAuthSnapshot(claudeProfileName);
+          } catch {
+            // Best effort; the isolated store remains authoritative.
+          }
+        }
+        finish(code ?? 1);
+      })();
     });
   });
 }
@@ -103,6 +152,7 @@ async function getRunEnvironment(
   entry: AliasEntry,
   profile: ProfileData | null,
   headerEnabled?: boolean,
+  secureStorageDir?: string,
 ): Promise<NodeJS.ProcessEnv | undefined> {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
@@ -112,7 +162,7 @@ async function getRunEnvironment(
       );
     }
     return applyClaudeAttributionHeader(
-      stripClaudeApiEnvironment(),
+      buildClaudeOAuthEnvironment(secureStorageDir),
       headerEnabled,
     );
   }
@@ -195,14 +245,22 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
   return { forwardedArgs, modelOverride, headerEnabled };
 }
 
-function stripClaudeApiEnvironment(): NodeJS.ProcessEnv | undefined {
-  if (!CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
+function buildClaudeOAuthEnvironment(
+  secureStorageDir?: string,
+): NodeJS.ProcessEnv | undefined {
+  if (
+    !secureStorageDir &&
+    !CLAUDE_ENV_KEYS.some((key) => process.env[key])
+  ) {
     return undefined;
   }
 
   const env = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
     delete env[key];
+  }
+  if (secureStorageDir) {
+    env.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
   return env;
 }

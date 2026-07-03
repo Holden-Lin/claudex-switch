@@ -10,8 +10,12 @@ import {
 } from "../../lib/paths";
 import {
   readCredentials,
+  writeCredentials,
   copyCredentials,
   deleteCredentials,
+  readIsolatedCredentials,
+  writeIsolatedCredentials,
+  deleteIsolatedCredentials,
 } from "./credentials";
 import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
@@ -31,6 +35,7 @@ import type {
   ClaudeApiProfileConfig,
   ClaudeOAuthProfileConfig,
   ApiKeyProfileData,
+  CredentialsFile,
 } from "../../types";
 
 async function ensureDir(path: string): Promise<void> {
@@ -266,8 +271,100 @@ async function restoreOAuthCredentials(name: string): Promise<void> {
     }
   }
 
-  await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
+  const creds = await readFreshestProfileCredentials(name);
+  if (!creds) {
+    throw new Error(
+      `No credentials found at ${claudeProfileCredentials(name)}`,
+    );
+  }
+  await writeCredentials(creds, CREDENTIALS_FILE);
   await writeOAuthAccount(savedAccount);
+}
+
+function oauthExpiresAt(creds: CredentialsFile | null): number {
+  return creds?.claudeAiOauth?.expiresAt ?? 0;
+}
+
+function pickFresherCredentials(
+  a: CredentialsFile | null,
+  b: CredentialsFile | null,
+): CredentialsFile | null {
+  if (!a) return b;
+  if (!b) return a;
+  return oauthExpiresAt(b) > oauthExpiresAt(a) ? b : a;
+}
+
+// Rotated refresh tokens mean an older copy of the same account's credentials
+// may already be dead. A profile can have two copies: the file snapshot and
+// the isolated live store that `-run` sessions refresh in place. Prefer
+// whichever was refreshed last (expiresAt is bumped on every refresh).
+async function readFreshestProfileCredentials(
+  name: string,
+): Promise<CredentialsFile | null> {
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
+  return pickFresherCredentials(snapshot, isolated);
+}
+
+// Seed the profile's isolated live credential store for a `-run` session
+// launched with CLAUDE_SECURESTORAGE_CONFIG_DIR pointing at the profile dir.
+// Once the session is running, Claude Code reads and refreshes tokens directly
+// in that per-profile store, so global account switches can no longer flip the
+// session's account (and the session can no longer clobber other accounts).
+// Returns the directory to pass via CLAUDE_SECURESTORAGE_CONFIG_DIR.
+export async function prepareIsolatedOAuthRun(name: string): Promise<string> {
+  if (!(await profileExists(name))) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+
+  const dir = claudeProfileDir(name);
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  const isolated = await readIsolatedCredentials(dir);
+  let freshest = pickFresherCredentials(snapshot, isolated);
+
+  // If this profile is also the active global one and the global live session
+  // still belongs to it, the global store may hold newer rotated tokens.
+  const state = await readState();
+  if (state.active === name) {
+    const savedAccount = await readJson<OAuthAccount | null>(
+      claudeProfileAccountFile(name),
+      null,
+    );
+    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
+      freshest = pickFresherCredentials(
+        freshest,
+        await readCredentials(CREDENTIALS_FILE),
+      );
+    }
+  }
+
+  if (!freshest) {
+    throw new Error(
+      `No credentials stored for Claude profile "${name}". Switch to it and log in first.`,
+    );
+  }
+
+  await ensureDir(dir);
+  if (oauthExpiresAt(freshest) > oauthExpiresAt(isolated) || !isolated) {
+    await writeIsolatedCredentials(freshest, dir);
+  }
+  if (oauthExpiresAt(freshest) > oauthExpiresAt(snapshot)) {
+    await writeCredentials(freshest, claudeProfileCredentials(name));
+  }
+
+  return dir;
+}
+
+// After an isolated `-run` session ends, fold any tokens it refreshed back
+// into the profile snapshot so later global switches restore a live refresh
+// token instead of a rotated-out one.
+export async function syncIsolatedOAuthSnapshot(name: string): Promise<void> {
+  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
+  if (!isolated) return;
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  if (oauthExpiresAt(isolated) > oauthExpiresAt(snapshot)) {
+    await writeCredentials(isolated, claudeProfileCredentials(name));
+  }
 }
 
 async function isProfileApplied(
@@ -359,6 +456,10 @@ export async function removeProfile(name: string): Promise<void> {
 
   if (state.active === name && data.type === "api-key") {
     await clearApiConfig();
+  }
+
+  if (data.type === "oauth") {
+    await deleteIsolatedCredentials(claudeProfileDir(name));
   }
 
   await rm(claudeProfileDir(name), { recursive: true });

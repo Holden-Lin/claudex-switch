@@ -233,6 +233,12 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 - API key mode writes to `~/.claude/settings.json`
 - Claude API key accounts always sync `ANTHROPIC_API_KEY`; when configured, switching also writes `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, and `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`
 - Switching to a Claude API key account clears the active Claude OAuth token so Claude Code does not see both a claude.ai token and `ANTHROPIC_API_KEY`; switching back to OAuth restores the token from the profile
+- `claudex-switch <claude-api-alias> -run` starts an ephemeral session via `claude --bare` + profile env vars without touching the global `~/.claude*` state
+- `claudex-switch <claude-oauth-alias> -run` gives the session its own credential store via `CLAUDE_SECURESTORAGE_CONFIG_DIR` (a per-profile Keychain entry `Claude Code-credentials-<hash>` on macOS, `~/.claude-profiles/<name>/.credentials.json` elsewhere) and never touches the global account state; token refreshes happen directly in that per-profile store
+- All `-run` sessions (OAuth and API key) are therefore fully isolated from global switching: switching accounts can no longer flip a running `-run` session to the new account, and starting a `-run` session no longer switches other running sessions. Settings, hooks, and history stay shared
+- Why this matters: all bare `claude` sessions share one global credential store (macOS Keychain `Claude Code-credentials`) that Claude Code re-reads mid-session (on token refresh and 401 recovery), so a plain `use` switch inevitably affects running bare `claude` sessions — that is inherent to Claude Code's shared storage. To run multiple accounts in parallel, start sessions with `-run`
+- When an isolated session ends, refreshed tokens are folded back into the profile snapshot so a later global `use` restores live tokens instead of a rotated-out refresh token
+- Remaining edge case: running the same account both as bare `claude` (global) and via `-run` (isolated) for a long time can invalidate one side's refresh token when both refresh (Anthropic rotates refresh tokens on every refresh), forcing that session to log in again
 
 ### Codex Account Switching
 

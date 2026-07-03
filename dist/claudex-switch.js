@@ -5,25 +5,43 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2221,7 +2239,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2366,7 +2383,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3630,7 +3647,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename, dirname as dirname3, join as join3, resolve } from "path";
+import { basename, dirname as dirname3, join as join4, resolve } from "path";
 
 // src/alias/store.ts
 init_paths();
@@ -3778,12 +3795,21 @@ import { mkdir as mkdir3, readdir, rm as rm2 } from "fs/promises";
 init_paths();
 init_fs();
 import { platform } from "os";
+import { createHash } from "crypto";
 import { spawnSync } from "child_process";
 import { rm } from "fs/promises";
+import { join as join2 } from "path";
 var KEYCHAIN_SERVICE = "Claude Code-credentials";
 var HEX_PATTERN = /^[0-9a-f]+$/i;
+function keychainEnabled() {
+  return platform() === "darwin" && process.env.CLAUDEX_FORCE_FILE_CREDENTIALS !== "1";
+}
 function useKeychain(path) {
-  return platform() === "darwin" && path === CREDENTIALS_FILE && process.env.CLAUDEX_FORCE_FILE_CREDENTIALS !== "1";
+  return keychainEnabled() && path === CREDENTIALS_FILE;
+}
+function isolatedKeychainService(dir) {
+  const hash = createHash("sha256").update(dir.normalize("NFC")).digest("hex").slice(0, 8);
+  return `${KEYCHAIN_SERVICE}-${hash}`;
 }
 function getKeychainAccount() {
   return process.env.USER ?? spawnSync("whoami").stdout.toString().trim();
@@ -3805,11 +3831,11 @@ function parseKeychainCredentials(raw) {
     return null;
   }
 }
-async function readKeychain() {
+async function readKeychain(service = KEYCHAIN_SERVICE) {
   const result = spawnSync("security", [
     "find-generic-password",
     "-s",
-    KEYCHAIN_SERVICE,
+    service,
     "-a",
     getKeychainAccount(),
     "-w"
@@ -3818,14 +3844,14 @@ async function readKeychain() {
     return null;
   return parseKeychainCredentials(result.stdout.toString("utf-8"));
 }
-async function writeKeychain(creds) {
+async function writeKeychain(creds, service = KEYCHAIN_SERVICE) {
   const payload = JSON.stringify(creds);
   const account = getKeychainAccount();
   const result = spawnSync("security", [
     "add-generic-password",
     "-U",
     "-s",
-    KEYCHAIN_SERVICE,
+    service,
     "-a",
     account,
     "-w",
@@ -3835,15 +3861,15 @@ async function writeKeychain(creds) {
     throw new Error("Failed to write to macOS Keychain");
   }
 }
-async function deleteKeychain() {
+async function deleteKeychain(service = KEYCHAIN_SERVICE) {
   const result = spawnSync("security", [
     "delete-generic-password",
     "-s",
-    KEYCHAIN_SERVICE,
+    service,
     "-a",
     getKeychainAccount()
   ]);
-  if (result.status !== 0 && await readKeychain()) {
+  if (result.status !== 0 && await readKeychain(service)) {
     throw new Error("Failed to delete macOS Keychain credentials");
   }
 }
@@ -3879,6 +3905,24 @@ async function copyCredentials(from, to) {
   if (!creds)
     throw new Error(`No credentials found at ${from}`);
   await writeCredentials(creds, to);
+}
+async function readIsolatedCredentials(dir) {
+  if (keychainEnabled()) {
+    return readKeychain(isolatedKeychainService(dir));
+  }
+  return readJson(join2(dir, ".credentials.json"), null);
+}
+async function writeIsolatedCredentials(creds, dir) {
+  if (keychainEnabled()) {
+    return writeKeychain(creds, isolatedKeychainService(dir));
+  }
+  await writeJsonSecure(join2(dir, ".credentials.json"), creds);
+}
+async function deleteIsolatedCredentials(dir) {
+  if (keychainEnabled()) {
+    return deleteKeychain(isolatedKeychainService(dir));
+  }
+  await rm(join2(dir, ".credentials.json"), { force: true });
 }
 
 // src/providers/claude/account.ts
@@ -3995,6 +4039,18 @@ async function clearApiConfig() {
 async function getConfiguredModel() {
   const settings = await read();
   return normalizeModelValue(settings.model);
+}
+async function getClaudeEnvNeutralizer() {
+  const settings = await read();
+  const env2 = normalizeEnv(settings);
+  const present = CLAUDE_ENV_KEYS.filter((key) => env2[key]);
+  if (present.length === 0)
+    return null;
+  const override = {};
+  for (const key of present) {
+    override[key] = "";
+  }
+  return JSON.stringify({ env: override });
 }
 async function getApiConfig() {
   const settings = await read();
@@ -4214,8 +4270,63 @@ async function restoreOAuthCredentials(name) {
       return;
     }
   }
-  await copyCredentials(claudeProfileCredentials(name), CREDENTIALS_FILE);
+  const creds = await readFreshestProfileCredentials(name);
+  if (!creds) {
+    throw new Error(`No credentials found at ${claudeProfileCredentials(name)}`);
+  }
+  await writeCredentials(creds, CREDENTIALS_FILE);
   await writeOAuthAccount(savedAccount);
+}
+function oauthExpiresAt(creds) {
+  return creds?.claudeAiOauth?.expiresAt ?? 0;
+}
+function pickFresherCredentials(a, b) {
+  if (!a)
+    return b;
+  if (!b)
+    return a;
+  return oauthExpiresAt(b) > oauthExpiresAt(a) ? b : a;
+}
+async function readFreshestProfileCredentials(name) {
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
+  return pickFresherCredentials(snapshot, isolated);
+}
+async function prepareIsolatedOAuthRun(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const dir = claudeProfileDir(name);
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  const isolated = await readIsolatedCredentials(dir);
+  let freshest = pickFresherCredentials(snapshot, isolated);
+  const state = await readState();
+  if (state.active === name) {
+    const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
+      freshest = pickFresherCredentials(freshest, await readCredentials(CREDENTIALS_FILE));
+    }
+  }
+  if (!freshest) {
+    throw new Error(`No credentials stored for Claude profile "${name}". Switch to it and log in first.`);
+  }
+  await ensureDir2(dir);
+  if (oauthExpiresAt(freshest) > oauthExpiresAt(isolated) || !isolated) {
+    await writeIsolatedCredentials(freshest, dir);
+  }
+  if (oauthExpiresAt(freshest) > oauthExpiresAt(snapshot)) {
+    await writeCredentials(freshest, claudeProfileCredentials(name));
+  }
+  return dir;
+}
+async function syncIsolatedOAuthSnapshot(name) {
+  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
+  if (!isolated)
+    return;
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  if (oauthExpiresAt(isolated) > oauthExpiresAt(snapshot)) {
+    await writeCredentials(isolated, claudeProfileCredentials(name));
+  }
 }
 async function isProfileApplied(name, targetData) {
   if (targetData.type === "api-key") {
@@ -4274,6 +4385,9 @@ async function removeProfile(name) {
   const data = await readProfileData(name);
   if (state.active === name && data.type === "api-key") {
     await clearApiConfig();
+  }
+  if (data.type === "oauth") {
+    await deleteIsolatedCredentials(claudeProfileDir(name));
   }
   await rm2(claudeProfileDir(name), { recursive: true });
   if (state.active === name) {
@@ -4677,7 +4791,7 @@ import { spawn as spawn2, spawnSync as spawnSync3 } from "child_process";
 // src/lib/browser.ts
 import { spawnSync as spawnSync2 } from "child_process";
 import { platform as platform2 } from "os";
-import { join as join2 } from "path";
+import { join as join3 } from "path";
 import { tmpdir } from "os";
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 var CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
@@ -4722,7 +4836,7 @@ fi
 function createPrivateBrowserScript() {
   if (platform2() !== "darwin")
     return null;
-  const path = join2(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
+  const path = join3(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
   writeFileSync(path, MACOS_SCRIPT, { mode: 493 });
   return path;
 }
@@ -4736,16 +4850,16 @@ function cleanupBrowserScript(path) {
 function createOpenShimDir() {
   if (platform2() !== "darwin")
     return null;
-  const dir = join2(tmpdir(), `claudex-open-shim-${process.pid}`);
+  const dir = join3(tmpdir(), `claudex-open-shim-${process.pid}`);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join2(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
+  writeFileSync(join3(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
   return dir;
 }
 function cleanupOpenShimDir(dir) {
   if (!dir)
     return;
   try {
-    unlinkSync(join2(dir, "open"));
+    unlinkSync(join3(dir, "open"));
     rmdirSync(dir);
   } catch {}
 }
@@ -5087,8 +5201,8 @@ async function addCodexApiKey(alias) {
       return true;
     }
   });
-  const { createHash } = await import("crypto");
-  const keyHash = createHash("sha256").update(key.trim()).digest("hex").slice(0, 16);
+  const { createHash: createHash2 } = await import("crypto");
+  const keyHash = createHash2("sha256").update(key.trim()).digest("hex").slice(0, 16);
   const accountKey = `apikey::${keyHash}`;
   const existingAlias = findAliasByTarget(await loadAliases(), {
     provider: "codex",
@@ -5333,21 +5447,38 @@ function isRunFlag(value) {
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn3) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
-  const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
+  const claudeProfileName = entry.target.provider === "claude" ? entry.target.profileName : null;
+  const isClaude = claudeProfileName !== null;
+  const profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
   const isolatedClaudeApi = profile?.type === "api-key";
-  if (!isolatedClaudeApi) {
+  const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
+  if (!isClaude) {
     await use(aliasOrName);
   }
-  const command = entry.target.provider === "claude" ? "claude" : "codex";
-  const defaultPermissionArgs = entry.target.provider === "claude" ? ["--permission-mode", "auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
-  const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : undefined;
+  let secureStorageDir;
+  let settingsNeutralizer = null;
+  if (isolatedClaudeOAuth && claudeProfileName) {
+    try {
+      secureStorageDir = await prepareIsolatedOAuthRun(claudeProfileName);
+    } catch (err) {
+      error(err instanceof Error ? err.message : String(err));
+      hint(`Run ${source_default.cyan(`claudex-switch ${aliasOrName}`)} to switch globally, then log in with ${source_default.cyan("claude")}.`);
+      blank();
+      process.exit(1);
+    }
+    settingsNeutralizer = await getClaudeEnvNeutralizer();
+  }
+  const command = isClaude ? "claude" : "codex";
+  const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
+  const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : isolatedClaudeOAuth && profile?.type === "oauth" ? profile.defaultModel : undefined;
   const args = [
     ...isolatedClaudeApi ? ["--bare"] : [],
     ...defaultPermissionArgs,
     ...resolvedModel ? ["--model", resolvedModel] : [],
+    ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
     ...runOptions.forwardedArgs
   ];
-  const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled);
+  const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   return new Promise((resolve) => {
     let settled = false;
@@ -5364,16 +5495,23 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       finish(1);
     });
     proc.on("close", (code) => {
-      finish(code ?? 1);
+      (async () => {
+        if (isolatedClaudeOAuth && claudeProfileName) {
+          try {
+            await syncIsolatedOAuthSnapshot(claudeProfileName);
+          } catch {}
+        }
+        finish(code ?? 1);
+      })();
     });
   });
 }
-async function getRunEnvironment(entry, profile, headerEnabled) {
+async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir) {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
       return applyClaudeAttributionHeader(buildClaudeApiEnvironment(profile), headerEnabled);
     }
-    return applyClaudeAttributionHeader(stripClaudeApiEnvironment(), headerEnabled);
+    return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir), headerEnabled);
   }
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
@@ -5432,13 +5570,16 @@ function parseRunArgumentOptions(args) {
   }
   return { forwardedArgs, modelOverride, headerEnabled };
 }
-function stripClaudeApiEnvironment() {
-  if (!CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
+function buildClaudeOAuthEnvironment(secureStorageDir) {
+  if (!secureStorageDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
     return;
   }
   const env2 = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
     delete env2[key];
+  }
+  if (secureStorageDir) {
+    env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
   return env2;
 }
@@ -6087,7 +6228,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.28",
+  version: "1.1.29",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6446,7 +6587,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join3(root, "package.json");
+  const packageFile = join4(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {

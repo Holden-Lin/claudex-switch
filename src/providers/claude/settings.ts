@@ -142,6 +142,23 @@ export async function getConfiguredModel(): Promise<string | undefined> {
   return normalizeModelValue(settings.model);
 }
 
+// Env vars in the global settings.json override a spawned session's process
+// env, so an isolated OAuth `-run` must neutralize any Anthropic API config
+// the active API-key profile wrote there. `--settings` env entries deep-merge
+// over settings.json, and Claude Code treats empty strings as unset.
+export async function getClaudeEnvNeutralizer(): Promise<string | null> {
+  const settings = await read();
+  const env = normalizeEnv(settings);
+  const present = CLAUDE_ENV_KEYS.filter((key) => env[key]);
+  if (present.length === 0) return null;
+
+  const override: SettingsEnv = {};
+  for (const key of present) {
+    override[key] = "";
+  }
+  return JSON.stringify({ env: override });
+}
+
 export async function getApiConfig(): Promise<ClaudeApiProfileConfig | null> {
   const settings = await read();
   const env = normalizeEnv(settings);

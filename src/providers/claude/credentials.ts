@@ -1,6 +1,8 @@
 import { platform } from "os";
+import { createHash } from "crypto";
 import { spawnSync } from "child_process";
 import { rm } from "fs/promises";
+import { join } from "path";
 import { CREDENTIALS_FILE } from "../../lib/paths";
 import { readJson, writeJsonSecure } from "../../lib/fs";
 import type { CredentialsFile } from "../../types";
@@ -8,12 +10,28 @@ import type { CredentialsFile } from "../../types";
 const KEYCHAIN_SERVICE = "Claude Code-credentials";
 const HEX_PATTERN = /^[0-9a-f]+$/i;
 
-function useKeychain(path: string): boolean {
+function keychainEnabled(): boolean {
   return (
     platform() === "darwin" &&
-    path === CREDENTIALS_FILE &&
     process.env.CLAUDEX_FORCE_FILE_CREDENTIALS !== "1"
   );
+}
+
+function useKeychain(path: string): boolean {
+  return keychainEnabled() && path === CREDENTIALS_FILE;
+}
+
+// Claude Code launched with CLAUDE_SECURESTORAGE_CONFIG_DIR=<dir> stores its
+// OAuth credentials under the Keychain service
+// "Claude Code-credentials-<first 8 hex of sha256(NFC-normalized dir)>" on
+// macOS, and under <dir>/.credentials.json elsewhere. These helpers mirror
+// that naming so a profile directory can act as an isolated live store.
+export function isolatedKeychainService(dir: string): string {
+  const hash = createHash("sha256")
+    .update(dir.normalize("NFC"))
+    .digest("hex")
+    .slice(0, 8);
+  return `${KEYCHAIN_SERVICE}-${hash}`;
 }
 
 function getKeychainAccount(): string {
@@ -42,11 +60,13 @@ function parseKeychainCredentials(raw: string): CredentialsFile | null {
   }
 }
 
-async function readKeychain(): Promise<CredentialsFile | null> {
+async function readKeychain(
+  service: string = KEYCHAIN_SERVICE,
+): Promise<CredentialsFile | null> {
   const result = spawnSync("security", [
     "find-generic-password",
     "-s",
-    KEYCHAIN_SERVICE,
+    service,
     "-a",
     getKeychainAccount(),
     "-w",
@@ -56,7 +76,10 @@ async function readKeychain(): Promise<CredentialsFile | null> {
   return parseKeychainCredentials(result.stdout.toString("utf-8"));
 }
 
-async function writeKeychain(creds: CredentialsFile): Promise<void> {
+async function writeKeychain(
+  creds: CredentialsFile,
+  service: string = KEYCHAIN_SERVICE,
+): Promise<void> {
   const payload = JSON.stringify(creds);
   const account = getKeychainAccount();
 
@@ -64,7 +87,7 @@ async function writeKeychain(creds: CredentialsFile): Promise<void> {
     "add-generic-password",
     "-U",
     "-s",
-    KEYCHAIN_SERVICE,
+    service,
     "-a",
     account,
     "-w",
@@ -76,16 +99,18 @@ async function writeKeychain(creds: CredentialsFile): Promise<void> {
   }
 }
 
-async function deleteKeychain(): Promise<void> {
+async function deleteKeychain(
+  service: string = KEYCHAIN_SERVICE,
+): Promise<void> {
   const result = spawnSync("security", [
     "delete-generic-password",
     "-s",
-    KEYCHAIN_SERVICE,
+    service,
     "-a",
     getKeychainAccount(),
   ]);
 
-  if (result.status !== 0 && (await readKeychain())) {
+  if (result.status !== 0 && (await readKeychain(service))) {
     throw new Error("Failed to delete macOS Keychain credentials");
   }
 }
@@ -142,4 +167,33 @@ export async function copyCredentials(
   const creds = await readCredentials(from);
   if (!creds) throw new Error(`No credentials found at ${from}`);
   await writeCredentials(creds, to);
+}
+
+// Live store for a Claude session running with
+// CLAUDE_SECURESTORAGE_CONFIG_DIR=<dir>. On non-macOS platforms this is the
+// same file the profile snapshot already lives in, so the two stay unified.
+export async function readIsolatedCredentials(
+  dir: string,
+): Promise<CredentialsFile | null> {
+  if (keychainEnabled()) {
+    return readKeychain(isolatedKeychainService(dir));
+  }
+  return readJson<CredentialsFile | null>(join(dir, ".credentials.json"), null);
+}
+
+export async function writeIsolatedCredentials(
+  creds: CredentialsFile,
+  dir: string,
+): Promise<void> {
+  if (keychainEnabled()) {
+    return writeKeychain(creds, isolatedKeychainService(dir));
+  }
+  await writeJsonSecure(join(dir, ".credentials.json"), creds);
+}
+
+export async function deleteIsolatedCredentials(dir: string): Promise<void> {
+  if (keychainEnabled()) {
+    return deleteKeychain(isolatedKeychainService(dir));
+  }
+  await rm(join(dir, ".credentials.json"), { force: true });
 }

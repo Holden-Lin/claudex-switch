@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
 import { dirname } from "path";
 import {
   CLAUDE_JSON,
@@ -13,6 +13,7 @@ import { writeCredentials } from "../src/providers/claude/credentials";
 import {
   addOAuthProfile,
   addApiKeyProfile,
+  prepareIsolatedOAuthRun,
   switchProfile,
 } from "../src/providers/claude/profiles";
 import { resetTestHome } from "./helpers";
@@ -101,6 +102,76 @@ describe("claude profiles", () => {
       env: { KEEP_ME: "1" },
       theme: "dark",
     });
+  });
+
+  test("seeds an isolated run with the freshest tokens of the active profile", async () => {
+    const snapshotCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "snapshot-access",
+        refreshToken: "snapshot-refresh",
+        expiresAt: 1000,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    const account: OAuthAccount = {
+      accountUuid: "acct-holden",
+      emailAddress: "holden@example.com",
+      organizationUuid: "org-holden",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(snapshotCreds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: account }, null, 2),
+    );
+    await addOAuthProfile("holden");
+
+    // A running global session refreshed the live tokens after the snapshot.
+    const refreshedCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "refreshed-access",
+        refreshToken: "refreshed-refresh",
+        expiresAt: 2000,
+        scopes: ["org:read"],
+        subscriptionType: "max",
+      },
+    };
+    await writeCredentials(refreshedCreds, CREDENTIALS_FILE);
+
+    const dir = await prepareIsolatedOAuthRun("holden");
+
+    expect(dir).toBe(dirname(claudeProfileCredentials("holden")));
+    expect(
+      await readJson<CredentialsFile | null>(
+        claudeProfileCredentials("holden"),
+        null,
+      ),
+    ).toEqual(refreshedCreds);
+    // The global live store itself stays untouched.
+    expect(
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+    ).toEqual(refreshedCreds);
+  });
+
+  test("refuses an isolated run for a profile without stored credentials", async () => {
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    const emptyCreds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "seed-access",
+        refreshToken: "seed-refresh",
+        expiresAt: 1,
+        scopes: [],
+      },
+    };
+    await writeCredentials(emptyCreds, CREDENTIALS_FILE);
+    await addOAuthProfile("ghost");
+    await rm(claudeProfileCredentials("ghost"), { force: true });
+
+    expect(prepareIsolatedOAuthRun("ghost")).rejects.toThrow(
+      /No credentials stored/,
+    );
   });
 
   test("keeps freshly refreshed live credentials when re-activating the same account", async () => {
