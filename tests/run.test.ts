@@ -8,14 +8,17 @@ import {
 } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
-import { mkdir, readFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
 import {
+  CLAUDE_JSON,
   CODEX_CONFIG_FILE,
   CREDENTIALS_FILE,
+  claudeProfileConfigJson,
   claudeProfileDir,
+  claudeProfileConfigDir,
 } from "../src/lib/paths";
 import { readJson } from "../src/lib/fs";
 import {
@@ -36,6 +39,7 @@ import type {
   CodexAuthFile,
   CodexRegistry,
   CredentialsFile,
+  OAuthAccount,
 } from "../src/types";
 
 type SpawnCall = {
@@ -162,11 +166,29 @@ describe("run alias session", () => {
         subscriptionType: "pro",
       },
     });
+    const accountA: OAuthAccount = {
+      accountUuid: "acct-a",
+      emailAddress: "a@example.com",
+      organizationUuid: "org-a",
+    };
+    const accountB: OAuthAccount = {
+      accountUuid: "acct-b",
+      emailAddress: "b@example.com",
+      organizationUuid: "org-b",
+    };
 
     await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
     await writeCredentials(makeCreds("token-a"), CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: accountA }, null, 2),
+    );
     await addOAuthProfile("a");
     await writeCredentials(makeCreds("token-b"), CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: accountB }, null, 2),
+    );
     await addOAuthProfile("b");
     await switchProfile("a");
 
@@ -194,6 +216,17 @@ describe("run alias session", () => {
     expect(calls[0]?.env?.CLAUDE_SECURESTORAGE_CONFIG_DIR).toBe(
       claudeProfileDir("b"),
     );
+    expect(calls[0]?.env?.CLAUDE_CONFIG_DIR).toBe(
+      claudeProfileConfigDir("b"),
+    );
+    expect(
+      await readJson<{ oauthAccount?: OAuthAccount }>(
+        claudeProfileConfigJson("b"),
+        {},
+      ),
+    ).toEqual({ oauthAccount: accountB });
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+      .toEqual({ oauthAccount: accountA });
     expect(calls[0]?.args).toEqual(["--permission-mode", "auto"]);
   });
 

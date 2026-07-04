@@ -31,6 +31,14 @@ export function claudeProfileCredentials(name: string): string {
   return join(claudeProfileDir(name), ".credentials.json");
 }
 
+export function claudeProfileConfigDir(name: string): string {
+  return join(claudeProfileDir(name), "config");
+}
+
+export function claudeProfileConfigJson(name: string): string {
+  return join(claudeProfileConfigDir(name), ".claude.json");
+}
+
 export function claudeProfileDataFile(name: string): string {
   return join(claudeProfileDir(name), "profile.json");
 }

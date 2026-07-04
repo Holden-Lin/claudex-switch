@@ -1583,6 +1583,12 @@ function claudeProfileDir(name) {
 function claudeProfileCredentials(name) {
   return join(claudeProfileDir(name), ".credentials.json");
 }
+function claudeProfileConfigDir(name) {
+  return join(claudeProfileDir(name), "config");
+}
+function claudeProfileConfigJson(name) {
+  return join(claudeProfileConfigDir(name), ".claude.json");
+}
 function claudeProfileDataFile(name) {
   return join(claudeProfileDir(name), "profile.json");
 }
@@ -1649,7 +1655,7 @@ __export(exports_auth, {
   readAccountAuth: () => readAccountAuth,
   decodeIdToken: () => decodeIdToken
 });
-import { chmod as chmod2, copyFile, mkdir as mkdir6, readFile as readFile3, unlink, writeFile as writeFile3 } from "fs/promises";
+import { chmod as chmod2, copyFile as copyFile2, mkdir as mkdir6, readFile as readFile3, unlink as unlink2, writeFile as writeFile3 } from "fs/promises";
 async function ensureAccountsDir2() {
   await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
@@ -1734,7 +1740,7 @@ function decodeIdToken(idToken) {
 async function removeAccountAuthFile(accountKey) {
   const path = codexAccountAuthFile(accountKey);
   try {
-    await unlink(path);
+    await unlink2(path);
   } catch {}
 }
 async function snapshotActiveAuth(accountKey) {
@@ -1743,7 +1749,7 @@ async function snapshotActiveAuth(accountKey) {
   }
   await ensureAccountsDir2();
   const destPath = codexAccountAuthFile(accountKey);
-  await copyFile(CODEX_AUTH_FILE, destPath);
+  await copyFile2(CODEX_AUTH_FILE, destPath);
   await chmod2(destPath, 384);
 }
 var init_auth = __esm(() => {
@@ -3647,7 +3653,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename, dirname as dirname3, join as join4, resolve } from "path";
+import { basename, dirname as dirname3, join as join5, resolve } from "path";
 
 // src/alias/store.ts
 init_paths();
@@ -3789,7 +3795,17 @@ async function renameAlias(currentAlias, nextAlias) {
 
 // src/providers/claude/profiles.ts
 init_paths();
-import { mkdir as mkdir3, readdir, rm as rm2 } from "fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir as mkdir3,
+  readdir,
+  readlink,
+  rm as rm2,
+  symlink,
+  unlink
+} from "fs/promises";
+import { join as join3 } from "path";
 
 // src/providers/claude/credentials.ts
 init_paths();
@@ -4141,6 +4157,11 @@ function maskKey(key) {
 }
 
 // src/providers/claude/profiles.ts
+var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
+  ".credentials.json",
+  ".claude.json",
+  "backups"
+]);
 async function ensureDir2(path) {
   await mkdir3(path, { recursive: true });
 }
@@ -4297,6 +4318,7 @@ async function prepareIsolatedOAuthRun(name) {
     throw new Error(`Profile "${name}" does not exist`);
   }
   const dir = claudeProfileDir(name);
+  const configDir = claudeProfileConfigDir(name);
   const snapshot = await readCredentials(claudeProfileCredentials(name));
   const isolated = await readIsolatedCredentials(dir);
   let freshest = pickFresherCredentials(snapshot, isolated);
@@ -4317,7 +4339,60 @@ async function prepareIsolatedOAuthRun(name) {
   if (oauthExpiresAt(freshest) > oauthExpiresAt(snapshot)) {
     await writeCredentials(freshest, claudeProfileCredentials(name));
   }
-  return dir;
+  await prepareIsolatedOAuthConfig(name);
+  return { secureStorageDir: dir, configDir };
+}
+async function prepareIsolatedOAuthConfig(name) {
+  const configDir = claudeProfileConfigDir(name);
+  await ensureDir2(configDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await writeIsolatedClaudeJson(name);
+}
+async function linkSharedClaudeConfigEntries(configDir) {
+  let entries;
+  try {
+    entries = await readdir(CLAUDE_DIR, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name))
+      continue;
+    const source = join3(CLAUDE_DIR, entry.name);
+    const destination = join3(configDir, entry.name);
+    const type = entry.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
+    await ensureSymlinkOrCopy(source, destination, type);
+  }
+}
+async function ensureSymlinkOrCopy(source, destination, type) {
+  try {
+    const stat = await lstat(destination);
+    if (!stat.isSymbolicLink())
+      return;
+    const existing = await readlink(destination);
+    if (existing === source)
+      return;
+    await unlink(destination);
+  } catch {}
+  try {
+    await symlink(source, destination, type);
+    return;
+  } catch {}
+  if (type === "file") {
+    try {
+      await copyFile(source, destination);
+    } catch {}
+  }
+}
+async function writeIsolatedClaudeJson(name) {
+  const account = await readJson(claudeProfileAccountFile(name), null);
+  const data = await readJson(CLAUDE_JSON, {});
+  if (account) {
+    data.oauthAccount = account;
+  } else {
+    delete data.oauthAccount;
+  }
+  await writeJson(claudeProfileConfigJson(name), data);
 }
 async function syncIsolatedOAuthSnapshot(name) {
   const isolated = await readIsolatedCredentials(claudeProfileDir(name));
@@ -4791,7 +4866,7 @@ import { spawn as spawn2, spawnSync as spawnSync3 } from "child_process";
 // src/lib/browser.ts
 import { spawnSync as spawnSync2 } from "child_process";
 import { platform as platform2 } from "os";
-import { join as join3 } from "path";
+import { join as join4 } from "path";
 import { tmpdir } from "os";
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 var CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
@@ -4836,7 +4911,7 @@ fi
 function createPrivateBrowserScript() {
   if (platform2() !== "darwin")
     return null;
-  const path = join3(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
+  const path = join4(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
   writeFileSync(path, MACOS_SCRIPT, { mode: 493 });
   return path;
 }
@@ -4850,16 +4925,16 @@ function cleanupBrowserScript(path) {
 function createOpenShimDir() {
   if (platform2() !== "darwin")
     return null;
-  const dir = join3(tmpdir(), `claudex-open-shim-${process.pid}`);
+  const dir = join4(tmpdir(), `claudex-open-shim-${process.pid}`);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join3(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
+  writeFileSync(join4(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
   return dir;
 }
 function cleanupOpenShimDir(dir) {
   if (!dir)
     return;
   try {
-    unlinkSync(join3(dir, "open"));
+    unlinkSync(join4(dir, "open"));
     rmdirSync(dir);
   } catch {}
 }
@@ -5456,10 +5531,13 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     await use(aliasOrName);
   }
   let secureStorageDir;
+  let configDir;
   let settingsNeutralizer = null;
   if (isolatedClaudeOAuth && claudeProfileName) {
     try {
-      secureStorageDir = await prepareIsolatedOAuthRun(claudeProfileName);
+      const context = await prepareIsolatedOAuthRun(claudeProfileName);
+      secureStorageDir = context.secureStorageDir;
+      configDir = context.configDir;
     } catch (err) {
       error(err instanceof Error ? err.message : String(err));
       hint(`Run ${source_default.cyan(`claudex-switch ${aliasOrName}`)} to switch globally, then log in with ${source_default.cyan("claude")}.`);
@@ -5478,7 +5556,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
     ...runOptions.forwardedArgs
   ];
-  const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir);
+  const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir, configDir);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   return new Promise((resolve) => {
     let settled = false;
@@ -5506,12 +5584,12 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     });
   });
 }
-async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir) {
+async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir, configDir) {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
       return applyClaudeAttributionHeader(buildClaudeApiEnvironment(profile), headerEnabled);
     }
-    return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir), headerEnabled);
+    return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir, configDir), headerEnabled);
   }
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
@@ -5570,8 +5648,8 @@ function parseRunArgumentOptions(args) {
   }
   return { forwardedArgs, modelOverride, headerEnabled };
 }
-function buildClaudeOAuthEnvironment(secureStorageDir) {
-  if (!secureStorageDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
+function buildClaudeOAuthEnvironment(secureStorageDir, configDir) {
+  if (!secureStorageDir && !configDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
     return;
   }
   const env2 = { ...process.env };
@@ -5580,6 +5658,9 @@ function buildClaudeOAuthEnvironment(secureStorageDir) {
   }
   if (secureStorageDir) {
     env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
+  }
+  if (configDir) {
+    env2.CLAUDE_CONFIG_DIR = configDir;
   }
   return env2;
 }
@@ -5804,7 +5885,7 @@ async function rename(currentAlias, nextAlias) {
 }
 
 // src/commands/purge.ts
-import { unlink as unlink2 } from "fs/promises";
+import { unlink as unlink3 } from "fs/promises";
 init_paths();
 init_fs();
 async function purge(aliasName) {
@@ -5843,7 +5924,7 @@ async function purge(aliasName) {
       }
       const authFile = codexAccountAuthFile(entry.target.accountKey);
       if (await fileExists(authFile)) {
-        await unlink2(authFile);
+        await unlink3(authFile);
       }
     } catch {}
   }
@@ -6228,7 +6309,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.29",
+  version: "1.1.30",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -6587,7 +6668,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join4(root, "package.json");
+  const packageFile = join5(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {

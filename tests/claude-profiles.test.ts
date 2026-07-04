@@ -6,6 +6,8 @@ import {
   CREDENTIALS_FILE,
   SETTINGS_FILE,
   claudeProfileAccountFile,
+  claudeProfileConfigDir,
+  claudeProfileConfigJson,
   claudeProfileCredentials,
 } from "../src/lib/paths";
 import { readJson } from "../src/lib/fs";
@@ -140,19 +142,72 @@ describe("claude profiles", () => {
     };
     await writeCredentials(refreshedCreds, CREDENTIALS_FILE);
 
-    const dir = await prepareIsolatedOAuthRun("holden");
+    const context = await prepareIsolatedOAuthRun("holden");
 
-    expect(dir).toBe(dirname(claudeProfileCredentials("holden")));
+    expect(context.secureStorageDir).toBe(
+      dirname(claudeProfileCredentials("holden")),
+    );
+    expect(context.configDir).toBe(claudeProfileConfigDir("holden"));
     expect(
       await readJson<CredentialsFile | null>(
         claudeProfileCredentials("holden"),
         null,
       ),
     ).toEqual(refreshedCreds);
+    expect(
+      await readJson<{ oauthAccount?: OAuthAccount }>(
+        claudeProfileConfigJson("holden"),
+        {},
+      ),
+    ).toEqual({ oauthAccount: account });
     // The global live store itself stays untouched.
     expect(
       await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
     ).toEqual(refreshedCreds);
+  });
+
+  test("does not leak global account metadata into isolated config when profile metadata is missing", async () => {
+    const creds: CredentialsFile = {
+      claudeAiOauth: {
+        accessToken: "seed-access",
+        refreshToken: "seed-refresh",
+        expiresAt: 1,
+        scopes: ["org:read"],
+        subscriptionType: "pro",
+      },
+    };
+    const profileAccount: OAuthAccount = {
+      accountUuid: "acct-profile",
+      emailAddress: "profile@example.com",
+      organizationUuid: "org-profile",
+    };
+    const globalAccount: OAuthAccount = {
+      accountUuid: "acct-global",
+      emailAddress: "global@example.com",
+      organizationUuid: "org-global",
+    };
+
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE);
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: profileAccount, theme: "dark" }, null, 2),
+    );
+    await addOAuthProfile("legacy");
+    await rm(claudeProfileAccountFile("legacy"), { force: true });
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({ oauthAccount: globalAccount, theme: "dark" }, null, 2),
+    );
+
+    await prepareIsolatedOAuthRun("legacy");
+
+    expect(
+      await readJson<{ oauthAccount?: OAuthAccount; theme?: string }>(
+        claudeProfileConfigJson("legacy"),
+        {},
+      ),
+    ).toEqual({ theme: "dark" });
   });
 
   test("refuses an isolated run for a profile without stored credentials", async () => {

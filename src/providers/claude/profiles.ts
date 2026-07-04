@@ -1,9 +1,23 @@
-import { mkdir, readdir, rm } from "fs/promises";
 import {
+  copyFile,
+  lstat,
+  mkdir,
+  readdir,
+  readlink,
+  rm,
+  symlink,
+  unlink,
+} from "fs/promises";
+import { join } from "path";
+import {
+  CLAUDE_DIR,
+  CLAUDE_JSON,
   CLAUDE_PROFILES_DIR,
   CLAUDE_STATE_FILE,
   CREDENTIALS_FILE,
   claudeProfileDir,
+  claudeProfileConfigDir,
+  claudeProfileConfigJson,
   claudeProfileCredentials,
   claudeProfileDataFile,
   claudeProfileAccountFile,
@@ -37,6 +51,17 @@ import type {
   ApiKeyProfileData,
   CredentialsFile,
 } from "../../types";
+
+const PROFILE_CONFIG_LINK_EXCLUDES = new Set([
+  ".credentials.json",
+  ".claude.json",
+  "backups",
+]);
+
+export interface IsolatedOAuthRunContext {
+  secureStorageDir: string;
+  configDir: string;
+}
 
 async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
@@ -308,16 +333,20 @@ async function readFreshestProfileCredentials(
 
 // Seed the profile's isolated live credential store for a `-run` session
 // launched with CLAUDE_SECURESTORAGE_CONFIG_DIR pointing at the profile dir.
-// Once the session is running, Claude Code reads and refreshes tokens directly
-// in that per-profile store, so global account switches can no longer flip the
-// session's account (and the session can no longer clobber other accounts).
-// Returns the directory to pass via CLAUDE_SECURESTORAGE_CONFIG_DIR.
-export async function prepareIsolatedOAuthRun(name: string): Promise<string> {
+// Also prepare a per-profile CLAUDE_CONFIG_DIR whose .claude.json contains the
+// target account metadata, so /status reads the same account that OAuth tokens
+// actually use. Once the session is running, Claude Code reads and refreshes
+// tokens directly in the per-profile store, so global account switches can no
+// longer flip the session's account.
+export async function prepareIsolatedOAuthRun(
+  name: string,
+): Promise<IsolatedOAuthRunContext> {
   if (!(await profileExists(name))) {
     throw new Error(`Profile "${name}" does not exist`);
   }
 
   const dir = claudeProfileDir(name);
+  const configDir = claudeProfileConfigDir(name);
   const snapshot = await readCredentials(claudeProfileCredentials(name));
   const isolated = await readIsolatedCredentials(dir);
   let freshest = pickFresherCredentials(snapshot, isolated);
@@ -352,7 +381,88 @@ export async function prepareIsolatedOAuthRun(name: string): Promise<string> {
     await writeCredentials(freshest, claudeProfileCredentials(name));
   }
 
-  return dir;
+  await prepareIsolatedOAuthConfig(name);
+
+  return { secureStorageDir: dir, configDir };
+}
+
+async function prepareIsolatedOAuthConfig(name: string): Promise<void> {
+  const configDir = claudeProfileConfigDir(name);
+  await ensureDir(configDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await writeIsolatedClaudeJson(name);
+}
+
+async function linkSharedClaudeConfigEntries(configDir: string): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(CLAUDE_DIR, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name)) continue;
+
+    const source = join(CLAUDE_DIR, entry.name);
+    const destination = join(configDir, entry.name);
+    const type = entry.isDirectory()
+      ? process.platform === "win32"
+        ? "junction"
+        : "dir"
+      : "file";
+
+    await ensureSymlinkOrCopy(source, destination, type);
+  }
+}
+
+async function ensureSymlinkOrCopy(
+  source: string,
+  destination: string,
+  type: "file" | "dir" | "junction",
+): Promise<void> {
+  try {
+    const stat = await lstat(destination);
+    if (!stat.isSymbolicLink()) return;
+
+    const existing = await readlink(destination);
+    if (existing === source) return;
+    await unlink(destination);
+  } catch {
+    // Destination does not exist or cannot be inspected; create it below.
+  }
+
+  try {
+    await symlink(source, destination, type);
+    return;
+  } catch {
+    // Symlinks can be unavailable on some systems. A file copy is enough for
+    // settings.json; directory sharing is best-effort.
+  }
+
+  if (type === "file") {
+    try {
+      await copyFile(source, destination);
+    } catch {
+      // Best effort only; missing shared config should not block account runs.
+    }
+  }
+}
+
+async function writeIsolatedClaudeJson(name: string): Promise<void> {
+  const account = await readJson<OAuthAccount | null>(
+    claudeProfileAccountFile(name),
+    null,
+  );
+  const data = await readJson<Record<string, unknown>>(CLAUDE_JSON, {});
+
+  if (account) {
+    data.oauthAccount = account;
+  } else {
+    delete data.oauthAccount;
+  }
+
+  await writeJson(claudeProfileConfigJson(name), data);
 }
 
 // After an isolated `-run` session ends, fold any tokens it refreshed back

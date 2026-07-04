@@ -73,10 +73,13 @@ export async function runAliasSession(
   }
 
   let secureStorageDir: string | undefined;
+  let configDir: string | undefined;
   let settingsNeutralizer: string | null = null;
   if (isolatedClaudeOAuth && claudeProfileName) {
     try {
-      secureStorageDir = await prepareIsolatedOAuthRun(claudeProfileName);
+      const context = await prepareIsolatedOAuthRun(claudeProfileName);
+      secureStorageDir = context.secureStorageDir;
+      configDir = context.configDir;
     } catch (err) {
       error(err instanceof Error ? err.message : String(err));
       hint(
@@ -109,6 +112,7 @@ export async function runAliasSession(
     profile,
     runOptions.headerEnabled,
     secureStorageDir,
+    configDir,
   );
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
@@ -153,6 +157,7 @@ async function getRunEnvironment(
   profile: ProfileData | null,
   headerEnabled?: boolean,
   secureStorageDir?: string,
+  configDir?: string,
 ): Promise<NodeJS.ProcessEnv | undefined> {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
@@ -162,7 +167,7 @@ async function getRunEnvironment(
       );
     }
     return applyClaudeAttributionHeader(
-      buildClaudeOAuthEnvironment(secureStorageDir),
+      buildClaudeOAuthEnvironment(secureStorageDir, configDir),
       headerEnabled,
     );
   }
@@ -247,9 +252,11 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
 
 function buildClaudeOAuthEnvironment(
   secureStorageDir?: string,
+  configDir?: string,
 ): NodeJS.ProcessEnv | undefined {
   if (
     !secureStorageDir &&
+    !configDir &&
     !CLAUDE_ENV_KEYS.some((key) => process.env[key])
   ) {
     return undefined;
@@ -261,6 +268,9 @@ function buildClaudeOAuthEnvironment(
   }
   if (secureStorageDir) {
     env.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
+  }
+  if (configDir) {
+    env.CLAUDE_CONFIG_DIR = configDir;
   }
   return env;
 }

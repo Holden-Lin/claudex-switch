@@ -235,7 +235,7 @@ claudex-switch 采用「薄别名层」架构：
 - Claude API Key 账号会同步写入 `ANTHROPIC_API_KEY`；如果该 profile 配置了 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` 或 `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`，切换时也会一并覆盖
 - 切到 Claude API Key 账号时会清理当前 active 的 Claude OAuth token，避免 Claude Code 同时检测到 claude.ai token 和 `ANTHROPIC_API_KEY`；切回 OAuth 账号时会从 profile 恢复 token
 - 当使用 `claudex-switch <claude-api-alias> -run` 时，会直接用 `claude --bare` + profile 环境变量启动临时会话，不改写全局 `~/.claude*` 状态
-- 当使用 `claudex-switch <claude-oauth-alias> -run` 时，会通过 `CLAUDE_SECURESTORAGE_CONFIG_DIR` 给该会话一个独立的凭据存储（macOS 上是每个 profile 独立的 Keychain 条目 `Claude Code-credentials-<hash>`，其他系统是 `~/.claude-profiles/<name>/.credentials.json`），完全不碰全局账号状态。token 刷新直接发生在这个 profile 专属存储里
+- 当使用 `claudex-switch <claude-oauth-alias> -run` 时，会通过 `CLAUDE_SECURESTORAGE_CONFIG_DIR` 给该会话一个独立的凭据存储（macOS 上是每个 profile 独立的 Keychain 条目 `Claude Code-credentials-<hash>`，其他系统是 `~/.claude-profiles/<name>/.credentials.json`），并通过 `CLAUDE_CONFIG_DIR=~/.claude-profiles/<name>/config` 提供该 profile 自己的 `oauthAccount` 元数据。token 刷新直接发生在 profile 专属存储里，`/status` 和 `/usage` 会指向同一个账号
 - 因此所有 `-run` 会话（OAuth 和 API Key）都与全局切换互不影响：切换账号不会把正在运行的 `-run` 会话变成新账号，`-run` 也不会把正在运行的其他会话切走。设置、hooks、历史记录仍然全局共享
 - 底层原因：Claude Code 的所有 bare `claude` 会话共用一份全局凭据（macOS Keychain `Claude Code-credentials`），且会在会话中途（token 刷新、401 恢复时）重新读取它，所以直接 `use` 切换必然影响正在运行的 bare `claude` 会话——这是 Claude Code 的共享存储机制决定的。要并行使用多个账号，请用 `-run` 启动会话
 - 隔离会话结束后，刷新过的 token 会自动回写到 profile 快照，后续全局 `use` 会恢复最新的 token，不会因为 refresh token 已轮换而被迫重新登录
