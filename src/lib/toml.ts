@@ -1,4 +1,4 @@
-type TomlValue = string | number | boolean | TomlTable;
+type TomlValue = string | number | boolean | TomlValue[] | TomlTable;
 type TomlTable = { [key: string]: TomlValue };
 
 function parseKeyPath(path: string): string[] {
@@ -39,9 +39,51 @@ function parseKeyPath(path: string): string[] {
   return keys;
 }
 
+function splitArrayElements(inner: string): string[] {
+  const elements: string[] = [];
+  let depth = 0;
+  let inString = false;
+  let current = "";
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (inString) {
+      current += ch;
+      if (ch === "\\" && i + 1 < inner.length) {
+        current += inner[++i];
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      current += ch;
+    } else if (ch === "[") {
+      depth++;
+      current += ch;
+    } else if (ch === "]") {
+      depth--;
+      current += ch;
+    } else if (ch === "," && depth === 0) {
+      elements.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) elements.push(current);
+  return elements;
+}
+
 function parseValue(raw: string): TomlValue {
   if (raw === "true") return true;
   if (raw === "false") return false;
+
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    const inner = raw.slice(1, -1).trim();
+    if (!inner) return [];
+    return splitArrayElements(inner).map((el) => parseValue(el.trim()));
+  }
 
   if (raw.startsWith('"')) {
     let result = "";

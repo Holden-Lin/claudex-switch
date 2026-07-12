@@ -25,7 +25,14 @@ export function resolveCodexModel(
   );
 }
 
-type TomlValue = string | number | boolean | null | undefined | TomlObject;
+type TomlValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | TomlValue[]
+  | TomlObject;
 type TomlObject = { [key: string]: TomlValue };
 
 interface CodexTomlConfig extends TomlObject {
@@ -53,9 +60,28 @@ function isSimpleTable(value: unknown): value is TomlObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function formatScalar(value: string | number | boolean): string {
+function formatScalar(value: string | number | boolean | TomlValue[]): string {
   if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    const items = value
+      .filter((item) => item !== null && item !== undefined)
+      .map((item) =>
+        formatScalar(item as string | number | boolean | TomlValue[]),
+      );
+    return `[${items.join(", ")}]`;
+  }
   return String(value);
+}
+
+function isInlineValue(
+  value: TomlValue,
+): value is string | number | boolean | TomlValue[] {
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    Array.isArray(value)
+  );
 }
 
 const BARE_KEY_RE = /^[A-Za-z0-9_-]+$/;
@@ -70,18 +96,14 @@ function renderTable(
   table: TomlObject,
   prefix: string,
 ): void {
-  const scalars: [string, string | number | boolean][] = [];
+  const scalars: [string, string | number | boolean | TomlValue[]][] = [];
   const subtables: [string, TomlObject][] = [];
 
   for (const [key, value] of Object.entries(table)) {
     if (value === null || value === undefined) continue;
     if (isSimpleTable(value)) {
       subtables.push([key, value]);
-    } else if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean"
-    ) {
+    } else if (isInlineValue(value)) {
       scalars.push([key, value]);
     }
   }
@@ -114,11 +136,7 @@ function renderCodexConfig(config: CodexTomlConfig): string {
   for (const [key, value] of Object.entries(config)) {
     if (skipKeys.has(key)) continue;
     if (value === null || value === undefined || isSimpleTable(value)) continue;
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean"
-    ) {
+    if (isInlineValue(value)) {
       lines.push(`${key} = ${formatScalar(value)}`);
     }
   }
@@ -205,6 +223,37 @@ export async function applyCodexApiProvider(
     return;
   }
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
+}
+
+// Older versions of this tool (and possibly other writers) serialized TOML
+// arrays as strings, e.g. `args = "[]"`, which makes codex fail to start.
+// Rewrites such lines back to real arrays. Returns true if the file changed.
+export async function repairCodexStringifiedArgs(): Promise<boolean> {
+  if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
+  const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+  const lines = content.split(/\r?\n/);
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(\s*args\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
+    if (!match) continue;
+    let decoded: string;
+    try {
+      decoded = JSON.parse(match[2]) as string;
+    } catch {
+      continue;
+    }
+    const trimmed = decoded.trim();
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) continue;
+    if (!Array.isArray(parseToml(`probe = ${trimmed}`).probe)) continue;
+    lines[i] = `${match[1]}${trimmed}`;
+    changed = true;
+  }
+
+  if (changed) {
+    await writeFile(CODEX_CONFIG_FILE, lines.join("\n"), { mode: 0o600 });
+  }
+  return changed;
 }
 
 async function writeCodexConfig(config: CodexTomlConfig): Promise<void> {

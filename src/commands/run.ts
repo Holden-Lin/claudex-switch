@@ -14,6 +14,7 @@ import {
   getClaudeEnvNeutralizer,
 } from "../providers/claude/settings";
 import { readAccountAuth } from "../providers/codex/auth";
+import { repairCodexStringifiedArgs } from "../providers/codex/config";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 import type {
   AliasEntry,
@@ -70,6 +71,13 @@ export async function runAliasSession(
   // switches globally.
   if (!isClaude) {
     await use(aliasOrName);
+    try {
+      if (await repairCodexStringifiedArgs()) {
+        info("Repaired stringified args arrays in ~/.codex/config.toml");
+      }
+    } catch {
+      // Best effort; codex will surface config errors itself.
+    }
   }
 
   let secureStorageDir: string | undefined;

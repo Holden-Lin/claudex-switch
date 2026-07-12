@@ -4553,11 +4553,53 @@ function parseKeyPath(path) {
   }
   return keys;
 }
+function splitArrayElements(inner) {
+  const elements = [];
+  let depth = 0;
+  let inString = false;
+  let current = "";
+  for (let i = 0;i < inner.length; i++) {
+    const ch = inner[i];
+    if (inString) {
+      current += ch;
+      if (ch === "\\" && i + 1 < inner.length) {
+        current += inner[++i];
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      current += ch;
+    } else if (ch === "[") {
+      depth++;
+      current += ch;
+    } else if (ch === "]") {
+      depth--;
+      current += ch;
+    } else if (ch === "," && depth === 0) {
+      elements.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim())
+    elements.push(current);
+  return elements;
+}
 function parseValue(raw) {
   if (raw === "true")
     return true;
   if (raw === "false")
     return false;
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    const inner = raw.slice(1, -1).trim();
+    if (!inner)
+      return [];
+    return splitArrayElements(inner).map((el) => parseValue(el.trim()));
+  }
   if (raw.startsWith('"')) {
     let result = "";
     let i = 1;
@@ -4658,7 +4700,14 @@ function isSimpleTable(value) {
 function formatScalar(value) {
   if (typeof value === "string")
     return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    const items = value.filter((item) => item !== null && item !== undefined).map((item) => formatScalar(item));
+    return `[${items.join(", ")}]`;
+  }
   return String(value);
+}
+function isInlineValue(value) {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || Array.isArray(value);
 }
 var BARE_KEY_RE = /^[A-Za-z0-9_-]+$/;
 function formatKey(key) {
@@ -4674,7 +4723,7 @@ function renderTable(lines, table, prefix) {
       continue;
     if (isSimpleTable(value)) {
       subtables.push([key, value]);
-    } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    } else if (isInlineValue(value)) {
       scalars.push([key, value]);
     }
   }
@@ -4704,7 +4753,7 @@ function renderCodexConfig(config) {
       continue;
     if (value === null || value === undefined || isSimpleTable(value))
       continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    if (isInlineValue(value)) {
       lines.push(`${key} = ${formatScalar(value)}`);
     }
   }
@@ -4766,6 +4815,36 @@ async function applyCodexApiProvider(provider, apiKey, defaultModel) {
     return;
   }
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
+}
+async function repairCodexStringifiedArgs() {
+  if (!await fileExists(CODEX_CONFIG_FILE))
+    return false;
+  const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
+  const lines = content.split(/\r?\n/);
+  let changed = false;
+  for (let i = 0;i < lines.length; i++) {
+    const match = lines[i].match(/^(\s*args\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
+    if (!match)
+      continue;
+    let decoded;
+    try {
+      decoded = JSON.parse(match[2]);
+    } catch {
+      continue;
+    }
+    const trimmed = decoded.trim();
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
+      continue;
+    if (!Array.isArray(parseToml(`probe = ${trimmed}`).probe))
+      continue;
+    lines[i] = `${match[1]}${trimmed}`;
+    changed = true;
+  }
+  if (changed) {
+    await writeFile2(CODEX_CONFIG_FILE, lines.join(`
+`), { mode: 384 });
+  }
+  return changed;
 }
 async function writeCodexConfig(config) {
   const content = renderCodexConfig(config);
@@ -5529,6 +5608,11 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
   if (!isClaude) {
     await use(aliasOrName);
+    try {
+      if (await repairCodexStringifiedArgs()) {
+        info("Repaired stringified args arrays in ~/.codex/config.toml");
+      }
+    } catch {}
   }
   let secureStorageDir;
   let configDir;

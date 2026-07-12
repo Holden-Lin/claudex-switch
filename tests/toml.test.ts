@@ -76,6 +76,21 @@ num = 1
     expect(result).toEqual({ path: "C:\\Users\\test" });
   });
 
+  test("parses arrays", () => {
+    const result = parseToml(`
+empty = []
+args = ["mcp"]
+mixed = ["a", 1, true]
+nested = [["x"], ["y", "z"]]
+`);
+    expect(result).toEqual({
+      empty: [],
+      args: ["mcp"],
+      mixed: ["a", 1, true],
+      nested: [["x"], ["y", "z"]],
+    });
+  });
+
   test("returns empty object for empty input", () => {
     expect(parseToml("")).toEqual({});
     expect(parseToml("  \n\n  ")).toEqual({});
