@@ -225,13 +225,37 @@ export async function applyCodexApiProvider(
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
 
-// Codex config keys whose value is an array. An older buggy serializer wrote
-// these as strings, e.g. `args = "[]"` or `notify = "[\"...\", \"...\"]"`, which
-// makes codex fail to start ("expected a sequence"). We only repair these known
-// array-typed keys: matching every key would corrupt string-valued settings
-// whose contents happen to be JSON array text (e.g. `developer_instructions =
-// "[\"run tests\"]"`) by rewriting them into arrays codex then rejects.
-const CODEX_ARRAY_KEYS = new Set(["args", "notify"]);
+// Leaf key names of Codex config options whose value is an inline array of
+// scalars. An older buggy serializer (a parseToml that treated every array as a
+// string) rewrote all of these as strings on account switch, e.g. `args = "[]"`
+// or `notify = "[\"...\", \"...\"]"`, making codex fail to start ("expected a
+// sequence"). We repair only these known array-typed keys: matching every key
+// would corrupt string-valued settings whose contents happen to be JSON array
+// text (e.g. `developer_instructions = "[\"run tests\"]"`) into arrays codex
+// then rejects — and after corruption the two cases are indistinguishable
+// without the schema. Sourced from the Codex config reference
+// (https://learn.chatgpt.com/docs/config-file/config-reference); extend this
+// set if a new inline-array option is added. Array-of-tables (`[[...]]`) and map
+// options like `env`/`env_http_headers` are unaffected — they never round-trip
+// through the buggy inline-scalar serializer — so they are intentionally absent.
+const CODEX_ARRAY_KEYS = new Set([
+  "args",
+  "notify",
+  "writable_roots", // sandbox_workspace_write
+  "exclude", // shell_environment_policy
+  "include_only", // shell_environment_policy
+  "enabled_tools", // mcp_servers.<id>
+  "disabled_tools", // mcp_servers.<id>
+  "env_vars", // mcp_servers.<id>
+  "scopes", // mcp_servers.<id>
+  "direct_only_tool_namespaces", // features.code_mode
+  "excluded_tool_namespaces", // features.code_mode
+  "project_doc_fallback_filenames",
+  "nickname_candidates", // agents.<name>
+  "workspace_roots", // permissions.<name>
+  "status_line", // tui
+  "terminal_title", // tui
+]);
 
 // Rewrites any stringified value of a known array-typed key back to a real
 // array. Returns true if the file changed. Alongside the key allowlist, the

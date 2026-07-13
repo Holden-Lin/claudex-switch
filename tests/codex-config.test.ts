@@ -62,6 +62,19 @@ notify = "[\\"/path/with spaces/SkyComputerUseClient\\", \\"turn-ended\\"]"
     expect(content).not.toContain('notify = "[');
   });
 
+  test("repairCodexStringifiedArrays fixes other array-typed keys", async () => {
+    await writeConfig(`[sandbox_workspace_write]
+writable_roots = "[\\"/tmp/cache\\"]"
+
+[shell_environment_policy]
+exclude = "[\\"AWS_*\\", \\"AZURE_*\\"]"
+`);
+    expect(await repairCodexStringifiedArrays()).toBe(true);
+    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(content).toContain('writable_roots = ["/tmp/cache"]');
+    expect(content).toContain('exclude = ["AWS_*", "AZURE_*"]');
+  });
+
   test("repairCodexStringifiedArrays leaves valid config untouched", async () => {
     await writeConfig(`[mcp_servers.node_repl]
 args = ["mcp"]

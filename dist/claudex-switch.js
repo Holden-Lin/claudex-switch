@@ -4799,7 +4799,24 @@ async function applyCodexApiProvider(provider, apiKey, defaultModel) {
   }
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
-var CODEX_ARRAY_KEYS = new Set(["args", "notify"]);
+var CODEX_ARRAY_KEYS = new Set([
+  "args",
+  "notify",
+  "writable_roots",
+  "exclude",
+  "include_only",
+  "enabled_tools",
+  "disabled_tools",
+  "env_vars",
+  "scopes",
+  "direct_only_tool_namespaces",
+  "excluded_tool_namespaces",
+  "project_doc_fallback_filenames",
+  "nickname_candidates",
+  "workspace_roots",
+  "status_line",
+  "terminal_title"
+]);
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return false;
