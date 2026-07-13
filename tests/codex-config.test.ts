@@ -36,6 +36,17 @@ command = "/bin/cu"
     expect(content).not.toContain('args = "');
   });
 
+  test("activateCodexOfficialProvider removes top-level openai_base_url", async () => {
+    await writeConfig(`model = "gpt-5.4"
+openai_base_url = "https://relay.example.com/v1"
+model_reasoning_effort = "high"
+`);
+    await activateCodexOfficialProvider();
+    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(content).not.toContain("openai_base_url");
+    expect(content).toContain('model_reasoning_effort = "high"');
+  });
+
   test("repairCodexStringifiedArrays fixes stringified args", async () => {
     await writeConfig(`[mcp_servers.node_repl]
 args = "[]"

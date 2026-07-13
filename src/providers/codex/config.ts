@@ -160,6 +160,10 @@ export async function activateCodexOfficialProvider(
     ? await readCodexConfig()
     : {};
   delete config.model_provider;
+  // A top-level openai_base_url rewrites the built-in OpenAI provider itself
+  // (relay setup guides sometimes add it), so ChatGPT-auth traffic would still
+  // hit the relay. Named model_providers are the supported relay mechanism.
+  delete config.openai_base_url;
   config.model = resolveCodexModel(defaultModel);
 
   // Remove provider entries that have an embedded bearer token
