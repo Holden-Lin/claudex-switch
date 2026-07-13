@@ -4811,11 +4811,13 @@ var CODEX_ARRAY_KEYS = new Set([
   "scopes",
   "direct_only_tool_namespaces",
   "excluded_tool_namespaces",
+  "project_root_markers",
   "project_doc_fallback_filenames",
   "nickname_candidates",
   "workspace_roots",
   "status_line",
-  "terminal_title"
+  "terminal_title",
+  "notifications"
 ]);
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
@@ -4847,15 +4849,12 @@ async function repairCodexStringifiedArrays() {
     if (typeof decoded !== "string")
       continue;
     const trimmed = decoded.trim();
-    let parsed;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
       continue;
-    }
+    const parsed = parseToml(`probe = ${trimmed}`).probe;
     if (!Array.isArray(parsed))
       continue;
-    lines[i] = `${indent}${rawKey}${eq}${trimmed}`;
+    lines[i] = `${indent}${rawKey}${eq}${formatScalar(parsed)}`;
     changed = true;
   }
   if (changed) {

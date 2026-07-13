@@ -75,6 +75,18 @@ exclude = "[\\"AWS_*\\", \\"AZURE_*\\"]"
     expect(content).toContain('exclude = ["AWS_*", "AZURE_*"]');
   });
 
+  test("repairCodexStringifiedArrays repairs TOML arrays that aren't strict JSON", async () => {
+    // A corrupted value can be a valid TOML array but invalid JSON (trailing
+    // comma). It must still be repaired and re-rendered as clean TOML.
+    await writeConfig(`[mcp_servers.computer-use]
+args = "[\\"mcp\\", \\"--flag\\",]"
+`);
+    expect(await repairCodexStringifiedArrays()).toBe(true);
+    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(content).toContain('args = ["mcp", "--flag"]');
+    expect(content).not.toContain('args = "');
+  });
+
   test("repairCodexStringifiedArrays leaves valid config untouched", async () => {
     await writeConfig(`[mcp_servers.node_repl]
 args = ["mcp"]

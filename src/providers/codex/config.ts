@@ -250,19 +250,25 @@ const CODEX_ARRAY_KEYS = new Set([
   "scopes", // mcp_servers.<id>
   "direct_only_tool_namespaces", // features.code_mode
   "excluded_tool_namespaces", // features.code_mode
+  "project_root_markers",
   "project_doc_fallback_filenames",
   "nickname_candidates", // agents.<name>
   "workspace_roots", // permissions.<name>
   "status_line", // tui
   "terminal_title", // tui
+  "notifications", // tui (boolean | array<string>)
 ]);
 
-// Rewrites any stringified value of a known array-typed key back to a real
-// array. Returns true if the file changed. Alongside the key allowlist, the
-// guard is a strict JSON.parse (not the lenient TOML parser): the old buggy
-// writer produced valid JSON array text, so a value that JSON-parses as an
-// array is a genuine stringified array — plain strings like `args = "hi"` or
-// `notify = "[not json]"` are left untouched.
+// Rewrites a stringified value of a known array-typed key back to a real array.
+// Returns true if the file changed.
+//
+// The key allowlist establishes intent (this key IS array-typed), so detection
+// can use the project's TOML parser rather than a strict JSON.parse: the old
+// writer stored the value's original TOML array text, which may not be valid
+// JSON (e.g. a trailing comma `["mcp",]`). We parse the inner text as TOML and,
+// if it is an array, re-render it with formatScalar so the output is always
+// well-formed TOML regardless of the corrupted text's quirks. Non-array values
+// (e.g. `args = "hi"`) leave `trimmed` non-array and are skipped.
 export async function repairCodexStringifiedArrays(): Promise<boolean> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
   const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
@@ -292,14 +298,10 @@ export async function repairCodexStringifiedArrays(): Promise<boolean> {
     }
     if (typeof decoded !== "string") continue;
     const trimmed = decoded.trim();
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      continue;
-    }
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) continue;
+    const parsed = parseToml(`probe = ${trimmed}`).probe;
     if (!Array.isArray(parsed)) continue;
-    lines[i] = `${indent}${rawKey}${eq}${trimmed}`;
+    lines[i] = `${indent}${rawKey}${eq}${formatScalar(parsed)}`;
     changed = true;
   }
 
