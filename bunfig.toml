@@ -1,0 +1,6 @@
+# Always isolate tests into a temp HOME. Configuring the preload here (instead
+# of only via the `--preload` CLI flag in package.json) means `bun test <file>`
+# is isolated too — running a single test file can never touch the real
+# ~/.codex or ~/.claude.
+[test]
+preload = ["./tests/preload.ts"]

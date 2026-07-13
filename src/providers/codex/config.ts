@@ -2,7 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { CODEX_CONFIG_FILE } from "../../lib/paths";
 import { fileExists } from "../../lib/fs";
-import { parseToml } from "../../lib/toml";
+import { parseToml, parseScalarArray } from "../../lib/toml";
 import type { CodexApiProviderConfig } from "../../types";
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.4";
@@ -225,28 +225,47 @@ export async function applyCodexApiProvider(
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
 
-// Older versions of this tool (and possibly other writers) serialized TOML
-// arrays as strings, e.g. `args = "[]"`, which makes codex fail to start.
-// Rewrites such lines back to real arrays. Returns true if the file changed.
-export async function repairCodexStringifiedArgs(): Promise<boolean> {
+// An older buggy serializer (a parseToml that treated every array as a string)
+// rewrote inline arrays as strings on account switch, e.g. `args = "[]"` or
+// `notify = "[\"...\", \"...\"]"`, making codex fail to start ("expected a
+// sequence"). Codex has many array-typed config keys and the set evolves, so
+// rather than mirror the schema with an allowlist we repair any key whose
+// stringified value is a well-formed TOML array of scalars.
+//
+// parseScalarArray is the safety gate: it accepts only arrays whose elements are
+// quoted strings, numbers, or booleans (the exact shape the old serializer
+// produced) and rejects bare-word content like `[not an array]`, so an ordinary
+// string that merely looks bracketed is left alone. The residual, accepted edge
+// case is a genuinely string-valued option deliberately set to valid array text
+// (e.g. `developer_instructions = "[\"x\"]"`) — vanishingly rare in practice,
+// since string options hold prose/URLs/model names, not array literals. We then
+// re-render via formatScalar so the output is always well-formed TOML regardless
+// of quirks in the corrupted text (e.g. a trailing comma `["mcp",]`).
+//
+// Array-of-tables (`[[...]]`) and map options like `env`/`env_http_headers` are
+// unaffected — they never round-tripped through the buggy inline serializer.
+export async function repairCodexStringifiedArrays(): Promise<boolean> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
   const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(/^(\s*args\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
+    const match = lines[i].match(
+      /^(\s*)([A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")(\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/,
+    );
     if (!match) continue;
-    let decoded: string;
+    const [, indent, rawKey, eq, rawValue] = match;
+    let decoded: unknown;
     try {
-      decoded = JSON.parse(match[2]) as string;
+      decoded = JSON.parse(rawValue);
     } catch {
       continue;
     }
-    const trimmed = decoded.trim();
-    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) continue;
-    if (!Array.isArray(parseToml(`probe = ${trimmed}`).probe)) continue;
-    lines[i] = `${match[1]}${trimmed}`;
+    if (typeof decoded !== "string") continue;
+    const parsed = parseScalarArray(decoded);
+    if (!parsed) continue;
+    lines[i] = `${indent}${rawKey}${eq}${formatScalar(parsed)}`;
     changed = true;
   }
 

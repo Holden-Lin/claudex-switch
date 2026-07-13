@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-const { parseToml } = await import("../src/lib/toml");
+const { parseToml, parseScalarArray } = await import("../src/lib/toml");
 
 describe("toml parser", () => {
   test("parses top-level scalars", () => {
@@ -94,6 +94,25 @@ nested = [["x"], ["y", "z"]]
   test("returns empty object for empty input", () => {
     expect(parseToml("")).toEqual({});
     expect(parseToml("  \n\n  ")).toEqual({});
+  });
+
+  test("parseScalarArray accepts well-formed scalar arrays", () => {
+    expect(parseScalarArray("[]")).toEqual([]);
+    expect(parseScalarArray('["mcp"]')).toEqual(["mcp"]);
+    expect(parseScalarArray('["a", "b"]')).toEqual(["a", "b"]);
+    // trailing comma is valid TOML but not JSON
+    expect(parseScalarArray('["mcp", "--flag",]')).toEqual(["mcp", "--flag"]);
+    expect(parseScalarArray("[1, 2, true]")).toEqual([1, 2, true]);
+    // quoted string may contain commas/brackets
+    expect(parseScalarArray('["a,b", "c[d]"]')).toEqual(["a,b", "c[d]"]);
+  });
+
+  test("parseScalarArray rejects non-arrays and bare-word content", () => {
+    expect(parseScalarArray("[not an array]")).toBeNull();
+    expect(parseScalarArray("[a, b, c]")).toBeNull();
+    expect(parseScalarArray("see [1] for details")).toBeNull();
+    expect(parseScalarArray('"just a string"')).toBeNull();
+    expect(parseScalarArray('["a",, "b"]')).toBeNull(); // empty element
   });
 
   test("parses full codex config format", () => {

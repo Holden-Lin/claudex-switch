@@ -5,43 +5,25 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: __exportSetter.bind(all, name)
+      set: (newValue) => all[name] = () => newValue
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -2245,6 +2227,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2389,7 +2372,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -4625,6 +4608,28 @@ function parseValue(raw) {
     return num;
   return raw;
 }
+var SCALAR_NUMBER_RE = /^[+-]?(?:\d[\d_]*)(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?$/;
+function parseScalarArray(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
+    return null;
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner)
+    return [];
+  const result = [];
+  for (const rawEl of splitArrayElements(inner)) {
+    const el = rawEl.trim();
+    if (!el)
+      return null;
+    const isQuoted = el.length >= 2 && (el.startsWith('"') && el.endsWith('"') || el.startsWith("'") && el.endsWith("'"));
+    if (isQuoted || el === "true" || el === "false" || SCALAR_NUMBER_RE.test(el)) {
+      result.push(parseValue(el));
+    } else {
+      return null;
+    }
+  }
+  return result;
+}
 function ensureTable(root, keys) {
   let current = root;
   for (const key of keys) {
@@ -4816,28 +4821,29 @@ async function applyCodexApiProvider(provider, apiKey, defaultModel) {
   }
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
-async function repairCodexStringifiedArgs() {
+async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return false;
   const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
   for (let i = 0;i < lines.length; i++) {
-    const match = lines[i].match(/^(\s*args\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
+    const match = lines[i].match(/^(\s*)([A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")(\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
     if (!match)
       continue;
+    const [, indent, rawKey, eq, rawValue] = match;
     let decoded;
     try {
-      decoded = JSON.parse(match[2]);
+      decoded = JSON.parse(rawValue);
     } catch {
       continue;
     }
-    const trimmed = decoded.trim();
-    if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
+    if (typeof decoded !== "string")
       continue;
-    if (!Array.isArray(parseToml(`probe = ${trimmed}`).probe))
+    const parsed = parseScalarArray(decoded);
+    if (!parsed)
       continue;
-    lines[i] = `${match[1]}${trimmed}`;
+    lines[i] = `${indent}${rawKey}${eq}${formatScalar(parsed)}`;
     changed = true;
   }
   if (changed) {
@@ -5609,8 +5615,8 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   if (!isClaude) {
     await use(aliasOrName);
     try {
-      if (await repairCodexStringifiedArgs()) {
-        info("Repaired stringified args arrays in ~/.codex/config.toml");
+      if (await repairCodexStringifiedArrays()) {
+        info("Repaired stringified arrays in ~/.codex/config.toml");
       }
     } catch {}
   }
@@ -6406,7 +6412,7 @@ var package_default = {
     "build:release": "./scripts/build-release-assets.sh ./release",
     dev: "bun run src/index.ts",
     preinstall: "node ./scripts/guard-package-manager.js",
-    test: "bun test --preload ./tests/preload.ts",
+    test: "bun test",
     verify: "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
     prepublishOnly: "bun run verify"
