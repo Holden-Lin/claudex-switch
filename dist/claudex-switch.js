@@ -4608,6 +4608,28 @@ function parseValue(raw) {
     return num;
   return raw;
 }
+var SCALAR_NUMBER_RE = /^[+-]?(?:\d[\d_]*)(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?$/;
+function parseScalarArray(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
+    return null;
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner)
+    return [];
+  const result = [];
+  for (const rawEl of splitArrayElements(inner)) {
+    const el = rawEl.trim();
+    if (!el)
+      return null;
+    const isQuoted = el.length >= 2 && (el.startsWith('"') && el.endsWith('"') || el.startsWith("'") && el.endsWith("'"));
+    if (isQuoted || el === "true" || el === "false" || SCALAR_NUMBER_RE.test(el)) {
+      result.push(parseValue(el));
+    } else {
+      return null;
+    }
+  }
+  return result;
+}
 function ensureTable(root, keys) {
   let current = root;
   for (const key of keys) {
@@ -4799,26 +4821,6 @@ async function applyCodexApiProvider(provider, apiKey, defaultModel) {
   }
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
-var CODEX_ARRAY_KEYS = new Set([
-  "args",
-  "notify",
-  "writable_roots",
-  "exclude",
-  "include_only",
-  "enabled_tools",
-  "disabled_tools",
-  "env_vars",
-  "scopes",
-  "direct_only_tool_namespaces",
-  "excluded_tool_namespaces",
-  "project_root_markers",
-  "project_doc_fallback_filenames",
-  "nickname_candidates",
-  "workspace_roots",
-  "status_line",
-  "terminal_title",
-  "notifications"
-]);
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return false;
@@ -4830,16 +4832,6 @@ async function repairCodexStringifiedArrays() {
     if (!match)
       continue;
     const [, indent, rawKey, eq, rawValue] = match;
-    let key = rawKey;
-    if (rawKey.startsWith('"')) {
-      try {
-        key = JSON.parse(rawKey);
-      } catch {
-        continue;
-      }
-    }
-    if (typeof key !== "string" || !CODEX_ARRAY_KEYS.has(key))
-      continue;
     let decoded;
     try {
       decoded = JSON.parse(rawValue);
@@ -4848,11 +4840,8 @@ async function repairCodexStringifiedArrays() {
     }
     if (typeof decoded !== "string")
       continue;
-    const trimmed = decoded.trim();
-    if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
-      continue;
-    const parsed = parseToml(`probe = ${trimmed}`).probe;
-    if (!Array.isArray(parsed))
+    const parsed = parseScalarArray(decoded);
+    if (!parsed)
       continue;
     lines[i] = `${indent}${rawKey}${eq}${formatScalar(parsed)}`;
     changed = true;

@@ -2,7 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { CODEX_CONFIG_FILE } from "../../lib/paths";
 import { fileExists } from "../../lib/fs";
-import { parseToml } from "../../lib/toml";
+import { parseToml, parseScalarArray } from "../../lib/toml";
 import type { CodexApiProviderConfig } from "../../types";
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.4";
@@ -225,51 +225,25 @@ export async function applyCodexApiProvider(
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
 
-// Leaf key names of Codex config options whose value is an inline array of
-// scalars. An older buggy serializer (a parseToml that treated every array as a
-// string) rewrote all of these as strings on account switch, e.g. `args = "[]"`
-// or `notify = "[\"...\", \"...\"]"`, making codex fail to start ("expected a
-// sequence"). We repair only these known array-typed keys: matching every key
-// would corrupt string-valued settings whose contents happen to be JSON array
-// text (e.g. `developer_instructions = "[\"run tests\"]"`) into arrays codex
-// then rejects — and after corruption the two cases are indistinguishable
-// without the schema. Sourced from the Codex config reference
-// (https://learn.chatgpt.com/docs/config-file/config-reference); extend this
-// set if a new inline-array option is added. Array-of-tables (`[[...]]`) and map
-// options like `env`/`env_http_headers` are unaffected — they never round-trip
-// through the buggy inline-scalar serializer — so they are intentionally absent.
-const CODEX_ARRAY_KEYS = new Set([
-  "args",
-  "notify",
-  "writable_roots", // sandbox_workspace_write
-  "exclude", // shell_environment_policy
-  "include_only", // shell_environment_policy
-  "enabled_tools", // mcp_servers.<id>
-  "disabled_tools", // mcp_servers.<id>
-  "env_vars", // mcp_servers.<id>
-  "scopes", // mcp_servers.<id>
-  "direct_only_tool_namespaces", // features.code_mode
-  "excluded_tool_namespaces", // features.code_mode
-  "project_root_markers",
-  "project_doc_fallback_filenames",
-  "nickname_candidates", // agents.<name>
-  "workspace_roots", // permissions.<name>
-  "status_line", // tui
-  "terminal_title", // tui
-  "notifications", // tui (boolean | array<string>)
-  "always_allowed_app_ids", // computer_use.windows
-]);
-
-// Rewrites a stringified value of a known array-typed key back to a real array.
-// Returns true if the file changed.
+// An older buggy serializer (a parseToml that treated every array as a string)
+// rewrote inline arrays as strings on account switch, e.g. `args = "[]"` or
+// `notify = "[\"...\", \"...\"]"`, making codex fail to start ("expected a
+// sequence"). Codex has many array-typed config keys and the set evolves, so
+// rather than mirror the schema with an allowlist we repair any key whose
+// stringified value is a well-formed TOML array of scalars.
 //
-// The key allowlist establishes intent (this key IS array-typed), so detection
-// can use the project's TOML parser rather than a strict JSON.parse: the old
-// writer stored the value's original TOML array text, which may not be valid
-// JSON (e.g. a trailing comma `["mcp",]`). We parse the inner text as TOML and,
-// if it is an array, re-render it with formatScalar so the output is always
-// well-formed TOML regardless of the corrupted text's quirks. Non-array values
-// (e.g. `args = "hi"`) leave `trimmed` non-array and are skipped.
+// parseScalarArray is the safety gate: it accepts only arrays whose elements are
+// quoted strings, numbers, or booleans (the exact shape the old serializer
+// produced) and rejects bare-word content like `[not an array]`, so an ordinary
+// string that merely looks bracketed is left alone. The residual, accepted edge
+// case is a genuinely string-valued option deliberately set to valid array text
+// (e.g. `developer_instructions = "[\"x\"]"`) — vanishingly rare in practice,
+// since string options hold prose/URLs/model names, not array literals. We then
+// re-render via formatScalar so the output is always well-formed TOML regardless
+// of quirks in the corrupted text (e.g. a trailing comma `["mcp",]`).
+//
+// Array-of-tables (`[[...]]`) and map options like `env`/`env_http_headers` are
+// unaffected — they never round-tripped through the buggy inline serializer.
 export async function repairCodexStringifiedArrays(): Promise<boolean> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
   const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
@@ -282,15 +256,6 @@ export async function repairCodexStringifiedArrays(): Promise<boolean> {
     );
     if (!match) continue;
     const [, indent, rawKey, eq, rawValue] = match;
-    let key: unknown = rawKey;
-    if (rawKey.startsWith('"')) {
-      try {
-        key = JSON.parse(rawKey);
-      } catch {
-        continue;
-      }
-    }
-    if (typeof key !== "string" || !CODEX_ARRAY_KEYS.has(key)) continue;
     let decoded: unknown;
     try {
       decoded = JSON.parse(rawValue);
@@ -298,10 +263,8 @@ export async function repairCodexStringifiedArrays(): Promise<boolean> {
       continue;
     }
     if (typeof decoded !== "string") continue;
-    const trimmed = decoded.trim();
-    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) continue;
-    const parsed = parseToml(`probe = ${trimmed}`).probe;
-    if (!Array.isArray(parsed)) continue;
+    const parsed = parseScalarArray(decoded);
+    if (!parsed) continue;
     lines[i] = `${indent}${rawKey}${eq}${formatScalar(parsed)}`;
     changed = true;
   }

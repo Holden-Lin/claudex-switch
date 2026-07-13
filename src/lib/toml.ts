@@ -108,6 +108,44 @@ function parseValue(raw: string): TomlValue {
   return raw;
 }
 
+// Returns the parsed elements when `text` is a well-formed inline TOML array of
+// scalars — every element a quoted string, number, or boolean — and null
+// otherwise. Unlike parseToml (which leniently treats a bare word as a string),
+// this rejects bare/unquoted words, so it distinguishes a genuine stringified
+// array like `["a", "b"]` or `["mcp",]` from an ordinary string that merely
+// looks bracketed such as `[not an array]`.
+const SCALAR_NUMBER_RE = /^[+-]?(?:\d[\d_]*)(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?$/;
+
+export function parseScalarArray(
+  text: string,
+): Array<string | number | boolean> | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner) return [];
+
+  const result: Array<string | number | boolean> = [];
+  for (const rawEl of splitArrayElements(inner)) {
+    const el = rawEl.trim();
+    if (!el) return null; // empty element (e.g. stray/double comma)
+    const isQuoted =
+      el.length >= 2 &&
+      ((el.startsWith('"') && el.endsWith('"')) ||
+        (el.startsWith("'") && el.endsWith("'")));
+    if (
+      isQuoted ||
+      el === "true" ||
+      el === "false" ||
+      SCALAR_NUMBER_RE.test(el)
+    ) {
+      result.push(parseValue(el) as string | number | boolean);
+    } else {
+      return null; // bare word, nested array, table, etc.
+    }
+  }
+  return result;
+}
+
 function ensureTable(root: TomlTable, keys: string[]): TomlTable {
   let current = root;
   for (const key of keys) {
