@@ -4779,6 +4779,7 @@ function renderCodexConfig(config) {
 async function activateCodexOfficialProvider(defaultModel) {
   const config = await fileExists(CODEX_CONFIG_FILE) ? await readCodexConfig() : {};
   delete config.model_provider;
+  delete config.openai_base_url;
   config.model = resolveCodexModel(defaultModel);
   if (isSimpleTable(config.model_providers)) {
     for (const [name, rawProvider] of Object.entries(config.model_providers)) {
@@ -6399,7 +6400,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.1.32",
+  version: "1.1.33",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
