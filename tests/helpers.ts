@@ -1,6 +1,25 @@
 import { mkdir, rm } from "fs/promises";
+import { tmpdir } from "os";
 
 export const TEST_HOME = process.env.CLAUDEX_TEST_HOME ?? "";
+
+// Fail-fast guard for any test that deletes/overwrites a real config path.
+// If tests/preload.ts did not run (e.g. someone bypassed bunfig), CLAUDEX_TEST_HOME
+// is unset and paths resolve to the real ~/.codex or ~/.claude — refuse to touch
+// those instead of nuking the developer's actual config.
+export function assertIsolatedHome(targetPath: string): void {
+  if (!TEST_HOME) {
+    throw new Error(
+      "Test HOME is not isolated (CLAUDEX_TEST_HOME unset). " +
+        "tests/preload.ts must run first — it is configured in bunfig.toml.",
+    );
+  }
+  if (!targetPath.startsWith(tmpdir())) {
+    throw new Error(
+      `Refusing to modify ${targetPath}: it is outside the temp test HOME.`,
+    );
+  }
+}
 
 export async function resetTestHome(): Promise<void> {
   if (!TEST_HOME) {

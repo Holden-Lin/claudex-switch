@@ -4799,6 +4799,7 @@ async function applyCodexApiProvider(provider, apiKey, defaultModel) {
   }
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
+var CODEX_ARRAY_KEYS = new Set(["args", "notify"]);
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return false;
@@ -4806,12 +4807,23 @@ async function repairCodexStringifiedArrays() {
   const lines = content.split(/\r?\n/);
   let changed = false;
   for (let i = 0;i < lines.length; i++) {
-    const match = lines[i].match(/^(\s*(?:[A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
+    const match = lines[i].match(/^(\s*)([A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")(\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
     if (!match)
+      continue;
+    const [, indent, rawKey, eq, rawValue] = match;
+    let key = rawKey;
+    if (rawKey.startsWith('"')) {
+      try {
+        key = JSON.parse(rawKey);
+      } catch {
+        continue;
+      }
+    }
+    if (typeof key !== "string" || !CODEX_ARRAY_KEYS.has(key))
       continue;
     let decoded;
     try {
-      decoded = JSON.parse(match[2]);
+      decoded = JSON.parse(rawValue);
     } catch {
       continue;
     }
@@ -4826,7 +4838,7 @@ async function repairCodexStringifiedArrays() {
     }
     if (!Array.isArray(parsed))
       continue;
-    lines[i] = `${match[1]}${trimmed}`;
+    lines[i] = `${indent}${rawKey}${eq}${trimmed}`;
     changed = true;
   }
   if (changed) {
@@ -6395,7 +6407,7 @@ var package_default = {
     "build:release": "./scripts/build-release-assets.sh ./release",
     dev: "bun run src/index.ts",
     preinstall: "node ./scripts/guard-package-manager.js",
-    test: "bun test --preload ./tests/preload.ts",
+    test: "bun test",
     verify: "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
     prepublishOnly: "bun run verify"

@@ -13,7 +13,7 @@
     "build:release": "./scripts/build-release-assets.sh ./release",
     "dev": "bun run src/index.ts",
     "preinstall": "node ./scripts/guard-package-manager.js",
-    "test": "bun test --preload ./tests/preload.ts",
+    "test": "bun test",
     "verify": "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
     "prepublishOnly": "bun run verify"

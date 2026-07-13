@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { mkdir, readFile, writeFile, rm } from "fs/promises";
 import { dirname } from "path";
+import { assertIsolatedHome } from "./helpers";
 
 const { CODEX_CONFIG_FILE } = await import("../src/lib/paths");
 const { activateCodexOfficialProvider, repairCodexStringifiedArrays } =
@@ -13,6 +14,7 @@ async function writeConfig(content: string): Promise<void> {
 
 describe("codex config arrays", () => {
   beforeEach(async () => {
+    assertIsolatedHome(CODEX_CONFIG_FILE);
     await rm(CODEX_CONFIG_FILE, { force: true });
   });
 
@@ -68,6 +70,16 @@ note = "[not an args key]"
     expect(await repairCodexStringifiedArrays()).toBe(false);
     const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(content).toContain('note = "[not an args key]"');
+  });
+
+  test("repairCodexStringifiedArrays leaves string-valued keys alone", async () => {
+    // A string setting whose contents are JSON array text must NOT be rewritten
+    // into an array — only known array-typed keys (args/notify) are repaired.
+    await writeConfig(`developer_instructions = "[\\"run tests\\"]"
+`);
+    expect(await repairCodexStringifiedArrays()).toBe(false);
+    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(content).toContain('developer_instructions = "[\\"run tests\\"]"');
   });
 
   test("repairCodexStringifiedArrays is a no-op without a config file", async () => {

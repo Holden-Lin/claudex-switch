@@ -225,15 +225,20 @@ export async function applyCodexApiProvider(
   await activateCodexCustomProvider(provider, apiKey, defaultModel);
 }
 
-// Older versions of this tool (and possibly other writers) serialized TOML
-// arrays as strings, e.g. `args = "[]"` or `notify = "[\"...\", \"...\"]"`,
-// which makes codex fail to start ("expected a sequence"). Rewrites any such
-// key back to a real array. Returns true if the file changed.
-//
-// The guard is deliberately a strict JSON.parse (not the lenient TOML parser):
-// the old buggy writer produced valid JSON array text, so a value that JSON
-// parses as an array is a genuine stringified array. This safely skips
-// ordinary strings that merely look bracketed, e.g. `note = "[not an array]"`.
+// Codex config keys whose value is an array. An older buggy serializer wrote
+// these as strings, e.g. `args = "[]"` or `notify = "[\"...\", \"...\"]"`, which
+// makes codex fail to start ("expected a sequence"). We only repair these known
+// array-typed keys: matching every key would corrupt string-valued settings
+// whose contents happen to be JSON array text (e.g. `developer_instructions =
+// "[\"run tests\"]"`) by rewriting them into arrays codex then rejects.
+const CODEX_ARRAY_KEYS = new Set(["args", "notify"]);
+
+// Rewrites any stringified value of a known array-typed key back to a real
+// array. Returns true if the file changed. Alongside the key allowlist, the
+// guard is a strict JSON.parse (not the lenient TOML parser): the old buggy
+// writer produced valid JSON array text, so a value that JSON-parses as an
+// array is a genuine stringified array — plain strings like `args = "hi"` or
+// `notify = "[not json]"` are left untouched.
 export async function repairCodexStringifiedArrays(): Promise<boolean> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
   const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
@@ -242,12 +247,22 @@ export async function repairCodexStringifiedArrays(): Promise<boolean> {
 
   for (let i = 0; i < lines.length; i++) {
     const match = lines[i].match(
-      /^(\s*(?:[A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/,
+      /^(\s*)([A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")(\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/,
     );
     if (!match) continue;
+    const [, indent, rawKey, eq, rawValue] = match;
+    let key: unknown = rawKey;
+    if (rawKey.startsWith('"')) {
+      try {
+        key = JSON.parse(rawKey);
+      } catch {
+        continue;
+      }
+    }
+    if (typeof key !== "string" || !CODEX_ARRAY_KEYS.has(key)) continue;
     let decoded: unknown;
     try {
-      decoded = JSON.parse(match[2]);
+      decoded = JSON.parse(rawValue);
     } catch {
       continue;
     }
@@ -260,7 +275,7 @@ export async function repairCodexStringifiedArrays(): Promise<boolean> {
       continue;
     }
     if (!Array.isArray(parsed)) continue;
-    lines[i] = `${match[1]}${trimmed}`;
+    lines[i] = `${indent}${rawKey}${eq}${trimmed}`;
     changed = true;
   }
 
