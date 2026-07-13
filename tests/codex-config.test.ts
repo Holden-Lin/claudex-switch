@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile, rm } from "fs/promises";
 import { dirname } from "path";
 
 const { CODEX_CONFIG_FILE } = await import("../src/lib/paths");
-const { activateCodexOfficialProvider, repairCodexStringifiedArgs } =
+const { activateCodexOfficialProvider, repairCodexStringifiedArrays } =
   await import("../src/providers/codex/config");
 
 async function writeConfig(content: string): Promise<void> {
@@ -34,7 +34,7 @@ command = "/bin/cu"
     expect(content).not.toContain('args = "');
   });
 
-  test("repairCodexStringifiedArgs fixes stringified args", async () => {
+  test("repairCodexStringifiedArrays fixes stringified args", async () => {
     await writeConfig(`[mcp_servers.node_repl]
 args = "[]"
 command = "/bin/node_repl"
@@ -42,23 +42,35 @@ command = "/bin/node_repl"
 [mcp_servers.computer-use]
 args = "[\\"mcp\\"]"
 `);
-    expect(await repairCodexStringifiedArgs()).toBe(true);
+    expect(await repairCodexStringifiedArrays()).toBe(true);
     const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(content).toContain("args = []");
     expect(content).toContain('args = ["mcp"]');
   });
 
-  test("repairCodexStringifiedArgs leaves valid config untouched", async () => {
+  test("repairCodexStringifiedArrays fixes stringified top-level notify", async () => {
+    await writeConfig(`model = "gpt-5.4"
+notify = "[\\"/path/with spaces/SkyComputerUseClient\\", \\"turn-ended\\"]"
+`);
+    expect(await repairCodexStringifiedArrays()).toBe(true);
+    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    expect(content).toContain(
+      'notify = ["/path/with spaces/SkyComputerUseClient", "turn-ended"]',
+    );
+    expect(content).not.toContain('notify = "[');
+  });
+
+  test("repairCodexStringifiedArrays leaves valid config untouched", async () => {
     await writeConfig(`[mcp_servers.node_repl]
 args = ["mcp"]
 note = "[not an args key]"
 `);
-    expect(await repairCodexStringifiedArgs()).toBe(false);
+    expect(await repairCodexStringifiedArrays()).toBe(false);
     const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(content).toContain('note = "[not an args key]"');
   });
 
-  test("repairCodexStringifiedArgs is a no-op without a config file", async () => {
-    expect(await repairCodexStringifiedArgs()).toBe(false);
+  test("repairCodexStringifiedArrays is a no-op without a config file", async () => {
+    expect(await repairCodexStringifiedArrays()).toBe(false);
   });
 });

@@ -226,26 +226,40 @@ export async function applyCodexApiProvider(
 }
 
 // Older versions of this tool (and possibly other writers) serialized TOML
-// arrays as strings, e.g. `args = "[]"`, which makes codex fail to start.
-// Rewrites such lines back to real arrays. Returns true if the file changed.
-export async function repairCodexStringifiedArgs(): Promise<boolean> {
+// arrays as strings, e.g. `args = "[]"` or `notify = "[\"...\", \"...\"]"`,
+// which makes codex fail to start ("expected a sequence"). Rewrites any such
+// key back to a real array. Returns true if the file changed.
+//
+// The guard is deliberately a strict JSON.parse (not the lenient TOML parser):
+// the old buggy writer produced valid JSON array text, so a value that JSON
+// parses as an array is a genuine stringified array. This safely skips
+// ordinary strings that merely look bracketed, e.g. `note = "[not an array]"`.
+export async function repairCodexStringifiedArrays(): Promise<boolean> {
   if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
   const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(/^(\s*args\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/);
+    const match = lines[i].match(
+      /^(\s*(?:[A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*")\s*=\s*)("(?:[^"\\]|\\.)*")\s*$/,
+    );
     if (!match) continue;
-    let decoded: string;
+    let decoded: unknown;
     try {
-      decoded = JSON.parse(match[2]) as string;
+      decoded = JSON.parse(match[2]);
     } catch {
       continue;
     }
+    if (typeof decoded !== "string") continue;
     const trimmed = decoded.trim();
-    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) continue;
-    if (!Array.isArray(parseToml(`probe = ${trimmed}`).probe)) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(parsed)) continue;
     lines[i] = `${match[1]}${trimmed}`;
     changed = true;
   }
