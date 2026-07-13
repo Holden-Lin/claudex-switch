@@ -257,6 +257,7 @@ const CODEX_ARRAY_KEYS = new Set([
   "status_line", // tui
   "terminal_title", // tui
   "notifications", // tui (boolean | array<string>)
+  "always_allowed_app_ids", // computer_use.windows
 ]);
 
 // Rewrites a stringified value of a known array-typed key back to a real array.
