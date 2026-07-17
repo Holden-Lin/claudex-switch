@@ -275,47 +275,82 @@ async function updateSqliteThreadProviders(
 
 // Rollout files a running codex process holds open must not be swapped out
 // from under it: after the tmp+rename the live process keeps appending to the
-// unlinked old inode and those writes are silently lost. Best effort — when
-// lsof is missing or errors we sync everything, same as the reference tool.
-async function listOpenRolloutPaths(): Promise<Set<string>> {
+// unlinked old inode and those writes are silently lost.
+type OpenRolloutScan = { ok: true; paths: Set<string> } | { ok: false };
+
+function parseLsofPaths(stdout: string): Set<string> {
   const open = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    if (line.startsWith("n") && line.endsWith(".jsonl")) {
+      open.add(line.slice(1));
+    }
+  }
+  return open;
+}
+
+async function scanOpenRolloutPaths(): Promise<OpenRolloutScan> {
   try {
     const { stdout } = await execFileAsync("lsof", ["-c", "codex", "-Fn"], {
       maxBuffer: 16 * 1024 * 1024,
     });
-    for (const line of stdout.split("\n")) {
-      if (line.startsWith("n") && line.endsWith(".jsonl")) {
-        open.add(line.slice(1));
-      }
+    return { ok: true, paths: parseLsofPaths(stdout) };
+  } catch (err) {
+    // lsof exits 1 when nothing matched — a successful "nothing open" scan
+    // (it may still have printed paths for the lookups that did succeed).
+    // Anything else (ENOENT, EPERM) means we could not determine what a
+    // running codex holds open.
+    const e = err as { code?: unknown; stdout?: unknown };
+    if (e.code === 1) {
+      return {
+        ok: true,
+        paths: parseLsofPaths(typeof e.stdout === "string" ? e.stdout : ""),
+      };
     }
-  } catch {
-    // No codex processes running, or lsof unavailable.
+    return { ok: false };
   }
-  return open;
+}
+
+async function anyCodexProcessRunning(): Promise<boolean> {
+  try {
+    await execFileAsync("pgrep", ["-x", "codex"]);
+    return true;
+  } catch (err) {
+    const e = err as { code?: unknown };
+    if (e.code === 1) return false;
+    // pgrep unavailable too — assume a codex process might be running.
+    return true;
+  }
 }
 
 export async function syncCodexSessionProviders(
   targetProvider: string,
   managedProviders: Set<string>,
 ): Promise<CodexSessionSyncResult> {
-  const openPaths = await listOpenRolloutPaths();
+  const scan = await scanOpenRolloutPaths();
+  // When open-file detection failed (lsof missing/forbidden), rewriting could
+  // hit a live session's rollout; only proceed if no codex process is running.
+  const skipRollouts = !scan.ok && (await anyCodexProcessRunning());
+  const openPaths = scan.ok ? scan.paths : new Set<string>();
+
   let rolloutFilesUpdated = 0;
-  for (const dirName of SESSION_DIRS) {
-    const root = join(CODEX_DIR, dirName);
-    for (const filePath of await listJsonlFiles(root)) {
-      if (openPaths.has(filePath)) continue;
-      try {
-        if (
-          await rewriteRolloutProvider(
-            filePath,
-            targetProvider,
-            managedProviders,
-          )
-        ) {
-          rolloutFilesUpdated += 1;
+  if (!skipRollouts) {
+    for (const dirName of SESSION_DIRS) {
+      const root = join(CODEX_DIR, dirName);
+      for (const filePath of await listJsonlFiles(root)) {
+        if (openPaths.has(filePath)) continue;
+        try {
+          if (
+            await rewriteRolloutProvider(
+              filePath,
+              targetProvider,
+              managedProviders,
+            )
+          ) {
+            rolloutFilesUpdated += 1;
+          }
+        } catch {
+          // A locked or unreadable rollout must not block the switch.
         }
-      } catch {
-        // A locked or unreadable rollout must not block the switch.
       }
     }
   }

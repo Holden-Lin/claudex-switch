@@ -5705,34 +5705,61 @@ async function updateSqliteThreadProviders(targetProvider, managedProviders) {
     db.close();
   }
 }
-async function listOpenRolloutPaths() {
+function parseLsofPaths(stdout) {
   const open2 = new Set;
+  for (const line of stdout.split(`
+`)) {
+    if (line.startsWith("n") && line.endsWith(".jsonl")) {
+      open2.add(line.slice(1));
+    }
+  }
+  return open2;
+}
+async function scanOpenRolloutPaths() {
   try {
     const { stdout } = await execFileAsync("lsof", ["-c", "codex", "-Fn"], {
       maxBuffer: 16777216
     });
-    for (const line of stdout.split(`
-`)) {
-      if (line.startsWith("n") && line.endsWith(".jsonl")) {
-        open2.add(line.slice(1));
-      }
+    return { ok: true, paths: parseLsofPaths(stdout) };
+  } catch (err) {
+    const e = err;
+    if (e.code === 1) {
+      return {
+        ok: true,
+        paths: parseLsofPaths(typeof e.stdout === "string" ? e.stdout : "")
+      };
     }
-  } catch {}
-  return open2;
+    return { ok: false };
+  }
+}
+async function anyCodexProcessRunning() {
+  try {
+    await execFileAsync("pgrep", ["-x", "codex"]);
+    return true;
+  } catch (err) {
+    const e = err;
+    if (e.code === 1)
+      return false;
+    return true;
+  }
 }
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
-  const openPaths = await listOpenRolloutPaths();
+  const scan = await scanOpenRolloutPaths();
+  const skipRollouts = !scan.ok && await anyCodexProcessRunning();
+  const openPaths = scan.ok ? scan.paths : new Set;
   let rolloutFilesUpdated = 0;
-  for (const dirName of SESSION_DIRS) {
-    const root = join5(CODEX_DIR, dirName);
-    for (const filePath of await listJsonlFiles(root)) {
-      if (openPaths.has(filePath))
-        continue;
-      try {
-        if (await rewriteRolloutProvider(filePath, targetProvider, managedProviders)) {
-          rolloutFilesUpdated += 1;
-        }
-      } catch {}
+  if (!skipRollouts) {
+    for (const dirName of SESSION_DIRS) {
+      const root = join5(CODEX_DIR, dirName);
+      for (const filePath of await listJsonlFiles(root)) {
+        if (openPaths.has(filePath))
+          continue;
+        try {
+          if (await rewriteRolloutProvider(filePath, targetProvider, managedProviders)) {
+            rolloutFilesUpdated += 1;
+          }
+        } catch {}
+      }
     }
   }
   let sqliteRowsUpdated = 0;
