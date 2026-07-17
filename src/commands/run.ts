@@ -5,6 +5,7 @@ import { use } from "./use";
 import { blank, error, hint, info } from "../lib/ui";
 import {
   isModelEffort,
+  providerEffortLevels,
   resolveModelShorthand,
   splitModelEffort,
 } from "../lib/model-shorthand";
@@ -60,6 +61,19 @@ export async function runAliasSession(
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
+  // The two CLIs support different effort tiers (claude has max but not
+  // minimal; codex the reverse), so validate once the provider is known.
+  if (runOptions.effortOverride) {
+    const valid = providerEffortLevels(entry.target.provider);
+    if (!valid.has(runOptions.effortOverride)) {
+      error(
+        `${entry.target.provider === "claude" ? "Claude" : "Codex"} doesn't support effort "${runOptions.effortOverride}".`,
+      );
+      hint(`Valid tiers: ${[...valid].join(", ")}`);
+      blank();
+      process.exit(1);
+    }
+  }
   const claudeProfileName =
     entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;

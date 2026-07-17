@@ -8,6 +8,8 @@ import {
   saveRegistry,
   setActiveAccount,
   findAccountByKey,
+  codexAccountProviderName,
+  managedProviderNames,
 } from "../providers/codex/registry";
 import { readAccountAuth, switchToAccount } from "../providers/codex/auth";
 import { applyCodexApiProvider } from "../providers/codex/config";
@@ -120,7 +122,7 @@ async function switchCodex(
     await saveRegistry(reg);
   }
 
-  await syncSessionVisibility(account);
+  await syncSessionVisibility(account, managedProviderNames(reg));
 
   const plan = formatPlan(
     account.plan ?? account.last_usage?.plan_type ?? null,
@@ -150,15 +152,16 @@ async function switchCodex(
 // file or busy DB must never fail the switch itself.
 async function syncSessionVisibility(
   account: CodexRegistryAccount,
+  managedProviders: Set<string>,
 ): Promise<void> {
-  const targetProvider =
-    account.auth_mode === "apikey" && account.api_provider?.type === "custom"
-      ? account.api_provider.name
-      : "openai";
+  const targetProvider = codexAccountProviderName(account);
   if (!targetProvider) return;
 
   try {
-    const result = await syncCodexSessionProviders(targetProvider);
+    const result = await syncCodexSessionProviders(
+      targetProvider,
+      managedProviders,
+    );
     if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
       info(
         `Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`,

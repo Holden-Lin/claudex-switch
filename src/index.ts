@@ -233,7 +233,10 @@ async function main(): Promise<void> {
           );
           process.exit(1);
         }
-        await model(args[0], args[1]);
+        // Join the remaining tokens so an unquoted trailing effort tier
+        // ("model cx 4.8 max") reaches the effort guard instead of being
+        // silently dropped.
+        await model(args[0], args.slice(1).join(" "));
         break;
 
       case "rename":

@@ -4945,6 +4945,21 @@ function setActiveAccount(reg, accountKey) {
     account.last_used_at = Math.floor(Date.now() / 1000);
   }
 }
+function codexAccountProviderName(account) {
+  if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
+    return account.api_provider.name || null;
+  }
+  return "openai";
+}
+function managedProviderNames(reg) {
+  const names = new Set(["openai"]);
+  for (const account of reg.accounts) {
+    const name = codexAccountProviderName(account);
+    if (name)
+      names.add(name);
+  }
+  return names;
+}
 
 // src/commands/add.ts
 import { spawn as spawn2, spawnSync as spawnSync3 } from "child_process";
@@ -5507,7 +5522,7 @@ init_paths();
 init_fs();
 import { execFile } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
-import { open, readdir as readdir2, rename, rm as rm3, stat } from "fs/promises";
+import { open, readdir as readdir2, rename, rm as rm3, stat, utimes } from "fs/promises";
 import { join as join5 } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
@@ -5550,11 +5565,12 @@ async function readFirstLine(filePath) {
       const { bytesRead } = await handle.read(chunk, 0, READ_CHUNK_BYTES, total);
       if (bytesRead === 0)
         break;
-      chunks.push(chunk.subarray(0, bytesRead));
-      total += bytesRead;
-      const newlineIndex = Buffer.concat(chunks).indexOf(10);
-      if (newlineIndex !== -1) {
+      const part = chunk.subarray(0, bytesRead);
+      const idx = part.indexOf(10);
+      chunks.push(part);
+      if (idx !== -1) {
         const buffer = Buffer.concat(chunks);
+        const newlineIndex = total + idx;
         const hasCr = newlineIndex > 0 && buffer[newlineIndex - 1] === 13;
         const lineEnd = hasCr ? newlineIndex - 1 : newlineIndex;
         return {
@@ -5565,6 +5581,7 @@ async function readFirstLine(filePath) {
 `
         };
       }
+      total += bytesRead;
     }
     if (total === 0)
       return null;
@@ -5579,7 +5596,7 @@ async function readFirstLine(filePath) {
     await handle.close();
   }
 }
-function rewriteSessionMetaLine(line, targetProvider) {
+function rewriteSessionMetaLine(line, targetProvider, managedProviders) {
   let parsed;
   try {
     parsed = JSON.parse(line);
@@ -5590,19 +5607,23 @@ function rewriteSessionMetaLine(line, targetProvider) {
   if (record?.type !== "session_meta" || typeof record.payload !== "object" || record.payload === null) {
     return null;
   }
-  if (record.payload.model_provider === targetProvider)
+  const current = record.payload.model_provider;
+  if (current === targetProvider)
     return null;
+  if (typeof current === "string" && !managedProviders.has(current)) {
+    return null;
+  }
   record.payload.model_provider = targetProvider;
   return JSON.stringify(record);
 }
-async function rewriteRolloutProvider(filePath, targetProvider) {
+async function rewriteRolloutProvider(filePath, targetProvider, managedProviders) {
   const first = await readFirstLine(filePath);
   if (!first)
     return false;
-  const updatedLine = rewriteSessionMetaLine(first.line, targetProvider);
+  const updatedLine = rewriteSessionMetaLine(first.line, targetProvider, managedProviders);
   if (updatedLine === null)
     return false;
-  const { mode, size } = await stat(filePath);
+  const { mode, size, atime, mtime } = await stat(filePath);
   const tmpPath = `${filePath}.claudex-sync.${process.pid}.tmp`;
   try {
     const out = createWriteStream(tmpPath, { mode });
@@ -5617,6 +5638,7 @@ async function rewriteRolloutProvider(filePath, targetProvider) {
       });
     }
     await rename(tmpPath, filePath);
+    await utimes(filePath, atime, mtime).catch(() => {});
     return true;
   } catch (err) {
     await rm3(tmpPath, { force: true }).catch(() => {});
@@ -5646,17 +5668,21 @@ async function openSqlite(dbPath) {
   }
 }
 var execFileAsync = promisify(execFile);
-async function updateProvidersViaSqliteCli(dbPath, targetProvider) {
-  const escaped = targetProvider.replace(/'/g, "''");
+function sqlQuote(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProviders) {
+  const target = sqlQuote(targetProvider);
+  const managed = [...managedProviders].map(sqlQuote).join(", ");
   const { stdout } = await execFileAsync("sqlite3", [
     "-cmd",
     ".timeout 2000",
     dbPath,
-    `UPDATE threads SET model_provider = '${escaped}' WHERE model_provider <> '${escaped}'; SELECT changes();`
+    `UPDATE threads SET model_provider = ${target} WHERE model_provider <> ${target} AND model_provider IN (${managed}); SELECT changes();`
   ]);
   return Number(stdout.trim()) || 0;
 }
-async function updateSqliteThreadProviders(targetProvider) {
+async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   let dbPath = null;
   for (const candidate of STATE_DB_CANDIDATES) {
     const fullPath = join5(CODEX_DIR, candidate);
@@ -5669,11 +5695,12 @@ async function updateSqliteThreadProviders(targetProvider) {
     return 0;
   const db = await openSqlite(dbPath);
   if (!db) {
-    return updateProvidersViaSqliteCli(dbPath, targetProvider);
+    return updateProvidersViaSqliteCli(dbPath, targetProvider, managedProviders);
   }
   try {
     db.exec("PRAGMA busy_timeout = 2000");
-    return db.runUpdate("UPDATE threads SET model_provider = ? WHERE model_provider <> ?", targetProvider, targetProvider);
+    const placeholders = [...managedProviders].map(() => "?").join(", ");
+    return db.runUpdate(`UPDATE threads SET model_provider = ? WHERE model_provider <> ? AND model_provider IN (${placeholders})`, targetProvider, targetProvider, ...managedProviders);
   } finally {
     db.close();
   }
@@ -5693,7 +5720,7 @@ async function listOpenRolloutPaths() {
   } catch {}
   return open2;
 }
-async function syncCodexSessionProviders(targetProvider) {
+async function syncCodexSessionProviders(targetProvider, managedProviders) {
   const openPaths = await listOpenRolloutPaths();
   let rolloutFilesUpdated = 0;
   for (const dirName of SESSION_DIRS) {
@@ -5702,7 +5729,7 @@ async function syncCodexSessionProviders(targetProvider) {
       if (openPaths.has(filePath))
         continue;
       try {
-        if (await rewriteRolloutProvider(filePath, targetProvider)) {
+        if (await rewriteRolloutProvider(filePath, targetProvider, managedProviders)) {
           rolloutFilesUpdated += 1;
         }
       } catch {}
@@ -5710,7 +5737,7 @@ async function syncCodexSessionProviders(targetProvider) {
   }
   let sqliteRowsUpdated = 0;
   try {
-    sqliteRowsUpdated = await updateSqliteThreadProviders(targetProvider);
+    sqliteRowsUpdated = await updateSqliteThreadProviders(targetProvider, managedProviders);
   } catch {}
   return { rolloutFilesUpdated, sqliteRowsUpdated };
 }
@@ -5773,7 +5800,7 @@ async function switchCodex(alias, accountKey) {
     setActiveAccount(reg, accountKey);
     await saveRegistry(reg);
   }
-  await syncSessionVisibility(account);
+  await syncSessionVisibility(account, managedProviderNames(reg));
   const plan = formatPlan(account.plan ?? account.last_usage?.plan_type ?? null);
   const email = account.email ? source_default.dim(account.email) : "";
   success(`Switched to ${source_default.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
@@ -5785,12 +5812,12 @@ async function switchCodex(alias, accountKey) {
   }
   blank();
 }
-async function syncSessionVisibility(account) {
-  const targetProvider = account.auth_mode === "apikey" && account.api_provider?.type === "custom" ? account.api_provider.name : "openai";
+async function syncSessionVisibility(account, managedProviders) {
+  const targetProvider = codexAccountProviderName(account);
   if (!targetProvider)
     return;
   try {
-    const result = await syncCodexSessionProviders(targetProvider);
+    const result = await syncCodexSessionProviders(targetProvider, managedProviders);
     if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
       info(`Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`);
       hint("Old sessions are visible again; continuing one started under another provider may still fail on encrypted content.");
@@ -5804,13 +5831,23 @@ import { spawn as spawn3 } from "child_process";
 // src/lib/model-shorthand.ts
 var CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
 var CODEX_SHORTHAND = /^(?:gpt-?)?(\d+(?:\.\d+)*)$/i;
-var MODEL_EFFORT_LEVELS = new Set([
-  "minimal",
+var CLAUDE_EFFORT_LEVELS = new Set([
   "low",
   "medium",
   "high",
   "xhigh",
   "max"
+]);
+var CODEX_EFFORT_LEVELS = new Set([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+]);
+var MODEL_EFFORT_LEVELS = new Set([
+  ...CLAUDE_EFFORT_LEVELS,
+  ...CODEX_EFFORT_LEVELS
 ]);
 var CODEX_MODEL_ALIASES = {
   "gpt-5.6": "gpt-5.6-sol"
@@ -5821,6 +5858,9 @@ function defaultClaudeSeries(version) {
 }
 function isModelEffort(value) {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
+}
+function providerEffortLevels(provider) {
+  return provider === "claude" ? CLAUDE_EFFORT_LEVELS : CODEX_EFFORT_LEVELS;
 }
 function splitModelEffort(input) {
   const parts = input.trim().split(/\s+/);
@@ -5845,6 +5885,8 @@ function resolveModelShorthand(provider, input) {
   const match = trimmed.match(CODEX_SHORTHAND);
   if (match) {
     const model = `gpt-${match[1]}`;
+    if (/^gpt/i.test(trimmed))
+      return model;
     return CODEX_MODEL_ALIASES[model] ?? model;
   }
   return trimmed;
@@ -5862,6 +5904,15 @@ function isRunFlag(value) {
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn3) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
+  if (runOptions.effortOverride) {
+    const valid = providerEffortLevels(entry.target.provider);
+    if (!valid.has(runOptions.effortOverride)) {
+      error(`${entry.target.provider === "claude" ? "Claude" : "Codex"} doesn't support effort "${runOptions.effortOverride}".`);
+      hint(`Valid tiers: ${[...valid].join(", ")}`);
+      blank();
+      process.exit(1);
+    }
+  }
   const claudeProfileName = entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;
   const profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
@@ -7149,7 +7200,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await model(args[0], args[1]);
+        await model(args[0], args.slice(1).join(" "));
         break;
       case "rename":
         if (!args[0] || !args[1]) {

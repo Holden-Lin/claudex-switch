@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
-import { open, readdir, rename, rm, stat } from "fs/promises";
+import { open, readdir, rename, rm, stat, utimes } from "fs/promises";
 import { join } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
@@ -69,11 +69,13 @@ async function readFirstLine(filePath: string): Promise<FirstLine | null> {
       const chunk = Buffer.alloc(READ_CHUNK_BYTES);
       const { bytesRead } = await handle.read(chunk, 0, READ_CHUNK_BYTES, total);
       if (bytesRead === 0) break;
-      chunks.push(chunk.subarray(0, bytesRead));
-      total += bytesRead;
-      const newlineIndex = Buffer.concat(chunks).indexOf(0x0a);
-      if (newlineIndex !== -1) {
+      const part = chunk.subarray(0, bytesRead);
+      // Only the fresh chunk needs scanning; earlier chunks held no newline.
+      const idx = part.indexOf(0x0a);
+      chunks.push(part);
+      if (idx !== -1) {
         const buffer = Buffer.concat(chunks);
+        const newlineIndex = total + idx;
         const hasCr = newlineIndex > 0 && buffer[newlineIndex - 1] === 0x0d;
         const lineEnd = hasCr ? newlineIndex - 1 : newlineIndex;
         return {
@@ -82,6 +84,7 @@ async function readFirstLine(filePath: string): Promise<FirstLine | null> {
           separator: hasCr ? "\r\n" : "\n",
         };
       }
+      total += bytesRead;
     }
     if (total === 0) return null;
     if (total >= FIRST_LINE_MAX_BYTES) return null;
@@ -99,6 +102,7 @@ async function readFirstLine(filePath: string): Promise<FirstLine | null> {
 function rewriteSessionMetaLine(
   line: string,
   targetProvider: string,
+  managedProviders: Set<string>,
 ): string | null {
   let parsed: unknown;
   try {
@@ -117,7 +121,14 @@ function rewriteSessionMetaLine(
   ) {
     return null;
   }
-  if (record.payload.model_provider === targetProvider) return null;
+  const current = record.payload.model_provider;
+  if (current === targetProvider) return null;
+  // Only restamp sessions belonging to providers claudex-switch manages; a
+  // provider the user configured by hand (say ollama) keeps its metadata —
+  // restamping it would irreversibly destroy the original provider name.
+  if (typeof current === "string" && !managedProviders.has(current)) {
+    return null;
+  }
   record.payload.model_provider = targetProvider;
   return JSON.stringify(record);
 }
@@ -125,13 +136,18 @@ function rewriteSessionMetaLine(
 async function rewriteRolloutProvider(
   filePath: string,
   targetProvider: string,
+  managedProviders: Set<string>,
 ): Promise<boolean> {
   const first = await readFirstLine(filePath);
   if (!first) return false;
-  const updatedLine = rewriteSessionMetaLine(first.line, targetProvider);
+  const updatedLine = rewriteSessionMetaLine(
+    first.line,
+    targetProvider,
+    managedProviders,
+  );
   if (updatedLine === null) return false;
 
-  const { mode, size } = await stat(filePath);
+  const { mode, size, atime, mtime } = await stat(filePath);
   const tmpPath = `${filePath}.claudex-sync.${process.pid}.tmp`;
   try {
     const out = createWriteStream(tmpPath, { mode });
@@ -151,6 +167,9 @@ async function rewriteRolloutProvider(
       });
     }
     await rename(tmpPath, filePath);
+    // Codex orders /resume by recency; a metadata restamp must not bump the
+    // session to the top, so keep the original timestamps.
+    await utimes(filePath, atime, mtime).catch(() => {});
     return true;
   } catch (err) {
     await rm(tmpPath, { force: true }).catch(() => {});
@@ -196,24 +215,31 @@ async function openSqlite(dbPath: string): Promise<SqliteHandle | null> {
 
 const execFileAsync = promisify(execFile);
 
+function sqlQuote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 // Last resort for Node.js < 22.5 (no node:sqlite): the sqlite3 CLI, present
 // on macOS and most Linux distributions.
 async function updateProvidersViaSqliteCli(
   dbPath: string,
   targetProvider: string,
+  managedProviders: Set<string>,
 ): Promise<number> {
-  const escaped = targetProvider.replace(/'/g, "''");
+  const target = sqlQuote(targetProvider);
+  const managed = [...managedProviders].map(sqlQuote).join(", ");
   const { stdout } = await execFileAsync("sqlite3", [
     "-cmd",
     ".timeout 2000",
     dbPath,
-    `UPDATE threads SET model_provider = '${escaped}' WHERE model_provider <> '${escaped}'; SELECT changes();`,
+    `UPDATE threads SET model_provider = ${target} WHERE model_provider <> ${target} AND model_provider IN (${managed}); SELECT changes();`,
   ]);
   return Number(stdout.trim()) || 0;
 }
 
 async function updateSqliteThreadProviders(
   targetProvider: string,
+  managedProviders: Set<string>,
 ): Promise<number> {
   let dbPath: string | null = null;
   for (const candidate of STATE_DB_CANDIDATES) {
@@ -227,14 +253,20 @@ async function updateSqliteThreadProviders(
 
   const db = await openSqlite(dbPath);
   if (!db) {
-    return updateProvidersViaSqliteCli(dbPath, targetProvider);
+    return updateProvidersViaSqliteCli(
+      dbPath,
+      targetProvider,
+      managedProviders,
+    );
   }
   try {
     db.exec("PRAGMA busy_timeout = 2000");
+    const placeholders = [...managedProviders].map(() => "?").join(", ");
     return db.runUpdate(
-      "UPDATE threads SET model_provider = ? WHERE model_provider <> ?",
+      `UPDATE threads SET model_provider = ? WHERE model_provider <> ? AND model_provider IN (${placeholders})`,
       targetProvider,
       targetProvider,
+      ...managedProviders,
     );
   } finally {
     db.close();
@@ -264,6 +296,7 @@ async function listOpenRolloutPaths(): Promise<Set<string>> {
 
 export async function syncCodexSessionProviders(
   targetProvider: string,
+  managedProviders: Set<string>,
 ): Promise<CodexSessionSyncResult> {
   const openPaths = await listOpenRolloutPaths();
   let rolloutFilesUpdated = 0;
@@ -272,7 +305,13 @@ export async function syncCodexSessionProviders(
     for (const filePath of await listJsonlFiles(root)) {
       if (openPaths.has(filePath)) continue;
       try {
-        if (await rewriteRolloutProvider(filePath, targetProvider)) {
+        if (
+          await rewriteRolloutProvider(
+            filePath,
+            targetProvider,
+            managedProviders,
+          )
+        ) {
           rolloutFilesUpdated += 1;
         }
       } catch {
@@ -283,7 +322,10 @@ export async function syncCodexSessionProviders(
 
   let sqliteRowsUpdated = 0;
   try {
-    sqliteRowsUpdated = await updateSqliteThreadProviders(targetProvider);
+    sqliteRowsUpdated = await updateSqliteThreadProviders(
+      targetProvider,
+      managedProviders,
+    );
   } catch {
     // A busy or missing state DB must not block the switch either.
   }

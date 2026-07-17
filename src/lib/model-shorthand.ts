@@ -5,14 +5,25 @@ const CODEX_SHORTHAND = /^(?:gpt-?)?(\d+(?:\.\d+)*)$/i;
 
 // Effort tiers accepted right after a model shorthand ("--model 4.8 max").
 // Claude gets them via --effort, codex via -c model_reasoning_effort=...;
-// each CLI validates the tiers it actually supports.
-const MODEL_EFFORT_LEVELS = new Set([
-  "minimal",
+// the two CLIs support different tiers, so run.ts validates per provider
+// after parsing (the union below only decides what parses as an effort).
+const CLAUDE_EFFORT_LEVELS = new Set([
   "low",
   "medium",
   "high",
   "xhigh",
   "max",
+]);
+const CODEX_EFFORT_LEVELS = new Set([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
+const MODEL_EFFORT_LEVELS = new Set([
+  ...CLAUDE_EFFORT_LEVELS,
+  ...CODEX_EFFORT_LEVELS,
 ]);
 
 // Codex model ids that differ from the bare gpt-<version> pattern.
@@ -28,6 +39,10 @@ function defaultClaudeSeries(version: string): string {
 
 export function isModelEffort(value: string | undefined): value is string {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
+}
+
+export function providerEffortLevels(provider: ModelProvider): Set<string> {
+  return provider === "claude" ? CLAUDE_EFFORT_LEVELS : CODEX_EFFORT_LEVELS;
 }
 
 export interface ModelWithEffort {
@@ -65,6 +80,9 @@ export function resolveModelShorthand(
   const match = trimmed.match(CODEX_SHORTHAND);
   if (match) {
     const model = `gpt-${match[1]}`;
+    // An explicitly typed gpt-* id is honored verbatim — the alias table only
+    // expands bare version shorthands, so "gpt-5.6" remains requestable.
+    if (/^gpt/i.test(trimmed)) return model;
     return CODEX_MODEL_ALIASES[model] ?? model;
   }
   return trimmed;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, stat, utimes, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { CODEX_DIR } from "../src/lib/paths";
 import { syncCodexSessionProviders } from "../src/providers/codex/sessions";
@@ -10,6 +10,10 @@ import { saveRegistry } from "../src/providers/codex/registry";
 import { use } from "../src/commands/use";
 import { makeJwt, resetTestHome } from "./helpers";
 import type { CodexRegistry } from "../src/types";
+
+// Mirrors managedProviderNames() output for a registry containing an official
+// account plus relay accounts named hybaliez and 1000x.
+const MANAGED = new Set(["openai", "hybaliez", "1000x"]);
 
 function sessionMetaLine(provider: string | null, id = "thread-1"): string {
   const payload: Record<string, unknown> = {
@@ -84,7 +88,7 @@ describe("syncCodexSessionProviders", () => {
       sessionMetaLine("1000x", "t-archived"),
     );
 
-    const result = await syncCodexSessionProviders("openai");
+    const result = await syncCodexSessionProviders("openai", MANAGED);
 
     expect(result.rolloutFilesUpdated).toBe(2);
     const relayLines = (await readFile(relay, "utf-8")).split("\n");
@@ -105,7 +109,7 @@ describe("syncCodexSessionProviders", () => {
       sessionMetaLine(null, "t-missing"),
     );
 
-    const result = await syncCodexSessionProviders("hybaliez");
+    const result = await syncCodexSessionProviders("hybaliez", MANAGED);
 
     expect(result.rolloutFilesUpdated).toBe(1);
     const firstLine = (await readFile(missing, "utf-8")).split("\n")[0];
@@ -122,7 +126,7 @@ describe("syncCodexSessionProviders", () => {
       `{"type":"event_msg","payload":{"model_provider":"hybaliez"}}`,
     );
 
-    const result = await syncCodexSessionProviders("openai");
+    const result = await syncCodexSessionProviders("openai", MANAGED);
 
     expect(result.rolloutFilesUpdated).toBe(0);
     expect(await readFile(malformed, "utf-8")).toContain("not json at all");
@@ -139,7 +143,7 @@ describe("syncCodexSessionProviders", () => {
       ["t-3", "1000x"],
     ]);
 
-    const result = await syncCodexSessionProviders("openai");
+    const result = await syncCodexSessionProviders("openai", MANAGED);
 
     expect(result.sqliteRowsUpdated).toBe(2);
     expect(readProviders()).toEqual([
@@ -155,7 +159,7 @@ describe("syncCodexSessionProviders", () => {
       sessionMetaLine("hybaliez", "t-1"),
     );
 
-    const result = await syncCodexSessionProviders("openai");
+    const result = await syncCodexSessionProviders("openai", MANAGED);
 
     expect(result.rolloutFilesUpdated).toBe(1);
     expect(result.sqliteRowsUpdated).toBe(0);
@@ -168,10 +172,53 @@ describe("syncCodexSessionProviders", () => {
     );
     createStateDb([["t-1", "openai"]]);
 
-    const result = await syncCodexSessionProviders("openai");
+    const result = await syncCodexSessionProviders("openai", MANAGED);
 
     expect(result.rolloutFilesUpdated).toBe(0);
     expect(result.sqliteRowsUpdated).toBe(0);
+  });
+
+  test("leaves sessions of unmanaged providers untouched", async () => {
+    const unmanaged = await writeSession(
+      "sessions/ollama.jsonl",
+      sessionMetaLine("ollama", "t-ollama"),
+    );
+    const managed = await writeSession(
+      "sessions/relay.jsonl",
+      sessionMetaLine("hybaliez", "t-relay"),
+    );
+    createStateDb([
+      ["t-ollama", "ollama"],
+      ["t-relay", "hybaliez"],
+    ]);
+
+    const result = await syncCodexSessionProviders("openai", MANAGED);
+
+    expect(result.rolloutFilesUpdated).toBe(1);
+    expect(result.sqliteRowsUpdated).toBe(1);
+    const unmanagedFirst = (await readFile(unmanaged, "utf-8")).split("\n")[0];
+    expect(JSON.parse(unmanagedFirst).payload.model_provider).toBe("ollama");
+    const managedFirst = (await readFile(managed, "utf-8")).split("\n")[0];
+    expect(JSON.parse(managedFirst).payload.model_provider).toBe("openai");
+    expect(readProviders()).toEqual([
+      { id: "t-ollama", model_provider: "ollama" },
+      { id: "t-relay", model_provider: "openai" },
+    ]);
+  });
+
+  test("preserves rollout timestamps across a rewrite", async () => {
+    const rollout = await writeSession(
+      "sessions/rollout.jsonl",
+      sessionMetaLine("hybaliez", "t-1"),
+    );
+    const past = new Date("2026-06-01T00:00:00Z");
+    await utimes(rollout, past, past);
+
+    const result = await syncCodexSessionProviders("openai", MANAGED);
+
+    expect(result.rolloutFilesUpdated).toBe(1);
+    const after = await stat(rollout);
+    expect(after.mtime.toISOString()).toBe(past.toISOString());
   });
 });
 
@@ -212,6 +259,28 @@ describe("session visibility sync on switch", () => {
           account_name: null,
           plan: "plus",
           auth_mode: "chatgpt",
+          created_at: 1,
+          last_used_at: null,
+          last_usage: null,
+          last_usage_at: null,
+          last_local_rollout: null,
+        },
+        {
+          account_key: "apikey::relay",
+          chatgpt_account_id: "",
+          chatgpt_user_id: "",
+          email: "",
+          alias: "relay",
+          account_name: null,
+          plan: null,
+          auth_mode: "apikey",
+          api_provider: {
+            type: "custom",
+            name: "hybaliez",
+            base_url: "https://relay.example.com/v1",
+            model: "gpt-5.4",
+            env_key: "OPENAI_API_KEY",
+          },
           created_at: 1,
           last_used_at: null,
           last_usage: null,

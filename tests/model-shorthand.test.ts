@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   isModelEffort,
+  providerEffortLevels,
   resolveModelShorthand,
   splitModelEffort,
 } from "../src/lib/model-shorthand";
@@ -41,9 +42,12 @@ describe("resolveModelShorthand", () => {
 
   test("maps aliased codex versions to their full model id", () => {
     expect(resolveModelShorthand("codex", "5.6")).toBe("gpt-5.6-sol");
-    expect(resolveModelShorthand("codex", "gpt-5.6")).toBe("gpt-5.6-sol");
-    expect(resolveModelShorthand("codex", "gpt5.6")).toBe("gpt-5.6-sol");
     expect(resolveModelShorthand("codex", "gpt-5.6-sol")).toBe("gpt-5.6-sol");
+  });
+
+  test("honors an explicitly typed gpt id verbatim", () => {
+    expect(resolveModelShorthand("codex", "gpt-5.6")).toBe("gpt-5.6");
+    expect(resolveModelShorthand("codex", "gpt5.6")).toBe("gpt-5.6");
   });
 
   test("accepts an explicit gpt prefix", () => {
@@ -92,5 +96,14 @@ describe("isModelEffort", () => {
     expect(isModelEffort("minimal")).toBe(true);
     expect(isModelEffort("turbo")).toBe(false);
     expect(isModelEffort(undefined)).toBe(false);
+  });
+});
+
+describe("providerEffortLevels", () => {
+  test("claude and codex support different tiers", () => {
+    expect(providerEffortLevels("claude").has("max")).toBe(true);
+    expect(providerEffortLevels("claude").has("minimal")).toBe(false);
+    expect(providerEffortLevels("codex").has("minimal")).toBe(true);
+    expect(providerEffortLevels("codex").has("max")).toBe(false);
   });
 });
