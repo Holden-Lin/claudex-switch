@@ -9,7 +9,8 @@
 - 统一管理 Claude Code 和 Codex 两套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
 - `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`
-- `claudex-switch <alias> -run --model <model>` 可只对这次会话临时覆盖模型，不修改保存的默认模型；支持缩写，例如 Claude 用 `4.8` / `opus-4.7` / `sonnet-4.6`，Codex 用 `5.5` / `5.4`
+- `claudex-switch <alias> -run --model <model> [effort]` 可只对这次会话临时覆盖模型，不修改保存的默认模型；支持缩写，例如 Claude 用 `4.8` / `opus-4.7` / `5`（5.x 默认 fable 系列 → `claude-fable-5`），Codex 用 `5.5` / `5.6`（`5.6` → `gpt-5.6-sol`）；模型后可紧跟 effort 档位（如 `--model 4.8 max`），Claude 映射为 `--effort`，Codex 映射为 `-c model_reasoning_effort=...`
+- 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
 - `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
@@ -87,9 +88,15 @@ claudex-switch holden
 claudex-switch holden -run
 
 # 只对这次运行临时指定模型，不修改账号保存的默认模型
-# 支持缩写：Claude 默认走 opus 系列 (e.g. 4.8 → claude-opus-4-8)，Codex 走 gpt 系列 (e.g. 5.5 → gpt-5.5)
+# 支持缩写：Claude 4.x 走 opus、5.x 走 fable (4.8 → claude-opus-4-8, 5 → claude-fable-5)
+# Codex 走 gpt 系列 (5.5 → gpt-5.5, 5.6 → gpt-5.6-sol)
 claudex-switch holden -run --model 4.8
-claudex-switch cx -run --model 5.5
+claudex-switch cx -run --model 5.6
+
+# 模型后可紧跟 effort 档位 (minimal/low/medium/high/xhigh/max)
+# Claude 映射为 --effort，Codex 映射为 -c model_reasoning_effort=...
+claudex-switch holden -run --model 4.8 max
+claudex-switch cx -run --model 5.6 xhigh
 
 # 只对这次 Claude 运行临时关闭 attribution header
 claudex-switch holden -run --attribution-header false

@@ -3,7 +3,11 @@ import { spawn, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
 import { use } from "./use";
 import { blank, error, hint, info } from "../lib/ui";
-import { resolveModelShorthand } from "../lib/model-shorthand";
+import {
+  isModelEffort,
+  resolveModelShorthand,
+  splitModelEffort,
+} from "../lib/model-shorthand";
 import {
   getProfileData,
   prepareIsolatedOAuthRun,
@@ -41,6 +45,7 @@ type SpawnCommand = (
 type RunArgumentOptions = {
   forwardedArgs: string[];
   modelOverride?: string;
+  effortOverride?: string;
   headerEnabled?: boolean;
 };
 
@@ -108,10 +113,16 @@ export async function runAliasSession(
     : isolatedClaudeOAuth && profile?.type === "oauth"
       ? profile.defaultModel
       : undefined;
+  const effortArgs = runOptions.effortOverride
+    ? isClaude
+      ? ["--effort", runOptions.effortOverride]
+      : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`]
+    : [];
   const args = [
     ...(isolatedClaudeApi ? ["--bare"] : []),
     ...defaultPermissionArgs,
     ...(resolvedModel ? ["--model", resolvedModel] : []),
+    ...effortArgs,
     ...(settingsNeutralizer ? ["--settings", settingsNeutralizer] : []),
     ...runOptions.forwardedArgs,
   ];
@@ -212,6 +223,7 @@ async function resolveAliasOrExit(aliasOrName: string): Promise<AliasEntry> {
 function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
   const forwardedArgs: string[] = [];
   let modelOverride: string | undefined;
+  let effortOverride: string | undefined;
   let headerEnabled: boolean | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -222,14 +234,23 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
       if (!nextValue) {
         error(`Missing model name after ${arg}.`);
         hint(
-          `Example: ${chalk.cyan("claudex-switch <alias> -run --model 4.8")}`,
+          `Example: ${chalk.cyan("claudex-switch <alias> -run --model 4.8 max")}`,
         );
         blank();
         process.exit(1);
       }
 
-      modelOverride = nextValue;
+      // An effort tier may follow the model, either inside the same value
+      // ("4.8 max") or as the next token (--model 4.8 max).
+      const withEffort = splitModelEffort(nextValue);
+      modelOverride = withEffort.model;
+      effortOverride = withEffort.effort;
       index += 1;
+      const follower = args[index + 1]?.trim();
+      if (!effortOverride && isModelEffort(follower)) {
+        effortOverride = follower.toLowerCase();
+        index += 1;
+      }
       continue;
     }
 
@@ -255,7 +276,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
     forwardedArgs.push(arg);
   }
 
-  return { forwardedArgs, modelOverride, headerEnabled };
+  return { forwardedArgs, modelOverride, effortOverride, headerEnabled };
 }
 
 function buildClaudeOAuthEnvironment(
