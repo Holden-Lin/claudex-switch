@@ -5885,7 +5885,7 @@ async function syncSessionVisibility(account, managedProviders) {
     const result = await syncCodexSessionProviders(targetProvider, managedProviders);
     if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
       info(`Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`);
-      hint("Old sessions are visible again; continuing one started under another provider may still fail on encrypted content.");
+      hint("Sessions from both API and subscription could be /resume now.");
     }
   } catch {}
 }

@@ -1,6 +1,6 @@
 {
   "name": "claudex-switch",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Switch between Claude Code and Codex accounts with ease",
   "type": "module",
   "bin": {

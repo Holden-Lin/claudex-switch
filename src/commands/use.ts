@@ -166,9 +166,7 @@ async function syncSessionVisibility(
       info(
         `Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`,
       );
-      hint(
-        "Old sessions are visible again; continuing one started under another provider may still fail on encrypted content.",
-      );
+      hint("Sessions from both API and subscription could be /resume now.");
     }
   } catch {
     // Session visibility sync is best effort.
