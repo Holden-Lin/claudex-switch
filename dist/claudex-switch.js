@@ -5522,7 +5522,15 @@ init_paths();
 init_fs();
 import { execFile } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
-import { open, readdir as readdir2, rename, rm as rm3, stat, utimes } from "fs/promises";
+import {
+  open,
+  readdir as readdir2,
+  realpath,
+  rename,
+  rm as rm3,
+  stat,
+  utimes
+} from "fs/promises";
 import { join as join5 } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
@@ -5715,22 +5723,39 @@ function parseLsofPaths(stdout) {
   }
   return open2;
 }
-async function scanOpenRolloutPaths() {
-  try {
-    const { stdout } = await execFileAsync("lsof", ["-c", "codex", "-Fn"], {
-      maxBuffer: 16777216
-    });
-    return { ok: true, paths: parseLsofPaths(stdout) };
-  } catch (err) {
-    const e = err;
-    if (e.code === 1) {
-      return {
-        ok: true,
-        paths: parseLsofPaths(typeof e.stdout === "string" ? e.stdout : "")
-      };
+var LSOF_CHUNK_SIZE = 100;
+async function scanOpenFiles(paths) {
+  const byRealPath = new Map;
+  for (const path of paths) {
+    try {
+      byRealPath.set(await realpath(path), path);
+    } catch {
+      byRealPath.set(path, path);
     }
-    return { ok: false };
   }
+  const openReal = new Set;
+  for (let i = 0;i < paths.length; i += LSOF_CHUNK_SIZE) {
+    const chunk = paths.slice(i, i + LSOF_CHUNK_SIZE);
+    try {
+      const { stdout } = await execFileAsync("lsof", ["-Fn", "--", ...chunk], {
+        maxBuffer: 16777216
+      });
+      for (const path of parseLsofPaths(stdout))
+        openReal.add(path);
+    } catch (err) {
+      const e = err;
+      if (e.code !== 1)
+        return { ok: false };
+      const stdout = typeof e.stdout === "string" ? e.stdout : "";
+      for (const path of parseLsofPaths(stdout))
+        openReal.add(path);
+    }
+  }
+  const open2 = new Set;
+  for (const real of openReal) {
+    open2.add(byRealPath.get(real) ?? real);
+  }
+  return { ok: true, paths: open2 };
 }
 async function anyCodexProcessRunning() {
   try {
@@ -5744,22 +5769,33 @@ async function anyCodexProcessRunning() {
   }
 }
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
-  const scan = await scanOpenRolloutPaths();
+  const candidates = [];
+  for (const dirName of SESSION_DIRS) {
+    const root = join5(CODEX_DIR, dirName);
+    for (const filePath of await listJsonlFiles(root)) {
+      try {
+        const first = await readFirstLine(filePath);
+        if (!first)
+          continue;
+        if (rewriteSessionMetaLine(first.line, targetProvider, managedProviders) !== null) {
+          candidates.push(filePath);
+        }
+      } catch {}
+    }
+  }
+  const scan = candidates.length > 0 ? await scanOpenFiles(candidates) : { ok: true, paths: new Set };
   const skipRollouts = !scan.ok && await anyCodexProcessRunning();
   const openPaths = scan.ok ? scan.paths : new Set;
   let rolloutFilesUpdated = 0;
   if (!skipRollouts) {
-    for (const dirName of SESSION_DIRS) {
-      const root = join5(CODEX_DIR, dirName);
-      for (const filePath of await listJsonlFiles(root)) {
-        if (openPaths.has(filePath))
-          continue;
-        try {
-          if (await rewriteRolloutProvider(filePath, targetProvider, managedProviders)) {
-            rolloutFilesUpdated += 1;
-          }
-        } catch {}
-      }
+    for (const filePath of candidates) {
+      if (openPaths.has(filePath))
+        continue;
+      try {
+        if (await rewriteRolloutProvider(filePath, targetProvider, managedProviders)) {
+          rolloutFilesUpdated += 1;
+        }
+      } catch {}
     }
   }
   let sqliteRowsUpdated = 0;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdir, readFile, stat, utimes, writeFile } from "fs/promises";
+import { mkdir, open, readFile, stat, utimes, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { CODEX_DIR } from "../src/lib/paths";
 import { syncCodexSessionProviders } from "../src/providers/codex/sessions";
@@ -226,6 +226,31 @@ describe("syncCodexSessionProviders", () => {
       { id: "t-ollama", model_provider: "ollama" },
       { id: "t-relay", model_provider: "openai" },
     ]);
+  });
+
+  test("skips a rollout another process holds open", async () => {
+    const live = await writeSession(
+      "sessions/live.jsonl",
+      sessionMetaLine("hybaliez", "t-live"),
+    );
+    const idle = await writeSession(
+      "sessions/idle.jsonl",
+      sessionMetaLine("hybaliez", "t-idle"),
+    );
+    // The test process itself keeps the file open; the path-based lsof scan
+    // must flag it regardless of the holder's process name.
+    const handle = await open(live, "r");
+    try {
+      const result = await syncCodexSessionProviders("openai", MANAGED);
+
+      expect(result.rolloutFilesUpdated).toBe(1);
+      const liveFirst = (await readFile(live, "utf-8")).split("\n")[0];
+      expect(JSON.parse(liveFirst).payload.model_provider).toBe("hybaliez");
+      const idleFirst = (await readFile(idle, "utf-8")).split("\n")[0];
+      expect(JSON.parse(idleFirst).payload.model_provider).toBe("openai");
+    } finally {
+      await handle.close();
+    }
   });
 
   test("preserves rollout timestamps across a rewrite", async () => {

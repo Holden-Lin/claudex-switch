@@ -1,6 +1,14 @@
 import { execFile } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
-import { open, readdir, rename, rm, stat, utimes } from "fs/promises";
+import {
+  open,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  utimes,
+} from "fs/promises";
 import { join } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
@@ -296,28 +304,51 @@ function parseLsofPaths(stdout: string): Set<string> {
   return open;
 }
 
-async function scanOpenRolloutPaths(): Promise<OpenRolloutScan> {
-  try {
-    const { stdout } = await execFileAsync("lsof", ["-c", "codex", "-Fn"], {
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    return { ok: true, paths: parseLsofPaths(stdout) };
-  } catch (err) {
-    // lsof exits 1 when nothing matched — a successful "nothing open" scan
-    // (it may still have printed paths for the lookups that did succeed).
-    // Anything else (ENOENT, EPERM) means we could not determine what a
-    // running codex holds open.
-    const e = err as { code?: unknown; stdout?: unknown };
-    if (e.code === 1) {
-      return {
-        ok: true,
-        paths: parseLsofPaths(typeof e.stdout === "string" ? e.stdout : ""),
-      };
+const LSOF_CHUNK_SIZE = 100;
+
+// Which of these files does ANY process hold open? Checking by path (rather
+// than lsof -c <name>) also catches codex launched through a node/bun wrapper
+// whose process command doesn't start with "codex". lsof reports resolved
+// paths (/tmp -> /private/tmp), so results are mapped back through realpath.
+async function scanOpenFiles(paths: string[]): Promise<OpenRolloutScan> {
+  const byRealPath = new Map<string, string>();
+  for (const path of paths) {
+    try {
+      byRealPath.set(await realpath(path), path);
+    } catch {
+      byRealPath.set(path, path);
     }
-    return { ok: false };
   }
+
+  const openReal = new Set<string>();
+  for (let i = 0; i < paths.length; i += LSOF_CHUNK_SIZE) {
+    const chunk = paths.slice(i, i + LSOF_CHUNK_SIZE);
+    try {
+      const { stdout } = await execFileAsync("lsof", ["-Fn", "--", ...chunk], {
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      for (const path of parseLsofPaths(stdout)) openReal.add(path);
+    } catch (err) {
+      // lsof exits 1 when none of the listed files are open — a successful
+      // empty scan (partial matches are still printed on stdout). Anything
+      // else (ENOENT, EPERM) means we could not determine what is open.
+      const e = err as { code?: unknown; stdout?: unknown };
+      if (e.code !== 1) return { ok: false };
+      const stdout = typeof e.stdout === "string" ? e.stdout : "";
+      for (const path of parseLsofPaths(stdout)) openReal.add(path);
+    }
+  }
+
+  const open = new Set<string>();
+  for (const real of openReal) {
+    open.add(byRealPath.get(real) ?? real);
+  }
+  return { ok: true, paths: open };
 }
 
+// Last resort when lsof is unavailable: only proceed if no codex process is
+// running at all. This can miss wrapper-launched codex (process named node/
+// bun), but only on systems that also lack lsof.
 async function anyCodexProcessRunning(): Promise<boolean> {
   try {
     await execFileAsync("pgrep", ["-x", "codex"]);
@@ -334,7 +365,30 @@ export async function syncCodexSessionProviders(
   targetProvider: string,
   managedProviders: Set<string>,
 ): Promise<CodexSessionSyncResult> {
-  const scan = await scanOpenRolloutPaths();
+  // Collect the rollouts that actually need a restamp before touching any.
+  const candidates: string[] = [];
+  for (const dirName of SESSION_DIRS) {
+    const root = join(CODEX_DIR, dirName);
+    for (const filePath of await listJsonlFiles(root)) {
+      try {
+        const first = await readFirstLine(filePath);
+        if (!first) continue;
+        if (
+          rewriteSessionMetaLine(first.line, targetProvider, managedProviders) !==
+          null
+        ) {
+          candidates.push(filePath);
+        }
+      } catch {
+        // An unreadable rollout must not block the switch.
+      }
+    }
+  }
+
+  const scan =
+    candidates.length > 0
+      ? await scanOpenFiles(candidates)
+      : { ok: true as const, paths: new Set<string>() };
   // When open-file detection failed (lsof missing/forbidden), rewriting could
   // hit a live session's rollout; only proceed if no codex process is running.
   const skipRollouts = !scan.ok && (await anyCodexProcessRunning());
@@ -342,23 +396,20 @@ export async function syncCodexSessionProviders(
 
   let rolloutFilesUpdated = 0;
   if (!skipRollouts) {
-    for (const dirName of SESSION_DIRS) {
-      const root = join(CODEX_DIR, dirName);
-      for (const filePath of await listJsonlFiles(root)) {
-        if (openPaths.has(filePath)) continue;
-        try {
-          if (
-            await rewriteRolloutProvider(
-              filePath,
-              targetProvider,
-              managedProviders,
-            )
-          ) {
-            rolloutFilesUpdated += 1;
-          }
-        } catch {
-          // A locked or unreadable rollout must not block the switch.
+    for (const filePath of candidates) {
+      if (openPaths.has(filePath)) continue;
+      try {
+        if (
+          await rewriteRolloutProvider(
+            filePath,
+            targetProvider,
+            managedProviders,
+          )
+        ) {
+          rolloutFilesUpdated += 1;
         }
+      } catch {
+        // A locked rollout must not block the switch.
       }
     }
   }
