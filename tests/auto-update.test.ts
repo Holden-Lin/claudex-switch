@@ -41,11 +41,11 @@ describe("auto update", () => {
   });
 
   test("reports when an update is available", async () => {
-    const result = await getVersionCheck(async () => "1.2.0");
+    const result = await getVersionCheck(async () => "9.9.9");
 
     expect(result).toEqual({
       currentVersion: packageJson.version,
-      latestVersion: "1.2.0",
+      latestVersion: "9.9.9",
       status: "outdated",
     });
   });
