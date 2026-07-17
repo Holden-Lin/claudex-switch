@@ -5760,7 +5760,7 @@ async function scanOpenFiles(paths) {
 }
 async function anyCodexProcessRunning() {
   try {
-    await execFileAsync("pgrep", ["-x", "codex"]);
+    await execFileAsync("pgrep", ["-f", "codex"]);
     return true;
   } catch (err) {
     const e = err;
@@ -5900,7 +5900,8 @@ var CLAUDE_EFFORT_LEVELS = new Set([
   "medium",
   "high",
   "xhigh",
-  "max"
+  "max",
+  "ultracode"
 ]);
 var CODEX_EFFORT_LEVELS = new Set([
   "minimal",

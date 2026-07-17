@@ -102,8 +102,10 @@ describe("isModelEffort", () => {
 describe("providerEffortLevels", () => {
   test("claude and codex support different tiers", () => {
     expect(providerEffortLevels("claude").has("max")).toBe(true);
+    expect(providerEffortLevels("claude").has("ultracode")).toBe(true);
     expect(providerEffortLevels("claude").has("minimal")).toBe(false);
     expect(providerEffortLevels("codex").has("minimal")).toBe(true);
     expect(providerEffortLevels("codex").has("max")).toBe(false);
+    expect(providerEffortLevels("codex").has("ultracode")).toBe(false);
   });
 });

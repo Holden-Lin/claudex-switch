@@ -13,6 +13,7 @@ const CLAUDE_EFFORT_LEVELS = new Set([
   "high",
   "xhigh",
   "max",
+  "ultracode",
 ]);
 const CODEX_EFFORT_LEVELS = new Set([
   "minimal",

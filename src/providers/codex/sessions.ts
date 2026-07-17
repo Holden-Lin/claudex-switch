@@ -353,16 +353,17 @@ async function scanOpenFiles(paths: string[]): Promise<OpenRolloutScan> {
 }
 
 // Last resort when lsof is unavailable: only proceed if no codex process is
-// running at all. This can miss wrapper-launched codex (process named node/
-// bun), but only on systems that also lack lsof.
+// running at all. -f matches the full command line, so wrapper-launched codex
+// (process named node/bun invoking .../codex) is caught too; a false positive
+// (some unrelated command line mentioning codex) merely skips the sync, which
+// is the safe direction. If pgrep is unavailable as well, fail closed.
 async function anyCodexProcessRunning(): Promise<boolean> {
   try {
-    await execFileAsync("pgrep", ["-x", "codex"]);
+    await execFileAsync("pgrep", ["-f", "codex"]);
     return true;
   } catch (err) {
     const e = err as { code?: unknown };
     if (e.code === 1) return false;
-    // pgrep unavailable too — assume a codex process might be running.
     return true;
   }
 }
