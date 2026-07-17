@@ -17,9 +17,13 @@ import {
   error,
   formatProvider,
   formatType,
+  hint,
   success,
 } from "../lib/ui";
-import { resolveModelShorthand } from "../lib/model-shorthand";
+import {
+  resolveModelShorthand,
+  splitModelEffort,
+} from "../lib/model-shorthand";
 
 export async function model(
   aliasOrName: string,
@@ -42,9 +46,19 @@ export async function model(
     process.exit(1);
   }
 
+  const { model: modelPart, effort } = splitModelEffort(defaultModel);
+  if (effort) {
+    error("Effort levels aren't stored with the default model.");
+    hint(
+      `Use ${chalk.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`,
+    );
+    blank();
+    process.exit(1);
+  }
+
   const normalizedModel = resolveModelShorthand(
     entry.target.provider,
-    defaultModel,
+    modelPart,
   );
 
   if (entry.target.provider === "claude") {

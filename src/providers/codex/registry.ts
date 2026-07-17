@@ -138,3 +138,32 @@ export function setActiveAccount(
     account.last_used_at = Math.floor(Date.now() / 1000);
   }
 }
+
+// The codex model_provider name an account runs under once activated: the
+// named custom provider for relay accounts, the built-in "openai" otherwise.
+// Single source for both the config writer and the session-visibility stamp.
+export function codexAccountProviderName(
+  account: CodexRegistryAccount,
+): string | null {
+  if (
+    account.auth_mode === "apikey" &&
+    account.api_provider?.type === "custom"
+  ) {
+    return account.api_provider.name || null;
+  }
+  return "openai";
+}
+
+// Every provider name claudex-switch manages, lowercased. Session sync must
+// only restamp sessions belonging to these; providers configured outside
+// claudex-switch (e.g. a hand-added ollama entry) keep their metadata
+// untouched. Membership checks are case-insensitive so historical casing
+// variants ("OpenAI") still count as managed and get normalized.
+export function managedProviderNames(reg: CodexRegistry): Set<string> {
+  const names = new Set<string>(["openai"]);
+  for (const account of reg.accounts) {
+    const name = codexAccountProviderName(account);
+    if (name) names.add(name.toLowerCase());
+  }
+  return names;
+}

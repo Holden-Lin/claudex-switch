@@ -8,9 +8,12 @@ import {
   saveRegistry,
   setActiveAccount,
   findAccountByKey,
+  codexAccountProviderName,
+  managedProviderNames,
 } from "../providers/codex/registry";
 import { readAccountAuth, switchToAccount } from "../providers/codex/auth";
 import { applyCodexApiProvider } from "../providers/codex/config";
+import { syncCodexSessionProviders } from "../providers/codex/sessions";
 import {
   blank,
   success,
@@ -20,8 +23,9 @@ import {
   formatPlan,
   maskKey,
   formatProvider,
+  info,
 } from "../lib/ui";
-import type { AliasEntry } from "../types";
+import type { AliasEntry, CodexRegistryAccount } from "../types";
 
 export async function use(aliasOrName: string): Promise<AliasEntry> {
   blank();
@@ -118,6 +122,8 @@ async function switchCodex(
     await saveRegistry(reg);
   }
 
+  await syncSessionVisibility(account, managedProviderNames(reg));
+
   const plan = formatPlan(
     account.plan ?? account.last_usage?.plan_type ?? null,
   );
@@ -138,4 +144,33 @@ async function switchCodex(
     }
   }
   blank();
+}
+
+// Codex only lists sessions whose stored model_provider matches the active
+// one, so a provider-changing switch (official <-> relay) would hide history.
+// Re-stamp the visibility metadata to the new provider. Best effort: a locked
+// file or busy DB must never fail the switch itself.
+async function syncSessionVisibility(
+  account: CodexRegistryAccount,
+  managedProviders: Set<string>,
+): Promise<void> {
+  const targetProvider = codexAccountProviderName(account);
+  if (!targetProvider) return;
+
+  try {
+    const result = await syncCodexSessionProviders(
+      targetProvider,
+      managedProviders,
+    );
+    if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
+      info(
+        `Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`,
+      );
+      hint(
+        "Old sessions are visible again; continuing one started under another provider may still fail on encrypted content.",
+      );
+    }
+  } catch {
+    // Session visibility sync is best effort.
+  }
 }

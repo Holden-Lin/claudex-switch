@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { resolveModelShorthand } from "../src/lib/model-shorthand";
+import {
+  isModelEffort,
+  providerEffortLevels,
+  resolveModelShorthand,
+  splitModelEffort,
+} from "../src/lib/model-shorthand";
 
 describe("resolveModelShorthand", () => {
   test("expands a bare claude version into the opus series", () => {
@@ -22,10 +27,27 @@ describe("resolveModelShorthand", () => {
     expect(resolveModelShorthand("claude", "opus4.8")).toBe("claude-opus-4-8");
   });
 
+  test("expands a bare claude 5.x version into the fable series", () => {
+    expect(resolveModelShorthand("claude", "5")).toBe("claude-fable-5");
+    expect(resolveModelShorthand("claude", "5.1")).toBe("claude-fable-5-1");
+    expect(resolveModelShorthand("claude", "fable5")).toBe("claude-fable-5");
+    expect(resolveModelShorthand("claude", "opus-5")).toBe("claude-opus-5");
+  });
+
   test("expands a bare codex version into the gpt series", () => {
     expect(resolveModelShorthand("codex", "5.5")).toBe("gpt-5.5");
     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4");
     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5");
+  });
+
+  test("maps aliased codex versions to their full model id", () => {
+    expect(resolveModelShorthand("codex", "5.6")).toBe("gpt-5.6-sol");
+    expect(resolveModelShorthand("codex", "gpt-5.6-sol")).toBe("gpt-5.6-sol");
+  });
+
+  test("honors an explicitly typed gpt id verbatim", () => {
+    expect(resolveModelShorthand("codex", "gpt-5.6")).toBe("gpt-5.6");
+    expect(resolveModelShorthand("codex", "gpt5.6")).toBe("gpt-5.6");
   });
 
   test("accepts an explicit gpt prefix", () => {
@@ -46,5 +68,44 @@ describe("resolveModelShorthand", () => {
       "claude-opus-4-8",
     );
     expect(resolveModelShorthand("codex", "")).toBe("");
+  });
+});
+
+describe("splitModelEffort", () => {
+  test("splits a trailing effort tier off the model", () => {
+    expect(splitModelEffort("4.8 max")).toEqual({
+      model: "4.8",
+      effort: "max",
+    });
+    expect(splitModelEffort("5.6 XHigh")).toEqual({
+      model: "5.6",
+      effort: "xhigh",
+    });
+  });
+
+  test("leaves non-effort suffixes untouched", () => {
+    expect(splitModelEffort("4.8")).toEqual({ model: "4.8" });
+    expect(splitModelEffort("gpt-5 turbo")).toEqual({ model: "gpt-5 turbo" });
+  });
+});
+
+describe("isModelEffort", () => {
+  test("recognizes effort tiers case-insensitively", () => {
+    expect(isModelEffort("max")).toBe(true);
+    expect(isModelEffort("XHIGH")).toBe(true);
+    expect(isModelEffort("minimal")).toBe(true);
+    expect(isModelEffort("turbo")).toBe(false);
+    expect(isModelEffort(undefined)).toBe(false);
+  });
+});
+
+describe("providerEffortLevels", () => {
+  test("claude and codex support different tiers", () => {
+    expect(providerEffortLevels("claude").has("max")).toBe(true);
+    expect(providerEffortLevels("claude").has("ultracode")).toBe(true);
+    expect(providerEffortLevels("claude").has("minimal")).toBe(false);
+    expect(providerEffortLevels("codex").has("minimal")).toBe(true);
+    expect(providerEffortLevels("codex").has("max")).toBe(false);
+    expect(providerEffortLevels("codex").has("ultracode")).toBe(false);
   });
 });

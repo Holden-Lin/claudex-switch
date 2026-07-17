@@ -9,7 +9,8 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
-- `claudex-switch <alias> -run --model <model>` overrides the model for this run only without changing the saved default; shorthand is supported — Claude defaults to the opus series (e.g. `4.8` → `claude-opus-4-8`, or explicit `sonnet-4.6` / `haiku-4.5`), Codex maps to gpt (e.g. `5.5` → `gpt-5.5`)
+- `claudex-switch <alias> -run --model <model> [effort]` overrides the model for this run only without changing the saved default; shorthand is supported — Claude 4.x maps to opus, 5.x to fable (`4.8` → `claude-opus-4-8`, `5` → `claude-fable-5`), Codex maps to gpt (`5.5` → `gpt-5.5`, `5.6` → `gpt-5.6-sol`); an effort tier may follow the model (e.g. `--model 4.8 max`), mapped to `--effort` for Claude and `-c model_reasoning_effort=...` for Codex
+- Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
 - `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
@@ -86,9 +87,16 @@ claudex-switch holden
 # Switch and start a session; Claude Code defaults to auto permission mode
 claudex-switch holden -run
 
-# Override the model for this run only (shorthand: Claude → opus series, Codex → gpt series)
+# Override the model for this run only
+# Shorthand: Claude 4.x → opus, 5.x → fable (4.8 → claude-opus-4-8, 5 → claude-fable-5)
+# Codex → gpt series (5.5 → gpt-5.5, 5.6 → gpt-5.6-sol)
 claudex-switch holden -run --model 4.8
-claudex-switch cx -run --model 5.5
+claudex-switch cx -run --model 5.6
+
+# An effort tier (minimal/low/medium/high/xhigh/max) may follow the model
+# Mapped to --effort for Claude, -c model_reasoning_effort=... for Codex
+claudex-switch holden -run --model 4.8 max
+claudex-switch cx -run --model 5.6 xhigh
 
 # Disable the attribution header for this Claude run only
 claudex-switch holden -run --attribution-header false

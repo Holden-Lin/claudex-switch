@@ -3636,7 +3636,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename, dirname as dirname3, join as join5, resolve } from "path";
+import { basename, dirname as dirname3, join as join6, resolve } from "path";
 
 // src/alias/store.ts
 init_paths();
@@ -4945,6 +4945,21 @@ function setActiveAccount(reg, accountKey) {
     account.last_used_at = Math.floor(Date.now() / 1000);
   }
 }
+function codexAccountProviderName(account) {
+  if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
+    return account.api_provider.name || null;
+  }
+  return "openai";
+}
+function managedProviderNames(reg) {
+  const names = new Set(["openai"]);
+  for (const account of reg.accounts) {
+    const name = codexAccountProviderName(account);
+    if (name)
+      names.add(name.toLowerCase());
+  }
+  return names;
+}
 
 // src/commands/add.ts
 import { spawn as spawn2, spawnSync as spawnSync3 } from "child_process";
@@ -5501,6 +5516,298 @@ async function promptCodexApiProvider() {
 // src/commands/use.ts
 init_paths();
 init_auth();
+
+// src/providers/codex/sessions.ts
+init_paths();
+init_fs();
+import { execFile } from "child_process";
+import { createReadStream, createWriteStream } from "fs";
+import {
+  open,
+  readdir as readdir2,
+  realpath,
+  rename,
+  rm as rm3,
+  stat,
+  utimes
+} from "fs/promises";
+import { join as join5 } from "path";
+import { pipeline } from "stream/promises";
+import { promisify } from "util";
+var SESSION_DIRS = ["sessions", "archived_sessions"];
+var STATE_DB_CANDIDATES = [
+  join5("sqlite", "state_5.sqlite"),
+  "state_5.sqlite"
+];
+var FIRST_LINE_MAX_BYTES = 4 * 1024 * 1024;
+var READ_CHUNK_BYTES = 64 * 1024;
+async function listJsonlFiles(root) {
+  const results = [];
+  const stack = [root];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = await readdir2(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const fullPath = join5(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+        results.push(fullPath);
+      }
+    }
+  }
+  return results;
+}
+async function readFirstLine(filePath) {
+  const handle = await open(filePath, "r");
+  try {
+    const chunks = [];
+    let total = 0;
+    while (total < FIRST_LINE_MAX_BYTES) {
+      const chunk = Buffer.alloc(READ_CHUNK_BYTES);
+      const { bytesRead } = await handle.read(chunk, 0, READ_CHUNK_BYTES, total);
+      if (bytesRead === 0)
+        break;
+      const part = chunk.subarray(0, bytesRead);
+      const idx = part.indexOf(10);
+      chunks.push(part);
+      if (idx !== -1) {
+        const buffer = Buffer.concat(chunks);
+        const newlineIndex = total + idx;
+        const hasCr = newlineIndex > 0 && buffer[newlineIndex - 1] === 13;
+        const lineEnd = hasCr ? newlineIndex - 1 : newlineIndex;
+        return {
+          line: buffer.subarray(0, lineEnd).toString("utf-8"),
+          restOffset: newlineIndex + 1,
+          separator: hasCr ? `\r
+` : `
+`
+        };
+      }
+      total += bytesRead;
+    }
+    if (total === 0)
+      return null;
+    if (total >= FIRST_LINE_MAX_BYTES)
+      return null;
+    return {
+      line: Buffer.concat(chunks).toString("utf-8"),
+      restOffset: total,
+      separator: ""
+    };
+  } finally {
+    await handle.close();
+  }
+}
+function rewriteSessionMetaLine(line, targetProvider, managedProviders) {
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  const record = parsed;
+  if (record?.type !== "session_meta" || typeof record.payload !== "object" || record.payload === null) {
+    return null;
+  }
+  const current = record.payload.model_provider;
+  if (current === targetProvider)
+    return null;
+  if (typeof current === "string" && current !== "" && !managedProviders.has(current.toLowerCase())) {
+    return null;
+  }
+  record.payload.model_provider = targetProvider;
+  return JSON.stringify(record);
+}
+async function rewriteRolloutProvider(filePath, targetProvider, managedProviders) {
+  const first = await readFirstLine(filePath);
+  if (!first)
+    return false;
+  const updatedLine = rewriteSessionMetaLine(first.line, targetProvider, managedProviders);
+  if (updatedLine === null)
+    return false;
+  const { mode, size, atime, mtime } = await stat(filePath);
+  const tmpPath = `${filePath}.claudex-sync.${process.pid}.tmp`;
+  try {
+    const out = createWriteStream(tmpPath, { mode });
+    await new Promise((resolve, reject) => {
+      out.write(updatedLine + first.separator, (err) => err ? reject(err) : resolve());
+    });
+    if (first.restOffset < size) {
+      await pipeline(createReadStream(filePath, { start: first.restOffset }), out);
+    } else {
+      await new Promise((resolve, reject) => {
+        out.end((err) => err ? reject(err) : resolve());
+      });
+    }
+    await rename(tmpPath, filePath);
+    await utimes(filePath, atime, mtime).catch(() => {});
+    return true;
+  } catch (err) {
+    await rm3(tmpPath, { force: true }).catch(() => {});
+    throw err;
+  }
+}
+async function openSqlite(dbPath) {
+  try {
+    const mod = await import(["bun", "sqlite"].join(":"));
+    const db = new mod.Database(dbPath);
+    return {
+      exec: (sql) => db.exec(sql),
+      runUpdate: (sql, ...params) => Number(db.prepare(sql).run(...params).changes ?? 0),
+      close: () => db.close()
+    };
+  } catch {}
+  try {
+    const mod = await import(["node", "sqlite"].join(":"));
+    const db = new mod.DatabaseSync(dbPath);
+    return {
+      exec: (sql) => db.exec(sql),
+      runUpdate: (sql, ...params) => Number(db.prepare(sql).run(...params).changes ?? 0),
+      close: () => db.close()
+    };
+  } catch {
+    return null;
+  }
+}
+var execFileAsync = promisify(execFile);
+function sqlQuote(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProviders) {
+  const target = sqlQuote(targetProvider);
+  const managed = [...managedProviders].map((name) => sqlQuote(name.toLowerCase())).join(", ");
+  const { stdout } = await execFileAsync("sqlite3", [
+    "-cmd",
+    ".timeout 2000",
+    dbPath,
+    `UPDATE threads SET model_provider = ${target} WHERE COALESCE(model_provider, '') <> ${target} AND (lower(model_provider) IN (${managed}) OR COALESCE(model_provider, '') = ''); SELECT changes();`
+  ]);
+  return Number(stdout.trim()) || 0;
+}
+async function updateSqliteThreadProviders(targetProvider, managedProviders) {
+  let dbPath = null;
+  for (const candidate of STATE_DB_CANDIDATES) {
+    const fullPath = join5(CODEX_DIR, candidate);
+    if (await fileExists(fullPath)) {
+      dbPath = fullPath;
+      break;
+    }
+  }
+  if (!dbPath)
+    return 0;
+  const db = await openSqlite(dbPath);
+  if (!db) {
+    return updateProvidersViaSqliteCli(dbPath, targetProvider, managedProviders);
+  }
+  try {
+    db.exec("PRAGMA busy_timeout = 2000");
+    const managed = [...managedProviders].map((name) => name.toLowerCase());
+    const placeholders = managed.map(() => "?").join(", ");
+    return db.runUpdate(`UPDATE threads SET model_provider = ? WHERE COALESCE(model_provider, '') <> ? AND (lower(model_provider) IN (${placeholders}) OR COALESCE(model_provider, '') = '')`, targetProvider, targetProvider, ...managed);
+  } finally {
+    db.close();
+  }
+}
+function parseLsofPaths(stdout) {
+  const open2 = new Set;
+  for (const line of stdout.split(`
+`)) {
+    if (line.startsWith("n") && line.endsWith(".jsonl")) {
+      open2.add(line.slice(1));
+    }
+  }
+  return open2;
+}
+var LSOF_CHUNK_SIZE = 100;
+async function scanOpenFiles(paths) {
+  const byRealPath = new Map;
+  for (const path of paths) {
+    try {
+      byRealPath.set(await realpath(path), path);
+    } catch {
+      byRealPath.set(path, path);
+    }
+  }
+  const openReal = new Set;
+  for (let i = 0;i < paths.length; i += LSOF_CHUNK_SIZE) {
+    const chunk = paths.slice(i, i + LSOF_CHUNK_SIZE);
+    try {
+      const { stdout, stderr } = await execFileAsync("lsof", ["-w", "-Fn", "--", ...chunk], { maxBuffer: 16777216 });
+      if (stderr.trim())
+        return { ok: false };
+      for (const path of parseLsofPaths(stdout))
+        openReal.add(path);
+    } catch (err) {
+      const e = err;
+      const stderrText = typeof e.stderr === "string" ? e.stderr : "";
+      if (e.code !== 1 || stderrText.trim())
+        return { ok: false };
+      const stdout = typeof e.stdout === "string" ? e.stdout : "";
+      for (const path of parseLsofPaths(stdout))
+        openReal.add(path);
+    }
+  }
+  const open2 = new Set;
+  for (const real of openReal) {
+    open2.add(byRealPath.get(real) ?? real);
+  }
+  return { ok: true, paths: open2 };
+}
+async function anyCodexProcessRunning() {
+  try {
+    await execFileAsync("pgrep", ["-f", "codex"]);
+    return true;
+  } catch (err) {
+    const e = err;
+    if (e.code === 1)
+      return false;
+    return true;
+  }
+}
+async function syncCodexSessionProviders(targetProvider, managedProviders) {
+  const candidates = [];
+  for (const dirName of SESSION_DIRS) {
+    const root = join5(CODEX_DIR, dirName);
+    for (const filePath of await listJsonlFiles(root)) {
+      try {
+        const first = await readFirstLine(filePath);
+        if (!first)
+          continue;
+        if (rewriteSessionMetaLine(first.line, targetProvider, managedProviders) !== null) {
+          candidates.push(filePath);
+        }
+      } catch {}
+    }
+  }
+  const scan = candidates.length > 0 ? await scanOpenFiles(candidates) : { ok: true, paths: new Set };
+  const skipRollouts = !scan.ok && await anyCodexProcessRunning();
+  const openPaths = scan.ok ? scan.paths : new Set;
+  let rolloutFilesUpdated = 0;
+  if (!skipRollouts) {
+    for (const filePath of candidates) {
+      if (openPaths.has(filePath))
+        continue;
+      try {
+        if (await rewriteRolloutProvider(filePath, targetProvider, managedProviders)) {
+          rolloutFilesUpdated += 1;
+        }
+      } catch {}
+    }
+  }
+  let sqliteRowsUpdated = 0;
+  try {
+    sqliteRowsUpdated = await updateSqliteThreadProviders(targetProvider, managedProviders);
+  } catch {}
+  return { rolloutFilesUpdated, sqliteRowsUpdated };
+}
+
+// src/commands/use.ts
 async function use(aliasOrName) {
   blank();
   const aliasReg = await loadAliases();
@@ -5558,6 +5865,7 @@ async function switchCodex(alias, accountKey) {
     setActiveAccount(reg, accountKey);
     await saveRegistry(reg);
   }
+  await syncSessionVisibility(account, managedProviderNames(reg));
   const plan = formatPlan(account.plan ?? account.last_usage?.plan_type ?? null);
   const email = account.email ? source_default.dim(account.email) : "";
   success(`Switched to ${source_default.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
@@ -5569,6 +5877,18 @@ async function switchCodex(alias, accountKey) {
   }
   blank();
 }
+async function syncSessionVisibility(account, managedProviders) {
+  const targetProvider = codexAccountProviderName(account);
+  if (!targetProvider)
+    return;
+  try {
+    const result = await syncCodexSessionProviders(targetProvider, managedProviders);
+    if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
+      info(`Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`);
+      hint("Old sessions are visible again; continuing one started under another provider may still fail on encrypted content.");
+    }
+  } catch {}
+}
 
 // src/commands/run.ts
 import { spawn as spawn3 } from "child_process";
@@ -5576,6 +5896,45 @@ import { spawn as spawn3 } from "child_process";
 // src/lib/model-shorthand.ts
 var CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
 var CODEX_SHORTHAND = /^(?:gpt-?)?(\d+(?:\.\d+)*)$/i;
+var CLAUDE_EFFORT_LEVELS = new Set([
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultracode"
+]);
+var CODEX_EFFORT_LEVELS = new Set([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+]);
+var MODEL_EFFORT_LEVELS = new Set([
+  ...CLAUDE_EFFORT_LEVELS,
+  ...CODEX_EFFORT_LEVELS
+]);
+var CODEX_MODEL_ALIASES = {
+  "gpt-5.6": "gpt-5.6-sol"
+};
+function defaultClaudeSeries(version) {
+  const major = Number.parseInt(version, 10);
+  return major >= 5 ? "fable" : "opus";
+}
+function isModelEffort(value) {
+  return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
+}
+function providerEffortLevels(provider) {
+  return provider === "claude" ? CLAUDE_EFFORT_LEVELS : CODEX_EFFORT_LEVELS;
+}
+function splitModelEffort(input) {
+  const parts = input.trim().split(/\s+/);
+  if (parts.length === 2 && isModelEffort(parts[1])) {
+    return { model: parts[0], effort: parts[1].toLowerCase() };
+  }
+  return { model: input.trim() };
+}
 function resolveModelShorthand(provider, input) {
   const trimmed = input.trim();
   if (!trimmed)
@@ -5583,7 +5942,7 @@ function resolveModelShorthand(provider, input) {
   if (provider === "claude") {
     const match2 = trimmed.match(CLAUDE_SHORTHAND);
     if (match2) {
-      const series = (match2[1] ?? "opus").toLowerCase();
+      const series = (match2[1] ?? defaultClaudeSeries(match2[2])).toLowerCase();
       const version = match2[2].replace(/\./g, "-");
       return `claude-${series}-${version}`;
     }
@@ -5591,7 +5950,10 @@ function resolveModelShorthand(provider, input) {
   }
   const match = trimmed.match(CODEX_SHORTHAND);
   if (match) {
-    return `gpt-${match[1]}`;
+    const model = `gpt-${match[1]}`;
+    if (/^gpt/i.test(trimmed))
+      return model;
+    return CODEX_MODEL_ALIASES[model] ?? model;
   }
   return trimmed;
 }
@@ -5608,6 +5970,15 @@ function isRunFlag(value) {
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn3) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
+  if (runOptions.effortOverride) {
+    const valid = providerEffortLevels(entry.target.provider);
+    if (!valid.has(runOptions.effortOverride)) {
+      error(`${entry.target.provider === "claude" ? "Claude" : "Codex"} doesn't support effort "${runOptions.effortOverride}".`);
+      hint(`Valid tiers: ${[...valid].join(", ")}`);
+      blank();
+      process.exit(1);
+    }
+  }
   const claudeProfileName = entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;
   const profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
@@ -5640,10 +6011,12 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   const command = isClaude ? "claude" : "codex";
   const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
   const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : isolatedClaudeOAuth && profile?.type === "oauth" ? profile.defaultModel : undefined;
+  const effortArgs = runOptions.effortOverride ? isClaude ? ["--effort", runOptions.effortOverride] : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`] : [];
   const args = [
     ...isolatedClaudeApi ? ["--bare"] : [],
     ...defaultPermissionArgs,
     ...resolvedModel ? ["--model", resolvedModel] : [],
+    ...effortArgs,
     ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
     ...runOptions.forwardedArgs
   ];
@@ -5708,6 +6081,7 @@ async function resolveAliasOrExit(aliasOrName) {
 function parseRunArgumentOptions(args) {
   const forwardedArgs = [];
   let modelOverride;
+  let effortOverride;
   let headerEnabled;
   for (let index = 0;index < args.length; index += 1) {
     const arg = args[index];
@@ -5715,12 +6089,19 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim();
       if (!nextValue) {
         error(`Missing model name after ${arg}.`);
-        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --model 4.8")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --model 4.8 max")}`);
         blank();
         process.exit(1);
       }
-      modelOverride = nextValue;
+      const withEffort = splitModelEffort(nextValue);
+      modelOverride = withEffort.model;
+      effortOverride = withEffort.effort;
       index += 1;
+      const follower = args[index + 1]?.trim();
+      if (!effortOverride && isModelEffort(follower)) {
+        effortOverride = follower.toLowerCase();
+        index += 1;
+      }
       continue;
     }
     if (HEADER_FLAGS.has(arg)) {
@@ -5737,7 +6118,7 @@ function parseRunArgumentOptions(args) {
     }
     forwardedArgs.push(arg);
   }
-  return { forwardedArgs, modelOverride, headerEnabled };
+  return { forwardedArgs, modelOverride, effortOverride, headerEnabled };
 }
 function buildClaudeOAuthEnvironment(secureStorageDir, configDir) {
   if (!secureStorageDir && !configDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
@@ -5937,7 +6318,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename(currentAlias, nextAlias) {
+async function rename2(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -6058,7 +6439,7 @@ async function current() {
 // src/commands/import.ts
 init_paths();
 init_fs();
-import { readdir as readdir2 } from "fs/promises";
+import { readdir as readdir3 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -6089,7 +6470,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir2(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir3(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory())
       continue;
@@ -6368,7 +6749,14 @@ async function model(aliasOrName, defaultModel) {
     blank();
     process.exit(1);
   }
-  const normalizedModel = resolveModelShorthand(entry.target.provider, defaultModel);
+  const { model: modelPart, effort } = splitModelEffort(defaultModel);
+  if (effort) {
+    error("Effort levels aren't stored with the default model.");
+    hint(`Use ${source_default.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
+    blank();
+    process.exit(1);
+  }
+  const normalizedModel = resolveModelShorthand(entry.target.provider, modelPart);
   if (entry.target.provider === "claude") {
     const profile = await updateProfileDefaultModel(entry.target.profileName, normalizedModel);
     blank();
@@ -6718,12 +7106,12 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model>] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok, e.g. 4.8, opus-4.7, 5.5)
+    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 4.8 -> claude-opus-4-8, 5 -> claude-fable-5, 5.6 -> gpt-5.6-sol)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
@@ -6759,7 +7147,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join5(root, "package.json");
+  const packageFile = join6(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
@@ -6847,7 +7235,7 @@ async function main() {
       case "use":
         if (!args[0]) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run [--model <model>] [--attribution-header <true|false>] [args...]]
+  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [args...]]
 `));
           process.exit(1);
         }
@@ -6878,7 +7266,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await model(args[0], args[1]);
+        await model(args[0], args.slice(1).join(" "));
         break;
       case "rename":
         if (!args[0] || !args[1]) {
@@ -6887,7 +7275,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename(args[0], args[1]);
+        await rename2(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {
