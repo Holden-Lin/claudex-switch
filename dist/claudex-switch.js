@@ -5610,7 +5610,7 @@ function rewriteSessionMetaLine(line, targetProvider, managedProviders) {
   const current = record.payload.model_provider;
   if (current === targetProvider)
     return null;
-  if (typeof current === "string" && !managedProviders.has(current)) {
+  if (typeof current === "string" && current !== "" && !managedProviders.has(current)) {
     return null;
   }
   record.payload.model_provider = targetProvider;
@@ -5678,7 +5678,7 @@ async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProvid
     "-cmd",
     ".timeout 2000",
     dbPath,
-    `UPDATE threads SET model_provider = ${target} WHERE model_provider <> ${target} AND model_provider IN (${managed}); SELECT changes();`
+    `UPDATE threads SET model_provider = ${target} WHERE COALESCE(model_provider, '') <> ${target} AND (model_provider IN (${managed}) OR COALESCE(model_provider, '') = ''); SELECT changes();`
   ]);
   return Number(stdout.trim()) || 0;
 }
@@ -5700,7 +5700,7 @@ async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   try {
     db.exec("PRAGMA busy_timeout = 2000");
     const placeholders = [...managedProviders].map(() => "?").join(", ");
-    return db.runUpdate(`UPDATE threads SET model_provider = ? WHERE model_provider <> ? AND model_provider IN (${placeholders})`, targetProvider, targetProvider, ...managedProviders);
+    return db.runUpdate(`UPDATE threads SET model_provider = ? WHERE COALESCE(model_provider, '') <> ? AND (model_provider IN (${placeholders}) OR COALESCE(model_provider, '') = '')`, targetProvider, targetProvider, ...managedProviders);
   } finally {
     db.close();
   }

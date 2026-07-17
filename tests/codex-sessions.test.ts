@@ -178,6 +178,28 @@ describe("syncCodexSessionProviders", () => {
     expect(result.sqliteRowsUpdated).toBe(0);
   });
 
+  test("repairs empty provider metadata in rollouts and the DB", async () => {
+    const empty = await writeSession(
+      "sessions/empty.jsonl",
+      sessionMetaLine("", "t-empty"),
+    );
+    createStateDb([
+      ["t-empty", ""],
+      ["t-ok", "openai"],
+    ]);
+
+    const result = await syncCodexSessionProviders("openai", MANAGED);
+
+    expect(result.rolloutFilesUpdated).toBe(1);
+    expect(result.sqliteRowsUpdated).toBe(1);
+    const firstLine = (await readFile(empty, "utf-8")).split("\n")[0];
+    expect(JSON.parse(firstLine).payload.model_provider).toBe("openai");
+    expect(readProviders()).toEqual([
+      { id: "t-empty", model_provider: "openai" },
+      { id: "t-ok", model_provider: "openai" },
+    ]);
+  });
+
   test("leaves sessions of unmanaged providers untouched", async () => {
     const unmanaged = await writeSession(
       "sessions/ollama.jsonl",
