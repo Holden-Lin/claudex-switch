@@ -324,16 +324,22 @@ async function scanOpenFiles(paths: string[]): Promise<OpenRolloutScan> {
   for (let i = 0; i < paths.length; i += LSOF_CHUNK_SIZE) {
     const chunk = paths.slice(i, i + LSOF_CHUNK_SIZE);
     try {
-      const { stdout } = await execFileAsync("lsof", ["-Fn", "--", ...chunk], {
-        maxBuffer: 16 * 1024 * 1024,
-      });
+      // -w suppresses warnings, so anything left on stderr is a real error.
+      const { stdout, stderr } = await execFileAsync(
+        "lsof",
+        ["-w", "-Fn", "--", ...chunk],
+        { maxBuffer: 16 * 1024 * 1024 },
+      );
+      if (stderr.trim()) return { ok: false };
       for (const path of parseLsofPaths(stdout)) openReal.add(path);
     } catch (err) {
-      // lsof exits 1 when none of the listed files are open — a successful
-      // empty scan (partial matches are still printed on stdout). Anything
-      // else (ENOENT, EPERM) means we could not determine what is open.
-      const e = err as { code?: unknown; stdout?: unknown };
-      if (e.code !== 1) return { ok: false };
+      // lsof exits 1 both for "none of the listed files are open" and for
+      // detected errors; only a clean stderr makes it a trustworthy empty
+      // scan (partial matches are still printed on stdout). Anything else
+      // (ENOENT, EPERM, errors on stderr) means the scan is unreliable.
+      const e = err as { code?: unknown; stdout?: unknown; stderr?: unknown };
+      const stderrText = typeof e.stderr === "string" ? e.stderr : "";
+      if (e.code !== 1 || stderrText.trim()) return { ok: false };
       const stdout = typeof e.stdout === "string" ? e.stdout : "";
       for (const path of parseLsofPaths(stdout)) openReal.add(path);
     }

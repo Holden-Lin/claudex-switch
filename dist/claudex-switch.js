@@ -5737,14 +5737,15 @@ async function scanOpenFiles(paths) {
   for (let i = 0;i < paths.length; i += LSOF_CHUNK_SIZE) {
     const chunk = paths.slice(i, i + LSOF_CHUNK_SIZE);
     try {
-      const { stdout } = await execFileAsync("lsof", ["-Fn", "--", ...chunk], {
-        maxBuffer: 16777216
-      });
+      const { stdout, stderr } = await execFileAsync("lsof", ["-w", "-Fn", "--", ...chunk], { maxBuffer: 16777216 });
+      if (stderr.trim())
+        return { ok: false };
       for (const path of parseLsofPaths(stdout))
         openReal.add(path);
     } catch (err) {
       const e = err;
-      if (e.code !== 1)
+      const stderrText = typeof e.stderr === "string" ? e.stderr : "";
+      if (e.code !== 1 || stderrText.trim())
         return { ok: false };
       const stdout = typeof e.stdout === "string" ? e.stdout : "";
       for (const path of parseLsofPaths(stdout))
