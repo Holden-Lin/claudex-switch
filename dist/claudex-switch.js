@@ -5678,11 +5678,29 @@ async function updateSqliteThreadProviders(targetProvider) {
     db.close();
   }
 }
+async function listOpenRolloutPaths() {
+  const open2 = new Set;
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-c", "codex", "-Fn"], {
+      maxBuffer: 16777216
+    });
+    for (const line of stdout.split(`
+`)) {
+      if (line.startsWith("n") && line.endsWith(".jsonl")) {
+        open2.add(line.slice(1));
+      }
+    }
+  } catch {}
+  return open2;
+}
 async function syncCodexSessionProviders(targetProvider) {
+  const openPaths = await listOpenRolloutPaths();
   let rolloutFilesUpdated = 0;
   for (const dirName of SESSION_DIRS) {
     const root = join5(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
+      if (openPaths.has(filePath))
+        continue;
       try {
         if (await rewriteRolloutProvider(filePath, targetProvider)) {
           rolloutFilesUpdated += 1;

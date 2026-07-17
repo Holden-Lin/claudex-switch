@@ -241,13 +241,36 @@ async function updateSqliteThreadProviders(
   }
 }
 
+// Rollout files a running codex process holds open must not be swapped out
+// from under it: after the tmp+rename the live process keeps appending to the
+// unlinked old inode and those writes are silently lost. Best effort — when
+// lsof is missing or errors we sync everything, same as the reference tool.
+async function listOpenRolloutPaths(): Promise<Set<string>> {
+  const open = new Set<string>();
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-c", "codex", "-Fn"], {
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    for (const line of stdout.split("\n")) {
+      if (line.startsWith("n") && line.endsWith(".jsonl")) {
+        open.add(line.slice(1));
+      }
+    }
+  } catch {
+    // No codex processes running, or lsof unavailable.
+  }
+  return open;
+}
+
 export async function syncCodexSessionProviders(
   targetProvider: string,
 ): Promise<CodexSessionSyncResult> {
+  const openPaths = await listOpenRolloutPaths();
   let rolloutFilesUpdated = 0;
   for (const dirName of SESSION_DIRS) {
     const root = join(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
+      if (openPaths.has(filePath)) continue;
       try {
         if (await rewriteRolloutProvider(filePath, targetProvider)) {
           rolloutFilesUpdated += 1;
