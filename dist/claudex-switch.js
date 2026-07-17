@@ -4956,7 +4956,7 @@ function managedProviderNames(reg) {
   for (const account of reg.accounts) {
     const name = codexAccountProviderName(account);
     if (name)
-      names.add(name);
+      names.add(name.toLowerCase());
   }
   return names;
 }
@@ -5618,7 +5618,7 @@ function rewriteSessionMetaLine(line, targetProvider, managedProviders) {
   const current = record.payload.model_provider;
   if (current === targetProvider)
     return null;
-  if (typeof current === "string" && current !== "" && !managedProviders.has(current)) {
+  if (typeof current === "string" && current !== "" && !managedProviders.has(current.toLowerCase())) {
     return null;
   }
   record.payload.model_provider = targetProvider;
@@ -5681,12 +5681,12 @@ function sqlQuote(value) {
 }
 async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProviders) {
   const target = sqlQuote(targetProvider);
-  const managed = [...managedProviders].map(sqlQuote).join(", ");
+  const managed = [...managedProviders].map((name) => sqlQuote(name.toLowerCase())).join(", ");
   const { stdout } = await execFileAsync("sqlite3", [
     "-cmd",
     ".timeout 2000",
     dbPath,
-    `UPDATE threads SET model_provider = ${target} WHERE COALESCE(model_provider, '') <> ${target} AND (model_provider IN (${managed}) OR COALESCE(model_provider, '') = ''); SELECT changes();`
+    `UPDATE threads SET model_provider = ${target} WHERE COALESCE(model_provider, '') <> ${target} AND (lower(model_provider) IN (${managed}) OR COALESCE(model_provider, '') = ''); SELECT changes();`
   ]);
   return Number(stdout.trim()) || 0;
 }
@@ -5707,8 +5707,9 @@ async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   }
   try {
     db.exec("PRAGMA busy_timeout = 2000");
-    const placeholders = [...managedProviders].map(() => "?").join(", ");
-    return db.runUpdate(`UPDATE threads SET model_provider = ? WHERE COALESCE(model_provider, '') <> ? AND (model_provider IN (${placeholders}) OR COALESCE(model_provider, '') = '')`, targetProvider, targetProvider, ...managedProviders);
+    const managed = [...managedProviders].map((name) => name.toLowerCase());
+    const placeholders = managed.map(() => "?").join(", ");
+    return db.runUpdate(`UPDATE threads SET model_provider = ? WHERE COALESCE(model_provider, '') <> ? AND (lower(model_provider) IN (${placeholders}) OR COALESCE(model_provider, '') = '')`, targetProvider, targetProvider, ...managed);
   } finally {
     db.close();
   }

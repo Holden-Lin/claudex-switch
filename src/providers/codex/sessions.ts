@@ -135,11 +135,13 @@ function rewriteSessionMetaLine(
   // provider the user configured by hand (say ollama) keeps its metadata —
   // restamping it would irreversibly destroy the original provider name.
   // A missing or empty provider carries no information worth preserving and
-  // hides the session everywhere, so it always gets stamped.
+  // hides the session everywhere, so it always gets stamped. Membership is
+  // case-insensitive (managedProviders holds lowercase names) so historical
+  // casing variants like "OpenAI" are still managed and get normalized.
   if (
     typeof current === "string" &&
     current !== "" &&
-    !managedProviders.has(current)
+    !managedProviders.has(current.toLowerCase())
   ) {
     return null;
   }
@@ -241,12 +243,14 @@ async function updateProvidersViaSqliteCli(
   managedProviders: Set<string>,
 ): Promise<number> {
   const target = sqlQuote(targetProvider);
-  const managed = [...managedProviders].map(sqlQuote).join(", ");
+  const managed = [...managedProviders]
+    .map((name) => sqlQuote(name.toLowerCase()))
+    .join(", ");
   const { stdout } = await execFileAsync("sqlite3", [
     "-cmd",
     ".timeout 2000",
     dbPath,
-    `UPDATE threads SET model_provider = ${target} WHERE COALESCE(model_provider, '') <> ${target} AND (model_provider IN (${managed}) OR COALESCE(model_provider, '') = ''); SELECT changes();`,
+    `UPDATE threads SET model_provider = ${target} WHERE COALESCE(model_provider, '') <> ${target} AND (lower(model_provider) IN (${managed}) OR COALESCE(model_provider, '') = ''); SELECT changes();`,
   ]);
   return Number(stdout.trim()) || 0;
 }
@@ -277,12 +281,15 @@ async function updateSqliteThreadProviders(
     db.exec("PRAGMA busy_timeout = 2000");
     // Empty/NULL provider rows (observed from Codex Desktop automation) carry
     // no provider to preserve and keep the thread hidden, so repair them too.
-    const placeholders = [...managedProviders].map(() => "?").join(", ");
+    // Managed membership compares lowercased, exactness against the target
+    // stays strict so casing variants get normalized to the canonical name.
+    const managed = [...managedProviders].map((name) => name.toLowerCase());
+    const placeholders = managed.map(() => "?").join(", ");
     return db.runUpdate(
-      `UPDATE threads SET model_provider = ? WHERE COALESCE(model_provider, '') <> ? AND (model_provider IN (${placeholders}) OR COALESCE(model_provider, '') = '')`,
+      `UPDATE threads SET model_provider = ? WHERE COALESCE(model_provider, '') <> ? AND (lower(model_provider) IN (${placeholders}) OR COALESCE(model_provider, '') = '')`,
       targetProvider,
       targetProvider,
-      ...managedProviders,
+      ...managed,
     );
   } finally {
     db.close();

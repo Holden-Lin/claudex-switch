@@ -154,14 +154,16 @@ export function codexAccountProviderName(
   return "openai";
 }
 
-// Every provider name claudex-switch manages. Session sync must only restamp
-// sessions belonging to these; providers configured outside claudex-switch
-// (e.g. a hand-added ollama entry) keep their metadata untouched.
+// Every provider name claudex-switch manages, lowercased. Session sync must
+// only restamp sessions belonging to these; providers configured outside
+// claudex-switch (e.g. a hand-added ollama entry) keep their metadata
+// untouched. Membership checks are case-insensitive so historical casing
+// variants ("OpenAI") still count as managed and get normalized.
 export function managedProviderNames(reg: CodexRegistry): Set<string> {
   const names = new Set<string>(["openai"]);
   for (const account of reg.accounts) {
     const name = codexAccountProviderName(account);
-    if (name) names.add(name);
+    if (name) names.add(name.toLowerCase());
   }
   return names;
 }

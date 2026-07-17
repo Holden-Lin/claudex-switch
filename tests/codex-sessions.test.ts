@@ -178,6 +178,24 @@ describe("syncCodexSessionProviders", () => {
     expect(result.sqliteRowsUpdated).toBe(0);
   });
 
+  test("normalizes casing variants of managed providers", async () => {
+    const cased = await writeSession(
+      "sessions/cased.jsonl",
+      sessionMetaLine("OpenAI", "t-cased"),
+    );
+    createStateDb([["t-cased", "OpenAI"]]);
+
+    const result = await syncCodexSessionProviders("openai", MANAGED);
+
+    expect(result.rolloutFilesUpdated).toBe(1);
+    expect(result.sqliteRowsUpdated).toBe(1);
+    const firstLine = (await readFile(cased, "utf-8")).split("\n")[0];
+    expect(JSON.parse(firstLine).payload.model_provider).toBe("openai");
+    expect(readProviders()).toEqual([
+      { id: "t-cased", model_provider: "openai" },
+    ]);
+  });
+
   test("repairs empty provider metadata in rollouts and the DB", async () => {
     const empty = await writeSession(
       "sessions/empty.jsonl",
