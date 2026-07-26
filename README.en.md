@@ -9,7 +9,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
-- `claudex-switch <alias> -run --model <model> [effort]` overrides the model for this run only without changing the saved default; shorthand is supported — Claude 4.x maps to opus, 5.x to fable (`4.8` → `claude-opus-4-8`, `5` → `claude-fable-5`), Codex maps to gpt (`5.5` → `gpt-5.5`, `5.6` → `gpt-5.6-sol`); an effort tier may follow the model (e.g. `--model 4.8 max`), mapped to `--effort` for Claude and `-c model_reasoning_effort=...` for Codex
+- `claudex-switch <alias> -run --model <model> [effort]` overrides the model for this run only without changing the saved default; shorthand is supported — bare Claude versions map to opus (`5` → `claude-opus-5`), while `fable` / `fable5` map to `claude-fable-5`; Codex maps to gpt (`5.5` → `gpt-5.5`, `5.6` → `gpt-5.6-sol`); an effort tier may follow the model (e.g. `--model 5 max`), mapped to `--effort` for Claude and `-c model_reasoning_effort=...` for Codex
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
 - `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
@@ -88,14 +88,16 @@ claudex-switch holden
 claudex-switch holden -run
 
 # Override the model for this run only
-# Shorthand: Claude 4.x → opus, 5.x → fable (4.8 → claude-opus-4-8, 5 → claude-fable-5)
+# Shorthand: bare Claude versions → opus; fable / fable5 → Claude Fable 5
+# (5 → claude-opus-5, fable → claude-fable-5)
 # Codex → gpt series (5.5 → gpt-5.5, 5.6 → gpt-5.6-sol)
-claudex-switch holden -run --model 4.8
+claudex-switch holden -run --model 5
+claudex-switch holden -run --model fable
 claudex-switch cx -run --model 5.6
 
 # An effort tier (minimal/low/medium/high/xhigh/max) may follow the model
 # Mapped to --effort for Claude, -c model_reasoning_effort=... for Codex
-claudex-switch holden -run --model 4.8 max
+claudex-switch holden -run --model 5 max
 claudex-switch cx -run --model 5.6 xhigh
 
 # Disable the attribution header for this Claude run only
@@ -167,13 +169,13 @@ requires_openai_auth = false
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
 | `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session; Claude Code defaults to `--permission-mode auto` |
-| `claudex-switch <alias> -run --model <model>` | Override the model for this `-run` session only without changing the saved default model; shorthand ok (Claude `4.8` / `opus-4.7`, Codex `5.5`) |
+| `claudex-switch <alias> -run --model <model>` | Override the model for this `-run` session only without changing the saved default model; shorthand ok (Claude `5` / `fable` / `fable5`, Codex `5.5`) |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
 | `claudex-switch list` | List all accounts, auth types, and default models |
-| `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active; shorthand ok (Claude `4.8` / `sonnet-4.6`, Codex `5.5`) |
+| `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active; shorthand ok (Claude `5` / `fable` / `fable5`, Codex `5.5`) |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |
 | `claudex-switch current` | Show active accounts |

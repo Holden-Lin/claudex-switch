@@ -32,12 +32,6 @@ const CODEX_MODEL_ALIASES: Record<string, string> = {
   "gpt-5.6": "gpt-5.6-sol",
 };
 
-// Claude 5+ ships under the fable series, 4.x and older under opus.
-function defaultClaudeSeries(version: string): string {
-  const major = Number.parseInt(version, 10);
-  return major >= 5 ? "fable" : "opus";
-}
-
 export function isModelEffort(value: string | undefined): value is string {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
 }
@@ -67,11 +61,13 @@ export function resolveModelShorthand(
   if (!trimmed) return trimmed;
 
   if (provider === "claude") {
+    if (/^fable$/i.test(trimmed)) {
+      return "claude-fable-5";
+    }
+
     const match = trimmed.match(CLAUDE_SHORTHAND);
     if (match) {
-      const series = (
-        match[1] ?? defaultClaudeSeries(match[2])
-      ).toLowerCase();
+      const series = (match[1] ?? "opus").toLowerCase();
       const version = match[2].replace(/\./g, "-");
       return `claude-${series}-${version}`;
     }

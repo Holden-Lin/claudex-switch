@@ -34,7 +34,7 @@ const HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list                List all accounts
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 4.8 -> claude-opus-4-8, 5 -> claude-fable-5, 5.6 -> gpt-5.6-sol)
+    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 5 -> claude-opus-5, fable -> claude-fable-5, 5.6 -> gpt-5.6-sol)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login

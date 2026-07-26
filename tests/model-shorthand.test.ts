@@ -27,10 +27,15 @@ describe("resolveModelShorthand", () => {
     expect(resolveModelShorthand("claude", "opus4.8")).toBe("claude-opus-4-8");
   });
 
-  test("expands a bare claude 5.x version into the fable series", () => {
-    expect(resolveModelShorthand("claude", "5")).toBe("claude-fable-5");
-    expect(resolveModelShorthand("claude", "5.1")).toBe("claude-fable-5-1");
+  test("expands a bare claude 5.x version into the opus series", () => {
+    expect(resolveModelShorthand("claude", "5")).toBe("claude-opus-5");
+    expect(resolveModelShorthand("claude", "5.1")).toBe("claude-opus-5-1");
+  });
+
+  test("maps fable aliases to claude-fable-5", () => {
+    expect(resolveModelShorthand("claude", "fable")).toBe("claude-fable-5");
     expect(resolveModelShorthand("claude", "fable5")).toBe("claude-fable-5");
+    expect(resolveModelShorthand("claude", "fable-5")).toBe("claude-fable-5");
     expect(resolveModelShorthand("claude", "opus-5")).toBe("claude-opus-5");
   });
 

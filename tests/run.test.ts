@@ -510,7 +510,7 @@ describe("run alias session", () => {
     const calls: SpawnCall[] = [];
     await runAliasSession(
       "api",
-      ["--model", "4.8", "--continue"],
+      ["--model", "5", "--continue"],
       createSpawn(calls),
     );
 
@@ -519,7 +519,7 @@ describe("run alias session", () => {
       "--permission-mode",
       "auto",
       "--model",
-      "claude-opus-4-8",
+      "claude-opus-5",
       "--continue",
     ]);
   });
@@ -600,7 +600,7 @@ describe("run alias session", () => {
     ]);
   });
 
-  test("accepts a quoted model-plus-effort value and fable shorthand", async () => {
+  test("maps a bare Claude 5 model to opus with a quoted effort", async () => {
     await addApiKeyProfile("api", {
       apiKey: "sk-ant-profile",
       model: "claude-opus-4-6",
@@ -619,6 +619,41 @@ describe("run alias session", () => {
 
     const calls: SpawnCall[] = [];
     await runAliasSession("api", ["--model", "5 max"], createSpawn(calls));
+
+    expect(calls[0]?.args).toEqual([
+      "--bare",
+      "--permission-mode",
+      "auto",
+      "--model",
+      "claude-opus-5",
+      "--effort",
+      "max",
+    ]);
+  });
+
+  test("maps a bare fable alias to Claude fable 5", async () => {
+    await addApiKeyProfile("api", {
+      apiKey: "sk-ant-profile",
+      model: "claude-opus-4-6",
+    });
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "api",
+          target: { provider: "claude", profileName: "api" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession(
+      "api",
+      ["--model", "fable", "max"],
+      createSpawn(calls),
+    );
 
     expect(calls[0]?.args).toEqual([
       "--bare",
