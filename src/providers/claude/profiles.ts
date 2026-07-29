@@ -520,7 +520,7 @@ function sameOAuthAccount(
 // (accountUuid/email) but point at different orgs; those must not be treated as
 // interchangeable, otherwise we would keep the wrong org's live session and
 // overwrite the target profile's snapshot with it.
-function sameOAuthSession(
+export function sameOAuthSession(
   expected: OAuthAccount,
   actual: OAuthAccount | null,
 ): boolean {

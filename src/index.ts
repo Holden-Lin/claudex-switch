@@ -32,7 +32,7 @@ const HELP = `
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
-    claudex-switch list                List all accounts
+    claudex-switch list [--no-usage]   List all accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
     claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 5 -> claude-opus-5, fable -> claude-fable-5, 5.6 -> gpt-5.6-sol)
     claudex-switch remove <alias>      Remove an alias only
@@ -212,7 +212,7 @@ async function main(): Promise<void> {
 
       case "list":
       case "ls":
-        await list();
+        await list({ usage: !args.includes("--no-usage") });
         break;
 
       case "remove":

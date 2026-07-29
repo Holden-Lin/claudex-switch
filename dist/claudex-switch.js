@@ -5,43 +5,25 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: __exportSetter.bind(all, name)
+      set: (newValue) => all[name] = () => newValue
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -1653,6 +1635,7 @@ __export(exports_auth, {
   removeAccountAuthFile: () => removeAccountAuthFile,
   readActiveAuth: () => readActiveAuth,
   readAccountAuth: () => readAccountAuth,
+  decodeJwtPayload: () => decodeJwtPayload,
   decodeIdToken: () => decodeIdToken
 });
 import { chmod as chmod2, copyFile as copyFile2, mkdir as mkdir6, readFile as readFile3, unlink as unlink2, writeFile as writeFile3 } from "fs/promises";
@@ -1720,18 +1703,28 @@ function parseAuthContent(content) {
     return null;
   }
 }
-function decodeIdToken(idToken) {
+function decodeJwtPayload(token) {
   try {
-    const parts = idToken.split(".");
+    const parts = token.split(".");
     if (parts.length < 2)
       return null;
-    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+  } catch {
+    return null;
+  }
+}
+function decodeIdToken(idToken) {
+  try {
+    const payload = decodeJwtPayload(idToken);
+    if (!payload)
+      return null;
     const authInfo = payload["https://api.openai.com/auth"] ?? {};
+    const str = (v) => typeof v === "string" ? v : undefined;
     return {
-      email: payload.email ?? undefined,
-      chatgpt_user_id: authInfo.user_id ?? payload.sub ?? undefined,
-      chatgpt_account_id: authInfo.account_id ?? payload.account_id ?? undefined,
-      plan_type: authInfo.plan_type ?? undefined
+      email: str(payload.email),
+      chatgpt_user_id: str(authInfo.user_id) ?? str(payload.sub),
+      chatgpt_account_id: str(authInfo.account_id) ?? str(payload.account_id),
+      plan_type: str(authInfo.plan_type)
     };
   } catch {
     return null;
@@ -2245,6 +2238,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2389,7 +2383,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -4154,6 +4148,41 @@ function maskKey(key) {
   if (key.length <= 12)
     return "••••";
   return key.slice(0, 7) + "••••" + key.slice(-4);
+}
+function formatUsage(usage, note) {
+  if (usage) {
+    const parts = [];
+    if (usage.fiveHourUsedPercent !== null) {
+      parts.push(`${source_default.dim("5h")} ${colorRemaining(100 - usage.fiveHourUsedPercent)}`);
+    }
+    if (usage.weeklyUsedPercent !== null) {
+      parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`);
+    }
+    if (parts.length > 0)
+      return parts.join(source_default.dim(" · "));
+  }
+  return note ? source_default.dim(note) : "";
+}
+function colorRemaining(percent) {
+  const value = Math.round(Math.min(100, Math.max(0, percent)));
+  const text = `${value}%`;
+  if (value >= 50)
+    return source_default.green(text);
+  if (value >= 20)
+    return source_default.yellow(text);
+  return source_default.red(text);
+}
+function formatBalance(balance) {
+  if (!balance)
+    return "";
+  const dollars = (v) => `$${v.toFixed(2)}`;
+  if (balance.unlimited) {
+    return balance.usedUsd === null ? source_default.dim("∞") : source_default.dim(`${dollars(balance.usedUsd)} used`);
+  }
+  if (balance.remainingUsd === null)
+    return "";
+  const colored = balance.remainingUsd >= 10 ? source_default.green(dollars(balance.remainingUsd)) : balance.remainingUsd >= 1 ? source_default.yellow(dollars(balance.remainingUsd)) : source_default.red(dollars(balance.remainingUsd));
+  return `${colored} ${source_default.dim("left")}`;
 }
 
 // src/providers/claude/profiles.ts
@@ -6183,10 +6212,347 @@ function setOptionalEnv(env2, key, value) {
   delete env2[key];
 }
 
+// src/providers/claude/usage.ts
+init_fs();
+init_paths();
+var USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+var TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
+var CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+var EXPIRY_SKEW_MS = 60000;
+var FETCH_TIMEOUT_MS = 5000;
+function expiresAt(creds) {
+  return creds?.claudeAiOauth?.expiresAt ?? 0;
+}
+async function fetchClaudeUsage(profileName, isActiveProfile) {
+  const snapshot = await readCredentials(claudeProfileCredentials(profileName));
+  const isolated = await readIsolatedCredentials(claudeProfileDir(profileName));
+  let global2 = null;
+  if (isActiveProfile) {
+    const savedAccount = await readJson(claudeProfileAccountFile(profileName), null);
+    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
+      global2 = await readCredentials(CREDENTIALS_FILE);
+    }
+  }
+  let creds = [snapshot, isolated, global2].filter((c) => Boolean(c?.claudeAiOauth?.accessToken)).sort((a, b) => expiresAt(b) - expiresAt(a))[0];
+  if (!creds)
+    return { usage: null, note: null };
+  const persist = async (next) => {
+    await writeCredentials(next, claudeProfileCredentials(profileName));
+    if (isolated) {
+      await writeIsolatedCredentials(next, claudeProfileDir(profileName));
+    }
+    if (global2) {
+      await writeCredentials(next, CREDENTIALS_FILE);
+    }
+  };
+  let refreshed = false;
+  if (expiresAt(creds) - EXPIRY_SKEW_MS < Date.now()) {
+    const result = await refreshOAuthToken(creds);
+    if (result === "denied")
+      return { usage: null, note: "login expired" };
+    if (result === "unavailable")
+      return { usage: null, note: "usage n/a" };
+    await persist(result);
+    creds = result;
+    refreshed = true;
+  }
+  let response = await requestUsage(creds.claudeAiOauth.accessToken);
+  if (response === "unauthorized" && !refreshed) {
+    const result = await refreshOAuthToken(creds);
+    if (result === "denied")
+      return { usage: null, note: "login expired" };
+    if (result === "unavailable")
+      return { usage: null, note: "usage n/a" };
+    await persist(result);
+    response = await requestUsage(result.claudeAiOauth.accessToken);
+  }
+  if (response === "unauthorized")
+    return { usage: null, note: "login expired" };
+  if (response === "unavailable" || !response) {
+    return { usage: null, note: "usage n/a" };
+  }
+  return { usage: response, note: null };
+}
+async function requestUsage(accessToken) {
+  try {
+    const res = await fetch(USAGE_URL, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "anthropic-beta": "oauth-2025-04-20",
+        "Content-Type": "application/json"
+      },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    });
+    if (res.status === 401 || res.status === 403)
+      return "unauthorized";
+    if (!res.ok)
+      return "unavailable";
+    return parseUsageResponse(await res.json());
+  } catch {
+    return "unavailable";
+  }
+}
+function parseUsageResponse(data) {
+  if (!data || typeof data !== "object")
+    return null;
+  const obj = data;
+  const window = (value) => {
+    if (!value || typeof value !== "object")
+      return null;
+    const w = value;
+    if (typeof w.utilization !== "number")
+      return null;
+    const resetsAt = typeof w.resets_at === "string" ? Date.parse(w.resets_at) : NaN;
+    return {
+      usedPercent: w.utilization,
+      resetsAt: Number.isFinite(resetsAt) ? resetsAt : null
+    };
+  };
+  const fiveHour = window(obj.five_hour);
+  const weekly = window(obj.seven_day);
+  if (!fiveHour && !weekly)
+    return null;
+  return {
+    fiveHourUsedPercent: fiveHour?.usedPercent ?? null,
+    fiveHourResetsAt: fiveHour?.resetsAt ?? null,
+    weeklyUsedPercent: weekly?.usedPercent ?? null,
+    weeklyResetsAt: weekly?.resetsAt ?? null
+  };
+}
+async function refreshOAuthToken(creds) {
+  const refreshToken = creds.claudeAiOauth?.refreshToken;
+  if (!refreshToken)
+    return "denied";
+  try {
+    const res = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: CLIENT_ID
+      }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    });
+    if (!res.ok)
+      return "denied";
+    const token = await res.json();
+    if (typeof token.access_token !== "string")
+      return "denied";
+    return {
+      ...creds,
+      claudeAiOauth: {
+        ...creds.claudeAiOauth,
+        accessToken: token.access_token,
+        refreshToken: typeof token.refresh_token === "string" ? token.refresh_token : refreshToken,
+        expiresAt: Date.now() + (typeof token.expires_in === "number" ? token.expires_in : 3600) * 1000
+      }
+    };
+  } catch {
+    return "unavailable";
+  }
+}
+
 // src/commands/list.ts
 init_paths();
 init_fs();
-async function list() {
+init_auth();
+
+// src/providers/codex/usage.ts
+init_auth();
+var USAGE_URL2 = "https://chatgpt.com/backend-api/wham/usage";
+var TOKEN_URL2 = "https://auth.openai.com/oauth/token";
+var CLIENT_ID2 = "app_EMoamEEZ73f0CkXaXp7hrann";
+var EXPIRY_SKEW_MS2 = 60000;
+var FETCH_TIMEOUT_MS2 = 5000;
+function accessTokenExpiresAt(tokens) {
+  const claims = decodeJwtPayload(tokens.access_token);
+  return typeof claims?.exp === "number" ? claims.exp * 1000 : null;
+}
+function accessAuthClaims(tokens) {
+  const claims = decodeJwtPayload(tokens.access_token);
+  return claims?.["https://api.openai.com/auth"] ?? {};
+}
+function chatgptAccountId(tokens) {
+  const accountId = accessAuthClaims(tokens).chatgpt_account_id;
+  return typeof accountId === "string" ? accountId : tokens.account_id;
+}
+function isFreePlan(tokens) {
+  return decodeIdToken(tokens.id_token)?.plan_type === "free" || accessAuthClaims(tokens).chatgpt_plan_type === "free";
+}
+async function fetchCodexUsage(accountKey, isActive) {
+  const auth = await readAccountAuth(accountKey);
+  if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens?.access_token) {
+    return { usage: null, note: null };
+  }
+  if (isFreePlan(auth.tokens)) {
+    return { usage: null, note: null };
+  }
+  const persist = async (tokens) => {
+    auth.tokens.id_token = typeof tokens.id_token === "string" ? tokens.id_token : auth.tokens.id_token;
+    auth.tokens.access_token = tokens.access_token;
+    auth.tokens.refresh_token = typeof tokens.refresh_token === "string" ? tokens.refresh_token : auth.tokens.refresh_token;
+    auth.last_refresh = new Date().toISOString();
+    await saveAccountAuth(accountKey, auth);
+    if (isActive) {
+      await switchToAccount(accountKey);
+    }
+  };
+  let refreshed = false;
+  const expiry = accessTokenExpiresAt(auth.tokens);
+  if (expiry !== null && expiry - EXPIRY_SKEW_MS2 < Date.now()) {
+    const result = await refreshTokens(auth);
+    if (result === "denied")
+      return { usage: null, note: "login expired" };
+    if (result === "unavailable")
+      return { usage: null, note: "usage n/a" };
+    await persist(result);
+    refreshed = true;
+  }
+  let response = await requestUsage2(auth.tokens);
+  if (response === "unauthorized" && !refreshed) {
+    const result = await refreshTokens(auth);
+    if (result === "denied")
+      return { usage: null, note: "login expired" };
+    if (result === "unavailable")
+      return { usage: null, note: "usage n/a" };
+    await persist(result);
+    response = await requestUsage2(auth.tokens);
+  }
+  if (response === "unauthorized")
+    return { usage: null, note: "login expired" };
+  if (response === "unavailable" || !response) {
+    return { usage: null, note: "usage n/a" };
+  }
+  return { usage: response, note: null };
+}
+async function requestUsage2(tokens) {
+  try {
+    const res = await fetch(USAGE_URL2, {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        "chatgpt-account-id": chatgptAccountId(tokens),
+        "Content-Type": "application/json"
+      },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+    });
+    if (res.status === 401 || res.status === 403)
+      return "unauthorized";
+    if (!res.ok)
+      return "unavailable";
+    return parseUsageResponse2(await res.json());
+  } catch {
+    return "unavailable";
+  }
+}
+function parseUsageResponse2(data) {
+  if (!data || typeof data !== "object")
+    return null;
+  const rateLimit = data.rate_limit;
+  if (!rateLimit || typeof rateLimit !== "object")
+    return null;
+  const rl = rateLimit;
+  const info2 = {
+    fiveHourUsedPercent: null,
+    fiveHourResetsAt: null,
+    weeklyUsedPercent: null,
+    weeklyResetsAt: null
+  };
+  let any = false;
+  for (const value of [rl.primary_window, rl.secondary_window]) {
+    if (!value || typeof value !== "object")
+      continue;
+    const w = value;
+    if (typeof w.used_percent !== "number")
+      continue;
+    const windowSeconds = typeof w.limit_window_seconds === "number" ? w.limit_window_seconds : null;
+    const resetsAt = typeof w.reset_at === "number" ? w.reset_at * 1000 : null;
+    const isWeekly = windowSeconds !== null && windowSeconds > 86400;
+    if (isWeekly) {
+      info2.weeklyUsedPercent = w.used_percent;
+      info2.weeklyResetsAt = resetsAt;
+    } else {
+      info2.fiveHourUsedPercent = w.used_percent;
+      info2.fiveHourResetsAt = resetsAt;
+    }
+    any = true;
+  }
+  return any ? info2 : null;
+}
+async function refreshTokens(auth) {
+  if (!auth.tokens.refresh_token)
+    return "denied";
+  try {
+    const res = await fetch(TOKEN_URL2, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: CLIENT_ID2,
+        grant_type: "refresh_token",
+        refresh_token: auth.tokens.refresh_token,
+        scope: "openid profile email"
+      }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+    });
+    if (!res.ok)
+      return "denied";
+    const token = await res.json();
+    if (typeof token.access_token !== "string")
+      return "denied";
+    return token;
+  } catch {
+    return "unavailable";
+  }
+}
+
+// src/lib/oneapi.ts
+var FETCH_TIMEOUT_MS3 = 4000;
+var UNLIMITED_THRESHOLD_USD = 1e7;
+async function fetchRelayBalance(baseUrl, apiKey) {
+  let origin;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    return null;
+  }
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  for (const prefix of ["/v1", ""]) {
+    const subscription = await getJson(`${origin}${prefix}/dashboard/billing/subscription`, headers);
+    const totalUsd = subscription?.hard_limit_usd;
+    if (typeof totalUsd !== "number")
+      continue;
+    const end = new Date;
+    const start = new Date(end.getTime() - 90 * 86400000);
+    const day = (d) => d.toISOString().slice(0, 10);
+    const usage = await getJson(`${origin}${prefix}/dashboard/billing/usage?start_date=${day(start)}&end_date=${day(end)}`, headers);
+    const usedUsd = typeof usage?.total_usage === "number" ? usage.total_usage / 100 : null;
+    const unlimited = totalUsd >= UNLIMITED_THRESHOLD_USD;
+    return {
+      unlimited,
+      usedUsd,
+      remainingUsd: unlimited || usedUsd === null ? null : Math.max(0, totalUsd - usedUsd)
+    };
+  }
+  return null;
+}
+async function getJson(url, headers) {
+  try {
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
+    });
+    if (!res.ok)
+      return null;
+    const data = JSON.parse(await res.text());
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+// src/commands/list.ts
+async function list(options = {}) {
+  const withUsage = options.usage !== false;
   const aliasReg = await loadAliases();
   if (aliasReg.aliases.length === 0) {
     blank();
@@ -6204,78 +6570,90 @@ async function list() {
   try {
     codexReg = await loadRegistry();
   } catch {}
+  const codexUsage = withUsage && codexReg?.api?.usage !== false;
+  const [claudeInfos, codexInfos] = await Promise.all([
+    Promise.all(claudeAliases.map((entry) => getClaudeAccountInfo(entry, claudeState.active, withUsage))),
+    Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage)))
+  ]);
   blank();
   console.log(header("  Accounts"));
-  if (claudeAliases.length > 0) {
+  if (claudeInfos.length > 0) {
     blank();
     sectionHeader("Claude");
-    const maxAliasLen = Math.max(...claudeAliases.map((a) => a.alias.length));
-    for (const entry of claudeAliases) {
-      const info2 = await getClaudeAccountInfo(entry, claudeState.active);
-      const icon = info2.isActive ? icons.active : icons.inactive;
-      const name = info2.isActive ? source_default.green.bold(info2.alias) : info2.alias;
-      const paddedName = name + " ".repeat(Math.max(0, maxAliasLen - info2.alias.length));
-      const type = formatType(info2.authMode);
-      const plan = formatPlan(info2.plan);
-      const email = info2.email ? source_default.dim(info2.email) : "";
-      const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-      const model = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
-      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}`);
-    }
+    renderSection(claudeInfos);
   }
-  if (codexAliases.length > 0) {
+  if (codexInfos.length > 0) {
     blank();
     sectionHeader("Codex");
-    const maxAliasLen = Math.max(...codexAliases.map((a) => a.alias.length));
-    for (const entry of codexAliases) {
-      const info2 = await getCodexAccountInfo(entry, codexReg);
-      const icon = info2.isActive ? icons.active : icons.inactive;
-      const name = info2.isActive ? source_default.green.bold(info2.alias) : info2.alias;
-      const paddedName = name + " ".repeat(Math.max(0, maxAliasLen - info2.alias.length));
-      const type = formatType(info2.authMode);
-      const plan = formatPlan(info2.plan);
-      const email = info2.email ? source_default.dim(info2.email) : "";
-      const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-      const model = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
-      console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}`);
-    }
+    renderSection(codexInfos);
+  }
+  const anyUsage = [...claudeInfos, ...codexInfos].some((info2) => info2.usage);
+  if (anyUsage) {
+    blank();
+    hint("5h/wk = remaining quota in the 5-hour / weekly window");
   }
   blank();
 }
-async function getClaudeAccountInfo(entry, activeProfile) {
+function renderSection(infos) {
+  const maxAliasLen = Math.max(...infos.map((info2) => info2.alias.length));
+  for (const info2 of infos) {
+    const icon = info2.isActive ? icons.active : icons.inactive;
+    const name = info2.isActive ? source_default.green.bold(info2.alias) : info2.alias;
+    const paddedName = name + " ".repeat(Math.max(0, maxAliasLen - info2.alias.length));
+    const type = formatType(info2.authMode);
+    const plan = formatPlan(info2.plan);
+    const email = info2.email ? source_default.dim(info2.email) : "";
+    const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
+    const model = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
+    const usage = formatUsage(info2.usage, info2.usageNote);
+    const balance = formatBalance(info2.balance);
+    const quota = usage || balance;
+    const quotaStr = quota ? `  ${quota}` : "";
+    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}${quotaStr}`);
+  }
+}
+async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
   if (entry.target.provider !== "claude")
     throw new Error("Not a claude alias");
   const profileName = entry.target.profileName;
-  let plan = null;
-  let email = null;
-  let authMode = "oauth";
-  let defaultModel = null;
-  try {
-    const profileData = await readJson(claudeProfileDataFile(profileName), { type: "oauth" });
-    authMode = profileData.type;
-    defaultModel = profileData.type === "api-key" ? profileData.model ?? null : profileData.defaultModel ?? null;
-    if (profileData.type === "api-key" && profileData.apiKey) {
-      plan = maskKey(profileData.apiKey);
-    } else {
-      const creds = await readCredentials(claudeProfileCredentials(profileName));
-      plan = creds?.claudeAiOauth?.subscriptionType ?? null;
-      const account = await readJson(claudeProfileAccountFile(profileName), null);
-      email = account?.emailAddress ?? null;
-    }
-  } catch {}
-  return {
+  const isActive = activeProfile === profileName;
+  const info2 = {
     alias: entry.alias,
     provider: "claude",
-    email,
-    plan,
-    authMode,
+    email: null,
+    plan: null,
+    authMode: "oauth",
     apiProvider: null,
-    defaultModel,
-    isActive: activeProfile === profileName,
-    usage: null
+    defaultModel: null,
+    isActive,
+    usage: null,
+    usageNote: null,
+    balance: null
   };
+  try {
+    const profileData = await readJson(claudeProfileDataFile(profileName), { type: "oauth" });
+    info2.authMode = profileData.type;
+    info2.defaultModel = profileData.type === "api-key" ? profileData.model ?? null : profileData.defaultModel ?? null;
+    if (profileData.type === "api-key" && profileData.apiKey) {
+      info2.plan = maskKey(profileData.apiKey);
+      if (withUsage && profileData.baseUrl) {
+        info2.balance = await fetchRelayBalance(profileData.baseUrl, profileData.apiKey);
+      }
+    } else {
+      const creds = await readCredentials(claudeProfileCredentials(profileName));
+      info2.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
+      const account = await readJson(claudeProfileAccountFile(profileName), null);
+      info2.email = account?.emailAddress ?? null;
+      if (withUsage) {
+        const result = await fetchClaudeUsage(profileName, isActive);
+        info2.usage = result.usage;
+        info2.usageNote = result.note;
+      }
+    }
+  } catch {}
+  return info2;
 }
-async function getCodexAccountInfo(entry, codexReg) {
+async function getCodexAccountInfo(entry, codexReg, withUsage) {
   if (entry.target.provider !== "codex")
     throw new Error("Not a codex alias");
   const accountKey = entry.target.accountKey;
@@ -6291,10 +6669,12 @@ async function getCodexAccountInfo(entry, codexReg) {
       apiProvider: null,
       defaultModel: null,
       isActive,
-      usage: null
+      usage: null,
+      usageNote: null,
+      balance: null
     };
   }
-  return {
+  const info2 = {
     alias: entry.alias,
     provider: "codex",
     email: account.email || null,
@@ -6303,8 +6683,26 @@ async function getCodexAccountInfo(entry, codexReg) {
     apiProvider: account.auth_mode === "apikey" ? account.api_provider?.type === "custom" ? account.api_provider.name : "official" : null,
     defaultModel: resolveCodexModel(account.default_model, account.api_provider?.model ?? null),
     isActive,
-    usage: null
+    usage: null,
+    usageNote: null,
+    balance: null
   };
+  if (withUsage) {
+    if (account.auth_mode === "apikey") {
+      const baseUrl = account.api_provider?.base_url;
+      if (baseUrl) {
+        const auth = await readAccountAuth(accountKey);
+        if (auth?.OPENAI_API_KEY) {
+          info2.balance = await fetchRelayBalance(baseUrl, auth.OPENAI_API_KEY);
+        }
+      }
+    } else {
+      const result = await fetchCodexUsage(accountKey, isActive);
+      info2.usage = result.usage;
+      info2.usageNote = result.note;
+    }
+  }
+  return info2;
 }
 
 // src/commands/remove.ts
@@ -7125,7 +7523,7 @@ var HELP = `
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
-    claudex-switch list                List all accounts
+    claudex-switch list [--no-usage]   List all accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
     claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 5 -> claude-opus-5, fable -> claude-fable-5, 5.6 -> gpt-5.6-sol)
     claudex-switch remove <alias>      Remove an alias only
@@ -7263,7 +7661,7 @@ async function main() {
         break;
       case "list":
       case "ls":
-        await list();
+        await list({ usage: !args.includes("--no-usage") });
         break;
       case "remove":
       case "rm":

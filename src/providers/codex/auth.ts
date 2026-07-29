@@ -96,8 +96,23 @@ function parseAuthContent(content: string): CodexAuthFile | null {
 }
 
 /**
+ * Decode a JWT payload without verifying the signature — we're reading our
+ * own local files.
+ */
+export function decodeJwtPayload(
+  token: string,
+): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Decode the id_token JWT to extract user metadata.
- * No crypto verification — we're reading our own local files.
  */
 export function decodeIdToken(idToken: string): {
   email?: string;
@@ -106,21 +121,23 @@ export function decodeIdToken(idToken: string): {
   plan_type?: string;
 } | null {
   try {
-    const parts = idToken.split(".");
-    if (parts.length < 2) return null;
-    const payload = JSON.parse(
-      Buffer.from(parts[1], "base64url").toString("utf-8"),
-    );
+    const payload = decodeJwtPayload(idToken);
+    if (!payload) return null;
 
     // OpenAI stores auth info at https://api.openai.com/auth
-    const authInfo = payload["https://api.openai.com/auth"] ?? {};
+    const authInfo = (payload["https://api.openai.com/auth"] ?? {}) as Record<
+      string,
+      unknown
+    >;
+
+    const str = (v: unknown): string | undefined =>
+      typeof v === "string" ? v : undefined;
 
     return {
-      email: payload.email ?? undefined,
-      chatgpt_user_id: authInfo.user_id ?? payload.sub ?? undefined,
-      chatgpt_account_id:
-        authInfo.account_id ?? payload.account_id ?? undefined,
-      plan_type: authInfo.plan_type ?? undefined,
+      email: str(payload.email),
+      chatgpt_user_id: str(authInfo.user_id) ?? str(payload.sub),
+      chatgpt_account_id: str(authInfo.account_id) ?? str(payload.account_id),
+      plan_type: str(authInfo.plan_type),
     };
   } catch {
     return null;

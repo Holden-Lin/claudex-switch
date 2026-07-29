@@ -194,11 +194,26 @@ export interface AccountInfo {
   defaultModel: string | null;
   isActive: boolean;
   usage: UsageInfo | null;
+  usageNote: string | null;
+  balance: RelayBalance | null;
 }
 
+// Used percent per rate-limit window, as reported by the provider.
 export interface UsageInfo {
-  primaryPercent: number | null;
-  secondaryPercent: number | null;
-  primaryResetsAt: number | null;
-  secondaryResetsAt: number | null;
+  fiveHourUsedPercent: number | null;
+  fiveHourResetsAt: number | null;
+  weeklyUsedPercent: number | null;
+  weeklyResetsAt: number | null;
+}
+
+export interface UsageFetchResult {
+  usage: UsageInfo | null;
+  note: string | null;
+}
+
+// Balance reported by a one-api/new-api relay's OpenAI-compatible billing API.
+export interface RelayBalance {
+  remainingUsd: number | null;
+  usedUsd: number | null;
+  unlimited: boolean;
 }

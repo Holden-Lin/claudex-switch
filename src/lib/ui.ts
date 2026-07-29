@@ -1,5 +1,10 @@
 import chalk from "chalk";
-import type { ProfileType, Provider } from "../types";
+import type {
+  ProfileType,
+  Provider,
+  RelayBalance,
+  UsageInfo,
+} from "../types";
 
 export const icons = {
   active: chalk.green("▸"),
@@ -77,4 +82,52 @@ export function formatProvider(provider: Provider): string {
 export function maskKey(key: string): string {
   if (key.length <= 12) return "••••";
   return key.slice(0, 7) + "••••" + key.slice(-4);
+}
+
+// Remaining quota per window, e.g. "5h 89% · wk 61%".
+export function formatUsage(
+  usage: UsageInfo | null,
+  note: string | null,
+): string {
+  if (usage) {
+    const parts: string[] = [];
+    if (usage.fiveHourUsedPercent !== null) {
+      parts.push(
+        `${chalk.dim("5h")} ${colorRemaining(100 - usage.fiveHourUsedPercent)}`,
+      );
+    }
+    if (usage.weeklyUsedPercent !== null) {
+      parts.push(
+        `${chalk.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`,
+      );
+    }
+    if (parts.length > 0) return parts.join(chalk.dim(" · "));
+  }
+  return note ? chalk.dim(note) : "";
+}
+
+function colorRemaining(percent: number): string {
+  const value = Math.round(Math.min(100, Math.max(0, percent)));
+  const text = `${value}%`;
+  if (value >= 50) return chalk.green(text);
+  if (value >= 20) return chalk.yellow(text);
+  return chalk.red(text);
+}
+
+export function formatBalance(balance: RelayBalance | null): string {
+  if (!balance) return "";
+  const dollars = (v: number) => `$${v.toFixed(2)}`;
+  if (balance.unlimited) {
+    return balance.usedUsd === null
+      ? chalk.dim("∞")
+      : chalk.dim(`${dollars(balance.usedUsd)} used`);
+  }
+  if (balance.remainingUsd === null) return "";
+  const colored =
+    balance.remainingUsd >= 10
+      ? chalk.green(dollars(balance.remainingUsd))
+      : balance.remainingUsd >= 1
+        ? chalk.yellow(dollars(balance.remainingUsd))
+        : chalk.red(dollars(balance.remainingUsd));
+  return `${colored} ${chalk.dim("left")}`;
 }

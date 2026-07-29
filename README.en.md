@@ -12,7 +12,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - `claudex-switch <alias> -run --model <model> [effort]` overrides the model for this run only without changing the saved default; shorthand is supported — bare Claude versions map to opus (`5` → `claude-opus-5`), while `fable` / `fable5` map to `claude-fable-5`; Codex maps to gpt (`5.5` → `gpt-5.5`, `5.6` → `gpt-5.6-sol`); an effort tier may follow the model (e.g. `--model 5 max`), mapped to `--effort` for Claude and `-c model_reasoning_effort=...` for Codex
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
-- `claudex-switch list` refreshes and shows current quota for all Codex ChatGPT accounts
+- `claudex-switch list` fetches remaining quota for all accounts in parallel: Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the remaining balance (`$47.34 left`). Pass `--no-usage` to skip the network requests
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs and Sonnet / Opus / Haiku model mapping
@@ -78,8 +78,13 @@ bun run build
 # Import existing Claude and Codex accounts
 claudex-switch import
 
-# List all accounts
+# List all accounts (with remaining quota; 5h/wk = remaining % of the 5-hour / weekly window)
 claudex-switch list
+#   ── Claude ──
+#   ▸ work    oauth  Max   work@example.com   5h 96% · wk 65%
+#     relay   api-key  sk-xPXb••••eTmP  $47.34 left
+#   ── Codex ──
+#     cx      chatgpt  Plus  cx@example.com  gpt-5.4  5h 85% · wk 75%
 
 # Switch by alias
 claudex-switch holden
@@ -174,7 +179,7 @@ requires_openai_auth = false
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
-| `claudex-switch list` | List all accounts, auth types, and default models |
+| `claudex-switch list` | List all accounts, auth types, default models, and remaining quota (5h / weekly window; one-api relays show balance); `--no-usage` skips quota fetching |
 | `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active; shorthand ok (Claude `5` / `fable` / `fable5`, Codex `5.5`) |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |

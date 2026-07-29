@@ -12,7 +12,7 @@
 - `claudex-switch <alias> -run --model <model> [effort]` 可只对这次会话临时覆盖模型，不修改保存的默认模型；支持缩写，例如 Claude 用 `4.8` / `5` / `fable`（`5` → `claude-opus-5`，`fable` / `fable5` → `claude-fable-5`），Codex 用 `5.5` / `5.6`（`5.6` → `gpt-5.6-sol`）；模型后可紧跟 effort 档位（如 `--model 5 max`），Claude 映射为 `--effort`，Codex 映射为 `-c model_reasoning_effort=...`
 - 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
-- `claudex-switch list` 刷新并显示所有 Codex ChatGPT 账号的当前额度
+- `claudex-switch list` 并行拉取并显示所有账号的剩余额度：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示剩余余额（`$47.34 left`）。加 `--no-usage` 可跳过网络请求
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型和 Sonnet / Opus / Haiku 模型映射）
@@ -78,8 +78,13 @@ bun run build
 # 导入已有的 Claude 和 Codex 账号
 claudex-switch import
 
-# 查看所有账号
+# 查看所有账号（含剩余额度；5h/wk 为 5 小时 / 每周窗口的剩余百分比）
 claudex-switch list
+#   ── Claude ──
+#   ▸ work    oauth  Max   work@example.com   5h 96% · wk 65%
+#     relay   api-key  sk-xPXb••••eTmP  $47.34 left
+#   ── Codex ──
+#     cx      chatgpt  Plus  cx@example.com  gpt-5.4  5h 85% · wk 75%
 
 # 切换到指定别名
 claudex-switch holden
@@ -174,7 +179,7 @@ requires_openai_auth = false
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
-| `claudex-switch list` | 列出所有账号、认证类型和默认模型 |
+| `claudex-switch list` | 列出所有账号、认证类型、默认模型和剩余额度（5h / 每周窗口，one-api 中转显示余额）；`--no-usage` 跳过额度拉取 |
 | `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置；支持缩写（Claude `5` / `fable` / `fable5`，Codex `5.5`） |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
