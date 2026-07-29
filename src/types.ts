@@ -211,9 +211,26 @@ export interface UsageFetchResult {
   note: string | null;
 }
 
-// Balance reported by a one-api/new-api relay's OpenAI-compatible billing API.
-export interface RelayBalance {
+// One balance figure from a one-api/new-api relay.
+export interface RelayBalanceSide {
   remainingUsd: number | null;
   usedUsd: number | null;
   unlimited: boolean;
+}
+
+// Relay balances shown in list: `key` is the sk key's own quota (from the
+// OpenAI-compatible billing endpoints), `account` is the user wallet balance
+// (needs a console access token in relays.json).
+export interface RelayBalance {
+  key: RelayBalanceSide | null;
+  account: RelayBalanceSide | null;
+}
+
+// Optional per-relay user credentials (~/.claudex-switch/relays.json, keyed
+// by origin). With a console access token the list command can show the
+// account's real wallet balance instead of the token-level quota.
+export interface RelayConfig {
+  accessToken: string;
+  userId?: number | string;
+  quotaPerUnit?: number;
 }

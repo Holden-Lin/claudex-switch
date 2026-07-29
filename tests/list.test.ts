@@ -452,6 +452,132 @@ describe("list", () => {
     expect(output()).toContain("$47.34 left");
   });
 
+  test("shows key and account balances together when relays.json has an access token", async () => {
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "relay",
+          target: { provider: "claude", profileName: "relay" },
+          createdAt: 1,
+        },
+      ],
+    });
+    const dir = join(TEST_HOME, ".claude-profiles", "relay");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, "profile.json"),
+      JSON.stringify({
+        type: "api-key",
+        apiKey: "sk-test-key-12345678",
+        baseUrl: "https://relay.example.com/v1",
+      }),
+    );
+    await mkdir(join(TEST_HOME, ".claudex-switch"), { recursive: true });
+    await writeFile(
+      join(TEST_HOME, ".claudex-switch", "relays.json"),
+      JSON.stringify({
+        "https://relay.example.com": { accessToken: "console-token", userId: 7 },
+      }),
+    );
+
+    const calls = mockFetch((url) => {
+      if (url === "https://relay.example.com/api/user/self") {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: { id: 7, quota: 6_180_000, used_quota: 461_887_971 },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://relay.example.com/api/status") {
+        return new Response(
+          JSON.stringify({ success: true, data: { quota_per_unit: 500000 } }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://relay.example.com/v1/dashboard/billing/subscription") {
+        return new Response(
+          JSON.stringify({ object: "billing_subscription", hard_limit_usd: 50 }),
+          { status: 200 },
+        );
+      }
+      if (url.startsWith("https://relay.example.com/v1/dashboard/billing/usage")) {
+        return new Response(
+          JSON.stringify({ object: "list", total_usage: 265.6932 }),
+          { status: 200 },
+        );
+      }
+      return null;
+    });
+
+    await list();
+
+    const selfCall = calls.find((c) => c.url.endsWith("/api/user/self"));
+    expect(selfCall?.headers.Authorization).toBe("console-token");
+    expect(selfCall?.headers["New-Api-User"]).toBe("7");
+    // key: $50 limit - $2.66 used = $47.34; acct: 6,180,000 / 500,000 = $12.36
+    expect(output()).toContain("key $47.34 left");
+    expect(output()).toContain("acct $12.36 left");
+  });
+
+  test("falls back to token-level billing when the relay access token is rejected", async () => {
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "relay",
+          target: { provider: "claude", profileName: "relay" },
+          createdAt: 1,
+        },
+      ],
+    });
+    const dir = join(TEST_HOME, ".claude-profiles", "relay");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, "profile.json"),
+      JSON.stringify({
+        type: "api-key",
+        apiKey: "sk-test-key-12345678",
+        baseUrl: "https://relay.example.com",
+      }),
+    );
+    await mkdir(join(TEST_HOME, ".claudex-switch"), { recursive: true });
+    await writeFile(
+      join(TEST_HOME, ".claudex-switch", "relays.json"),
+      JSON.stringify({
+        "https://relay.example.com": { accessToken: "stale-token" },
+      }),
+    );
+
+    mockFetch((url) => {
+      if (url === "https://relay.example.com/api/user/self") {
+        return new Response(
+          JSON.stringify({ success: false, message: "Unauthorized" }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://relay.example.com/v1/dashboard/billing/subscription") {
+        return new Response(
+          JSON.stringify({ object: "billing_subscription", hard_limit_usd: 50 }),
+          { status: 200 },
+        );
+      }
+      if (url.startsWith("https://relay.example.com/v1/dashboard/billing/usage")) {
+        return new Response(
+          JSON.stringify({ object: "list", total_usage: 265.6932 }),
+          { status: 200 },
+        );
+      }
+      return null;
+    });
+
+    await list();
+
+    expect(output()).toContain("$47.34 left");
+  });
+
   test("shows no balance when the relay answers with HTML", async () => {
     await saveAliases({
       version: 1,

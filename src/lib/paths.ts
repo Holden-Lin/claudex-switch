@@ -21,6 +21,7 @@ export const CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 // claudex-switch paths
 export const CLAUDEX_DIR = join(HOME, ".claudex-switch");
 export const ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
+export const RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
 
 // Claude profile helpers
 export function claudeProfileDir(name: string): string {

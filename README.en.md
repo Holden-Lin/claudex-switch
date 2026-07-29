@@ -12,7 +12,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - `claudex-switch <alias> -run --model <model> [effort]` overrides the model for this run only without changing the saved default; shorthand is supported — bare Claude versions map to opus (`5` → `claude-opus-5`), while `fable` / `fable5` map to `claude-fable-5`; Codex maps to gpt (`5.5` → `gpt-5.5`, `5.6` → `gpt-5.6-sol`); an effort tier may follow the model (e.g. `--model 5 max`), mapped to `--effort` for Claude and `-c model_reasoning_effort=...` for Codex
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
-- `claudex-switch list` fetches remaining quota for all accounts in parallel: Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the remaining balance (`$47.34 left`). Pass `--no-usage` to skip the network requests
+- `claudex-switch list` fetches remaining quota for all accounts in parallel: Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip the network requests
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs and Sonnet / Opus / Haiku model mapping
@@ -192,6 +192,25 @@ requires_openai_auth = false
 | `claudex-switch help` | Show help |
 
 **Shortcuts:** `ls` = `list`, `rm` = `remove`, `-V` = `--version`
+
+### Relay Account Balance (optional)
+
+An sk key on a one-api / new-api relay can only see **its own** quota (an unlimited-quota key only reports its usage), never the account wallet. To also show the account-level balance in `list`, configure console credentials per relay origin in `~/.claudex-switch/relays.json`:
+
+```json
+{
+  "https://relay.example.com": {
+    "accessToken": "system access token from the console's personal settings page",
+    "userId": 42
+  }
+}
+```
+
+- `accessToken`: the **system access token** generated on the relay console's personal settings page (not an `sk-` API key)
+- `userId`: your numeric user id (shown on the same page); required when the site expects the `New-Api-User` header
+- `quotaPerUnit`: optional override for the site's quota-per-dollar ratio (auto-detected from `/api/status`, usually 500000)
+
+Once configured, both Claude and Codex accounts on that relay show both levels: `key $47.34 left · acct $114.71 left`.
 
 ### Refresh Expired Logins
 

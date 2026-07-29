@@ -1582,7 +1582,7 @@ function codexAccountAuthFile(accountKey) {
   const fileKey = needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
   return join(CODEX_ACCOUNTS_DIR, `${fileKey}.auth.json`);
 }
-var HOME, CLAUDE_DIR, CLAUDE_JSON, CREDENTIALS_FILE, SETTINGS_FILE, CLAUDE_PROFILES_DIR, CLAUDE_STATE_FILE, CODEX_DIR, CODEX_AUTH_FILE, CODEX_CONFIG_FILE, CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE, CLAUDEX_DIR, ALIAS_REGISTRY_FILE;
+var HOME, CLAUDE_DIR, CLAUDE_JSON, CREDENTIALS_FILE, SETTINGS_FILE, CLAUDE_PROFILES_DIR, CLAUDE_STATE_FILE, CODEX_DIR, CODEX_AUTH_FILE, CODEX_CONFIG_FILE, CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE, CLAUDEX_DIR, ALIAS_REGISTRY_FILE, RELAYS_FILE;
 var init_paths = __esm(() => {
   HOME = process.env.CLAUDEX_TEST_HOME ?? homedir();
   CLAUDE_DIR = join(HOME, ".claude");
@@ -1598,6 +1598,7 @@ var init_paths = __esm(() => {
   CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
   CLAUDEX_DIR = join(HOME, ".claudex-switch");
   ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
+  RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
 });
 
 // src/lib/fs.ts
@@ -4175,13 +4176,26 @@ function colorRemaining(percent) {
 function formatBalance(balance) {
   if (!balance)
     return "";
-  const dollars = (v) => `$${v.toFixed(2)}`;
-  if (balance.unlimited) {
-    return balance.usedUsd === null ? source_default.dim("∞") : source_default.dim(`${dollars(balance.usedUsd)} used`);
+  const keyPart = formatBalanceSide(balance.key);
+  const acctPart = formatBalanceSide(balance.account);
+  if (keyPart && acctPart) {
+    return [
+      `${source_default.dim("key")} ${keyPart}`,
+      `${source_default.dim("acct")} ${acctPart}`
+    ].join(source_default.dim(" · "));
   }
-  if (balance.remainingUsd === null)
+  return keyPart || acctPart;
+}
+function formatBalanceSide(side) {
+  if (!side)
     return "";
-  const colored = balance.remainingUsd >= 10 ? source_default.green(dollars(balance.remainingUsd)) : balance.remainingUsd >= 1 ? source_default.yellow(dollars(balance.remainingUsd)) : source_default.red(dollars(balance.remainingUsd));
+  const dollars = (v) => `$${v.toFixed(2)}`;
+  if (side.unlimited) {
+    return side.usedUsd === null ? source_default.dim("∞") : source_default.dim(`${dollars(side.usedUsd)} used`);
+  }
+  if (side.remainingUsd === null)
+    return "";
+  const colored = side.remainingUsd >= 10 ? source_default.green(dollars(side.remainingUsd)) : side.remainingUsd >= 1 ? source_default.yellow(dollars(side.remainingUsd)) : source_default.red(dollars(side.remainingUsd));
   return `${colored} ${source_default.dim("left")}`;
 }
 
@@ -6506,8 +6520,11 @@ async function refreshTokens(auth) {
 }
 
 // src/lib/oneapi.ts
+init_paths();
+init_fs();
 var FETCH_TIMEOUT_MS3 = 4000;
 var UNLIMITED_THRESHOLD_USD = 1e7;
+var DEFAULT_QUOTA_PER_UNIT = 500000;
 async function fetchRelayBalance(baseUrl, apiKey) {
   let origin;
   try {
@@ -6515,6 +6532,15 @@ async function fetchRelayBalance(baseUrl, apiKey) {
   } catch {
     return null;
   }
+  const [key, account] = await Promise.all([
+    fetchKeyBalance(origin, apiKey),
+    fetchAccountBalance(origin)
+  ]);
+  if (!key && !account)
+    return null;
+  return { key, account };
+}
+async function fetchKeyBalance(origin, apiKey) {
   const headers = { Authorization: `Bearer ${apiKey}` };
   for (const prefix of ["/v1", ""]) {
     const subscription = await getJson(`${origin}${prefix}/dashboard/billing/subscription`, headers);
@@ -6534,6 +6560,39 @@ async function fetchRelayBalance(baseUrl, apiKey) {
     };
   }
   return null;
+}
+async function fetchAccountBalance(origin) {
+  const relays = await readJson(RELAYS_FILE, {});
+  const config = relays[origin];
+  if (!config || typeof config.accessToken !== "string" || !config.accessToken) {
+    return null;
+  }
+  const headers = {
+    Authorization: config.accessToken
+  };
+  if (config.userId !== undefined) {
+    headers["New-Api-User"] = String(config.userId);
+  }
+  const [self, status] = await Promise.all([
+    getJson(`${origin}/api/user/self`, headers),
+    typeof config.quotaPerUnit === "number" ? Promise.resolve(null) : getJson(`${origin}/api/status`, {})
+  ]);
+  if (self?.success !== true)
+    return null;
+  const data = self.data;
+  if (!data || typeof data !== "object")
+    return null;
+  const quota = data.quota;
+  if (typeof quota !== "number")
+    return null;
+  const usedQuota = data.used_quota;
+  const statusData = status?.data && typeof status.data === "object" ? status.data : null;
+  const quotaPerUnit = typeof config.quotaPerUnit === "number" ? config.quotaPerUnit : typeof statusData?.quota_per_unit === "number" ? statusData.quota_per_unit : DEFAULT_QUOTA_PER_UNIT;
+  return {
+    unlimited: false,
+    remainingUsd: quota / quotaPerUnit,
+    usedUsd: typeof usedQuota === "number" ? usedQuota / quotaPerUnit : null
+  };
 }
 async function getJson(url, headers) {
   try {

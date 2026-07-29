@@ -12,7 +12,7 @@
 - `claudex-switch <alias> -run --model <model> [effort]` 可只对这次会话临时覆盖模型，不修改保存的默认模型；支持缩写，例如 Claude 用 `4.8` / `5` / `fable`（`5` → `claude-opus-5`，`fable` / `fable5` → `claude-fable-5`），Codex 用 `5.5` / `5.6`（`5.6` → `gpt-5.6-sol`）；模型后可紧跟 effort 档位（如 `--model 5 max`），Claude 映射为 `--effort`，Codex 映射为 `-c model_reasoning_effort=...`
 - 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
-- `claudex-switch list` 并行拉取并显示所有账号的剩余额度：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示剩余余额（`$47.34 left`）。加 `--no-usage` 可跳过网络请求
+- `claudex-switch list` 并行拉取并显示所有账号的剩余额度：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。加 `--no-usage` 可跳过网络请求
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型和 Sonnet / Opus / Haiku 模型映射）
@@ -192,6 +192,25 @@ requires_openai_auth = false
 | `claudex-switch help` | 显示帮助 |
 
 **快捷方式:** `ls` = `list`，`rm` = `remove`，`-V` = `--version`
+
+### 中转站账号余额（可选）
+
+one-api / new-api 系中转站的 sk 密钥只能查到**密钥自身**的额度（无限额度令牌只能看到已用量），查不到账号钱包余额。如需在 `list` 中同时显示账号级余额，在 `~/.claudex-switch/relays.json` 按站点 origin 配置控制台凭证：
+
+```json
+{
+  "https://relay.example.com": {
+    "accessToken": "控制台「个人设置 → 系统访问令牌」生成的令牌",
+    "userId": 42
+  }
+}
+```
+
+- `accessToken`：站点控制台**个人设置**页生成的系统访问令牌（不是 `sk-` API 密钥）
+- `userId`：你的数字用户 ID（个人设置页可见）；站点要求 `New-Api-User` 头时必填
+- `quotaPerUnit`：可选，覆盖站点的额度换算比例（默认自动从 `/api/status` 读取，一般为 500000/美元）
+
+配置后同一站点下的 Claude 和 Codex 账号都会显示 `key $47.34 left · acct $114.71 left` 两级余额。
 
 ### 刷新过期登录
 

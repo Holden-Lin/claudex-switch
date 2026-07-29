@@ -3,6 +3,7 @@ import type {
   ProfileType,
   Provider,
   RelayBalance,
+  RelayBalanceSide,
   UsageInfo,
 } from "../types";
 
@@ -114,20 +115,38 @@ function colorRemaining(percent: number): string {
   return chalk.red(text);
 }
 
+// Both balance levels a relay reports, labeled:
+// "key $47.34 left · acct $12.36 left" (key = sk key quota, acct = wallet).
+// A single known level drops the label when the other is absent.
 export function formatBalance(balance: RelayBalance | null): string {
   if (!balance) return "";
-  const dollars = (v: number) => `$${v.toFixed(2)}`;
-  if (balance.unlimited) {
-    return balance.usedUsd === null
-      ? chalk.dim("∞")
-      : chalk.dim(`${dollars(balance.usedUsd)} used`);
+
+  const keyPart = formatBalanceSide(balance.key);
+  const acctPart = formatBalanceSide(balance.account);
+
+  if (keyPart && acctPart) {
+    return [
+      `${chalk.dim("key")} ${keyPart}`,
+      `${chalk.dim("acct")} ${acctPart}`,
+    ].join(chalk.dim(" · "));
   }
-  if (balance.remainingUsd === null) return "";
+  return keyPart || acctPart;
+}
+
+function formatBalanceSide(side: RelayBalanceSide | null): string {
+  if (!side) return "";
+  const dollars = (v: number) => `$${v.toFixed(2)}`;
+  if (side.unlimited) {
+    return side.usedUsd === null
+      ? chalk.dim("∞")
+      : chalk.dim(`${dollars(side.usedUsd)} used`);
+  }
+  if (side.remainingUsd === null) return "";
   const colored =
-    balance.remainingUsd >= 10
-      ? chalk.green(dollars(balance.remainingUsd))
-      : balance.remainingUsd >= 1
-        ? chalk.yellow(dollars(balance.remainingUsd))
-        : chalk.red(dollars(balance.remainingUsd));
+    side.remainingUsd >= 10
+      ? chalk.green(dollars(side.remainingUsd))
+      : side.remainingUsd >= 1
+        ? chalk.yellow(dollars(side.remainingUsd))
+        : chalk.red(dollars(side.remainingUsd));
   return `${colored} ${chalk.dim("left")}`;
 }
