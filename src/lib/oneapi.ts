@@ -1,5 +1,7 @@
+import { mkdir } from "fs/promises";
+import { dirname } from "path";
 import { RELAYS_FILE } from "./paths";
-import { readJson } from "./fs";
+import { readJson, writeJsonSecure } from "./fs";
 import type { RelayBalance, RelayBalanceSide, RelayConfig } from "../types";
 
 const FETCH_TIMEOUT_MS = 4_000;
@@ -87,15 +89,69 @@ async function fetchKeyBalance(
 // an sk API key); userId is optional (sent as the New-Api-User header for
 // deployments that require it), quotaPerUnit overrides the site's
 // quota-per-dollar ratio (otherwise read from /api/status).
-async function fetchAccountBalance(
+export async function getRelayConfig(
   origin: string,
-): Promise<RelayBalanceSide | null> {
+): Promise<RelayConfig | null> {
   const relays = await readJson<Record<string, RelayConfig>>(RELAYS_FILE, {});
   const config = relays[origin];
   if (!config || typeof config.accessToken !== "string" || !config.accessToken) {
     return null;
   }
+  return config;
+}
 
+export async function saveRelayConfig(
+  origin: string,
+  config: RelayConfig,
+): Promise<void> {
+  const relays = await readJson<Record<string, RelayConfig>>(RELAYS_FILE, {});
+  relays[origin] = config;
+  await mkdir(dirname(RELAYS_FILE), { recursive: true });
+  await writeJsonSecure(RELAYS_FILE, relays);
+}
+
+export interface RelayStatus {
+  systemName: string | null;
+  quotaPerUnit: number | null;
+}
+
+/**
+ * Detect whether an origin is a one-api/new-api-family relay by its public
+ * /api/status endpoint (it always carries quota_per_unit / system_name).
+ * Official vendors 404 or answer with HTML, both of which return null.
+ */
+export async function detectRelay(origin: string): Promise<RelayStatus | null> {
+  const status = await getJson(`${origin}/api/status`, {});
+  const data =
+    status?.data && typeof status.data === "object"
+      ? (status.data as Record<string, unknown>)
+      : null;
+  if (!data) return null;
+
+  const quotaPerUnit = toNumber(data.quota_per_unit);
+  const systemName =
+    typeof data.system_name === "string" ? data.system_name : null;
+  if (quotaPerUnit === null && systemName === null) return null;
+
+  return { systemName, quotaPerUnit };
+}
+
+async function fetchAccountBalance(
+  origin: string,
+): Promise<RelayBalanceSide | null> {
+  const config = await getRelayConfig(origin);
+  if (!config) return null;
+  return fetchAccountBalanceWith(origin, config);
+}
+
+/**
+ * Fetch the account wallet balance with explicit credentials — also used by
+ * `add` to validate a just-entered access token before saving it.
+ */
+export async function fetchAccountBalanceWith(
+  origin: string,
+  config: RelayConfig,
+): Promise<RelayBalanceSide | null> {
   const headers: Record<string, string> = {
     Authorization: config.accessToken,
   };
@@ -113,9 +169,9 @@ async function fetchAccountBalance(
   if (self?.success !== true) return null;
   const data = self.data;
   if (!data || typeof data !== "object") return null;
-  const quota = (data as Record<string, unknown>).quota;
-  if (typeof quota !== "number") return null;
-  const usedQuota = (data as Record<string, unknown>).used_quota;
+  const quota = toNumber((data as Record<string, unknown>).quota);
+  if (quota === null) return null;
+  const usedQuota = toNumber((data as Record<string, unknown>).used_quota);
 
   const statusData =
     status?.data && typeof status.data === "object"
@@ -124,16 +180,24 @@ async function fetchAccountBalance(
   const quotaPerUnit =
     typeof config.quotaPerUnit === "number"
       ? config.quotaPerUnit
-      : typeof statusData?.quota_per_unit === "number"
-        ? statusData.quota_per_unit
-        : DEFAULT_QUOTA_PER_UNIT;
+      : (statusData && toNumber(statusData.quota_per_unit)) ??
+        DEFAULT_QUOTA_PER_UNIT;
 
   return {
     unlimited: false,
     remainingUsd: quota / quotaPerUnit,
-    usedUsd:
-      typeof usedQuota === "number" ? usedQuota / quotaPerUnit : null,
+    usedUsd: usedQuota === null ? null : usedQuota / quotaPerUnit,
   };
+}
+
+// Some relay forks serialize numeric fields as strings.
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 async function getJson(

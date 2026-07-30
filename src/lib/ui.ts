@@ -133,7 +133,7 @@ export function formatBalance(balance: RelayBalance | null): string {
   return keyPart || acctPart;
 }
 
-function formatBalanceSide(side: RelayBalanceSide | null): string {
+export function formatBalanceSide(side: RelayBalanceSide | null): string {
   if (!side) return "";
   const dollars = (v: number) => `$${v.toFixed(2)}`;
   if (side.unlimited) {

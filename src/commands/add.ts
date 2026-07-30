@@ -16,7 +16,7 @@ import {
   addApiKeyProfile,
 } from "../providers/claude/profiles";
 import { readCredentials } from "../providers/claude/credentials";
-import { CREDENTIALS_FILE } from "../lib/paths";
+import { CREDENTIALS_FILE, RELAYS_FILE } from "../lib/paths";
 import {
   applyCodexApiProvider,
   DEFAULT_CODEX_MODEL,
@@ -40,8 +40,16 @@ import {
   info,
   hint,
   formatPlan,
+  formatBalanceSide,
   maskKey,
 } from "../lib/ui";
+import {
+  detectRelay,
+  fetchAccountBalanceWith,
+  getRelayConfig,
+  saveRelayConfig,
+} from "../lib/oneapi";
+import type { RelayConfig } from "../types";
 import type { CodexRegistryAccount } from "../types";
 import type {
   ClaudeApiProfileConfig,
@@ -218,7 +226,73 @@ async function addClaudeApiKey(alias: string): Promise<void> {
   success(
     `${chalk.bold(alias)} created  ${chalk.dim(maskKey(config.apiKey))}`,
   );
+  await maybeSetupRelayBalance(config.baseUrl);
   blank();
+}
+
+// When the API base URL turns out to be a one-api/new-api relay, offer to
+// store the console access token so `list` can show the account wallet
+// balance (the sk key alone can only see its own quota). Skippable; the
+// account itself is already created at this point.
+async function maybeSetupRelayBalance(
+  baseUrl: string | undefined,
+): Promise<void> {
+  if (!baseUrl) return;
+  let origin: string;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    return;
+  }
+  if (await getRelayConfig(origin)) return;
+
+  const relay = await detectRelay(origin);
+  if (!relay) return;
+
+  blank();
+  info(
+    `This looks like a one-api/new-api relay${relay.systemName ? ` (${chalk.bold(relay.systemName)})` : ""}.`,
+  );
+  hint(
+    "With a console access token, `list` also shows the account wallet balance.",
+  );
+  hint(
+    "Find both fields on the relay console's personal settings page (系统访问令牌 + 用户ID).",
+  );
+
+  for (;;) {
+    const token = (
+      await password({
+        message: "System access token (not an sk- key; Enter to skip)",
+        mask: "*",
+      })
+    ).trim();
+    if (!token) return;
+
+    const userIdRaw = (
+      await input({
+        message: "Numeric user ID (Enter if the site doesn't need one)",
+        validate: (value) =>
+          /^\d*$/.test(value.trim()) || "User ID must be a number",
+      })
+    ).trim();
+
+    const config: RelayConfig = userIdRaw
+      ? { accessToken: token, userId: Number(userIdRaw) }
+      : { accessToken: token };
+
+    const balance = await fetchAccountBalanceWith(origin, config);
+    if (balance) {
+      await saveRelayConfig(origin, config);
+      success(`Relay account balance: ${formatBalanceSide(balance)}`);
+      return;
+    }
+
+    error("The relay rejected the token/user ID.");
+    hint(
+      `Try again, press Enter to skip, or edit ${chalk.cyan(RELAYS_FILE)} later.`,
+    );
+  }
 }
 
 async function promptClaudeApiConfig(): Promise<ClaudeApiProfileConfig> {
@@ -450,6 +524,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
   success(
     `${chalk.bold(alias)} created  ${chalk.dim(maskKey(key.trim()))}`,
   );
+  await maybeSetupRelayBalance(apiProvider.base_url ?? undefined);
   blank();
 }
 

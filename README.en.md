@@ -195,7 +195,11 @@ requires_openai_auth = false
 
 ### Relay Account Balance (optional)
 
-An sk key on a one-api / new-api relay can only see **its own** quota (an unlimited-quota key only reports its usage), never the account wallet. To also show the account-level balance in `list`, configure console credentials per relay origin in `~/.claudex-switch/relays.json`:
+An sk key on a one-api / new-api relay can only see **its own** quota (an unlimited-quota key only reports its usage), never the account wallet.
+
+When adding an API key account, `claudex-switch add` auto-detects whether the base URL is a one-api / new-api-family relay (via the public `/api/status`) and, if so, prompts for the console's system access token and numeric user ID — validating them live before saving and echoing the balance (press Enter to skip).
+
+You can also configure console credentials per relay origin manually in `~/.claudex-switch/relays.json`:
 
 ```json
 {

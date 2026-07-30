@@ -195,7 +195,11 @@ requires_openai_auth = false
 
 ### 中转站账号余额（可选）
 
-one-api / new-api 系中转站的 sk 密钥只能查到**密钥自身**的额度（无限额度令牌只能看到已用量），查不到账号钱包余额。如需在 `list` 中同时显示账号级余额，在 `~/.claudex-switch/relays.json` 按站点 origin 配置控制台凭证：
+one-api / new-api 系中转站的 sk 密钥只能查到**密钥自身**的额度（无限额度令牌只能看到已用量），查不到账号钱包余额。
+
+`claudex-switch add` 添加 API Key 账号时会自动探测 Base URL 是否为 one-api / new-api 系站点（通过公开的 `/api/status`），命中后引导输入控制台的系统访问令牌和数字用户 ID，当场验证通过才保存并回显余额（回车可跳过）。
+
+也可以手工在 `~/.claudex-switch/relays.json` 按站点 origin 配置控制台凭证：
 
 ```json
 {

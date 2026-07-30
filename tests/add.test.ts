@@ -52,6 +52,9 @@ const { makeJwt, resetTestHome } = await import("./helpers");
 import { CODEX_DEVICE_AUTH_URL } from "../src/lib/browser";
 import type { CodexAuthFile } from "../src/types";
 
+const originalFetch = globalThis.fetch;
+const { RELAYS_FILE } = await import("../src/lib/paths");
+
 describe("add", () => {
   afterEach(() => {
     childProcess.spawn.mockRestore?.();
@@ -60,11 +63,16 @@ describe("add", () => {
     prompts.confirm.mockRestore?.();
     prompts.password.mockRestore?.();
     prompts.input.mockRestore?.();
+    globalThis.fetch = originalFetch;
   });
 
   beforeEach(async () => {
     await resetTestHome();
     process.env.CLAUDEX_FORCE_FILE_CREDENTIALS = "1";
+    // Relay detection probes /api/status on api-key base URLs; never let
+    // tests reach the network.
+    globalThis.fetch = (async () =>
+      new Response("not found", { status: 404 })) as typeof fetch;
     spawnHandler = async () => 0;
     spawnSyncHandler = () => ({
       status: 0,
@@ -351,5 +359,123 @@ describe("add", () => {
     expect(output).toContain("custom-claude created");
 
     logSpy.mockRestore();
+  });
+
+  test("offers relay account balance setup when the base URL is a one-api relay", async () => {
+    const selectValues = ["codex-apikey", "custom"];
+    const inputValues = [
+      "relay",
+      "https://relay.example.com/v1",
+      "gpt-5.4",
+      "OPENAI_API_KEY",
+      "7", // numeric user id for the relay console
+    ];
+    const passwordValues = ["sk-test-123456789", "console-token"];
+    selectHandler = async () => selectValues.shift() ?? "custom";
+    inputHandler = async () => inputValues.shift() ?? "";
+    passwordHandler = async () => passwordValues.shift() ?? "";
+
+    const fetchCalls: { url: string; headers: Record<string, string> }[] = [];
+    globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      fetchCalls.push({
+        url,
+        headers: (init?.headers ?? {}) as Record<string, string>,
+      });
+      if (url === "https://relay.example.com/api/status") {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: { system_name: "Mo API", quota_per_unit: 500000 },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://relay.example.com/api/user/self") {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: { id: 7, quota: 163_055_000, used_quota: 0 },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await add("relayx");
+
+    const selfCall = fetchCalls.find((c) => c.url.endsWith("/api/user/self"));
+    expect(selfCall?.headers.Authorization).toBe("console-token");
+    expect(selfCall?.headers["New-Api-User"]).toBe("7");
+
+    const relays = JSON.parse(await readFile(RELAYS_FILE, "utf-8"));
+    expect(relays).toEqual({
+      "https://relay.example.com": {
+        accessToken: "console-token",
+        userId: 7,
+      },
+    });
+
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("one-api/new-api relay");
+    // 163,055,000 quota units / 500,000 per dollar = $326.11
+    expect(output).toContain("Relay account balance: $326.11 left");
+
+    logSpy.mockRestore();
+  });
+
+  test("does not save relay credentials the relay rejects", async () => {
+    const selectValues = ["codex-apikey", "custom"];
+    const inputValues = [
+      "relay",
+      "https://relay.example.com/v1",
+      "gpt-5.4",
+      "OPENAI_API_KEY",
+      "7",
+    ];
+    // First attempt rejected, second prompt skipped with Enter.
+    const passwordValues = ["sk-test-123456789", "bad-token", ""];
+    selectHandler = async () => selectValues.shift() ?? "custom";
+    inputHandler = async () => inputValues.shift() ?? "";
+    passwordHandler = async () => passwordValues.shift() ?? "";
+
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url === "https://relay.example.com/api/status") {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: { system_name: "Mo API", quota_per_unit: 500000 },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://relay.example.com/api/user/self") {
+        return new Response(
+          JSON.stringify({ success: false, message: "Unauthorized" }),
+          { status: 401 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    await add("relayx");
+
+    // account still created, but no relay credentials persisted
+    const aliases = await loadAliases();
+    expect(aliases.aliases[0]?.alias).toBe("relayx");
+    await expect(readFile(RELAYS_FILE, "utf-8")).rejects.toThrow();
+
+    const output = errorSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("rejected");
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

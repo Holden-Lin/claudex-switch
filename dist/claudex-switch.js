@@ -3648,7 +3648,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename, dirname as dirname3, join as join6, resolve } from "path";
+import { basename, dirname as dirname4, join as join6, resolve } from "path";
 
 // src/alias/store.ts
 init_paths();
@@ -5158,6 +5158,134 @@ async function runCodexDeviceAuthLogin() {
   }
 }
 
+// src/lib/oneapi.ts
+init_paths();
+init_fs();
+import { mkdir as mkdir7 } from "fs/promises";
+import { dirname as dirname3 } from "path";
+var FETCH_TIMEOUT_MS = 4000;
+var UNLIMITED_THRESHOLD_USD = 1e7;
+var DEFAULT_QUOTA_PER_UNIT = 500000;
+async function fetchRelayBalance(baseUrl, apiKey) {
+  let origin;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    return null;
+  }
+  const [key, account] = await Promise.all([
+    fetchKeyBalance(origin, apiKey),
+    fetchAccountBalance(origin)
+  ]);
+  if (!key && !account)
+    return null;
+  return { key, account };
+}
+async function fetchKeyBalance(origin, apiKey) {
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  for (const prefix of ["/v1", ""]) {
+    const subscription = await getJson(`${origin}${prefix}/dashboard/billing/subscription`, headers);
+    const totalUsd = subscription?.hard_limit_usd;
+    if (typeof totalUsd !== "number")
+      continue;
+    const end = new Date;
+    const start = new Date(end.getTime() - 90 * 86400000);
+    const day = (d) => d.toISOString().slice(0, 10);
+    const usage = await getJson(`${origin}${prefix}/dashboard/billing/usage?start_date=${day(start)}&end_date=${day(end)}`, headers);
+    const usedUsd = typeof usage?.total_usage === "number" ? usage.total_usage / 100 : null;
+    const unlimited = totalUsd >= UNLIMITED_THRESHOLD_USD;
+    return {
+      unlimited,
+      usedUsd,
+      remainingUsd: unlimited || usedUsd === null ? null : Math.max(0, totalUsd - usedUsd)
+    };
+  }
+  return null;
+}
+async function getRelayConfig(origin) {
+  const relays = await readJson(RELAYS_FILE, {});
+  const config = relays[origin];
+  if (!config || typeof config.accessToken !== "string" || !config.accessToken) {
+    return null;
+  }
+  return config;
+}
+async function saveRelayConfig(origin, config) {
+  const relays = await readJson(RELAYS_FILE, {});
+  relays[origin] = config;
+  await mkdir7(dirname3(RELAYS_FILE), { recursive: true });
+  await writeJsonSecure(RELAYS_FILE, relays);
+}
+async function detectRelay(origin) {
+  const status = await getJson(`${origin}/api/status`, {});
+  const data = status?.data && typeof status.data === "object" ? status.data : null;
+  if (!data)
+    return null;
+  const quotaPerUnit = toNumber(data.quota_per_unit);
+  const systemName = typeof data.system_name === "string" ? data.system_name : null;
+  if (quotaPerUnit === null && systemName === null)
+    return null;
+  return { systemName, quotaPerUnit };
+}
+async function fetchAccountBalance(origin) {
+  const config = await getRelayConfig(origin);
+  if (!config)
+    return null;
+  return fetchAccountBalanceWith(origin, config);
+}
+async function fetchAccountBalanceWith(origin, config) {
+  const headers = {
+    Authorization: config.accessToken
+  };
+  if (config.userId !== undefined) {
+    headers["New-Api-User"] = String(config.userId);
+  }
+  const [self, status] = await Promise.all([
+    getJson(`${origin}/api/user/self`, headers),
+    typeof config.quotaPerUnit === "number" ? Promise.resolve(null) : getJson(`${origin}/api/status`, {})
+  ]);
+  if (self?.success !== true)
+    return null;
+  const data = self.data;
+  if (!data || typeof data !== "object")
+    return null;
+  const quota = toNumber(data.quota);
+  if (quota === null)
+    return null;
+  const usedQuota = toNumber(data.used_quota);
+  const statusData = status?.data && typeof status.data === "object" ? status.data : null;
+  const quotaPerUnit = typeof config.quotaPerUnit === "number" ? config.quotaPerUnit : (statusData && toNumber(statusData.quota_per_unit)) ?? DEFAULT_QUOTA_PER_UNIT;
+  return {
+    unlimited: false,
+    remainingUsd: quota / quotaPerUnit,
+    usedUsd: usedQuota === null ? null : usedQuota / quotaPerUnit
+  };
+}
+function toNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value))
+    return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed))
+      return parsed;
+  }
+  return null;
+}
+async function getJson(url, headers) {
+  try {
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    });
+    if (!res.ok)
+      return null;
+    const data = JSON.parse(await res.text());
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 // src/commands/add.ts
 function readClaudeAuthStatus() {
   const result = spawnSync3("claude", ["auth", "status"], {
@@ -5291,7 +5419,48 @@ async function addClaudeApiKey(alias) {
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
   success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(config.apiKey))}`);
+  await maybeSetupRelayBalance(config.baseUrl);
   blank();
+}
+async function maybeSetupRelayBalance(baseUrl) {
+  if (!baseUrl)
+    return;
+  let origin;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    return;
+  }
+  if (await getRelayConfig(origin))
+    return;
+  const relay = await detectRelay(origin);
+  if (!relay)
+    return;
+  blank();
+  info(`This looks like a one-api/new-api relay${relay.systemName ? ` (${source_default.bold(relay.systemName)})` : ""}.`);
+  hint("With a console access token, `list` also shows the account wallet balance.");
+  hint("Find both fields on the relay console's personal settings page (系统访问令牌 + 用户ID).");
+  for (;; ) {
+    const token = (await esm_default4({
+      message: "System access token (not an sk- key; Enter to skip)",
+      mask: "*"
+    })).trim();
+    if (!token)
+      return;
+    const userIdRaw = (await esm_default3({
+      message: "Numeric user ID (Enter if the site doesn't need one)",
+      validate: (value) => /^\d*$/.test(value.trim()) || "User ID must be a number"
+    })).trim();
+    const config = userIdRaw ? { accessToken: token, userId: Number(userIdRaw) } : { accessToken: token };
+    const balance = await fetchAccountBalanceWith(origin, config);
+    if (balance) {
+      await saveRelayConfig(origin, config);
+      success(`Relay account balance: ${formatBalanceSide(balance)}`);
+      return;
+    }
+    error("The relay rejected the token/user ID.");
+    hint(`Try again, press Enter to skip, or edit ${source_default.cyan(RELAYS_FILE)} later.`);
+  }
 }
 async function promptClaudeApiConfig() {
   const apiKey = await esm_default4({
@@ -5480,6 +5649,7 @@ async function addCodexApiKey(alias) {
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
   success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key.trim()))}`);
+  await maybeSetupRelayBalance(apiProvider.base_url ?? undefined);
   blank();
 }
 async function promptCodexDefaultModel() {
@@ -6233,7 +6403,7 @@ var USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 var TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
 var CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 var EXPIRY_SKEW_MS = 60000;
-var FETCH_TIMEOUT_MS = 5000;
+var FETCH_TIMEOUT_MS2 = 5000;
 function expiresAt(creds) {
   return creds?.claudeAiOauth?.expiresAt ?? 0;
 }
@@ -6295,7 +6465,7 @@ async function requestUsage(accessToken) {
         "anthropic-beta": "oauth-2025-04-20",
         "Content-Type": "application/json"
       },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
     });
     if (res.status === 401 || res.status === 403)
       return "unauthorized";
@@ -6346,7 +6516,7 @@ async function refreshOAuthToken(creds) {
         refresh_token: refreshToken,
         client_id: CLIENT_ID
       }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
     });
     if (!res.ok)
       return "denied";
@@ -6378,7 +6548,7 @@ var USAGE_URL2 = "https://chatgpt.com/backend-api/wham/usage";
 var TOKEN_URL2 = "https://auth.openai.com/oauth/token";
 var CLIENT_ID2 = "app_EMoamEEZ73f0CkXaXp7hrann";
 var EXPIRY_SKEW_MS2 = 60000;
-var FETCH_TIMEOUT_MS2 = 5000;
+var FETCH_TIMEOUT_MS3 = 5000;
 function accessTokenExpiresAt(tokens) {
   const claims = decodeJwtPayload(tokens.access_token);
   return typeof claims?.exp === "number" ? claims.exp * 1000 : null;
@@ -6448,7 +6618,7 @@ async function requestUsage2(tokens) {
         "chatgpt-account-id": chatgptAccountId(tokens),
         "Content-Type": "application/json"
       },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
     });
     if (res.status === 401 || res.status === 403)
       return "unauthorized";
@@ -6506,7 +6676,7 @@ async function refreshTokens(auth) {
         refresh_token: auth.tokens.refresh_token,
         scope: "openid profile email"
       }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
     });
     if (!res.ok)
       return "denied";
@@ -6516,96 +6686,6 @@ async function refreshTokens(auth) {
     return token;
   } catch {
     return "unavailable";
-  }
-}
-
-// src/lib/oneapi.ts
-init_paths();
-init_fs();
-var FETCH_TIMEOUT_MS3 = 4000;
-var UNLIMITED_THRESHOLD_USD = 1e7;
-var DEFAULT_QUOTA_PER_UNIT = 500000;
-async function fetchRelayBalance(baseUrl, apiKey) {
-  let origin;
-  try {
-    origin = new URL(baseUrl).origin;
-  } catch {
-    return null;
-  }
-  const [key, account] = await Promise.all([
-    fetchKeyBalance(origin, apiKey),
-    fetchAccountBalance(origin)
-  ]);
-  if (!key && !account)
-    return null;
-  return { key, account };
-}
-async function fetchKeyBalance(origin, apiKey) {
-  const headers = { Authorization: `Bearer ${apiKey}` };
-  for (const prefix of ["/v1", ""]) {
-    const subscription = await getJson(`${origin}${prefix}/dashboard/billing/subscription`, headers);
-    const totalUsd = subscription?.hard_limit_usd;
-    if (typeof totalUsd !== "number")
-      continue;
-    const end = new Date;
-    const start = new Date(end.getTime() - 90 * 86400000);
-    const day = (d) => d.toISOString().slice(0, 10);
-    const usage = await getJson(`${origin}${prefix}/dashboard/billing/usage?start_date=${day(start)}&end_date=${day(end)}`, headers);
-    const usedUsd = typeof usage?.total_usage === "number" ? usage.total_usage / 100 : null;
-    const unlimited = totalUsd >= UNLIMITED_THRESHOLD_USD;
-    return {
-      unlimited,
-      usedUsd,
-      remainingUsd: unlimited || usedUsd === null ? null : Math.max(0, totalUsd - usedUsd)
-    };
-  }
-  return null;
-}
-async function fetchAccountBalance(origin) {
-  const relays = await readJson(RELAYS_FILE, {});
-  const config = relays[origin];
-  if (!config || typeof config.accessToken !== "string" || !config.accessToken) {
-    return null;
-  }
-  const headers = {
-    Authorization: config.accessToken
-  };
-  if (config.userId !== undefined) {
-    headers["New-Api-User"] = String(config.userId);
-  }
-  const [self, status] = await Promise.all([
-    getJson(`${origin}/api/user/self`, headers),
-    typeof config.quotaPerUnit === "number" ? Promise.resolve(null) : getJson(`${origin}/api/status`, {})
-  ]);
-  if (self?.success !== true)
-    return null;
-  const data = self.data;
-  if (!data || typeof data !== "object")
-    return null;
-  const quota = data.quota;
-  if (typeof quota !== "number")
-    return null;
-  const usedQuota = data.used_quota;
-  const statusData = status?.data && typeof status.data === "object" ? status.data : null;
-  const quotaPerUnit = typeof config.quotaPerUnit === "number" ? config.quotaPerUnit : typeof statusData?.quota_per_unit === "number" ? statusData.quota_per_unit : DEFAULT_QUOTA_PER_UNIT;
-  return {
-    unlimited: false,
-    remainingUsd: quota / quotaPerUnit,
-    usedUsd: typeof usedQuota === "number" ? usedQuota / quotaPerUnit : null
-  };
-}
-async function getJson(url, headers) {
-  try {
-    const res = await fetch(url, {
-      headers,
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
-    });
-    if (!res.ok)
-      return null;
-    const data = JSON.parse(await res.text());
-    return data && typeof data === "object" ? data : null;
-  } catch {
-    return null;
   }
 }
 
@@ -7611,12 +7691,12 @@ function isRepoLocalEntrypoint(scriptPath) {
     return false;
   const entry = resolve(scriptPath);
   const entryName = basename(entry);
-  const parentName = basename(dirname3(entry));
+  const parentName = basename(dirname4(entry));
   let root = null;
   if (parentName === "src" && entryName === "index.ts") {
-    root = dirname3(dirname3(entry));
+    root = dirname4(dirname4(entry));
   } else if (parentName === "dist" && (entryName === "claudex-switch.js" || entryName === "claudex-switch")) {
-    root = dirname3(dirname3(entry));
+    root = dirname4(dirname4(entry));
   }
   if (!root)
     return false;
