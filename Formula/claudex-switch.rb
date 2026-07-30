@@ -1,26 +1,26 @@
 class ClaudexSwitch < Formula
   desc "Switch between Claude Code and Codex accounts with ease"
   homepage "https://github.com/Holden-Lin/claudex-switch"
-  version "1.4.0"
+  version "1.5.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.4.0/claudex-switch-darwin-arm64.tar.gz"
-      sha256 "2cbe7382455ff27c721f8fbfc8b2c144f90ab82c525c574c7c13634c32ff5637"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.5.0/claudex-switch-darwin-arm64.tar.gz"
+      sha256 "01568f6aee243d72e1b8fdab5be1518ec87b3e7552cccaea8d3a81708ea8238d"
     else
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.4.0/claudex-switch-darwin-x64.tar.gz"
-      sha256 "df54367d5191fe86e64e6ebee8ee406525fc8d20caba8cf70e2c69b7df68041b"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.5.0/claudex-switch-darwin-x64.tar.gz"
+      sha256 "782ae5d07d3b1d84702341fdfea3c42e9497b5f72b79d2cab52fc50ac8bf460f"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.4.0/claudex-switch-linux-arm64.tar.gz"
-      sha256 "1b632dcf6a6f73d62ca390f726196f25945c5483a1f22c4a9a431e8b59d40022"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.5.0/claudex-switch-linux-arm64.tar.gz"
+      sha256 "d96820a2cbb6310e32e5e0472fcc64560bf4cd14c4d971ca65b2503fe2971493"
     else
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.4.0/claudex-switch-linux-x64.tar.gz"
-      sha256 "2b76732fbd210ba9b73556f80476b328c87cb7a1640a48ae9d7b9c9ff6bb08d8"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.5.0/claudex-switch-linux-x64.tar.gz"
+      sha256 "bb58dbd82c56cf098d2a8353668be1c26b17336c93ffcd76b78a1aa0a452f7c9"
     end
   end
 
