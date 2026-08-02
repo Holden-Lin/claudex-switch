@@ -9,11 +9,12 @@ import {
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname } from "path";
+import { dirname, join } from "path";
 
 type SpawnHandler = (
   command: string,
   args: string[],
+  options: { env?: NodeJS.ProcessEnv },
 ) => number | void | Promise<number | void>;
 
 type SpawnSyncResult = {
@@ -85,6 +86,7 @@ describe("refresh", () => {
   afterEach(() => {
     childProcess.spawn.mockRestore?.();
     childProcess.spawnSync.mockRestore?.();
+    process.exit.mockRestore?.();
   });
 
   beforeEach(async () => {
@@ -97,7 +99,7 @@ describe("refresh", () => {
       stderr: "",
     });
 
-    spyOn(childProcess, "spawn").mockImplementation((command, args) => {
+    spyOn(childProcess, "spawn").mockImplementation((command, args, options) => {
       const proc = new EventEmitter() as EventEmitter & {
         on(event: string, listener: (...value: unknown[]) => void): unknown;
       };
@@ -107,6 +109,7 @@ describe("refresh", () => {
           const code = (await spawnHandler(
             String(command),
             (args ?? []).map((value) => String(value)),
+            (options ?? {}) as { env?: NodeJS.ProcessEnv },
           )) ?? 0;
           proc.emit("close", code);
         } catch (err) {
@@ -140,6 +143,7 @@ describe("refresh", () => {
     await saveAliases(aliases);
 
     const registry = createRegistry();
+    registry.active_account_key = accountKey;
     registry.accounts.push({
       account_key: accountKey,
       chatgpt_account_id: "acct-1",
@@ -176,6 +180,8 @@ describe("refresh", () => {
       last_refresh: "2026-04-01T00:00:00.000Z",
     };
     await saveAccountAuth(accountKey, staleAuth);
+    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE, JSON.stringify(staleAuth, null, 2));
 
     const refreshedAuth: CodexAuthFile = {
       auth_mode: "chatgpt",
@@ -196,23 +202,19 @@ describe("refresh", () => {
       last_refresh: "2026-04-06T00:00:00.000Z",
     };
 
-    const browserCalls: Array<[string, string[]]> = [];
-    spawnHandler = async (command, args) => {
+    spawnHandler = async (command, args, options) => {
       expect(command).toBe("codex");
-      expect(args).toEqual(["login", "--device-auth"]);
-      await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
+      expect(args).toEqual([
+        "login",
+        "-c",
+        'cli_auth_credentials_store="file"',
+      ]);
+      const isolatedHome = options.env?.CODEX_HOME;
+      expect(isolatedHome).toBeTruthy();
       await writeFile(
-        CODEX_AUTH_FILE,
+        join(isolatedHome!, "auth.json"),
         JSON.stringify(refreshedAuth, null, 2),
       );
-    };
-    spawnSyncHandler = (command, args) => {
-      browserCalls.push([command, args]);
-      return {
-        status: 0,
-        stdout: "",
-        stderr: "",
-      };
     };
 
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -229,25 +231,97 @@ describe("refresh", () => {
     expect(savedRegistry.active_account_key).toBe(accountKey);
     expect(savedRegistry.accounts[0]?.email).toBe("satoshi.lamm@gmail.com");
     expect(savedRegistry.accounts[0]?.plan).toBe("plus");
-    const browserCall = browserCalls.at(-1);
-    expect(browserCall?.[1]).toEqual([
-      "https://auth.openai.com/codex/device",
-    ]);
-    if (process.platform === "darwin") {
-      expect(browserCall?.[0]).toContain("claudex-private-browser-");
-    } else if (process.platform === "linux") {
-      expect(browserCall?.[0]).toBe("xdg-open");
-    } else if (process.platform === "win32") {
-      expect(browserCall).toEqual([
-        "cmd",
-        ["/c", "start", "", "https://auth.openai.com/codex/device"],
-      ]);
-    }
-
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("Refreshed satoshix");
 
     logSpy.mockRestore();
+  });
+
+  test("keeps active and saved auth unchanged after login to another account", async () => {
+    const accountKey = "user-1::acct-1";
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "satoshix",
+          target: { provider: "codex", accountKey },
+          createdAt: 1,
+        },
+      ],
+    });
+    const registry = createRegistry();
+    registry.active_account_key = accountKey;
+    registry.accounts.push({
+      account_key: accountKey,
+      chatgpt_account_id: "acct-1",
+      chatgpt_user_id: "user-1",
+      email: "satoshi.lamm@gmail.com",
+      alias: "satoshix",
+      account_name: null,
+      plan: "plus",
+      auth_mode: "chatgpt",
+      created_at: 1,
+      last_used_at: null,
+      last_usage: null,
+      last_usage_at: null,
+      last_local_rollout: null,
+    });
+    await saveRegistry(registry);
+    const staleAuth: CodexAuthFile = {
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({
+          email: "satoshi.lamm@gmail.com",
+          "https://api.openai.com/auth": {
+            chatgpt_user_id: "user-1",
+            chatgpt_account_id: "acct-1",
+          },
+        }),
+        access_token: "old-access",
+        refresh_token: "old-refresh",
+        account_id: "acct-1",
+      },
+      last_refresh: "2026-04-01T00:00:00.000Z",
+    };
+    await saveAccountAuth(accountKey, staleAuth);
+    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
+    const original = JSON.stringify(staleAuth, null, 2);
+    await writeFile(CODEX_AUTH_FILE, original);
+    const wrongAuth: CodexAuthFile = {
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({
+          email: "other@example.com",
+          "https://api.openai.com/auth": {
+            chatgpt_user_id: "user-2",
+            chatgpt_account_id: "acct-2",
+          },
+        }),
+        access_token: "other-access",
+        refresh_token: "other-refresh",
+        account_id: "acct-2",
+      },
+      last_refresh: "2026-08-02T00:00:00.000Z",
+    };
+    spawnHandler = async (_command, _args, options) => {
+      await writeFile(
+        join(options.env!.CODEX_HOME!, "auth.json"),
+        JSON.stringify(wrongAuth, null, 2),
+      );
+      return 0;
+    };
+    spyOn(console, "log").mockImplementation(() => {});
+    spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as typeof process.exit);
+
+    await expect(refresh("satoshix")).rejects.toThrow("exit");
+
+    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(original);
+    expect(await readAccountAuth(accountKey)).toEqual(staleAuth);
+    expect((await loadRegistry()).active_account_key).toBe(accountKey);
   });
 
   test("refreshes a claude oauth alias by resaving the current credentials", async () => {

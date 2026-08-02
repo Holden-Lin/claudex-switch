@@ -8,128 +8,112 @@ import {
 } from "bun:test";
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
-import { CODEX_DEVICE_AUTH_URL } from "../src/lib/browser";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { dirname, join } from "path";
+import { CODEX_AUTH_FILE, CODEX_CONFIG_FILE } from "../src/lib/paths";
+import { runIsolatedCodexLogin } from "../src/providers/codex/login";
+import type { CodexAuthFile } from "../src/types";
+import { makeJwt, resetTestHome } from "./helpers";
 
+type SpawnOptions = { env?: NodeJS.ProcessEnv };
 type SpawnHandler = (
   command: string,
   args: string[],
-) => number | void | Promise<number | void>;
-
-type SpawnSyncResult = {
-  status: number | null;
-  error?: Error;
-  stdout?: string | Buffer;
-  stderr?: string | Buffer;
-};
-
-type SpawnSyncHandler = (
-  command: string,
-  args: string[],
-) => SpawnSyncResult;
+  options: SpawnOptions,
+) => number | Promise<number>;
 
 let spawnHandler: SpawnHandler = async () => 0;
-let spawnSyncHandler: SpawnSyncHandler = () => ({
-  status: 0,
-  stdout: "",
-  stderr: "",
-});
 
-const { runCodexDeviceAuthLogin } = await import(
-  "../src/providers/codex/login"
-);
+const authData: CodexAuthFile = {
+  auth_mode: "chatgpt",
+  OPENAI_API_KEY: null,
+  tokens: {
+    id_token: makeJwt({
+      email: "dev@example.com",
+      "https://api.openai.com/auth": {
+        chatgpt_user_id: "user-1",
+        chatgpt_account_id: "acct-1",
+        chatgpt_plan_type: "plus",
+      },
+    }),
+    access_token: makeJwt({ sub: "user-1" }),
+    refresh_token: "refresh-1",
+    account_id: "acct-1",
+  },
+  last_refresh: "2026-08-02T00:00:00.000Z",
+};
 
-describe("codex device auth login", () => {
+describe("isolated Codex login", () => {
   afterEach(() => {
     childProcess.spawn.mockRestore?.();
-    childProcess.spawnSync.mockRestore?.();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetTestHome();
     spawnHandler = async () => 0;
-    spawnSyncHandler = () => ({
-      status: 0,
-      stdout: "",
-      stderr: "",
-    });
-
-    spyOn(childProcess, "spawn").mockImplementation((command, args) => {
-      const proc = new EventEmitter() as EventEmitter & {
-        on(event: string, listener: (...value: unknown[]) => void): unknown;
-      };
-
-      queueMicrotask(async () => {
-        try {
-          const code = (await spawnHandler(
-            String(command),
-            (args ?? []).map((value) => String(value)),
-          )) ?? 0;
-          proc.emit("close", code);
-        } catch (err) {
-          proc.emit("error", err);
-        }
-      });
-
-      return proc as ReturnType<typeof childProcess.spawn>;
-    });
-
-    spyOn(childProcess, "spawnSync").mockImplementation((command, args) =>
-      spawnSyncHandler(
-        String(command),
-        (args ?? []).map((value) => String(value)),
-      ) as ReturnType<typeof childProcess.spawnSync>,
+    spyOn(childProcess, "spawn").mockImplementation(
+      (command, args, options) => {
+        const proc = new EventEmitter();
+        queueMicrotask(async () => {
+          try {
+            const code = await spawnHandler(
+              String(command),
+              (args ?? []).map(String),
+              (options ?? {}) as SpawnOptions,
+            );
+            proc.emit("close", code);
+          } catch (err) {
+            proc.emit("error", err);
+          }
+        });
+        return proc as ReturnType<typeof childProcess.spawn>;
+      },
     );
   });
 
-  test("runs codex login with device auth and opens the device URL", async () => {
-    const spawnCalls: Array<[string, string[]]> = [];
-    const spawnSyncCalls: Array<[string, string[]]> = [];
+  test("runs standard browser login in a temporary CODEX_HOME", async () => {
+    await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
+    await writeFile(CODEX_CONFIG_FILE, 'model = "gpt-5.4"\n');
+    await writeFile(CODEX_AUTH_FILE, "existing-global-auth");
+    let isolatedHome = "";
 
-    spawnHandler = async (command, args) => {
-      spawnCalls.push([command, args]);
+    spawnHandler = async (command, args, options) => {
+      expect(command).toBe("codex");
+      expect(args).toEqual([
+        "login",
+        "-c",
+        'cli_auth_credentials_store="file"',
+      ]);
+      isolatedHome = options.env?.CODEX_HOME ?? "";
+      expect(isolatedHome).not.toBe(dirname(CODEX_AUTH_FILE));
+      expect(options.env?.OPENAI_API_KEY).toBeUndefined();
+      expect(await readFile(join(isolatedHome, "config.toml"), "utf-8")).toContain(
+        'model = "gpt-5.4"',
+      );
+      await writeFile(
+        join(isolatedHome, "auth.json"),
+        JSON.stringify(authData, null, 2),
+      );
       return 0;
     };
 
-    spawnSyncHandler = (command, args) => {
-      spawnSyncCalls.push([command, args]);
-      return {
-        status: 0,
-        stdout: "",
-        stderr: "",
-      };
-    };
+    const result = await runIsolatedCodexLogin();
 
-    const exitCode = await runCodexDeviceAuthLogin();
-
-    expect(exitCode).toBe(0);
-    expect(spawnCalls).toEqual([["codex", ["login", "--device-auth"]]]);
-    const browserCall = spawnSyncCalls.at(-1);
-    expect(browserCall?.[1]).toEqual([CODEX_DEVICE_AUTH_URL]);
-    if (process.platform === "darwin") {
-      expect(browserCall?.[0]).toContain("claudex-private-browser-");
-    } else if (process.platform === "linux") {
-      expect(browserCall?.[0]).toBe("xdg-open");
-    } else if (process.platform === "win32") {
-      expect(browserCall).toEqual([
-        "cmd",
-        ["/c", "start", "", CODEX_DEVICE_AUTH_URL],
-      ]);
-    }
+    expect(result).toEqual({ exitCode: 0, auth: authData });
+    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(
+      "existing-global-auth",
+    );
+    await expect(Bun.file(isolatedHome).exists()).resolves.toBe(false);
   });
 
-  test("prints a manual URL hint when auto-open fails", async () => {
-    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+  test("leaves existing global auth untouched when login is cancelled", async () => {
+    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE, "existing-global-auth");
+    spawnHandler = async () => 1;
 
-    spawnSyncHandler = () => ({
-      status: 1,
-      stdout: "",
-      stderr: "failed",
-    });
-
-    await runCodexDeviceAuthLogin();
-
-    const output = logSpy.mock.calls.flat().join("\n");
-    expect(output).toContain(CODEX_DEVICE_AUTH_URL);
-
-    logSpy.mockRestore();
+    expect(await runIsolatedCodexLogin()).toEqual({ exitCode: 1, auth: null });
+    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(
+      "existing-global-auth",
+    );
   });
 });

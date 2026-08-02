@@ -12,8 +12,9 @@ import {
   saveAccountAuth,
   snapshotActiveAuth,
   switchToAccount,
+  syncActiveAuthSnapshot,
 } from "../src/providers/codex/auth";
-import type { CodexAuthFile } from "../src/types";
+import type { CodexAuthFile, CodexRegistry } from "../src/types";
 import { fileMode, makeJwt, resetTestHome } from "./helpers";
 
 describe("codex auth", () => {
@@ -39,6 +40,24 @@ describe("codex auth", () => {
       plan_type: "team",
     });
     expect(decodeIdToken("not-a-jwt")).toBeNull();
+  });
+
+  test("decodes current chatgpt claim names and profile email", () => {
+    const token = makeJwt({
+      "https://api.openai.com/profile": { email: "new@example.com" },
+      "https://api.openai.com/auth": {
+        chatgpt_user_id: "user-new",
+        chatgpt_account_id: "account-new",
+        chatgpt_plan_type: "pro",
+      },
+    });
+
+    expect(decodeIdToken(token)).toEqual({
+      email: "new@example.com",
+      chatgpt_user_id: "user-new",
+      chatgpt_account_id: "account-new",
+      plan_type: "pro",
+    });
   });
 
   test("snapshots and saves auth files with restricted permissions", async () => {
@@ -96,5 +115,58 @@ describe("codex auth", () => {
       auth_mode: "apikey",
       OPENAI_API_KEY: "sk-test",
     });
+  });
+
+  test("syncs only a matching active account back to its snapshot", async () => {
+    const accountKey = "user-1::account-1";
+    const registry: CodexRegistry = {
+      schema_version: 3,
+      active_account_key: accountKey,
+      active_account_activated_at_ms: 1,
+      auto_switch: {
+        enabled: false,
+        threshold_5h_percent: 10,
+        threshold_weekly_percent: 5,
+      },
+      api: { usage: true, account: true },
+      accounts: [
+        {
+          account_key: accountKey,
+          chatgpt_account_id: "account-1",
+          chatgpt_user_id: "user-1",
+          email: "one@example.com",
+          alias: "one",
+          account_name: null,
+          plan: "plus",
+          auth_mode: "chatgpt",
+          created_at: 1,
+          last_used_at: null,
+          last_usage: null,
+          last_usage_at: null,
+          last_local_rollout: null,
+        },
+      ],
+    };
+    const auth = (user: string, refresh: string): CodexAuthFile => ({
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({ sub: user }),
+        access_token: "access",
+        refresh_token: refresh,
+        account_id: "account-1",
+      },
+      last_refresh: "2026-08-02T00:00:00.000Z",
+    });
+    await saveAccountAuth(accountKey, auth("user-1", "old"));
+    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE, JSON.stringify(auth("user-1", "new")));
+
+    expect(await syncActiveAuthSnapshot(registry)).toBe(true);
+    expect(await readAccountAuth(accountKey)).toEqual(auth("user-1", "new"));
+
+    await writeFile(CODEX_AUTH_FILE, JSON.stringify(auth("other-user", "bad")));
+    expect(await syncActiveAuthSnapshot(registry)).toBe(false);
+    expect(await readAccountAuth(accountKey)).toEqual(auth("user-1", "new"));
   });
 });

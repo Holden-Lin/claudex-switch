@@ -1,11 +1,17 @@
-import { chmod, copyFile, mkdir, readFile, unlink, writeFile } from "fs/promises";
+import { chmod, copyFile, mkdir, readFile, rename, unlink, writeFile } from "fs/promises";
+import { randomUUID } from "crypto";
+import { dirname } from "path";
 import {
   CODEX_AUTH_FILE,
   CODEX_ACCOUNTS_DIR,
   codexAccountAuthFile,
 } from "../../lib/paths";
 import { fileExists, readJson } from "../../lib/fs";
-import type { CodexAuthFile } from "../../types";
+import type {
+  CodexAuthFile,
+  CodexRegistry,
+  CodexRegistryAccount,
+} from "../../types";
 
 async function ensureAccountsDir(): Promise<void> {
   await mkdir(CODEX_ACCOUNTS_DIR, { recursive: true });
@@ -54,7 +60,7 @@ async function writeAuthFile(
   path: string,
   authData: CodexAuthFile,
 ): Promise<void> {
-  await writeFile(path, JSON.stringify(authData, null, 2), { mode: 0o600 });
+  await writeRawAuthFile(path, JSON.stringify(authData, null, 2));
 }
 
 async function writeAuthFileIfChanged(
@@ -76,7 +82,22 @@ async function writeRawAuthFileIfChanged(
   } catch {
     // Missing or unreadable target should be rewritten below.
   }
-  await writeFile(path, content, { mode: 0o600 });
+  await writeRawAuthFile(path, content);
+}
+
+async function writeRawAuthFile(path: string, content: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tempPath, content, { mode: 0o600 });
+    await rename(tempPath, path);
+    await chmod(path, 0o600);
+  } catch (err) {
+    try {
+      await unlink(tempPath);
+    } catch {}
+    throw err;
+  }
 }
 
 function normalizeAuthForCodexCli(authData: CodexAuthFile): CodexAuthFile {
@@ -124,8 +145,11 @@ export function decodeIdToken(idToken: string): {
     const payload = decodeJwtPayload(idToken);
     if (!payload) return null;
 
-    // OpenAI stores auth info at https://api.openai.com/auth
     const authInfo = (payload["https://api.openai.com/auth"] ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const profileInfo = (payload["https://api.openai.com/profile"] ?? {}) as Record<
       string,
       unknown
     >;
@@ -134,14 +158,105 @@ export function decodeIdToken(idToken: string): {
       typeof v === "string" ? v : undefined;
 
     return {
-      email: str(payload.email),
-      chatgpt_user_id: str(authInfo.user_id) ?? str(payload.sub),
-      chatgpt_account_id: str(authInfo.account_id) ?? str(payload.account_id),
-      plan_type: str(authInfo.plan_type),
+      email: str(payload.email) ?? str(profileInfo.email),
+      chatgpt_user_id:
+        str(authInfo.chatgpt_user_id) ??
+        str(authInfo.user_id) ??
+        str(payload.sub),
+      chatgpt_account_id:
+        str(authInfo.chatgpt_account_id) ??
+        str(authInfo.account_id) ??
+        str(payload.account_id),
+      plan_type: str(authInfo.chatgpt_plan_type) ?? str(authInfo.plan_type),
     };
   } catch {
     return null;
   }
+}
+
+export function authMatchesAccount(
+  auth: CodexAuthFile,
+  account: CodexRegistryAccount,
+): boolean {
+  if (auth.auth_mode !== "chatgpt" || !auth.tokens?.id_token) return false;
+  const identity = decodeIdToken(auth.tokens.id_token);
+  const userId = identity?.chatgpt_user_id;
+  const accountId = identity?.chatgpt_account_id ?? auth.tokens.account_id;
+
+  if (userId && accountId) {
+    return (
+      userId === account.chatgpt_user_id &&
+      accountId === account.chatgpt_account_id
+    );
+  }
+
+  return Boolean(
+    identity?.email &&
+      account.email &&
+      identity.email.toLowerCase() === account.email.toLowerCase(),
+  );
+}
+
+export function sameChatGptIdentity(
+  left: CodexAuthFile,
+  right: CodexAuthFile,
+): boolean {
+  if (left.auth_mode !== "chatgpt" || right.auth_mode !== "chatgpt") {
+    return false;
+  }
+  const leftIdentity = decodeIdToken(left.tokens.id_token);
+  const rightIdentity = decodeIdToken(right.tokens.id_token);
+  const leftUser = leftIdentity?.chatgpt_user_id;
+  const rightUser = rightIdentity?.chatgpt_user_id;
+  const leftAccount =
+    leftIdentity?.chatgpt_account_id ?? left.tokens.account_id;
+  const rightAccount =
+    rightIdentity?.chatgpt_account_id ?? right.tokens.account_id;
+
+  if (leftUser && rightUser && leftAccount && rightAccount) {
+    return leftUser === rightUser && leftAccount === rightAccount;
+  }
+
+  return Boolean(
+    leftIdentity?.email &&
+      rightIdentity?.email &&
+      leftIdentity.email.toLowerCase() === rightIdentity.email.toLowerCase(),
+  );
+}
+
+export function sameAuthCredentialVersion(
+  left: CodexAuthFile,
+  right: CodexAuthFile,
+): boolean {
+  if (left.auth_mode !== right.auth_mode) return false;
+  if (left.auth_mode === "apikey" && right.auth_mode === "apikey") {
+    return left.OPENAI_API_KEY === right.OPENAI_API_KEY;
+  }
+  if (left.auth_mode !== "chatgpt" || right.auth_mode !== "chatgpt") {
+    return false;
+  }
+  return (
+    left.tokens.id_token === right.tokens.id_token &&
+    left.tokens.access_token === right.tokens.access_token &&
+    left.tokens.refresh_token === right.tokens.refresh_token &&
+    left.last_refresh === right.last_refresh
+  );
+}
+
+/** Persist Codex CLI token rotation before another account replaces auth.json. */
+export async function syncActiveAuthSnapshot(
+  reg: CodexRegistry,
+): Promise<boolean> {
+  const account = reg.accounts.find(
+    (candidate) => candidate.account_key === reg.active_account_key,
+  );
+  if (!account || account.auth_mode !== "chatgpt") return false;
+
+  const activeAuth = await readActiveAuth();
+  if (!activeAuth || !authMatchesAccount(activeAuth, account)) return false;
+
+  await saveAccountAuth(account.account_key, activeAuth);
+  return true;
 }
 
 export async function removeAccountAuthFile(

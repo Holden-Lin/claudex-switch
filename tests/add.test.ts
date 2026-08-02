@@ -9,12 +9,13 @@ import {
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname } from "path";
+import { join } from "path";
 import * as prompts from "@inquirer/prompts";
 
 type SpawnHandler = (
   command: string,
   args: string[],
+  options: { env?: NodeJS.ProcessEnv },
 ) => number | void | Promise<number | void>;
 
 type SpawnSyncResult = {
@@ -41,7 +42,7 @@ let passwordHandler = async () => "unused";
 let inputHandler = async () => "unused";
 let add: typeof import("../src/commands/add").add;
 const { loadAliases } = await import("../src/alias/store");
-const { CODEX_AUTH_FILE, CODEX_CONFIG_FILE, SETTINGS_FILE } = await import(
+const { CODEX_CONFIG_FILE, SETTINGS_FILE } = await import(
   "../src/lib/paths"
 );
 const { readActiveAuth, readAccountAuth } = await import(
@@ -49,7 +50,6 @@ const { readActiveAuth, readAccountAuth } = await import(
 );
 const { loadRegistry } = await import("../src/providers/codex/registry");
 const { makeJwt, resetTestHome } = await import("./helpers");
-import { CODEX_DEVICE_AUTH_URL } from "../src/lib/browser";
 import type { CodexAuthFile } from "../src/types";
 
 const originalFetch = globalThis.fetch;
@@ -89,7 +89,7 @@ describe("add", () => {
     spyOn(prompts, "password").mockImplementation(() => passwordHandler());
     spyOn(prompts, "input").mockImplementation(() => inputHandler());
 
-    spyOn(childProcess, "spawn").mockImplementation((command, args) => {
+    spyOn(childProcess, "spawn").mockImplementation((command, args, options) => {
       const proc = new EventEmitter() as EventEmitter & {
         on(event: string, listener: (...value: unknown[]) => void): unknown;
       };
@@ -99,6 +99,7 @@ describe("add", () => {
           const code = (await spawnHandler(
             String(command),
             (args ?? []).map((value) => String(value)),
+            (options ?? {}) as { env?: NodeJS.ProcessEnv },
           )) ?? 0;
           proc.emit("close", code);
         } catch (err) {
@@ -119,7 +120,7 @@ describe("add", () => {
     ({ add } = await import("../src/commands/add"));
   });
 
-  test("adds a codex chatgpt account through device auth", async () => {
+  test("adds a codex chatgpt account through isolated browser auth", async () => {
     const authData: CodexAuthFile = {
       auth_mode: "chatgpt",
       OPENAI_API_KEY: null,
@@ -139,23 +140,12 @@ describe("add", () => {
       last_refresh: "2026-04-20T00:00:00.000Z",
     };
 
-    const spawnSyncCalls: Array<[string, string[]]> = [];
     inputHandler = async () => "gpt-5.4";
     spawnSyncHandler = (command, args) => {
-      spawnSyncCalls.push([command, args]);
-
       if (command === "codex" && args[0] === "--version") {
         return {
           status: 0,
           stdout: "codex-cli 0.121.0",
-          stderr: "",
-        };
-      }
-
-      if (command === "xdg-open") {
-        return {
-          status: 0,
-          stdout: "",
           stderr: "",
         };
       }
@@ -167,11 +157,19 @@ describe("add", () => {
       };
     };
 
-    spawnHandler = async (command, args) => {
+    spawnHandler = async (command, args, options) => {
       expect(command).toBe("codex");
-      expect(args).toEqual(["login", "--device-auth"]);
-      await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-      await writeFile(CODEX_AUTH_FILE, JSON.stringify(authData, null, 2));
+      expect(args).toEqual([
+        "login",
+        "-c",
+        'cli_auth_credentials_store="file"',
+      ]);
+      const isolatedHome = options.env?.CODEX_HOME;
+      expect(isolatedHome).toBeTruthy();
+      await writeFile(
+        join(isolatedHome!, "auth.json"),
+        JSON.stringify(authData, null, 2),
+      );
     };
 
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -203,21 +201,6 @@ describe("add", () => {
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(config).toContain('model = "gpt-5.4"');
     expect(config).not.toContain("model_provider =");
-    const browserCall = spawnSyncCalls.find(([, args]) =>
-      args.includes(CODEX_DEVICE_AUTH_URL),
-    );
-    if (process.platform === "darwin") {
-      expect(browserCall?.[0]).toContain("claudex-private-browser-");
-      expect(browserCall?.[1]).toEqual([CODEX_DEVICE_AUTH_URL]);
-    } else if (process.platform === "linux") {
-      expect(browserCall).toEqual(["xdg-open", [CODEX_DEVICE_AUTH_URL]]);
-    } else if (process.platform === "win32") {
-      expect(browserCall).toEqual([
-        "cmd",
-        ["/c", "start", "", CODEX_DEVICE_AUTH_URL],
-      ]);
-    }
-
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("work-codex created");
 
@@ -283,6 +266,11 @@ describe("add", () => {
     expect(config).toContain('experimental_bearer_token = "sk-test-123456789"');
     expect(config).not.toContain('env_key = "OPENAI_API_KEY"');
     expect(config).toContain("requires_openai_auth = false");
+    expect(config).toContain('cli_auth_credentials_store = "file"');
+    expect(await readActiveAuth()).toEqual({
+      auth_mode: "apikey",
+      OPENAI_API_KEY: "sk-test-123456789",
+    });
 
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("custom-codex created");

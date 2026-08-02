@@ -299,6 +299,7 @@ claudex-switch 采用「薄别名层」架构：
 - `-run --model <model>`（同 `-model`）只覆盖本次启动命令行，不会持久化写回账号默认模型；模型支持缩写：Claude 裸版本默认是 opus 系列（如 `5` → `claude-opus-5`），`fable` / `fable5` → `claude-fable-5`；Codex 走 gpt 系列（如 `5.5` → `gpt-5.5`）。如果要永久修改，仍然使用 `claudex-switch model <alias> <model>`
 - `-run --attribution-header false` 只影响这次 Claude 启动，不会修改你的 shell 配置；`true` 表示显式移除这个环境变量
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
+- Codex 多账号切换使用文件凭据存储；`add/refresh` 在临时 `CODEX_HOME` 登录，校验成功后才替换账号快照
 
 如需临时关闭自动更新，可在当前命令前加上：
 

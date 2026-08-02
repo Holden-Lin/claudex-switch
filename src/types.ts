@@ -164,7 +164,7 @@ export interface CodexAuthTokens {
   id_token: string;
   access_token: string;
   refresh_token: string;
-  account_id: string;
+  account_id?: string;
 }
 
 export interface CodexChatGptAuthFile {
@@ -172,6 +172,7 @@ export interface CodexChatGptAuthFile {
   OPENAI_API_KEY: null;
   tokens: CodexAuthTokens;
   last_refresh: string;
+  [key: string]: unknown;
 }
 
 export interface CodexApiKeyAuthFile {
@@ -179,6 +180,7 @@ export interface CodexApiKeyAuthFile {
   OPENAI_API_KEY: string;
   tokens?: CodexAuthTokens;
   last_refresh?: string;
+  [key: string]: unknown;
 }
 
 export type CodexAuthFile = CodexChatGptAuthFile | CodexApiKeyAuthFile;

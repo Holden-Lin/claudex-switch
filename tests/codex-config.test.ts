@@ -47,6 +47,16 @@ model_reasoning_effort = "high"
     expect(content).toContain('model_reasoning_effort = "high"');
   });
 
+  test("managed Codex accounts use file credentials for snapshot switching", async () => {
+    await writeConfig('cli_auth_credentials_store = "keyring"\n');
+
+    await activateCodexOfficialProvider();
+
+    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toContain(
+      'cli_auth_credentials_store = "file"',
+    );
+  });
+
   test("repairCodexStringifiedArrays fixes stringified args", async () => {
     await writeConfig(`[mcp_servers.node_repl]
 args = "[]"

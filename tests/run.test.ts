@@ -14,6 +14,7 @@ import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
 import {
   CLAUDE_JSON,
+  CODEX_AUTH_FILE,
   CODEX_CONFIG_FILE,
   CREDENTIALS_FILE,
   claudeProfileConfigJson,
@@ -31,7 +32,10 @@ import {
   readState,
   switchProfile,
 } from "../src/providers/claude/profiles";
-import { saveAccountAuth } from "../src/providers/codex/auth";
+import {
+  readAccountAuth,
+  saveAccountAuth,
+} from "../src/providers/codex/auth";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
 import { makeJwt, resetTestHome } from "./helpers";
 import type {
@@ -892,6 +896,54 @@ describe("run alias session", () => {
 
     const registry = await loadRegistry();
     expect(registry.active_account_key).toBe(accountKey);
+  });
+
+  test("saves Codex token rotation back to the account after a run", async () => {
+    const accountKey = "user-1::acct-1";
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "codex", accountKey },
+          createdAt: 1,
+        },
+      ],
+    });
+    await saveRegistry(createRegistry(accountKey));
+    const oldAuth: CodexAuthFile = {
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({ sub: "user-1" }),
+        access_token: "access-old",
+        refresh_token: "refresh-old",
+        account_id: "acct-1",
+      },
+      last_refresh: "2026-04-28T00:00:00.000Z",
+    };
+    const refreshedAuth: CodexAuthFile = {
+      ...oldAuth,
+      tokens: {
+        ...oldAuth.tokens,
+        access_token: "access-new",
+        refresh_token: "refresh-new",
+      },
+      last_refresh: "2026-08-02T00:00:00.000Z",
+    };
+    await saveAccountAuth(accountKey, oldAuth);
+
+    const exitCode = await runAliasSession("cx", [], () => {
+      const proc = new EventEmitter();
+      queueMicrotask(async () => {
+        await writeFile(CODEX_AUTH_FILE, JSON.stringify(refreshedAuth, null, 2));
+        proc.emit("close", 0);
+      });
+      return proc as ChildProcess;
+    });
+
+    expect(exitCode).toBe(0);
+    expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
   });
 
   test("maps -model to a one-shot Codex run override without persisting it", async () => {

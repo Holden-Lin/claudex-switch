@@ -101,26 +101,6 @@ const codexAliases: AliasRegistry = {
   ],
 };
 
-const WHAM_USAGE_BODY = JSON.stringify({
-  plan_type: "plus",
-  rate_limit: {
-    allowed: true,
-    limit_reached: false,
-    primary_window: {
-      used_percent: 15,
-      limit_window_seconds: 18000,
-      reset_after_seconds: 1000,
-      reset_at: 1785912092,
-    },
-    secondary_window: {
-      used_percent: 25,
-      limit_window_seconds: 604800,
-      reset_after_seconds: 2000,
-      reset_at: 1785912092,
-    },
-  },
-});
-
 const CLAUDE_USAGE_BODY = JSON.stringify({
   five_hour: {
     utilization: 11.0,
@@ -206,80 +186,40 @@ describe("list", () => {
     return console.log.mock.calls.flat().join("\n");
   }
 
-  test("shows Codex 5h/weekly remaining quota from wham usage", async () => {
+  test("shows Codex remaining quota from App Server used percentages", async () => {
+    await saveAliases(codexAliases);
+    await saveRegistry(createRegistry());
+    await writeCodexAuthFile(makeCodexTokens());
+    const calls: Array<[string, boolean]> = [];
+
+    await list({
+      codexUsageFetcher: async (accountKey, isActive) => {
+        calls.push([accountKey, isActive]);
+        return {
+          usage: {
+            fiveHourUsedPercent: 25,
+            fiveHourResetsAt: null,
+            weeklyUsedPercent: 40,
+            weeklyResetsAt: null,
+          },
+          note: null,
+        };
+      },
+    });
+
+    expect(calls).toEqual([[CODEX_ACCOUNT_KEY, false]]);
+    expect(output()).toContain("5h 75%");
+    expect(output()).toContain("wk 60%");
+  });
+
+  test("shows a Codex App Server authentication failure as login expired", async () => {
     await saveAliases(codexAliases);
     await saveRegistry(createRegistry());
     await writeCodexAuthFile(makeCodexTokens());
 
-    const calls = mockFetch((url) =>
-      url.includes("chatgpt.com/backend-api/wham/usage")
-        ? new Response(WHAM_USAGE_BODY, { status: 200 })
-        : null,
-    );
-
-    await list();
-
-    expect(calls.length).toBe(1);
-    expect(calls[0]!.headers["chatgpt-account-id"]).toBe("acct-1");
-    expect(calls[0]!.headers.Authorization).toStartWith("Bearer ");
-    // primary 15% used -> 85% left; secondary 25% used -> 75% left
-    expect(output()).toContain("5h 85%");
-    expect(output()).toContain("wk 75%");
-  });
-
-  test("refreshes an expired Codex token and writes it back", async () => {
-    await saveAliases(codexAliases);
-    await saveRegistry(createRegistry());
-    const authPath = await writeCodexAuthFile(
-      makeCodexTokens({ expired: true }),
-    );
-    const freshTokens = makeCodexTokens();
-
-    const calls = mockFetch((url) => {
-      if (url === "https://auth.openai.com/oauth/token") {
-        return new Response(
-          JSON.stringify({
-            id_token: freshTokens.id_token,
-            access_token: freshTokens.access_token,
-            refresh_token: "refresh-2",
-          }),
-          { status: 200 },
-        );
-      }
-      if (url.includes("wham/usage")) {
-        return new Response(WHAM_USAGE_BODY, { status: 200 });
-      }
-      return null;
+    await list({
+      codexUsageFetcher: async () => ({ usage: null, note: "login expired" }),
     });
-
-    await list();
-
-    expect(calls.map((c) => new URL(c.url).hostname)).toEqual([
-      "auth.openai.com",
-      "chatgpt.com",
-    ]);
-    const refreshBody = JSON.parse(calls[0]!.body ?? "{}");
-    expect(refreshBody.grant_type).toBe("refresh_token");
-    expect(refreshBody.refresh_token).toBe("refresh-1");
-
-    const saved = JSON.parse(await readFile(authPath, "utf-8"));
-    expect(saved.tokens.access_token).toBe(freshTokens.access_token);
-    expect(saved.tokens.refresh_token).toBe("refresh-2");
-    expect(output()).toContain("5h 85%");
-  });
-
-  test("marks a Codex account whose refresh is rejected as login expired", async () => {
-    await saveAliases(codexAliases);
-    await saveRegistry(createRegistry());
-    await writeCodexAuthFile(makeCodexTokens({ expired: true }));
-
-    mockFetch((url) =>
-      url === "https://auth.openai.com/oauth/token"
-        ? new Response("{}", { status: 401 })
-        : null,
-    );
-
-    await list();
 
     expect(output()).toContain("login expired");
   });

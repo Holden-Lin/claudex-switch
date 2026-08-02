@@ -15,13 +15,12 @@ import {
 } from "../providers/claude/profiles";
 import {
   decodeIdToken,
-  readActiveAuth,
   removeAccountAuthFile,
-  snapshotActiveAuth,
+  saveAccountAuth,
   switchToAccount,
 } from "../providers/codex/auth";
 import { applyCodexApiProvider } from "../providers/codex/config";
-import { runCodexDeviceAuthLogin } from "../providers/codex/login";
+import { runIsolatedCodexLogin } from "../providers/codex/login";
 import {
   findAccountByKey,
   loadRegistry,
@@ -155,36 +154,29 @@ async function refreshCodex(
     process.exit(1);
   }
 
-  try {
-    await switchToAccount(accountKey);
-  } catch (err) {
-    error(
-      `Failed to prepare Codex auth: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    blank();
-    process.exit(1);
-  }
-
-  setActiveAccount(reg, accountKey);
-  await saveRegistry(reg);
-
   info(`Opening Codex login for ${chalk.bold(alias)}...`);
   blank();
 
-  const exitCode = await runCodexDeviceAuthLogin();
-  if (exitCode !== 0) {
+  let loginResult;
+  try {
+    loginResult = await runIsolatedCodexLogin();
+  } catch (err) {
     blank();
-    error("Codex login failed or was cancelled.");
-    hint(
-      `If Codex reports an expired refresh token, run ${chalk.cyan("codex logout")} and retry.`,
+    error(
+      `Failed to start Codex login: ${err instanceof Error ? err.message : String(err)}`,
     );
     blank();
     process.exit(1);
   }
+  if (loginResult.exitCode !== 0) {
+    blank();
+    error("Codex login failed or was cancelled.");
+    blank();
+    process.exit(1);
+  }
 
-  const auth = await readActiveAuth();
+  const auth = loginResult.auth;
   if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
-    await switchToAccount(accountKey);
     blank();
     error("Could not read Codex auth after login.");
     blank();
@@ -193,16 +185,17 @@ async function refreshCodex(
 
   const tokenInfo = decodeIdToken(auth.tokens.id_token);
   const email = tokenInfo?.email ?? account.email ?? "unknown";
-  const userId = tokenInfo?.chatgpt_user_id ?? auth.tokens.account_id ?? "unknown";
+  const userId = tokenInfo?.chatgpt_user_id ?? "unknown";
   const accountId = tokenInfo?.chatgpt_account_id ?? auth.tokens.account_id ?? "unknown";
   const refreshedKey = `${userId}::${accountId}`;
+  const wasActive = reg.active_account_key === accountKey;
+  let oldKey: string | null = null;
 
   if (refreshedKey !== accountKey) {
     const savedEmail = account.email?.toLowerCase();
     const refreshedEmail = tokenInfo?.email?.toLowerCase();
 
     if (!savedEmail || !refreshedEmail || savedEmail !== refreshedEmail) {
-      await switchToAccount(accountKey);
       blank();
       error(
         `Codex login completed for a different account (${email}).`,
@@ -218,27 +211,32 @@ async function refreshCodex(
       `Account key changed for ${chalk.bold(email)} (org/team change detected). Migrating...`,
     );
 
-    const oldKey = accountKey;
+    oldKey = accountKey;
     accountKey = refreshedKey;
 
     account.account_key = refreshedKey;
     account.chatgpt_user_id = userId;
     account.chatgpt_account_id = accountId;
 
-    await updateAlias(alias, { provider: "codex", accountKey: refreshedKey });
-    await removeAccountAuthFile(oldKey);
   }
 
-  await snapshotActiveAuth(accountKey);
+  await saveAccountAuth(accountKey, auth);
 
   account.email = tokenInfo?.email ?? account.email;
   account.chatgpt_user_id = userId;
   account.chatgpt_account_id = accountId;
   account.plan = tokenInfo?.plan_type ?? account.plan;
   account.auth_mode = "chatgpt";
-  await applyCodexApiProvider(null, undefined, account.default_model);
-  setActiveAccount(reg, accountKey);
+  if (wasActive) {
+    await switchToAccount(accountKey);
+    await applyCodexApiProvider(null, undefined, account.default_model);
+    setActiveAccount(reg, accountKey);
+  }
   await saveRegistry(reg);
+  if (oldKey) {
+    await updateAlias(alias, { provider: "codex", accountKey });
+    await removeAccountAuthFile(oldKey);
+  }
 
   success(
     `Refreshed ${chalk.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${chalk.dim(account.email || "")}`,

@@ -36,6 +36,7 @@ type TomlValue =
 type TomlObject = { [key: string]: TomlValue };
 
 interface CodexTomlConfig extends TomlObject {
+  cli_auth_credentials_store?: string;
   model_provider?: string | null;
   model?: string | null;
   model_providers?: TomlObject;
@@ -165,6 +166,7 @@ export async function activateCodexOfficialProvider(
   // hit the relay. Named model_providers are the supported relay mechanism.
   delete config.openai_base_url;
   config.model = resolveCodexModel(defaultModel);
+  config.cli_auth_credentials_store = "file";
 
   // Remove provider entries that have an embedded bearer token
   if (isSimpleTable(config.model_providers)) {
@@ -202,6 +204,7 @@ export async function activateCodexCustomProvider(
   config.model_providers = providers;
   config.model_provider = provider.name;
   config.model = resolveCodexModel(defaultModel, provider.model);
+  config.cli_auth_credentials_store = "file";
   const providerConfig: TomlObject = {
     name: provider.name,
     base_url: provider.base_url,

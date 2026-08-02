@@ -5,28 +5,32 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, {
-      get: all[name],
-      enumerable: true,
-      configurable: true,
-      set: (newValue) => all[name] = () => newValue
-    });
-};
-var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
 // node_modules/yoctocolors-cjs/index.js
@@ -1556,201 +1560,6 @@ var require_lib = __commonJS((exports, module) => {
   module.exports = MuteStream;
 });
 
-// src/lib/paths.ts
-import { homedir } from "os";
-import { join } from "path";
-function claudeProfileDir(name) {
-  return join(CLAUDE_PROFILES_DIR, name);
-}
-function claudeProfileCredentials(name) {
-  return join(claudeProfileDir(name), ".credentials.json");
-}
-function claudeProfileConfigDir(name) {
-  return join(claudeProfileDir(name), "config");
-}
-function claudeProfileConfigJson(name) {
-  return join(claudeProfileConfigDir(name), ".claude.json");
-}
-function claudeProfileDataFile(name) {
-  return join(claudeProfileDir(name), "profile.json");
-}
-function claudeProfileAccountFile(name) {
-  return join(claudeProfileDir(name), "account.json");
-}
-function codexAccountAuthFile(accountKey) {
-  const needsEncoding = !accountKey || accountKey === "." || accountKey === ".." || [...accountKey].some((ch) => !/[a-zA-Z0-9\-_.]/.test(ch));
-  const fileKey = needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
-  return join(CODEX_ACCOUNTS_DIR, `${fileKey}.auth.json`);
-}
-var HOME, CLAUDE_DIR, CLAUDE_JSON, CREDENTIALS_FILE, SETTINGS_FILE, CLAUDE_PROFILES_DIR, CLAUDE_STATE_FILE, CODEX_DIR, CODEX_AUTH_FILE, CODEX_CONFIG_FILE, CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE, CLAUDEX_DIR, ALIAS_REGISTRY_FILE, RELAYS_FILE;
-var init_paths = __esm(() => {
-  HOME = process.env.CLAUDEX_TEST_HOME ?? homedir();
-  CLAUDE_DIR = join(HOME, ".claude");
-  CLAUDE_JSON = join(HOME, ".claude.json");
-  CREDENTIALS_FILE = join(CLAUDE_DIR, ".credentials.json");
-  SETTINGS_FILE = join(CLAUDE_DIR, "settings.json");
-  CLAUDE_PROFILES_DIR = join(HOME, ".claude-profiles");
-  CLAUDE_STATE_FILE = join(CLAUDE_PROFILES_DIR, "state.json");
-  CODEX_DIR = join(HOME, ".codex");
-  CODEX_AUTH_FILE = join(CODEX_DIR, "auth.json");
-  CODEX_CONFIG_FILE = join(CODEX_DIR, "config.toml");
-  CODEX_ACCOUNTS_DIR = join(CODEX_DIR, "accounts");
-  CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
-  CLAUDEX_DIR = join(HOME, ".claudex-switch");
-  ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
-  RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
-});
-
-// src/lib/fs.ts
-import { readFile, writeFile, access } from "fs/promises";
-async function fileExists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-async function readJson(path, fallback) {
-  try {
-    const content = await readFile(path, "utf-8");
-    return JSON.parse(content);
-  } catch {
-    return fallback;
-  }
-}
-async function writeJson(path, data) {
-  await writeFile(path, JSON.stringify(data, null, 2));
-}
-async function writeJsonSecure(path, data) {
-  await writeFile(path, JSON.stringify(data, null, 2), { mode: 384 });
-}
-var init_fs = () => {};
-
-// src/providers/codex/auth.ts
-var exports_auth = {};
-__export(exports_auth, {
-  switchToAccount: () => switchToAccount,
-  snapshotActiveAuth: () => snapshotActiveAuth,
-  saveAccountAuth: () => saveAccountAuth,
-  removeAccountAuthFile: () => removeAccountAuthFile,
-  readActiveAuth: () => readActiveAuth,
-  readAccountAuth: () => readAccountAuth,
-  decodeJwtPayload: () => decodeJwtPayload,
-  decodeIdToken: () => decodeIdToken
-});
-import { chmod as chmod2, copyFile as copyFile2, mkdir as mkdir6, readFile as readFile3, unlink as unlink2, writeFile as writeFile3 } from "fs/promises";
-async function ensureAccountsDir2() {
-  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
-}
-async function readActiveAuth() {
-  if (!await fileExists(CODEX_AUTH_FILE))
-    return null;
-  return readJson(CODEX_AUTH_FILE, null);
-}
-async function readAccountAuth(accountKey) {
-  const path = codexAccountAuthFile(accountKey);
-  if (!await fileExists(path))
-    return null;
-  return readJson(path, null);
-}
-async function switchToAccount(accountKey) {
-  const srcPath = codexAccountAuthFile(accountKey);
-  if (!await fileExists(srcPath)) {
-    throw new Error(`Auth file not found for account: ${accountKey}`);
-  }
-  const srcContent = await readFile3(srcPath, "utf-8");
-  const auth = parseAuthContent(srcContent);
-  if (auth?.auth_mode === "apikey") {
-    const normalized = normalizeAuthForCodexCli(auth);
-    await writeAuthFileIfChanged(srcPath, normalized);
-    await writeAuthFileIfChanged(CODEX_AUTH_FILE, normalized);
-    return;
-  }
-  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE, srcContent);
-}
-async function saveAccountAuth(accountKey, authData) {
-  await ensureAccountsDir2();
-  const destPath = codexAccountAuthFile(accountKey);
-  await writeAuthFile(destPath, normalizeAuthForCodexCli(authData));
-}
-async function writeAuthFile(path, authData) {
-  await writeFile3(path, JSON.stringify(authData, null, 2), { mode: 384 });
-}
-async function writeAuthFileIfChanged(path, authData) {
-  await writeRawAuthFileIfChanged(path, JSON.stringify(authData, null, 2));
-}
-async function writeRawAuthFileIfChanged(path, content) {
-  try {
-    if (await readFile3(path, "utf-8") === content) {
-      await chmod2(path, 384);
-      return;
-    }
-  } catch {}
-  await writeFile3(path, content, { mode: 384 });
-}
-function normalizeAuthForCodexCli(authData) {
-  if (authData.auth_mode !== "apikey")
-    return authData;
-  return {
-    auth_mode: "apikey",
-    OPENAI_API_KEY: authData.OPENAI_API_KEY
-  };
-}
-function parseAuthContent(content) {
-  try {
-    return JSON.parse(content);
-  } catch {
-    return null;
-  }
-}
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split(".");
-    if (parts.length < 2)
-      return null;
-    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
-  } catch {
-    return null;
-  }
-}
-function decodeIdToken(idToken) {
-  try {
-    const payload = decodeJwtPayload(idToken);
-    if (!payload)
-      return null;
-    const authInfo = payload["https://api.openai.com/auth"] ?? {};
-    const str = (v) => typeof v === "string" ? v : undefined;
-    return {
-      email: str(payload.email),
-      chatgpt_user_id: str(authInfo.user_id) ?? str(payload.sub),
-      chatgpt_account_id: str(authInfo.account_id) ?? str(payload.account_id),
-      plan_type: str(authInfo.plan_type)
-    };
-  } catch {
-    return null;
-  }
-}
-async function removeAccountAuthFile(accountKey) {
-  const path = codexAccountAuthFile(accountKey);
-  try {
-    await unlink2(path);
-  } catch {}
-}
-async function snapshotActiveAuth(accountKey) {
-  if (!await fileExists(CODEX_AUTH_FILE)) {
-    throw new Error("No active Codex auth file found");
-  }
-  await ensureAccountsDir2();
-  const destPath = codexAccountAuthFile(accountKey);
-  await copyFile2(CODEX_AUTH_FILE, destPath);
-  await chmod2(destPath, 384);
-}
-var init_auth = __esm(() => {
-  init_paths();
-  init_fs();
-});
-
 // node_modules/chalk/source/vendor/ansi-styles/index.js
 var ANSI_BACKGROUND_OFFSET = 10;
 var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
@@ -2239,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2384,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3648,12 +3456,79 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename, dirname as dirname4, join as join6, resolve } from "path";
+import { basename, dirname as dirname5, join as join7, resolve } from "path";
 
 // src/alias/store.ts
-init_paths();
-init_fs();
 import { mkdir } from "fs/promises";
+
+// src/lib/paths.ts
+import { homedir } from "os";
+import { join } from "path";
+var HOME = process.env.CLAUDEX_TEST_HOME ?? homedir();
+var CLAUDE_DIR = join(HOME, ".claude");
+var CLAUDE_JSON = join(HOME, ".claude.json");
+var CREDENTIALS_FILE = join(CLAUDE_DIR, ".credentials.json");
+var SETTINGS_FILE = join(CLAUDE_DIR, "settings.json");
+var CLAUDE_PROFILES_DIR = join(HOME, ".claude-profiles");
+var CLAUDE_STATE_FILE = join(CLAUDE_PROFILES_DIR, "state.json");
+var CODEX_DIR = join(HOME, ".codex");
+var CODEX_AUTH_FILE = join(CODEX_DIR, "auth.json");
+var CODEX_CONFIG_FILE = join(CODEX_DIR, "config.toml");
+var CODEX_ACCOUNTS_DIR = join(CODEX_DIR, "accounts");
+var CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
+var CLAUDEX_DIR = join(HOME, ".claudex-switch");
+var ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
+var RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
+function claudeProfileDir(name) {
+  return join(CLAUDE_PROFILES_DIR, name);
+}
+function claudeProfileCredentials(name) {
+  return join(claudeProfileDir(name), ".credentials.json");
+}
+function claudeProfileConfigDir(name) {
+  return join(claudeProfileDir(name), "config");
+}
+function claudeProfileConfigJson(name) {
+  return join(claudeProfileConfigDir(name), ".claude.json");
+}
+function claudeProfileDataFile(name) {
+  return join(claudeProfileDir(name), "profile.json");
+}
+function claudeProfileAccountFile(name) {
+  return join(claudeProfileDir(name), "account.json");
+}
+function codexAccountAuthFile(accountKey) {
+  const needsEncoding = !accountKey || accountKey === "." || accountKey === ".." || [...accountKey].some((ch) => !/[a-zA-Z0-9\-_.]/.test(ch));
+  const fileKey = needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
+  return join(CODEX_ACCOUNTS_DIR, `${fileKey}.auth.json`);
+}
+
+// src/lib/fs.ts
+import { readFile, writeFile, access } from "fs/promises";
+async function fileExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function readJson(path, fallback) {
+  try {
+    const content = await readFile(path, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return fallback;
+  }
+}
+async function writeJson(path, data) {
+  await writeFile(path, JSON.stringify(data, null, 2));
+}
+async function writeJsonSecure(path, data) {
+  await writeFile(path, JSON.stringify(data, null, 2), { mode: 384 });
+}
+
+// src/alias/store.ts
 function emptyRegistry() {
   return { version: 1, aliases: [] };
 }
@@ -3789,7 +3664,6 @@ async function renameAlias(currentAlias, nextAlias) {
 }
 
 // src/providers/claude/profiles.ts
-init_paths();
 import {
   copyFile,
   lstat,
@@ -3803,8 +3677,6 @@ import {
 import { join as join3 } from "path";
 
 // src/providers/claude/credentials.ts
-init_paths();
-init_fs();
 import { platform } from "os";
 import { createHash } from "crypto";
 import { spawnSync } from "child_process";
@@ -3937,8 +3809,6 @@ async function deleteIsolatedCredentials(dir) {
 }
 
 // src/providers/claude/account.ts
-init_paths();
-init_fs();
 async function readOAuthAccount() {
   if (!await fileExists(CLAUDE_JSON))
     return null;
@@ -3955,12 +3825,7 @@ async function writeOAuthAccount(account) {
   await writeJson(CLAUDE_JSON, data);
 }
 
-// src/providers/claude/profiles.ts
-init_fs();
-
 // src/providers/claude/settings.ts
-init_paths();
-init_fs();
 import { mkdir as mkdir2 } from "fs/promises";
 import { dirname } from "path";
 var CLAUDE_ENV_KEYS = [
@@ -4542,13 +4407,9 @@ function sameApiConfig(expected, actual) {
 }
 
 // src/providers/codex/registry.ts
-init_paths();
-init_fs();
 import { mkdir as mkdir5 } from "fs/promises";
 
 // src/providers/codex/config.ts
-init_paths();
-init_fs();
 import { chmod, mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
 import { dirname as dirname2 } from "path";
 
@@ -4841,6 +4702,7 @@ async function activateCodexOfficialProvider(defaultModel) {
   delete config.model_provider;
   delete config.openai_base_url;
   config.model = resolveCodexModel(defaultModel);
+  config.cli_auth_credentials_store = "file";
   if (isSimpleTable(config.model_providers)) {
     for (const [name, rawProvider] of Object.entries(config.model_providers)) {
       if (isSimpleTable(rawProvider) && rawProvider.experimental_bearer_token) {
@@ -4862,6 +4724,7 @@ async function activateCodexCustomProvider(provider, apiKey, defaultModel) {
   config.model_providers = providers;
   config.model_provider = provider.name;
   config.model = resolveCodexModel(defaultModel, provider.model);
+  config.cli_auth_credentials_store = "file";
   const providerConfig = {
     name: provider.name,
     base_url: provider.base_url,
@@ -5022,15 +4885,13 @@ function managedProviderNames(reg) {
 }
 
 // src/commands/add.ts
-import { spawn as spawn2, spawnSync as spawnSync3 } from "child_process";
+import { spawn as spawn2, spawnSync as spawnSync2 } from "child_process";
 
 // src/lib/browser.ts
-import { spawnSync as spawnSync2 } from "child_process";
 import { platform as platform2 } from "os";
 import { join as join4 } from "path";
 import { tmpdir } from "os";
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
-var CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
 var MACOS_SCRIPT = `#!/bin/bash
 URL="$1"
 if [ -d "/Applications/Google Chrome.app" ]; then
@@ -5099,70 +4960,228 @@ function cleanupOpenShimDir(dir) {
     rmdirSync(dir);
   } catch {}
 }
-function getBrowserOpenCommand(url) {
-  switch (platform2()) {
-    case "darwin":
-      return { command: "open", args: [url] };
-    case "linux":
-      return { command: "xdg-open", args: [url] };
-    case "win32":
-      return { command: "cmd", args: ["/c", "start", "", url] };
-    default:
-      return null;
-  }
-}
-function openExternalUrl(url, privateWindow = false) {
-  const browserScript = privateWindow ? createPrivateBrowserScript() : null;
-  const openCommand = browserScript ? { command: browserScript, args: [url] } : getBrowserOpenCommand(url);
-  if (!openCommand)
-    return false;
-  try {
-    const result = spawnSync2(openCommand.command, openCommand.args, {
-      stdio: "ignore"
-    });
-    return result.status === 0 && !result.error;
-  } catch {
-    return false;
-  } finally {
-    cleanupBrowserScript(browserScript);
-  }
-}
 
-// src/commands/add.ts
-init_paths();
-init_auth();
+// src/providers/codex/auth.ts
+import { chmod as chmod2, copyFile as copyFile2, mkdir as mkdir6, readFile as readFile3, rename, unlink as unlink2, writeFile as writeFile3 } from "fs/promises";
+import { randomUUID } from "crypto";
+import { dirname as dirname3 } from "path";
+async function ensureAccountsDir2() {
+  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
+}
+async function readActiveAuth() {
+  if (!await fileExists(CODEX_AUTH_FILE))
+    return null;
+  return readJson(CODEX_AUTH_FILE, null);
+}
+async function readAccountAuth(accountKey) {
+  const path = codexAccountAuthFile(accountKey);
+  if (!await fileExists(path))
+    return null;
+  return readJson(path, null);
+}
+async function switchToAccount(accountKey) {
+  const srcPath = codexAccountAuthFile(accountKey);
+  if (!await fileExists(srcPath)) {
+    throw new Error(`Auth file not found for account: ${accountKey}`);
+  }
+  const srcContent = await readFile3(srcPath, "utf-8");
+  const auth = parseAuthContent(srcContent);
+  if (auth?.auth_mode === "apikey") {
+    const normalized = normalizeAuthForCodexCli(auth);
+    await writeAuthFileIfChanged(srcPath, normalized);
+    await writeAuthFileIfChanged(CODEX_AUTH_FILE, normalized);
+    return;
+  }
+  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE, srcContent);
+}
+async function saveAccountAuth(accountKey, authData) {
+  await ensureAccountsDir2();
+  const destPath = codexAccountAuthFile(accountKey);
+  await writeAuthFile(destPath, normalizeAuthForCodexCli(authData));
+}
+async function writeAuthFile(path, authData) {
+  await writeRawAuthFile(path, JSON.stringify(authData, null, 2));
+}
+async function writeAuthFileIfChanged(path, authData) {
+  await writeRawAuthFileIfChanged(path, JSON.stringify(authData, null, 2));
+}
+async function writeRawAuthFileIfChanged(path, content) {
+  try {
+    if (await readFile3(path, "utf-8") === content) {
+      await chmod2(path, 384);
+      return;
+    }
+  } catch {}
+  await writeRawAuthFile(path, content);
+}
+async function writeRawAuthFile(path, content) {
+  await mkdir6(dirname3(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile3(tempPath, content, { mode: 384 });
+    await rename(tempPath, path);
+    await chmod2(path, 384);
+  } catch (err) {
+    try {
+      await unlink2(tempPath);
+    } catch {}
+    throw err;
+  }
+}
+function normalizeAuthForCodexCli(authData) {
+  if (authData.auth_mode !== "apikey")
+    return authData;
+  return {
+    auth_mode: "apikey",
+    OPENAI_API_KEY: authData.OPENAI_API_KEY
+  };
+}
+function parseAuthContent(content) {
+  try {
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2)
+      return null;
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+  } catch {
+    return null;
+  }
+}
+function decodeIdToken(idToken) {
+  try {
+    const payload = decodeJwtPayload(idToken);
+    if (!payload)
+      return null;
+    const authInfo = payload["https://api.openai.com/auth"] ?? {};
+    const profileInfo = payload["https://api.openai.com/profile"] ?? {};
+    const str = (v) => typeof v === "string" ? v : undefined;
+    return {
+      email: str(payload.email) ?? str(profileInfo.email),
+      chatgpt_user_id: str(authInfo.chatgpt_user_id) ?? str(authInfo.user_id) ?? str(payload.sub),
+      chatgpt_account_id: str(authInfo.chatgpt_account_id) ?? str(authInfo.account_id) ?? str(payload.account_id),
+      plan_type: str(authInfo.chatgpt_plan_type) ?? str(authInfo.plan_type)
+    };
+  } catch {
+    return null;
+  }
+}
+function authMatchesAccount(auth, account) {
+  if (auth.auth_mode !== "chatgpt" || !auth.tokens?.id_token)
+    return false;
+  const identity = decodeIdToken(auth.tokens.id_token);
+  const userId = identity?.chatgpt_user_id;
+  const accountId = identity?.chatgpt_account_id ?? auth.tokens.account_id;
+  if (userId && accountId) {
+    return userId === account.chatgpt_user_id && accountId === account.chatgpt_account_id;
+  }
+  return Boolean(identity?.email && account.email && identity.email.toLowerCase() === account.email.toLowerCase());
+}
+function sameChatGptIdentity(left, right) {
+  if (left.auth_mode !== "chatgpt" || right.auth_mode !== "chatgpt") {
+    return false;
+  }
+  const leftIdentity = decodeIdToken(left.tokens.id_token);
+  const rightIdentity = decodeIdToken(right.tokens.id_token);
+  const leftUser = leftIdentity?.chatgpt_user_id;
+  const rightUser = rightIdentity?.chatgpt_user_id;
+  const leftAccount = leftIdentity?.chatgpt_account_id ?? left.tokens.account_id;
+  const rightAccount = rightIdentity?.chatgpt_account_id ?? right.tokens.account_id;
+  if (leftUser && rightUser && leftAccount && rightAccount) {
+    return leftUser === rightUser && leftAccount === rightAccount;
+  }
+  return Boolean(leftIdentity?.email && rightIdentity?.email && leftIdentity.email.toLowerCase() === rightIdentity.email.toLowerCase());
+}
+function sameAuthCredentialVersion(left, right) {
+  if (left.auth_mode !== right.auth_mode)
+    return false;
+  if (left.auth_mode === "apikey" && right.auth_mode === "apikey") {
+    return left.OPENAI_API_KEY === right.OPENAI_API_KEY;
+  }
+  if (left.auth_mode !== "chatgpt" || right.auth_mode !== "chatgpt") {
+    return false;
+  }
+  return left.tokens.id_token === right.tokens.id_token && left.tokens.access_token === right.tokens.access_token && left.tokens.refresh_token === right.tokens.refresh_token && left.last_refresh === right.last_refresh;
+}
+async function syncActiveAuthSnapshot(reg) {
+  const account = reg.accounts.find((candidate) => candidate.account_key === reg.active_account_key);
+  if (!account || account.auth_mode !== "chatgpt")
+    return false;
+  const activeAuth = await readActiveAuth();
+  if (!activeAuth || !authMatchesAccount(activeAuth, account))
+    return false;
+  await saveAccountAuth(account.account_key, activeAuth);
+  return true;
+}
+async function removeAccountAuthFile(accountKey) {
+  const path = codexAccountAuthFile(accountKey);
+  try {
+    await unlink2(path);
+  } catch {}
+}
 
 // src/providers/codex/login.ts
 import { spawn } from "child_process";
-async function runCodexDeviceAuthLogin() {
-  const shimDir = createOpenShimDir();
-  const env2 = shimDir ? { ...process.env, PATH: `${shimDir}:${process.env.PATH}` } : undefined;
+
+// src/providers/codex/isolated-home.ts
+import { chmod as chmod3, copyFile as copyFile3, mkdtemp, readFile as readFile4, rm as rm3, writeFile as writeFile4 } from "fs/promises";
+import { tmpdir as tmpdir2 } from "os";
+import { join as join5 } from "path";
+var AUTH_FILE_NAME = "auth.json";
+async function prepareIsolatedCodexHome(auth = null) {
+  const home = await mkdtemp(join5(tmpdir2(), "claudex-codex-"));
+  await chmod3(home, 448);
+  if (await fileExists(CODEX_CONFIG_FILE)) {
+    await copyFile3(CODEX_CONFIG_FILE, join5(home, "config.toml"));
+  }
+  if (auth) {
+    await writeFile4(join5(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
+  }
+  return home;
+}
+async function readIsolatedCodexAuth(home) {
   try {
-    const proc = spawn("codex", ["login", "--device-auth"], {
-      stdio: "inherit",
-      env: env2
-    });
-    if (!openExternalUrl(CODEX_DEVICE_AUTH_URL, true)) {
-      hint(`Open this URL manually: ${CODEX_DEVICE_AUTH_URL}`);
-    }
-    return await new Promise((resolve, reject) => {
+    return JSON.parse(await readFile4(join5(home, AUTH_FILE_NAME), "utf-8"));
+  } catch {
+    return null;
+  }
+}
+async function cleanupIsolatedCodexHome(home) {
+  await rm3(home, { recursive: true, force: true });
+}
+
+// src/providers/codex/login.ts
+async function runIsolatedCodexLogin() {
+  const codexHome = await prepareIsolatedCodexHome();
+  const shimDir = createOpenShimDir();
+  const env2 = { ...process.env, CODEX_HOME: codexHome };
+  if (shimDir)
+    env2.PATH = `${shimDir}:${process.env.PATH}`;
+  delete env2.OPENAI_API_KEY;
+  delete env2.CODEX_API_KEY;
+  delete env2.CODEX_ACCESS_TOKEN;
+  try {
+    const proc = spawn("codex", ["login", "-c", 'cli_auth_credentials_store="file"'], { stdio: "inherit", env: env2 });
+    const exitCode = await new Promise((resolve, reject) => {
       proc.on("close", resolve);
       proc.on("error", reject);
     });
-  } catch (err) {
-    error(`Failed to start codex: ${err instanceof Error ? err.message : String(err)}`);
-    blank();
-    process.exit(1);
+    const auth = exitCode === 0 ? await readIsolatedCodexAuth(codexHome) : null;
+    return { exitCode, auth };
   } finally {
     cleanupOpenShimDir(shimDir);
+    await cleanupIsolatedCodexHome(codexHome);
   }
 }
 
 // src/lib/oneapi.ts
-init_paths();
-init_fs();
 import { mkdir as mkdir7 } from "fs/promises";
-import { dirname as dirname3 } from "path";
+import { dirname as dirname4 } from "path";
 var FETCH_TIMEOUT_MS = 4000;
 var UNLIMITED_THRESHOLD_USD = 1e7;
 var DEFAULT_QUOTA_PER_UNIT = 500000;
@@ -5213,7 +5232,7 @@ async function getRelayConfig(origin) {
 async function saveRelayConfig(origin, config) {
   const relays = await readJson(RELAYS_FILE, {});
   relays[origin] = config;
-  await mkdir7(dirname3(RELAYS_FILE), { recursive: true });
+  await mkdir7(dirname4(RELAYS_FILE), { recursive: true });
   await writeJsonSecure(RELAYS_FILE, relays);
 }
 async function detectRelay(origin) {
@@ -5288,7 +5307,7 @@ async function getJson(url, headers) {
 
 // src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result = spawnSync3("claude", ["auth", "status"], {
+  const result = spawnSync2("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
   if (result.status !== 0)
@@ -5381,7 +5400,7 @@ async function addClaudeOAuth(alias) {
     if (authStatus?.loggedIn) {
       info("Logging out current Claude session...");
       blank();
-      const logout = spawnSync3("claude", ["auth", "logout"], {
+      const logout = spawnSync2("claude", ["auth", "logout"], {
         stdio: "inherit"
       });
       if (logout.status !== 0) {
@@ -5520,7 +5539,7 @@ async function promptClaudeDefaultModel() {
   return normalized || undefined;
 }
 async function addCodexChatGPT(alias) {
-  const codexCheck = spawnSync3("codex", ["--version"], {
+  const codexCheck = spawnSync2("codex", ["--version"], {
     encoding: "utf-8"
   });
   const hasCodex = codexCheck.status === 0;
@@ -5532,14 +5551,22 @@ async function addCodexChatGPT(alias) {
   const defaultModel = await promptCodexDefaultModel();
   info("Running codex login...");
   blank();
-  const exitCode = await runCodexDeviceAuthLogin();
-  if (exitCode !== 0) {
+  let loginResult;
+  try {
+    loginResult = await runIsolatedCodexLogin();
+  } catch (err) {
+    blank();
+    error(`Failed to start Codex login: ${err instanceof Error ? err.message : String(err)}`);
+    blank();
+    process.exit(1);
+  }
+  if (loginResult.exitCode !== 0) {
     blank();
     error("Login failed or was cancelled.");
     blank();
     process.exit(1);
   }
-  const auth = await readActiveAuth();
+  const auth = loginResult.auth;
   if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
     blank();
     error("Could not read Codex auth after login.");
@@ -5548,7 +5575,7 @@ async function addCodexChatGPT(alias) {
   }
   const tokenInfo = decodeIdToken(auth.tokens.id_token);
   const email = tokenInfo?.email ?? "unknown";
-  const userId = tokenInfo?.chatgpt_user_id ?? auth.tokens.account_id ?? "unknown";
+  const userId = tokenInfo?.chatgpt_user_id ?? "unknown";
   const accountId = tokenInfo?.chatgpt_account_id ?? auth.tokens.account_id ?? "unknown";
   const planType = tokenInfo?.plan_type ?? null;
   if (!userId || userId === "unknown" || !accountId || accountId === "unknown") {
@@ -5568,8 +5595,9 @@ async function addCodexChatGPT(alias) {
     blank();
     process.exit(1);
   }
-  await snapshotActiveAuth(accountKey);
   const reg = await loadRegistry();
+  await syncActiveAuthSnapshot(reg);
+  await saveAccountAuth(accountKey, auth);
   const accountRecord = {
     account_key: accountKey,
     chatgpt_account_id: accountId ?? "",
@@ -5589,6 +5617,7 @@ async function addCodexChatGPT(alias) {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await switchToAccount(accountKey);
   await applyCodexApiProvider(null, undefined, defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
@@ -5619,12 +5648,12 @@ async function addCodexApiKey(alias) {
     blank();
     process.exit(1);
   }
-  const { saveAccountAuth: saveAccountAuth2 } = await Promise.resolve().then(() => (init_auth(), exports_auth));
-  await saveAccountAuth2(accountKey, {
+  const reg = await loadRegistry();
+  await syncActiveAuthSnapshot(reg);
+  await saveAccountAuth(accountKey, {
     auth_mode: "apikey",
     OPENAI_API_KEY: key.trim()
   });
-  const reg = await loadRegistry();
   const accountRecord = {
     account_key: accountKey,
     chatgpt_account_id: "",
@@ -5645,6 +5674,7 @@ async function addCodexApiKey(alias) {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await switchToAccount(accountKey);
   await applyCodexApiProvider(apiProvider, key.trim(), defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
@@ -5743,30 +5773,24 @@ async function promptCodexApiProvider() {
   };
 }
 
-// src/commands/use.ts
-init_paths();
-init_auth();
-
 // src/providers/codex/sessions.ts
-init_paths();
-init_fs();
 import { execFile } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import {
   open,
   readdir as readdir2,
   realpath,
-  rename,
-  rm as rm3,
+  rename as rename2,
+  rm as rm4,
   stat,
   utimes
 } from "fs/promises";
-import { join as join5 } from "path";
+import { join as join6 } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
-  join5("sqlite", "state_5.sqlite"),
+  join6("sqlite", "state_5.sqlite"),
   "state_5.sqlite"
 ];
 var FIRST_LINE_MAX_BYTES = 4 * 1024 * 1024;
@@ -5783,7 +5807,7 @@ async function listJsonlFiles(root) {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = join5(dir, entry.name);
+      const fullPath = join6(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
@@ -5875,11 +5899,11 @@ async function rewriteRolloutProvider(filePath, targetProvider, managedProviders
         out.end((err) => err ? reject(err) : resolve());
       });
     }
-    await rename(tmpPath, filePath);
+    await rename2(tmpPath, filePath);
     await utimes(filePath, atime, mtime).catch(() => {});
     return true;
   } catch (err) {
-    await rm3(tmpPath, { force: true }).catch(() => {});
+    await rm4(tmpPath, { force: true }).catch(() => {});
     throw err;
   }
 }
@@ -5923,7 +5947,7 @@ async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProvid
 async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   let dbPath = null;
   for (const candidate of STATE_DB_CANDIDATES) {
-    const fullPath = join5(CODEX_DIR, candidate);
+    const fullPath = join6(CODEX_DIR, candidate);
     if (await fileExists(fullPath)) {
       dbPath = fullPath;
       break;
@@ -6003,7 +6027,7 @@ async function anyCodexProcessRunning() {
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
   const candidates = [];
   for (const dirName of SESSION_DIRS) {
-    const root = join5(CODEX_DIR, dirName);
+    const root = join6(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
       try {
         const first = await readFirstLine(filePath);
@@ -6083,6 +6107,7 @@ async function switchCodex(alias, accountKey) {
     process.exit(1);
   }
   try {
+    await syncActiveAuthSnapshot(reg);
     const auth = account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
     await switchToAccount(accountKey);
     await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
@@ -6188,7 +6213,6 @@ function resolveModelShorthand(provider, input) {
 }
 
 // src/commands/run.ts
-init_auth();
 var RUN_FLAGS = new Set(["-run", "--run"]);
 var HEADER_FLAGS = new Set(["--attribution-header"]);
 var MODEL_FLAGS = new Set(["-model", "--model"]);
@@ -6270,6 +6294,10 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         if (isolatedClaudeOAuth && claudeProfileName) {
           try {
             await syncIsolatedOAuthSnapshot(claudeProfileName);
+          } catch {}
+        } else if (!isClaude) {
+          try {
+            await syncActiveAuthSnapshot(await loadRegistry());
           } catch {}
         }
         finish(code ?? 1);
@@ -6397,8 +6425,6 @@ function setOptionalEnv(env2, key, value) {
 }
 
 // src/providers/claude/usage.ts
-init_fs();
-init_paths();
 var USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 var TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
 var CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
@@ -6537,105 +6563,211 @@ async function refreshOAuthToken(creds) {
   }
 }
 
-// src/commands/list.ts
-init_paths();
-init_fs();
-init_auth();
+// src/providers/codex/app-server.ts
+import { spawn as spawn4 } from "child_process";
+import { createInterface as createInterface2 } from "readline";
+var REQUEST_TIMEOUT_MS = 1e4;
+var MAX_CONCURRENT_SERVERS = 3;
+
+class CodexRateLimitsReadError extends Error {
+  refreshedAuth;
+  constructor(message, refreshedAuth) {
+    super(message);
+    this.refreshedAuth = refreshedAuth;
+    this.name = "CodexRateLimitsReadError";
+  }
+}
+var activeServers = 0;
+var serverWaiters = [];
+async function acquireServerSlot() {
+  if (activeServers >= MAX_CONCURRENT_SERVERS) {
+    await new Promise((resolve) => serverWaiters.push(resolve));
+  }
+  activeServers += 1;
+  return () => {
+    activeServers -= 1;
+    serverWaiters.shift()?.();
+  };
+}
+async function readCodexRateLimits(auth, spawnAppServer = spawn4) {
+  const release = await acquireServerSlot();
+  let codexHome = null;
+  try {
+    codexHome = await prepareIsolatedCodexHome(auth);
+    try {
+      const response = await requestRateLimits(codexHome, spawnAppServer);
+      return {
+        response,
+        refreshedAuth: await readIsolatedCodexAuth(codexHome)
+      };
+    } catch (err) {
+      throw new CodexRateLimitsReadError(err instanceof Error ? err.message : String(err), await readIsolatedCodexAuth(codexHome));
+    }
+  } finally {
+    try {
+      if (codexHome)
+        await cleanupIsolatedCodexHome(codexHome);
+    } finally {
+      release();
+    }
+  }
+}
+async function requestRateLimits(codexHome, spawnAppServer) {
+  const env2 = { ...process.env, CODEX_HOME: codexHome };
+  delete env2.OPENAI_API_KEY;
+  delete env2.CODEX_API_KEY;
+  delete env2.CODEX_ACCESS_TOKEN;
+  return new Promise((resolve, reject) => {
+    const proc = spawnAppServer("codex", ["app-server", "-c", 'cli_auth_credentials_store="file"'], { stdio: ["pipe", "pipe", "pipe"], env: env2 });
+    const stdout = proc.stdout;
+    const stdin = proc.stdin;
+    if (!stdout || !stdin) {
+      proc.kill();
+      reject(new Error("Codex App Server did not expose stdio"));
+      return;
+    }
+    let settled = false;
+    let stderr = "";
+    const finish = (error2, response) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timer);
+      lines.close();
+      stdin.end();
+      proc.kill();
+      if (error2)
+        reject(error2);
+      else
+        resolve(response ?? {});
+    };
+    const send = (message) => {
+      stdin.write(`${JSON.stringify(message)}
+`);
+    };
+    proc.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    proc.on("error", (error2) => finish(error2));
+    proc.on("close", (code) => {
+      if (!settled) {
+        const detail = stderr.trim();
+        finish(new Error(detail || `Codex App Server exited before replying (${code ?? "unknown"})`));
+      }
+    });
+    const lines = createInterface2({ input: stdout });
+    lines.on("line", (line) => {
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (message.id === 0) {
+        if (message.error) {
+          finish(new Error(jsonRpcErrorMessage(message.error)));
+          return;
+        }
+        send({ method: "initialized" });
+        send({ id: 1, method: "account/rateLimits/read" });
+        return;
+      }
+      if (message.id === 1) {
+        if (message.error) {
+          finish(new Error(jsonRpcErrorMessage(message.error)));
+          return;
+        }
+        finish(null, message.result ?? {});
+      }
+    });
+    const timer = setTimeout(() => finish(new Error("Codex App Server rate-limit request timed out")), REQUEST_TIMEOUT_MS);
+    send({
+      id: 0,
+      method: "initialize",
+      params: {
+        clientInfo: {
+          name: "claudex-switch",
+          title: "claudex-switch",
+          version: "1"
+        },
+        capabilities: { experimentalApi: true }
+      }
+    });
+  });
+}
+function jsonRpcErrorMessage(error2) {
+  if (error2 && typeof error2 === "object") {
+    const message = error2.message;
+    if (typeof message === "string")
+      return message;
+  }
+  return "Codex App Server request failed";
+}
 
 // src/providers/codex/usage.ts
-init_auth();
-var USAGE_URL2 = "https://chatgpt.com/backend-api/wham/usage";
-var TOKEN_URL2 = "https://auth.openai.com/oauth/token";
-var CLIENT_ID2 = "app_EMoamEEZ73f0CkXaXp7hrann";
-var EXPIRY_SKEW_MS2 = 60000;
-var FETCH_TIMEOUT_MS3 = 5000;
-function accessTokenExpiresAt(tokens) {
-  const claims = decodeJwtPayload(tokens.access_token);
-  return typeof claims?.exp === "number" ? claims.exp * 1000 : null;
-}
 function accessAuthClaims(tokens) {
   const claims = decodeJwtPayload(tokens.access_token);
   return claims?.["https://api.openai.com/auth"] ?? {};
 }
-function chatgptAccountId(tokens) {
-  const accountId = accessAuthClaims(tokens).chatgpt_account_id;
-  return typeof accountId === "string" ? accountId : tokens.account_id;
-}
 function isFreePlan(tokens) {
   return decodeIdToken(tokens.id_token)?.plan_type === "free" || accessAuthClaims(tokens).chatgpt_plan_type === "free";
 }
-async function fetchCodexUsage(accountKey, isActive) {
+async function fetchCodexUsage(accountKey, isActive, rateLimitsReader = readCodexRateLimits) {
   const auth = await readAccountAuth(accountKey);
   if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens?.access_token) {
     return { usage: null, note: null };
   }
-  if (isFreePlan(auth.tokens)) {
+  if (isFreePlan(auth.tokens))
     return { usage: null, note: null };
-  }
-  const persist = async (tokens) => {
-    auth.tokens.id_token = typeof tokens.id_token === "string" ? tokens.id_token : auth.tokens.id_token;
-    auth.tokens.access_token = tokens.access_token;
-    auth.tokens.refresh_token = typeof tokens.refresh_token === "string" ? tokens.refresh_token : auth.tokens.refresh_token;
-    auth.last_refresh = new Date().toISOString();
-    await saveAccountAuth(accountKey, auth);
-    if (isActive) {
-      await switchToAccount(accountKey);
-    }
-  };
-  let refreshed = false;
-  const expiry = accessTokenExpiresAt(auth.tokens);
-  if (expiry !== null && expiry - EXPIRY_SKEW_MS2 < Date.now()) {
-    const result = await refreshTokens(auth);
-    if (result === "denied")
-      return { usage: null, note: "login expired" };
-    if (result === "unavailable")
-      return { usage: null, note: "usage n/a" };
-    await persist(result);
-    refreshed = true;
-  }
-  let response = await requestUsage2(auth.tokens);
-  if (response === "unauthorized" && !refreshed) {
-    const result = await refreshTokens(auth);
-    if (result === "denied")
-      return { usage: null, note: "login expired" };
-    if (result === "unavailable")
-      return { usage: null, note: "usage n/a" };
-    await persist(result);
-    response = await requestUsage2(auth.tokens);
-  }
-  if (response === "unauthorized")
-    return { usage: null, note: "login expired" };
-  if (response === "unavailable" || !response) {
-    return { usage: null, note: "usage n/a" };
-  }
-  return { usage: response, note: null };
-}
-async function requestUsage2(tokens) {
   try {
-    const res = await fetch(USAGE_URL2, {
-      headers: {
-        Authorization: `Bearer ${tokens.access_token}`,
-        "chatgpt-account-id": chatgptAccountId(tokens),
-        "Content-Type": "application/json"
-      },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
-    });
-    if (res.status === 401 || res.status === 403)
-      return "unauthorized";
-    if (!res.ok)
-      return "unavailable";
-    return parseUsageResponse2(await res.json());
-  } catch {
-    return "unavailable";
+    const { response, refreshedAuth } = await rateLimitsReader(auth);
+    await persistRefreshedAuth(accountKey, isActive, auth, refreshedAuth);
+    const usage = parseRateLimitsResponse(response);
+    return usage ? { usage, note: null } : { usage: null, note: "usage n/a" };
+  } catch (err) {
+    if (err instanceof CodexRateLimitsReadError) {
+      await persistRefreshedAuth(accountKey, isActive, auth, err.refreshedAuth);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    const expired = /auth|login|refresh.token|unauthorized|forbidden/i.test(message);
+    return { usage: null, note: expired ? "login expired" : "usage n/a" };
   }
 }
-function parseUsageResponse2(data) {
-  if (!data || typeof data !== "object")
+async function persistRefreshedAuth(accountKey, isActive, originalAuth, refreshedAuth) {
+  if (!originalAuth || !refreshedAuth || refreshedAuth.auth_mode !== "chatgpt" || !sameChatGptIdentity(originalAuth, refreshedAuth)) {
+    return;
+  }
+  const currentSnapshot = await readAccountAuth(accountKey);
+  if (!currentSnapshot || !sameAuthCredentialVersion(currentSnapshot, originalAuth)) {
+    return;
+  }
+  if (!isActive) {
+    await saveAccountAuth(accountKey, refreshedAuth);
+    return;
+  }
+  const registry = await loadRegistry();
+  const account = findAccountByKey(registry, accountKey);
+  if (registry.active_account_key !== accountKey || !account) {
+    await saveAccountAuth(accountKey, refreshedAuth);
+    return;
+  }
+  const activeAuth = await readActiveAuth();
+  if (!activeAuth || !authMatchesAccount(activeAuth, account))
+    return;
+  if (!sameAuthCredentialVersion(activeAuth, originalAuth)) {
+    await saveAccountAuth(accountKey, activeAuth);
+    return;
+  }
+  await saveAccountAuth(accountKey, refreshedAuth);
+  await switchToAccount(accountKey);
+}
+function parseRateLimitsResponse(response) {
+  const snapshot = response.rateLimitsByLimitId?.codex ?? response.rateLimits ?? null;
+  if (!snapshot)
     return null;
-  const rateLimit = data.rate_limit;
-  if (!rateLimit || typeof rateLimit !== "object")
-    return null;
-  const rl = rateLimit;
+  return parseSnapshot(snapshot);
+}
+function parseSnapshot(snapshot) {
   const info2 = {
     fiveHourUsedPercent: null,
     fiveHourResetsAt: null,
@@ -6643,50 +6775,21 @@ function parseUsageResponse2(data) {
     weeklyResetsAt: null
   };
   let any = false;
-  for (const value of [rl.primary_window, rl.secondary_window]) {
-    if (!value || typeof value !== "object")
+  for (const [index, window] of [snapshot.primary, snapshot.secondary].entries()) {
+    if (!window || typeof window.usedPercent !== "number")
       continue;
-    const w = value;
-    if (typeof w.used_percent !== "number")
-      continue;
-    const windowSeconds = typeof w.limit_window_seconds === "number" ? w.limit_window_seconds : null;
-    const resetsAt = typeof w.reset_at === "number" ? w.reset_at * 1000 : null;
-    const isWeekly = windowSeconds !== null && windowSeconds > 86400;
+    const isWeekly = typeof window.windowDurationMins === "number" ? window.windowDurationMins > 1440 : index === 1;
+    const resetsAt = typeof window.resetsAt === "number" ? window.resetsAt * 1000 : null;
     if (isWeekly) {
-      info2.weeklyUsedPercent = w.used_percent;
+      info2.weeklyUsedPercent = window.usedPercent;
       info2.weeklyResetsAt = resetsAt;
     } else {
-      info2.fiveHourUsedPercent = w.used_percent;
+      info2.fiveHourUsedPercent = window.usedPercent;
       info2.fiveHourResetsAt = resetsAt;
     }
     any = true;
   }
   return any ? info2 : null;
-}
-async function refreshTokens(auth) {
-  if (!auth.tokens.refresh_token)
-    return "denied";
-  try {
-    const res = await fetch(TOKEN_URL2, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: CLIENT_ID2,
-        grant_type: "refresh_token",
-        refresh_token: auth.tokens.refresh_token,
-        scope: "openid profile email"
-      }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
-    });
-    if (!res.ok)
-      return "denied";
-    const token = await res.json();
-    if (typeof token.access_token !== "string")
-      return "denied";
-    return token;
-  } catch {
-    return "unavailable";
-  }
 }
 
 // src/commands/list.ts
@@ -6708,11 +6811,12 @@ async function list(options = {}) {
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
+    await syncActiveAuthSnapshot(codexReg);
   } catch {}
   const codexUsage = withUsage && codexReg?.api?.usage !== false;
   const [claudeInfos, codexInfos] = await Promise.all([
     Promise.all(claudeAliases.map((entry) => getClaudeAccountInfo(entry, claudeState.active, withUsage))),
-    Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage)))
+    Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage, options.codexUsageFetcher ?? fetchCodexUsage)))
   ]);
   blank();
   console.log(header("  Accounts"));
@@ -6792,7 +6896,7 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
   } catch {}
   return info2;
 }
-async function getCodexAccountInfo(entry, codexReg, withUsage) {
+async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher) {
   if (entry.target.provider !== "codex")
     throw new Error("Not a codex alias");
   const accountKey = entry.target.accountKey;
@@ -6836,7 +6940,7 @@ async function getCodexAccountInfo(entry, codexReg, withUsage) {
         }
       }
     } else {
-      const result = await fetchCodexUsage(accountKey, isActive);
+      const result = await codexUsageFetcher(accountKey, isActive);
       info2.usage = result.usage;
       info2.usageNote = result.note;
     }
@@ -6871,7 +6975,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename2(currentAlias, nextAlias) {
+async function rename3(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -6911,8 +7015,6 @@ async function rename2(currentAlias, nextAlias) {
 
 // src/commands/purge.ts
 import { unlink as unlink3 } from "fs/promises";
-init_paths();
-init_fs();
 async function purge(aliasName) {
   blank();
   const reg = await loadAliases();
@@ -6990,8 +7092,6 @@ async function current() {
 }
 
 // src/commands/import.ts
-init_paths();
-init_fs();
 import { readdir as readdir3 } from "fs/promises";
 async function importAccounts() {
   blank();
@@ -7105,10 +7205,7 @@ async function importCodexAccounts(reg) {
 }
 
 // src/commands/refresh.ts
-import { spawn as spawn4 } from "child_process";
-init_fs();
-init_paths();
-init_auth();
+import { spawn as spawn5 } from "child_process";
 async function refresh(aliasOrName) {
   blank();
   const aliasReg = await loadAliases();
@@ -7192,28 +7289,25 @@ async function refreshCodex(alias, accountKey) {
     blank();
     process.exit(1);
   }
-  try {
-    await switchToAccount(accountKey);
-  } catch (err) {
-    error(`Failed to prepare Codex auth: ${err instanceof Error ? err.message : String(err)}`);
-    blank();
-    process.exit(1);
-  }
-  setActiveAccount(reg, accountKey);
-  await saveRegistry(reg);
   info(`Opening Codex login for ${source_default.bold(alias)}...`);
   blank();
-  const exitCode = await runCodexDeviceAuthLogin();
-  if (exitCode !== 0) {
+  let loginResult;
+  try {
+    loginResult = await runIsolatedCodexLogin();
+  } catch (err) {
     blank();
-    error("Codex login failed or was cancelled.");
-    hint(`If Codex reports an expired refresh token, run ${source_default.cyan("codex logout")} and retry.`);
+    error(`Failed to start Codex login: ${err instanceof Error ? err.message : String(err)}`);
     blank();
     process.exit(1);
   }
-  const auth = await readActiveAuth();
+  if (loginResult.exitCode !== 0) {
+    blank();
+    error("Codex login failed or was cancelled.");
+    blank();
+    process.exit(1);
+  }
+  const auth = loginResult.auth;
   if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
-    await switchToAccount(accountKey);
     blank();
     error("Could not read Codex auth after login.");
     blank();
@@ -7221,14 +7315,15 @@ async function refreshCodex(alias, accountKey) {
   }
   const tokenInfo = decodeIdToken(auth.tokens.id_token);
   const email = tokenInfo?.email ?? account.email ?? "unknown";
-  const userId = tokenInfo?.chatgpt_user_id ?? auth.tokens.account_id ?? "unknown";
+  const userId = tokenInfo?.chatgpt_user_id ?? "unknown";
   const accountId = tokenInfo?.chatgpt_account_id ?? auth.tokens.account_id ?? "unknown";
   const refreshedKey = `${userId}::${accountId}`;
+  const wasActive = reg.active_account_key === accountKey;
+  let oldKey = null;
   if (refreshedKey !== accountKey) {
     const savedEmail = account.email?.toLowerCase();
     const refreshedEmail = tokenInfo?.email?.toLowerCase();
     if (!savedEmail || !refreshedEmail || savedEmail !== refreshedEmail) {
-      await switchToAccount(accountKey);
       blank();
       error(`Codex login completed for a different account (${email}).`);
       hint(`Retry and sign in as ${source_default.cyan(account.email || alias)}.`);
@@ -7236,23 +7331,28 @@ async function refreshCodex(alias, accountKey) {
       process.exit(1);
     }
     info(`Account key changed for ${source_default.bold(email)} (org/team change detected). Migrating...`);
-    const oldKey = accountKey;
+    oldKey = accountKey;
     accountKey = refreshedKey;
     account.account_key = refreshedKey;
     account.chatgpt_user_id = userId;
     account.chatgpt_account_id = accountId;
-    await updateAlias(alias, { provider: "codex", accountKey: refreshedKey });
-    await removeAccountAuthFile(oldKey);
   }
-  await snapshotActiveAuth(accountKey);
+  await saveAccountAuth(accountKey, auth);
   account.email = tokenInfo?.email ?? account.email;
   account.chatgpt_user_id = userId;
   account.chatgpt_account_id = accountId;
   account.plan = tokenInfo?.plan_type ?? account.plan;
   account.auth_mode = "chatgpt";
-  await applyCodexApiProvider(null, undefined, account.default_model);
-  setActiveAccount(reg, accountKey);
+  if (wasActive) {
+    await switchToAccount(accountKey);
+    await applyCodexApiProvider(null, undefined, account.default_model);
+    setActiveAccount(reg, accountKey);
+  }
   await saveRegistry(reg);
+  if (oldKey) {
+    await updateAlias(alias, { provider: "codex", accountKey });
+    await removeAccountAuthFile(oldKey);
+  }
   success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${source_default.dim(account.email || "")}`);
   blank();
 }
@@ -7272,7 +7372,7 @@ async function runLoginCommand(command, args) {
   const browserScript = createPrivateBrowserScript();
   const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
-    const proc = spawn4(command, args, { stdio: "inherit", env: env2 });
+    const proc = spawn5(command, args, { stdio: "inherit", env: env2 });
     return await new Promise((resolve, reject) => {
       proc.on("close", resolve);
       proc.on("error", reject);
@@ -7287,7 +7387,6 @@ async function runLoginCommand(command, args) {
 }
 
 // src/commands/model.ts
-init_auth();
 async function model(aliasOrName, defaultModel) {
   blank();
   if (!defaultModel.trim()) {
@@ -7337,7 +7436,7 @@ async function model(aliasOrName, defaultModel) {
 
 // src/lib/update.ts
 import { realpathSync } from "fs";
-import { spawnSync as spawnSync4 } from "child_process";
+import { spawnSync as spawnSync3 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
@@ -7426,7 +7525,7 @@ async function fetchLatestReleaseVersion(fetchImpl = fetch) {
     return null;
   }
 }
-function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync4) {
+function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync3) {
   const brewPrefix = readCommandStdout(runCommand("brew", ["--prefix"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"]
@@ -7491,7 +7590,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
   const env2 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
-  const runCommand = options.runCommand ?? spawnSync4;
+  const runCommand = options.runCommand ?? spawnSync3;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
   if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV] === "1" || env2[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {
@@ -7691,16 +7790,16 @@ function isRepoLocalEntrypoint(scriptPath) {
     return false;
   const entry = resolve(scriptPath);
   const entryName = basename(entry);
-  const parentName = basename(dirname4(entry));
+  const parentName = basename(dirname5(entry));
   let root = null;
   if (parentName === "src" && entryName === "index.ts") {
-    root = dirname4(dirname4(entry));
+    root = dirname5(dirname5(entry));
   } else if (parentName === "dist" && (entryName === "claudex-switch.js" || entryName === "claudex-switch")) {
-    root = dirname4(dirname4(entry));
+    root = dirname5(dirname5(entry));
   }
   if (!root)
     return false;
-  const packageFile = join6(root, "package.json");
+  const packageFile = join7(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
@@ -7828,7 +7927,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename2(args[0], args[1]);
+        await rename3(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {

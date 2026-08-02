@@ -11,7 +11,10 @@ import {
 import { readJson } from "../lib/fs";
 import { loadRegistry } from "../providers/codex/registry";
 import { resolveCodexModel } from "../providers/codex/config";
-import { readAccountAuth } from "../providers/codex/auth";
+import {
+  readAccountAuth,
+  syncActiveAuthSnapshot,
+} from "../providers/codex/auth";
 import { fetchCodexUsage } from "../providers/codex/usage";
 import { fetchRelayBalance } from "../lib/oneapi";
 import {
@@ -36,6 +39,7 @@ import type {
 
 export interface ListOptions {
   usage?: boolean;
+  codexUsageFetcher?: typeof fetchCodexUsage;
 }
 
 export async function list(options: ListOptions = {}): Promise<void> {
@@ -69,6 +73,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
+    await syncActiveAuthSnapshot(codexReg);
   } catch {
     // No codex registry
   }
@@ -84,7 +89,12 @@ export async function list(options: ListOptions = {}): Promise<void> {
     ),
     Promise.all(
       codexAliases.map((entry) =>
-        getCodexAccountInfo(entry, codexReg, codexUsage),
+        getCodexAccountInfo(
+          entry,
+          codexReg,
+          codexUsage,
+          options.codexUsageFetcher ?? fetchCodexUsage,
+        ),
       ),
     ),
   ]);
@@ -214,6 +224,7 @@ async function getCodexAccountInfo(
   entry: AliasEntry,
   codexReg: Awaited<ReturnType<typeof loadRegistry>> | null,
   withUsage: boolean,
+  codexUsageFetcher: typeof fetchCodexUsage,
 ): Promise<AccountInfo> {
   if (entry.target.provider !== "codex") throw new Error("Not a codex alias");
 
@@ -274,7 +285,7 @@ async function getCodexAccountInfo(
     } else {
       // Registry plan can be stale; fetchCodexUsage skips free-plan
       // accounts based on the stored token itself.
-      const result = await fetchCodexUsage(accountKey, isActive);
+      const result = await codexUsageFetcher(accountKey, isActive);
       info.usage = result.usage;
       info.usageNote = result.note;
     }

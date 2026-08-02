@@ -4,8 +4,6 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 
-export const CODEX_DEVICE_AUTH_URL = "https://auth.openai.com/codex/device";
-
 const MACOS_SCRIPT = `#!/bin/bash
 URL="$1"
 if [ -d "/Applications/Google Chrome.app" ]; then

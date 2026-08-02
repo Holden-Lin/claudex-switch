@@ -11,7 +11,11 @@ import {
   codexAccountProviderName,
   managedProviderNames,
 } from "../providers/codex/registry";
-import { readAccountAuth, switchToAccount } from "../providers/codex/auth";
+import {
+  readAccountAuth,
+  switchToAccount,
+  syncActiveAuthSnapshot,
+} from "../providers/codex/auth";
 import { applyCodexApiProvider } from "../providers/codex/config";
 import { syncCodexSessionProviders } from "../providers/codex/sessions";
 import {
@@ -101,6 +105,7 @@ async function switchCodex(
   }
 
   try {
+    await syncActiveAuthSnapshot(reg);
     const auth =
       account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
     await switchToAccount(accountKey);

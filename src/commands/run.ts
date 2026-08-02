@@ -18,7 +18,10 @@ import {
   CLAUDE_ENV_KEYS,
   getClaudeEnvNeutralizer,
 } from "../providers/claude/settings";
-import { readAccountAuth } from "../providers/codex/auth";
+import {
+  readAccountAuth,
+  syncActiveAuthSnapshot,
+} from "../providers/codex/auth";
 import { repairCodexStringifiedArrays } from "../providers/codex/config";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 import type {
@@ -177,6 +180,12 @@ export async function runAliasSession(
             await syncIsolatedOAuthSnapshot(claudeProfileName);
           } catch {
             // Best effort; the isolated store remains authoritative.
+          }
+        } else if (!isClaude) {
+          try {
+            await syncActiveAuthSnapshot(await loadRegistry());
+          } catch {
+            // Best effort; Codex's active auth file remains authoritative.
           }
         }
         finish(code ?? 1);

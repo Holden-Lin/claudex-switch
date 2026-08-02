@@ -28,11 +28,12 @@ import {
   setActiveAccount,
 } from "../providers/codex/registry";
 import {
-  readActiveAuth,
   decodeIdToken,
-  snapshotActiveAuth,
+  saveAccountAuth,
+  switchToAccount,
+  syncActiveAuthSnapshot,
 } from "../providers/codex/auth";
-import { runCodexDeviceAuthLogin } from "../providers/codex/login";
+import { runIsolatedCodexLogin } from "../providers/codex/login";
 import {
   blank,
   success,
@@ -380,17 +381,26 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   info("Running codex login...");
   blank();
 
-  const exitCode = await runCodexDeviceAuthLogin();
+  let loginResult;
+  try {
+    loginResult = await runIsolatedCodexLogin();
+  } catch (err) {
+    blank();
+    error(
+      `Failed to start Codex login: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    blank();
+    process.exit(1);
+  }
 
-  if (exitCode !== 0) {
+  if (loginResult.exitCode !== 0) {
     blank();
     error("Login failed or was cancelled.");
     blank();
     process.exit(1);
   }
 
-  // Read the active auth file that codex just wrote
-  const auth = await readActiveAuth();
+  const auth = loginResult.auth;
   if (!auth || auth.auth_mode !== "chatgpt" || !auth.tokens) {
     blank();
     error("Could not read Codex auth after login.");
@@ -401,7 +411,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   // Decode id_token to get user metadata
   const tokenInfo = decodeIdToken(auth.tokens.id_token);
   const email = tokenInfo?.email ?? "unknown";
-  const userId = tokenInfo?.chatgpt_user_id ?? auth.tokens.account_id ?? "unknown";
+  const userId = tokenInfo?.chatgpt_user_id ?? "unknown";
   const accountId = tokenInfo?.chatgpt_account_id ?? auth.tokens.account_id ?? "unknown";
   const planType = tokenInfo?.plan_type ?? null;
 
@@ -425,11 +435,11 @@ async function addCodexChatGPT(alias: string): Promise<void> {
     process.exit(1);
   }
 
-  // Snapshot the auth file
-  await snapshotActiveAuth(accountKey);
+  const reg = await loadRegistry();
+  await syncActiveAuthSnapshot(reg);
+  await saveAccountAuth(accountKey, auth);
 
   // Update registry
-  const reg = await loadRegistry();
   const accountRecord: CodexRegistryAccount = {
     account_key: accountKey,
     chatgpt_account_id: accountId ?? "",
@@ -449,6 +459,7 @@ async function addCodexChatGPT(alias: string): Promise<void> {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await switchToAccount(accountKey);
   await applyCodexApiProvider(null, undefined, defaultModel);
 
   await addAlias(alias, { provider: "codex", accountKey });
@@ -487,15 +498,16 @@ async function addCodexApiKey(alias: string): Promise<void> {
     process.exit(1);
   }
 
+  const reg = await loadRegistry();
+  await syncActiveAuthSnapshot(reg);
+
   // Create auth file
-  const { saveAccountAuth } = await import("../providers/codex/auth");
   await saveAccountAuth(accountKey, {
     auth_mode: "apikey",
     OPENAI_API_KEY: key.trim(),
   });
 
   // Update registry
-  const reg = await loadRegistry();
   const accountRecord: CodexRegistryAccount = {
     account_key: accountKey,
     chatgpt_account_id: "",
@@ -516,6 +528,7 @@ async function addCodexApiKey(alias: string): Promise<void> {
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
   await saveRegistry(reg);
+  await switchToAccount(accountKey);
   await applyCodexApiProvider(apiProvider, key.trim(), defaultModel);
 
   await addAlias(alias, { provider: "codex", accountKey });
