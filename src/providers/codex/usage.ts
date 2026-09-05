@@ -5,8 +5,7 @@ import type {
 } from "../../types";
 import {
   authMatchesAccount,
-  decodeIdToken,
-  decodeJwtPayload,
+  decodeCodexPlan,
   readActiveAuth,
   readAccountAuth,
   sameAuthCredentialVersion,
@@ -22,19 +21,8 @@ import {
 } from "./app-server";
 import { findAccountByKey, loadRegistry } from "./registry";
 
-function accessAuthClaims(tokens: CodexAuthTokens): Record<string, unknown> {
-  const claims = decodeJwtPayload(tokens.access_token);
-  return (claims?.["https://api.openai.com/auth"] ?? {}) as Record<
-    string,
-    unknown
-  >;
-}
-
 function isFreePlan(tokens: CodexAuthTokens): boolean {
-  return (
-    decodeIdToken(tokens.id_token)?.plan_type === "free" ||
-    accessAuthClaims(tokens).chatgpt_plan_type === "free"
-  );
+  return decodeCodexPlan(tokens) === "free";
 }
 
 /** Read quota through Codex's supported auth and rate-limit boundary. */
@@ -54,9 +42,10 @@ export async function fetchCodexUsage(
     await persistRefreshedAuth(accountKey, isActive, auth, refreshedAuth);
 
     const usage = parseRateLimitsResponse(response);
+    const plan = parseRateLimitsPlan(response);
     return usage
-      ? { usage, note: null }
-      : { usage: null, note: "usage n/a" };
+      ? { usage, note: null, plan }
+      : { usage: null, note: "usage n/a", plan };
   } catch (err) {
     if (err instanceof CodexRateLimitsReadError) {
       await persistRefreshedAuth(
@@ -123,10 +112,24 @@ async function persistRefreshedAuth(
 export function parseRateLimitsResponse(
   response: CodexRateLimitsResponse,
 ): UsageInfo | null {
-  const snapshot =
-    response.rateLimitsByLimitId?.codex ?? response.rateLimits ?? null;
+  const snapshot = preferredSnapshot(response);
   if (!snapshot) return null;
   return parseSnapshot(snapshot);
+}
+
+export function parseRateLimitsPlan(
+  response: CodexRateLimitsResponse,
+): string | null {
+  const plan =
+    response.rateLimitsByLimitId?.codex?.planType ??
+    response.rateLimits?.planType;
+  return typeof plan === "string" && plan.trim() ? plan : null;
+}
+
+function preferredSnapshot(
+  response: CodexRateLimitsResponse,
+): CodexRateLimitSnapshotResponse | null {
+  return response.rateLimitsByLimitId?.codex ?? response.rateLimits ?? null;
 }
 
 function parseSnapshot(snapshot: CodexRateLimitSnapshotResponse): UsageInfo | null {

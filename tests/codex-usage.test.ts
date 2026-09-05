@@ -18,6 +18,7 @@ import {
 import { saveRegistry } from "../src/providers/codex/registry";
 import {
   fetchCodexUsage,
+  parseRateLimitsPlan,
   parseRateLimitsResponse,
 } from "../src/providers/codex/usage";
 import { formatUsage } from "../src/lib/ui";
@@ -80,6 +81,7 @@ function registry(): CodexRegistry {
 
 const rateLimits: CodexRateLimitsResponse = {
   rateLimits: {
+    planType: "team",
     primary: {
       usedPercent: 25,
       windowDurationMins: 300,
@@ -107,6 +109,7 @@ describe("Codex App Server usage", () => {
     });
     expect(formatUsage(usage, null)).toContain("5h 75%");
     expect(formatUsage(usage, null)).toContain("wk 60%");
+    expect(parseRateLimitsPlan(rateLimits)).toBe("team");
   });
 
   test("uses the official initialize and account/rateLimits protocol in isolation", async () => {
@@ -194,6 +197,7 @@ describe("Codex App Server usage", () => {
 
     expect(result.usage?.fiveHourUsedPercent).toBe(25);
     expect(result.usage?.weeklyUsedPercent).toBe(40);
+    expect(result.plan).toBe("team");
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
     expect(await readActiveAuth()).toEqual(refreshedAuth);
   });

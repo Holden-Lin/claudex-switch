@@ -29,12 +29,12 @@ const HELP = `
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch, save the selected model, and run
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 5 -> claude-opus-5, fable -> claude-fable-5, 5.6 -> gpt-5.6-sol)
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5, sonnet5, fable5.1; Codex: sol, terra, luna, 6)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login

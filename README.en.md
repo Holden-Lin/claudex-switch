@@ -9,10 +9,10 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
-- `claudex-switch <alias> -run --model <model> [effort]` overrides the model for this run only without changing the saved default; shorthand is supported — bare Claude versions map to opus (`5` → `claude-opus-5`), while `fable` / `fable5` map to `claude-fable-5`; Codex maps to gpt (`5.5` → `gpt-5.5`, `5.6` → `gpt-5.6-sol`); an effort tier may follow the model (e.g. `--model 5 max`), mapped to `--effort` for Claude and `-c model_reasoning_effort=...` for Codex
+- `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus, with series forms such as `sonnet5` and `fable5.1`; Codex supports `sol` / `terra` / `luna` for the three GPT-5.6 models and `6` for `gpt-6-astra`. A trailing effort tier applies only to the current run
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
-- `claudex-switch list` fetches remaining quota for all accounts in parallel: Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip the network requests
+- `claudex-switch list` fetches remaining quota for all accounts in parallel, updates the Codex tier from the live rate-limit response, and updates the Claude tier from the freshest matching credentials. Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip network requests while still refreshing tiers from local credentials
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs and Sonnet / Opus / Haiku model mapping
@@ -92,13 +92,12 @@ claudex-switch holden
 # Switch and start a session; Claude Code defaults to auto permission mode
 claudex-switch holden -run
 
-# Override the model for this run only
-# Shorthand: bare Claude versions → opus; fable / fable5 → Claude Fable 5
-# (5 → claude-opus-5, fable → claude-fable-5)
-# Codex → gpt series (5.5 → gpt-5.5, 5.6 → gpt-5.6-sol)
+# Select the model and save it as this account's default for the next run
+# Claude: bare versions → Opus; series forms include sonnet5 and fable5.1
+# Codex: sol / terra / luna → the three GPT-5.6 models; 6 → gpt-6-astra
 claudex-switch holden -run --model 5
-claudex-switch holden -run --model fable
-claudex-switch cx -run --model 5.6
+claudex-switch holden -run --model fable5.1
+claudex-switch cx -run --model terra
 
 # An effort tier (minimal/low/medium/high/xhigh/max) may follow the model
 # Mapped to --effort for Claude, -c model_reasoning_effort=... for Codex
@@ -174,13 +173,13 @@ requires_openai_auth = false
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
 | `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session; Claude Code defaults to `--permission-mode auto` |
-| `claudex-switch <alias> -run --model <model>` | Override the model for this `-run` session only without changing the saved default model; shorthand ok (Claude `5` / `fable` / `fable5`, Codex `5.5`) |
+| `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5` / `sonnet5` / `fable5.1`, Codex `sol` / `terra` / `luna` / `6` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |
 | `claudex-switch list` | List all accounts, auth types, default models, and remaining quota (5h / weekly window; one-api relays show balance); `--no-usage` skips quota fetching |
-| `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active; shorthand ok (Claude `5` / `fable` / `fable5`, Codex `5.5`) |
+| `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active; accepts the same shorthands |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |
 | `claudex-switch current` | Show active accounts |

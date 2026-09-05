@@ -1,21 +1,18 @@
-import { readJson } from "../../lib/fs";
 import {
   CREDENTIALS_FILE,
-  claudeProfileAccountFile,
   claudeProfileCredentials,
   claudeProfileDir,
 } from "../../lib/paths";
 import {
-  readCredentials,
   writeCredentials,
-  readIsolatedCredentials,
   writeIsolatedCredentials,
 } from "./credentials";
-import { readOAuthAccount } from "./account";
-import { sameOAuthSession } from "./profiles";
+import {
+  freshestOAuthCredentials,
+  readOAuthCredentialStores,
+} from "./profiles";
 import type {
   CredentialsFile,
-  OAuthAccount,
   UsageFetchResult,
   UsageInfo,
 } from "../../types";
@@ -43,23 +40,9 @@ export async function fetchClaudeUsage(
   profileName: string,
   isActiveProfile: boolean,
 ): Promise<UsageFetchResult> {
-  const snapshot = await readCredentials(claudeProfileCredentials(profileName));
-  const isolated = await readIsolatedCredentials(claudeProfileDir(profileName));
-
-  let global: CredentialsFile | null = null;
-  if (isActiveProfile) {
-    const savedAccount = await readJson<OAuthAccount | null>(
-      claudeProfileAccountFile(profileName),
-      null,
-    );
-    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      global = await readCredentials(CREDENTIALS_FILE);
-    }
-  }
-
-  let creds = [snapshot, isolated, global]
-    .filter((c): c is CredentialsFile => Boolean(c?.claudeAiOauth?.accessToken))
-    .sort((a, b) => expiresAt(b) - expiresAt(a))[0];
+  const stores = await readOAuthCredentialStores(profileName, isActiveProfile);
+  const { isolated, global } = stores;
+  let creds = freshestOAuthCredentials(stores);
   if (!creds) return { usage: null, note: null };
 
   const persist = async (next: CredentialsFile): Promise<void> => {

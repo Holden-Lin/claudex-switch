@@ -4199,7 +4199,7 @@ async function restoreOAuthCredentials(name) {
       return;
     }
   }
-  const creds = await readFreshestProfileCredentials(name);
+  const creds = await readFreshestOAuthCredentials(name, false);
   if (!creds) {
     throw new Error(`No credentials found at ${claudeProfileCredentials(name)}`);
   }
@@ -4216,10 +4216,23 @@ function pickFresherCredentials(a, b) {
     return a;
   return oauthExpiresAt(b) > oauthExpiresAt(a) ? b : a;
 }
-async function readFreshestProfileCredentials(name) {
+async function readOAuthCredentialStores(name, includeMatchingGlobal) {
   const snapshot = await readCredentials(claudeProfileCredentials(name));
   const isolated = await readIsolatedCredentials(claudeProfileDir(name));
-  return pickFresherCredentials(snapshot, isolated);
+  let global2 = null;
+  if (includeMatchingGlobal) {
+    const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
+      global2 = await readCredentials(CREDENTIALS_FILE);
+    }
+  }
+  return { snapshot, isolated, global: global2 };
+}
+function freshestOAuthCredentials(stores) {
+  return pickFresherCredentials(pickFresherCredentials(stores.snapshot, stores.isolated), stores.global);
+}
+async function readFreshestOAuthCredentials(name, includeMatchingGlobal) {
+  return freshestOAuthCredentials(await readOAuthCredentialStores(name, includeMatchingGlobal));
 }
 async function prepareIsolatedOAuthRun(name) {
   if (!await profileExists(name)) {
@@ -4227,16 +4240,10 @@ async function prepareIsolatedOAuthRun(name) {
   }
   const dir = claudeProfileDir(name);
   const configDir = claudeProfileConfigDir(name);
-  const snapshot = await readCredentials(claudeProfileCredentials(name));
-  const isolated = await readIsolatedCredentials(dir);
-  let freshest = pickFresherCredentials(snapshot, isolated);
   const state = await readState();
-  if (state.active === name) {
-    const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      freshest = pickFresherCredentials(freshest, await readCredentials(CREDENTIALS_FILE));
-    }
-  }
+  const stores = await readOAuthCredentialStores(name, state.active === name);
+  const { snapshot, isolated } = stores;
+  const freshest = freshestOAuthCredentials(stores);
   if (!freshest) {
     throw new Error(`No credentials stored for Claude profile "${name}". Switch to it and log in first.`);
   }
@@ -5070,6 +5077,12 @@ function decodeIdToken(idToken) {
   } catch {
     return null;
   }
+}
+function decodeCodexPlan(tokens) {
+  const accessPayload = decodeJwtPayload(tokens.access_token);
+  const accessAuth = accessPayload?.["https://api.openai.com/auth"] ?? {};
+  const accessPlan = typeof accessAuth.chatgpt_plan_type === "string" ? accessAuth.chatgpt_plan_type : typeof accessAuth.plan_type === "string" ? accessAuth.plan_type : null;
+  return accessPlan ?? decodeIdToken(tokens.id_token)?.plan_type ?? null;
 }
 function authMatchesAccount(auth, account) {
   if (auth.auth_mode !== "chatgpt" || !auth.tokens?.id_token)
@@ -6171,7 +6184,13 @@ var MODEL_EFFORT_LEVELS = new Set([
   ...CODEX_EFFORT_LEVELS
 ]);
 var CODEX_MODEL_ALIASES = {
-  "gpt-5.6": "gpt-5.6-sol"
+  "gpt-5.6": "gpt-5.6-sol",
+  "gpt-6": "gpt-6-astra"
+};
+var CODEX_NAMED_ALIASES = {
+  sol: "gpt-5.6-sol",
+  terra: "gpt-5.6-terra",
+  luna: "gpt-5.6-luna"
 };
 function isModelEffort(value) {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
@@ -6202,6 +6221,9 @@ function resolveModelShorthand(provider, input) {
     }
     return trimmed;
   }
+  const namedAlias = CODEX_NAMED_ALIASES[trimmed.toLowerCase()];
+  if (namedAlias)
+    return namedAlias;
   const match = trimmed.match(CODEX_SHORTHAND);
   if (match) {
     const model = `gpt-${match[1]}`;
@@ -6210,6 +6232,60 @@ function resolveModelShorthand(provider, input) {
     return CODEX_MODEL_ALIASES[model] ?? model;
   }
   return trimmed;
+}
+
+// src/commands/model.ts
+async function updateDefaultModel(entry, normalizedModel) {
+  if (entry.target.provider === "claude") {
+    const profile = await updateProfileDefaultModel(entry.target.profileName, normalizedModel);
+    return profile.type;
+  }
+  const reg = await loadRegistry();
+  const existing = findAccountByKey(reg, entry.target.accountKey);
+  if (!existing) {
+    throw new Error("Codex account not found in registry.");
+  }
+  const account = updateAccountDefaultModel(reg, entry.target.accountKey, normalizedModel);
+  await saveRegistry(reg);
+  if (reg.active_account_key === entry.target.accountKey) {
+    const auth = account.auth_mode === "apikey" ? await readAccountAuth(entry.target.accountKey) : null;
+    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
+  }
+  return account.auth_mode ?? "unknown";
+}
+async function model(aliasOrName, defaultModel) {
+  blank();
+  if (!defaultModel.trim()) {
+    error("Default model cannot be empty.");
+    blank();
+    process.exit(1);
+  }
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
+  if (!entry) {
+    error(`Alias "${aliasOrName}" not found.`);
+    blank();
+    process.exit(1);
+  }
+  const { model: modelPart, effort } = splitModelEffort(defaultModel);
+  if (effort) {
+    error("Effort levels aren't stored with the default model.");
+    hint(`Use ${source_default.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
+    blank();
+    process.exit(1);
+  }
+  const normalizedModel = resolveModelShorthand(entry.target.provider, modelPart);
+  let authMode;
+  try {
+    authMode = await updateDefaultModel(entry, normalizedModel);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
+  blank();
+  success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider(entry.target.provider)}  ${formatType(authMode)}  ${source_default.dim(normalizedModel)}`);
+  blank();
 }
 
 // src/commands/run.ts
@@ -6234,7 +6310,14 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   const claudeProfileName = entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;
-  const profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
+  let profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
+  const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" ? profile.defaultModel : undefined;
+  if (runOptions.modelOverride && resolvedModel) {
+    await updateDefaultModel(entry, resolvedModel);
+    if (claudeProfileName) {
+      profile = await getProfileData(claudeProfileName);
+    }
+  }
   const isolatedClaudeApi = profile?.type === "api-key";
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
   if (!isClaude) {
@@ -6263,7 +6346,6 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   const command = isClaude ? "claude" : "codex";
   const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
-  const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : isolatedClaudeOAuth && profile?.type === "oauth" ? profile.defaultModel : undefined;
   const effortArgs = runOptions.effortOverride ? isClaude ? ["--effort", runOptions.effortOverride] : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`] : [];
   const args = [
     ...isolatedClaudeApi ? ["--bare"] : [],
@@ -6434,16 +6516,9 @@ function expiresAt(creds) {
   return creds?.claudeAiOauth?.expiresAt ?? 0;
 }
 async function fetchClaudeUsage(profileName, isActiveProfile) {
-  const snapshot = await readCredentials(claudeProfileCredentials(profileName));
-  const isolated = await readIsolatedCredentials(claudeProfileDir(profileName));
-  let global2 = null;
-  if (isActiveProfile) {
-    const savedAccount = await readJson(claudeProfileAccountFile(profileName), null);
-    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      global2 = await readCredentials(CREDENTIALS_FILE);
-    }
-  }
-  let creds = [snapshot, isolated, global2].filter((c) => Boolean(c?.claudeAiOauth?.accessToken)).sort((a, b) => expiresAt(b) - expiresAt(a))[0];
+  const stores = await readOAuthCredentialStores(profileName, isActiveProfile);
+  const { isolated, global: global2 } = stores;
+  let creds = freshestOAuthCredentials(stores);
   if (!creds)
     return { usage: null, note: null };
   const persist = async (next) => {
@@ -6705,12 +6780,8 @@ function jsonRpcErrorMessage(error2) {
 }
 
 // src/providers/codex/usage.ts
-function accessAuthClaims(tokens) {
-  const claims = decodeJwtPayload(tokens.access_token);
-  return claims?.["https://api.openai.com/auth"] ?? {};
-}
 function isFreePlan(tokens) {
-  return decodeIdToken(tokens.id_token)?.plan_type === "free" || accessAuthClaims(tokens).chatgpt_plan_type === "free";
+  return decodeCodexPlan(tokens) === "free";
 }
 async function fetchCodexUsage(accountKey, isActive, rateLimitsReader = readCodexRateLimits) {
   const auth = await readAccountAuth(accountKey);
@@ -6723,7 +6794,8 @@ async function fetchCodexUsage(accountKey, isActive, rateLimitsReader = readCode
     const { response, refreshedAuth } = await rateLimitsReader(auth);
     await persistRefreshedAuth(accountKey, isActive, auth, refreshedAuth);
     const usage = parseRateLimitsResponse(response);
-    return usage ? { usage, note: null } : { usage: null, note: "usage n/a" };
+    const plan = parseRateLimitsPlan(response);
+    return usage ? { usage, note: null, plan } : { usage: null, note: "usage n/a", plan };
   } catch (err) {
     if (err instanceof CodexRateLimitsReadError) {
       await persistRefreshedAuth(accountKey, isActive, auth, err.refreshedAuth);
@@ -6762,10 +6834,17 @@ async function persistRefreshedAuth(accountKey, isActive, originalAuth, refreshe
   await switchToAccount(accountKey);
 }
 function parseRateLimitsResponse(response) {
-  const snapshot = response.rateLimitsByLimitId?.codex ?? response.rateLimits ?? null;
+  const snapshot = preferredSnapshot(response);
   if (!snapshot)
     return null;
   return parseSnapshot(snapshot);
+}
+function parseRateLimitsPlan(response) {
+  const plan = response.rateLimitsByLimitId?.codex?.planType ?? response.rateLimits?.planType;
+  return typeof plan === "string" && plan.trim() ? plan : null;
+}
+function preferredSnapshot(response) {
+  return response.rateLimitsByLimitId?.codex ?? response.rateLimits ?? null;
 }
 function parseSnapshot(snapshot) {
   const info2 = {
@@ -6818,6 +6897,7 @@ async function list(options = {}) {
     Promise.all(claudeAliases.map((entry) => getClaudeAccountInfo(entry, claudeState.active, withUsage))),
     Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage, options.codexUsageFetcher ?? fetchCodexUsage)))
   ]);
+  await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
   blank();
   console.log(header("  Accounts"));
   if (claudeInfos.length > 0) {
@@ -6847,12 +6927,12 @@ function renderSection(infos) {
     const plan = formatPlan(info2.plan);
     const email = info2.email ? source_default.dim(info2.email) : "";
     const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-    const model = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
+    const model2 = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
     const usage = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage || balance;
     const quotaStr = quota ? `  ${quota}` : "";
-    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}${quotaStr}`);
+    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model2}${quotaStr}`);
   }
 }
 async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
@@ -6883,8 +6963,6 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
         info2.balance = await fetchRelayBalance(profileData.baseUrl, profileData.apiKey);
       }
     } else {
-      const creds = await readCredentials(claudeProfileCredentials(profileName));
-      info2.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
       const account = await readJson(claudeProfileAccountFile(profileName), null);
       info2.email = account?.emailAddress ?? null;
       if (withUsage) {
@@ -6892,6 +6970,8 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
         info2.usage = result.usage;
         info2.usageNote = result.note;
       }
+      const creds = await readFreshestOAuthCredentials(profileName, isActive);
+      info2.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
     }
   } catch {}
   return info2;
@@ -6930,6 +7010,7 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
     usageNote: null,
     balance: null
   };
+  let serverPlan = null;
   if (withUsage) {
     if (account.auth_mode === "apikey") {
       const baseUrl = account.api_provider?.base_url;
@@ -6943,9 +7024,38 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
       const result = await codexUsageFetcher(accountKey, isActive);
       info2.usage = result.usage;
       info2.usageNote = result.note;
+      serverPlan = result.plan ?? null;
+    }
+  }
+  if (account.auth_mode !== "apikey") {
+    info2.plan = serverPlan ?? info2.plan;
+    const auth = await readAccountAuth(accountKey);
+    if (auth?.auth_mode === "chatgpt") {
+      info2.plan = serverPlan ?? decodeCodexPlan(auth.tokens) ?? info2.plan;
     }
   }
   return info2;
+}
+async function persistDisplayedCodexPlans(entries, infos, registry) {
+  if (!registry)
+    return;
+  const latestRegistry = await loadRegistry();
+  let changed = false;
+  entries.forEach((entry, index) => {
+    if (entry.target.provider !== "codex")
+      return;
+    const accountKey = entry.target.accountKey;
+    const account = latestRegistry.accounts.find((candidate) => candidate.account_key === accountKey);
+    const plan = infos[index]?.plan ?? null;
+    if (!account || account.auth_mode === "apikey" || !plan)
+      return;
+    if (account.plan !== plan) {
+      account.plan = plan;
+      changed = true;
+    }
+  });
+  if (changed)
+    await saveRegistry(latestRegistry);
 }
 
 // src/commands/remove.ts
@@ -7386,61 +7496,13 @@ async function runLoginCommand(command, args) {
   }
 }
 
-// src/commands/model.ts
-async function model(aliasOrName, defaultModel) {
-  blank();
-  if (!defaultModel.trim()) {
-    error("Default model cannot be empty.");
-    blank();
-    process.exit(1);
-  }
-  const aliasReg = await loadAliases();
-  const entry = findAlias(aliasReg, aliasOrName);
-  if (!entry) {
-    error(`Alias "${aliasOrName}" not found.`);
-    blank();
-    process.exit(1);
-  }
-  const { model: modelPart, effort } = splitModelEffort(defaultModel);
-  if (effort) {
-    error("Effort levels aren't stored with the default model.");
-    hint(`Use ${source_default.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
-    blank();
-    process.exit(1);
-  }
-  const normalizedModel = resolveModelShorthand(entry.target.provider, modelPart);
-  if (entry.target.provider === "claude") {
-    const profile = await updateProfileDefaultModel(entry.target.profileName, normalizedModel);
-    blank();
-    success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider("claude")}  ${formatType(profile.type)}  ${source_default.dim(normalizedModel)}`);
-    blank();
-    return;
-  }
-  const reg = await loadRegistry();
-  const existing = findAccountByKey(reg, entry.target.accountKey);
-  if (!existing) {
-    error("Codex account not found in registry.");
-    blank();
-    process.exit(1);
-  }
-  const account = updateAccountDefaultModel(reg, entry.target.accountKey, normalizedModel);
-  await saveRegistry(reg);
-  if (reg.active_account_key === entry.target.accountKey) {
-    const auth = account.auth_mode === "apikey" ? await readAccountAuth(entry.target.accountKey) : null;
-    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
-  }
-  blank();
-  success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider("codex")}  ${formatType(account.auth_mode ?? "unknown")}  ${source_default.dim(normalizedModel)}`);
-  blank();
-}
-
 // src/lib/update.ts
 import { realpathSync } from "fs";
 import { spawnSync as spawnSync3 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.5.1",
+  version: "1.6.0",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -7758,12 +7820,12 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch and run with the default permission mode
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch, save the selected model, and run
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (shorthand ok: 5 -> claude-opus-5, fable -> claude-fable-5, 5.6 -> gpt-5.6-sol)
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5, sonnet5, fable5.1; Codex: sol, terra, luna, 6)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login

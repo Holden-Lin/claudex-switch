@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { spawn, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
 import { use } from "./use";
+import { updateDefaultModel } from "./model";
 import { blank, error, hint, info } from "../lib/ui";
 import {
   isModelEffort,
@@ -80,9 +81,20 @@ export async function runAliasSession(
   const claudeProfileName =
     entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;
-  const profile = claudeProfileName
+  let profile = claudeProfileName
     ? await getProfileData(claudeProfileName)
     : null;
+  const resolvedModel = runOptions.modelOverride
+    ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
+    : profile?.type === "oauth"
+      ? profile.defaultModel
+      : undefined;
+  if (runOptions.modelOverride && resolvedModel) {
+    await updateDefaultModel(entry, resolvedModel);
+    if (claudeProfileName) {
+      profile = await getProfileData(claudeProfileName);
+    }
+  }
   const isolatedClaudeApi = profile?.type === "api-key";
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
 
@@ -125,11 +137,6 @@ export async function runAliasSession(
   const defaultPermissionArgs = isClaude
     ? ["--permission-mode", "auto"]
     : ["--dangerously-bypass-approvals-and-sandbox"];
-  const resolvedModel = runOptions.modelOverride
-    ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
-    : isolatedClaudeOAuth && profile?.type === "oauth"
-      ? profile.defaultModel
-      : undefined;
   const effortArgs = runOptions.effortOverride
     ? isClaude
       ? ["--effort", runOptions.effortOverride]

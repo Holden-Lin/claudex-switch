@@ -24,6 +24,47 @@ import {
   resolveModelShorthand,
   splitModelEffort,
 } from "../lib/model-shorthand";
+import type { AliasEntry } from "../types";
+
+export async function updateDefaultModel(
+  entry: AliasEntry,
+  normalizedModel: string,
+): Promise<string> {
+  if (entry.target.provider === "claude") {
+    const profile = await updateProfileDefaultModel(
+      entry.target.profileName,
+      normalizedModel,
+    );
+    return profile.type;
+  }
+
+  const reg = await loadRegistry();
+  const existing = findAccountByKey(reg, entry.target.accountKey);
+  if (!existing) {
+    throw new Error("Codex account not found in registry.");
+  }
+
+  const account = updateAccountDefaultModel(
+    reg,
+    entry.target.accountKey,
+    normalizedModel,
+  );
+  await saveRegistry(reg);
+
+  if (reg.active_account_key === entry.target.accountKey) {
+    const auth =
+      account.auth_mode === "apikey"
+        ? await readAccountAuth(entry.target.accountKey)
+        : null;
+    await applyCodexApiProvider(
+      account.auth_mode === "apikey" ? account.api_provider : null,
+      auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined,
+      account.default_model,
+    );
+  }
+
+  return account.auth_mode ?? "unknown";
+}
 
 export async function model(
   aliasOrName: string,
@@ -61,49 +102,18 @@ export async function model(
     modelPart,
   );
 
-  if (entry.target.provider === "claude") {
-    const profile = await updateProfileDefaultModel(
-      entry.target.profileName,
-      normalizedModel,
-    );
-    blank();
-    success(
-      `Updated ${chalk.bold(entry.alias)}  ${formatProvider("claude")}  ${formatType(profile.type)}  ${chalk.dim(normalizedModel)}`,
-    );
-    blank();
-    return;
-  }
-
-  const reg = await loadRegistry();
-  const existing = findAccountByKey(reg, entry.target.accountKey);
-  if (!existing) {
-    error("Codex account not found in registry.");
+  let authMode: string;
+  try {
+    authMode = await updateDefaultModel(entry, normalizedModel);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
     blank();
     process.exit(1);
   }
 
-  const account = updateAccountDefaultModel(
-    reg,
-    entry.target.accountKey,
-    normalizedModel,
-  );
-  await saveRegistry(reg);
-
-  if (reg.active_account_key === entry.target.accountKey) {
-    const auth =
-      account.auth_mode === "apikey"
-        ? await readAccountAuth(entry.target.accountKey)
-        : null;
-    await applyCodexApiProvider(
-      account.auth_mode === "apikey" ? account.api_provider : null,
-      auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined,
-      account.default_model,
-    );
-  }
-
   blank();
   success(
-    `Updated ${chalk.bold(entry.alias)}  ${formatProvider("codex")}  ${formatType(account.auth_mode ?? "unknown")}  ${chalk.dim(normalizedModel)}`,
+    `Updated ${chalk.bold(entry.alias)}  ${formatProvider(entry.target.provider)}  ${formatType(authMode)}  ${chalk.dim(normalizedModel)}`,
   );
   blank();
 }

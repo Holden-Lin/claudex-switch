@@ -6,6 +6,7 @@ import {
   codexAccountAuthFile,
 } from "../src/lib/paths";
 import {
+  decodeCodexPlan,
   decodeIdToken,
   readActiveAuth,
   readAccountAuth,
@@ -58,6 +59,20 @@ describe("codex auth", () => {
       chatgpt_account_id: "account-new",
       plan_type: "pro",
     });
+  });
+
+  test("reads the current plan from the access token before the id token", () => {
+    expect(
+      decodeCodexPlan({
+        id_token: makeJwt({
+          "https://api.openai.com/auth": { plan_type: "plus" },
+        }),
+        access_token: makeJwt({
+          "https://api.openai.com/auth": { chatgpt_plan_type: "pro" },
+        }),
+        refresh_token: "refresh-token",
+      }),
+    ).toBe("pro");
   });
 
   test("snapshots and saves auth files with restricted permissions", async () => {

@@ -63,6 +63,12 @@ export interface IsolatedOAuthRunContext {
   configDir: string;
 }
 
+export interface OAuthCredentialStores {
+  snapshot: CredentialsFile | null;
+  isolated: CredentialsFile | null;
+  global: CredentialsFile | null;
+}
+
 async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
 }
@@ -296,7 +302,7 @@ async function restoreOAuthCredentials(name: string): Promise<void> {
     }
   }
 
-  const creds = await readFreshestProfileCredentials(name);
+  const creds = await readFreshestOAuthCredentials(name, false);
   if (!creds) {
     throw new Error(
       `No credentials found at ${claudeProfileCredentials(name)}`,
@@ -320,15 +326,45 @@ function pickFresherCredentials(
 }
 
 // Rotated refresh tokens mean an older copy of the same account's credentials
-// may already be dead. A profile can have two copies: the file snapshot and
-// the isolated live store that `-run` sessions refresh in place. Prefer
-// whichever was refreshed last (expiresAt is bumped on every refresh).
-async function readFreshestProfileCredentials(
+// may already be dead. Prefer whichever matching store was refreshed last
+// (expiresAt is bumped on every refresh).
+export async function readOAuthCredentialStores(
   name: string,
-): Promise<CredentialsFile | null> {
+  includeMatchingGlobal: boolean,
+): Promise<OAuthCredentialStores> {
   const snapshot = await readCredentials(claudeProfileCredentials(name));
   const isolated = await readIsolatedCredentials(claudeProfileDir(name));
-  return pickFresherCredentials(snapshot, isolated);
+  let global: CredentialsFile | null = null;
+
+  if (includeMatchingGlobal) {
+    const savedAccount = await readJson<OAuthAccount | null>(
+      claudeProfileAccountFile(name),
+      null,
+    );
+    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
+      global = await readCredentials(CREDENTIALS_FILE);
+    }
+  }
+
+  return { snapshot, isolated, global };
+}
+
+export function freshestOAuthCredentials(
+  stores: OAuthCredentialStores,
+): CredentialsFile | null {
+  return pickFresherCredentials(
+    pickFresherCredentials(stores.snapshot, stores.isolated),
+    stores.global,
+  );
+}
+
+export async function readFreshestOAuthCredentials(
+  name: string,
+  includeMatchingGlobal: boolean,
+): Promise<CredentialsFile | null> {
+  return freshestOAuthCredentials(
+    await readOAuthCredentialStores(name, includeMatchingGlobal),
+  );
 }
 
 // Seed the profile's isolated live credential store for a `-run` session
@@ -347,25 +383,10 @@ export async function prepareIsolatedOAuthRun(
 
   const dir = claudeProfileDir(name);
   const configDir = claudeProfileConfigDir(name);
-  const snapshot = await readCredentials(claudeProfileCredentials(name));
-  const isolated = await readIsolatedCredentials(dir);
-  let freshest = pickFresherCredentials(snapshot, isolated);
-
-  // If this profile is also the active global one and the global live session
-  // still belongs to it, the global store may hold newer rotated tokens.
   const state = await readState();
-  if (state.active === name) {
-    const savedAccount = await readJson<OAuthAccount | null>(
-      claudeProfileAccountFile(name),
-      null,
-    );
-    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      freshest = pickFresherCredentials(
-        freshest,
-        await readCredentials(CREDENTIALS_FILE),
-      );
-    }
-  }
+  const stores = await readOAuthCredentialStores(name, state.active === name);
+  const { snapshot, isolated } = stores;
+  const freshest = freshestOAuthCredentials(stores);
 
   if (!freshest) {
     throw new Error(

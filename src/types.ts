@@ -211,6 +211,7 @@ export interface UsageInfo {
 export interface UsageFetchResult {
   usage: UsageInfo | null;
   note: string | null;
+  plan?: string | null;
 }
 
 // One balance figure from a one-api/new-api relay.

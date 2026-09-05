@@ -1,18 +1,20 @@
 import chalk from "chalk";
 import { loadAliases } from "../alias/store";
-import { readState } from "../providers/claude/profiles";
-import { readCredentials } from "../providers/claude/credentials";
+import {
+  readFreshestOAuthCredentials,
+  readState,
+} from "../providers/claude/profiles";
 import { fetchClaudeUsage } from "../providers/claude/usage";
 import {
   claudeProfileAccountFile,
-  claudeProfileCredentials,
   claudeProfileDataFile,
 } from "../lib/paths";
 import { readJson } from "../lib/fs";
-import { loadRegistry } from "../providers/codex/registry";
+import { loadRegistry, saveRegistry } from "../providers/codex/registry";
 import { resolveCodexModel } from "../providers/codex/config";
 import {
   readAccountAuth,
+  decodeCodexPlan,
   syncActiveAuthSnapshot,
 } from "../providers/codex/auth";
 import { fetchCodexUsage } from "../providers/codex/usage";
@@ -98,6 +100,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
       ),
     ),
   ]);
+  await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
 
   blank();
   console.log(header("  Accounts"));
@@ -196,11 +199,6 @@ async function getClaudeAccountInfo(
         );
       }
     } else {
-      const creds = await readCredentials(
-        claudeProfileCredentials(profileName),
-      );
-      info.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
-
       const account = await readJson<OAuthAccount | null>(
         claudeProfileAccountFile(profileName),
         null,
@@ -212,6 +210,9 @@ async function getClaudeAccountInfo(
         info.usage = result.usage;
         info.usageNote = result.note;
       }
+
+      const creds = await readFreshestOAuthCredentials(profileName, isActive);
+      info.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
     }
   } catch {
     // Profile may not exist anymore
@@ -272,6 +273,7 @@ async function getCodexAccountInfo(
     usageNote: null,
     balance: null,
   };
+  let serverPlan: string | null = null;
 
   if (withUsage) {
     if (account.auth_mode === "apikey") {
@@ -288,8 +290,43 @@ async function getCodexAccountInfo(
       const result = await codexUsageFetcher(accountKey, isActive);
       info.usage = result.usage;
       info.usageNote = result.note;
+      serverPlan = result.plan ?? null;
+    }
+  }
+
+  if (account.auth_mode !== "apikey") {
+    info.plan = serverPlan ?? info.plan;
+    const auth = await readAccountAuth(accountKey);
+    if (auth?.auth_mode === "chatgpt") {
+      info.plan = serverPlan ?? decodeCodexPlan(auth.tokens) ?? info.plan;
     }
   }
 
   return info;
+}
+
+async function persistDisplayedCodexPlans(
+  entries: AliasEntry[],
+  infos: AccountInfo[],
+  registry: Awaited<ReturnType<typeof loadRegistry>> | null,
+): Promise<void> {
+  if (!registry) return;
+
+  const latestRegistry = await loadRegistry();
+  let changed = false;
+  entries.forEach((entry, index) => {
+    if (entry.target.provider !== "codex") return;
+    const accountKey = entry.target.accountKey;
+    const account = latestRegistry.accounts.find(
+      (candidate) => candidate.account_key === accountKey,
+    );
+    const plan = infos[index]?.plan ?? null;
+    if (!account || account.auth_mode === "apikey" || !plan) return;
+    if (account.plan !== plan) {
+      account.plan = plan;
+      changed = true;
+    }
+  });
+
+  if (changed) await saveRegistry(latestRegistry);
 }

@@ -3,7 +3,13 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { saveAliases } from "../src/alias/store";
 import { list } from "../src/commands/list";
-import { saveRegistry } from "../src/providers/codex/registry";
+import {
+  CLAUDE_JSON,
+  CLAUDE_STATE_FILE,
+  CREDENTIALS_FILE,
+} from "../src/lib/paths";
+import { writeCredentials } from "../src/providers/claude/credentials";
+import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
 import { makeJwt, resetTestHome, TEST_HOME } from "./helpers";
 import type {
   AliasRegistry,
@@ -212,6 +218,34 @@ describe("list", () => {
     expect(output()).toContain("wk 60%");
   });
 
+  test("refreshes the displayed and stored Codex plan from current tokens", async () => {
+    await saveAliases(codexAliases);
+    await saveRegistry(createRegistry());
+    await writeCodexAuthFile(makeCodexTokens({ plan: "pro" }));
+
+    await list({ usage: false });
+
+    expect(output()).toContain("Pro");
+    expect((await loadRegistry()).accounts[0]?.plan).toBe("pro");
+  });
+
+  test("prefers the Codex plan returned by the live rate-limit response", async () => {
+    await saveAliases(codexAliases);
+    await saveRegistry(createRegistry());
+    await writeCodexAuthFile(makeCodexTokens({ plan: "pro" }));
+
+    await list({
+      codexUsageFetcher: async () => ({
+        usage: null,
+        note: null,
+        plan: "team",
+      }),
+    });
+
+    expect(output()).toContain("Team");
+    expect((await loadRegistry()).accounts[0]?.plan).toBe("team");
+  });
+
   test("shows a Codex App Server authentication failure as login expired", async () => {
     await saveAliases(codexAliases);
     await saveRegistry(createRegistry());
@@ -293,6 +327,42 @@ describe("list", () => {
     // 11% used -> 89% left; 39% used -> 61% left
     expect(output()).toContain("5h 89%");
     expect(output()).toContain("wk 61%");
+  });
+
+  test("shows the Claude plan from the freshest matching local credentials", async () => {
+    const snapshot = makeClaudeCreds();
+    snapshot.claudeAiOauth.expiresAt = Date.now() + 60_000;
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "work",
+          target: { provider: "claude", profileName: "work" },
+          createdAt: 1,
+        },
+      ],
+    });
+    await writeClaudeOAuthProfile("work", snapshot);
+    await mkdir(join(TEST_HOME, ".claude"), { recursive: true });
+    await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: "work" }));
+    await writeFile(
+      CLAUDE_JSON,
+      JSON.stringify({
+        oauthAccount: {
+          accountUuid: "uuid-1",
+          emailAddress: "c@example.com",
+        },
+      }),
+    );
+    const live = makeClaudeCreds();
+    live.claudeAiOauth.subscriptionType = "pro";
+    live.claudeAiOauth.expiresAt = Date.now() + 3_600_000;
+    await writeCredentials(live, CREDENTIALS_FILE);
+
+    await list({ usage: false });
+
+    expect(output()).toContain("Pro");
+    expect(output()).not.toContain("Max");
   });
 
   test("refreshes an expired Claude token and writes the snapshot back", async () => {

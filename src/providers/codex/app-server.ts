@@ -19,6 +19,7 @@ export interface CodexRateLimitWindowResponse {
 export interface CodexRateLimitSnapshotResponse {
   primary?: CodexRateLimitWindowResponse | null;
   secondary?: CodexRateLimitWindowResponse | null;
+  planType?: string | null;
 }
 
 export interface CodexRateLimitsResponse {

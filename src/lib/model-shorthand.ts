@@ -30,6 +30,13 @@ const MODEL_EFFORT_LEVELS = new Set([
 // Codex model ids that differ from the bare gpt-<version> pattern.
 const CODEX_MODEL_ALIASES: Record<string, string> = {
   "gpt-5.6": "gpt-5.6-sol",
+  "gpt-6": "gpt-6-astra",
+};
+
+const CODEX_NAMED_ALIASES: Record<string, string> = {
+  sol: "gpt-5.6-sol",
+  terra: "gpt-5.6-terra",
+  luna: "gpt-5.6-luna",
 };
 
 export function isModelEffort(value: string | undefined): value is string {
@@ -73,6 +80,9 @@ export function resolveModelShorthand(
     }
     return trimmed;
   }
+
+  const namedAlias = CODEX_NAMED_ALIASES[trimmed.toLowerCase()];
+  if (namedAlias) return namedAlias;
 
   const match = trimmed.match(CODEX_SHORTHAND);
   if (match) {

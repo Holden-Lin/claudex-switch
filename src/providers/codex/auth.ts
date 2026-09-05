@@ -8,6 +8,7 @@ import {
 } from "../../lib/paths";
 import { fileExists, readJson } from "../../lib/fs";
 import type {
+  CodexAuthTokens,
   CodexAuthFile,
   CodexRegistry,
   CodexRegistryAccount,
@@ -172,6 +173,22 @@ export function decodeIdToken(idToken: string): {
   } catch {
     return null;
   }
+}
+
+export function decodeCodexPlan(tokens: CodexAuthTokens): string | null {
+  const accessPayload = decodeJwtPayload(tokens.access_token);
+  const accessAuth = (accessPayload?.["https://api.openai.com/auth"] ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const accessPlan =
+    typeof accessAuth.chatgpt_plan_type === "string"
+      ? accessAuth.chatgpt_plan_type
+      : typeof accessAuth.plan_type === "string"
+        ? accessAuth.plan_type
+        : null;
+
+  return accessPlan ?? decodeIdToken(tokens.id_token)?.plan_type ?? null;
 }
 
 export function authMatchesAccount(

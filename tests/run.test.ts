@@ -29,6 +29,7 @@ import {
 import {
   addOAuthProfile,
   addApiKeyProfile,
+  getProfileData,
   readState,
   switchProfile,
 } from "../src/providers/claude/profiles";
@@ -459,7 +460,7 @@ describe("run alias session", () => {
     }
   });
 
-  test("maps -model to a one-shot Claude run override", async () => {
+  test("maps -model and saves it as the Claude account default", async () => {
     await addApiKeyProfile("api", {
       apiKey: "sk-ant-profile",
       model: "claude-opus-4-6",
@@ -491,7 +492,14 @@ describe("run alias session", () => {
       "claude-sonnet-4-20250514",
       "--continue",
     ]);
-    expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe("claude-opus-4-6");
+    expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe(
+      "claude-sonnet-4-20250514",
+    );
+    expect(await getProfileData("api")).toEqual({
+      type: "api-key",
+      apiKey: "sk-ant-profile",
+      model: "claude-sonnet-4-20250514",
+    });
   });
 
   test("expands a Claude --model shorthand into the canonical model id", async () => {
@@ -566,6 +574,7 @@ describe("run alias session", () => {
       "gpt-5.5",
       "--continue",
     ]);
+    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-5.5");
   });
 
   test("maps an effort tier after the Claude model to --effort", async () => {
@@ -891,11 +900,12 @@ describe("run alias session", () => {
       },
     ]);
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
-    expect(config).toContain('model = "gpt-5.4"');
+    expect(config).toContain('model = "gpt-5"');
     expect(config).not.toContain("model_provider =");
 
     const registry = await loadRegistry();
     expect(registry.active_account_key).toBe(accountKey);
+    expect(registry.accounts[0]?.default_model).toBe("gpt-5");
   });
 
   test("saves Codex token rotation back to the account after a run", async () => {
@@ -946,7 +956,7 @@ describe("run alias session", () => {
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
   });
 
-  test("maps -model to a one-shot Codex run override without persisting it", async () => {
+  test("maps -model and saves it as the Codex account default", async () => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -986,8 +996,10 @@ describe("run alias session", () => {
     ]);
 
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
-    expect(config).toContain('model = "gpt-5.4"');
-    expect(config).not.toContain('model = "gpt-5-mini"');
+    expect(config).toContain('model = "gpt-5-mini"');
+    expect((await loadRegistry()).accounts[0]?.default_model).toBe(
+      "gpt-5-mini",
+    );
   });
 
   test("activates a custom Codex provider before running an api key alias", async () => {

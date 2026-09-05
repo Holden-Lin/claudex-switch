@@ -25,6 +25,10 @@ describe("resolveModelShorthand", () => {
     );
     expect(resolveModelShorthand("claude", "fable-5")).toBe("claude-fable-5");
     expect(resolveModelShorthand("claude", "opus4.8")).toBe("claude-opus-4-8");
+    expect(resolveModelShorthand("claude", "sonnet5")).toBe("claude-sonnet-5");
+    expect(resolveModelShorthand("claude", "fable5.1")).toBe(
+      "claude-fable-5-1",
+    );
   });
 
   test("expands a bare claude 5.x version into the opus series", () => {
@@ -47,6 +51,10 @@ describe("resolveModelShorthand", () => {
 
   test("maps aliased codex versions to their full model id", () => {
     expect(resolveModelShorthand("codex", "5.6")).toBe("gpt-5.6-sol");
+    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-5.6-sol");
+    expect(resolveModelShorthand("codex", "terra")).toBe("gpt-5.6-terra");
+    expect(resolveModelShorthand("codex", "luna")).toBe("gpt-5.6-luna");
+    expect(resolveModelShorthand("codex", "6")).toBe("gpt-6-astra");
     expect(resolveModelShorthand("codex", "gpt-5.6-sol")).toBe("gpt-5.6-sol");
   });
 
