@@ -9,7 +9,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - Manage Claude Code and Codex accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
-- `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus, with series forms such as `sonnet5` and `fable5.1`; Codex supports `sol` / `terra` / `luna` for the three GPT-5.6 models and `6` for `gpt-6-astra`. A trailing effort tier applies only to the current run
+- `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus, with series forms such as `sonnet5` and `fable5.1`; Codex supports `sol` / `terra` / `luna` for the three GPT-5.6 models and `6` for `gpt-6-astra`. A trailing effort tier applies only to the current run; Codex also supports `ultra` (proactive multi-agent behavior with faster quota consumption)
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
 - `claudex-switch list` fetches remaining quota for all accounts in parallel, updates the Codex tier from the live rate-limit response, and updates the Claude tier from the freshest matching credentials. Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip network requests while still refreshing tiers from local credentials
@@ -99,10 +99,12 @@ claudex-switch holden -run --model 5
 claudex-switch holden -run --model fable5.1
 claudex-switch cx -run --model terra
 
-# An effort tier (minimal/low/medium/high/xhigh/max) may follow the model
-# Mapped to --effort for Claude, -c model_reasoning_effort=... for Codex
+# An effort tier may follow the model
+# Claude: low/medium/high/xhigh/max; Codex: minimal/low/medium/high/xhigh/max/ultra
+# Mapped to --effort for Claude, -c model_reasoning_effort=... for Codex; availability still depends on the selected model
 claudex-switch holden -run --model 5 max
 claudex-switch cx -run --model 5.6 xhigh
+claudex-switch cx -run --model 5.6 ultra # proactive multi-agent mode, consumes quota faster
 
 # Disable the attribution header for this Claude run only
 claudex-switch holden -run --attribution-header false

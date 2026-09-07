@@ -713,7 +713,7 @@ describe("run alias session", () => {
     ]);
   });
 
-  test("maps an effort tier after the Codex model to model_reasoning_effort", async () => {
+  test("maps Codex max and ultra effort tiers to model_reasoning_effort", async () => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -741,17 +741,32 @@ describe("run alias session", () => {
     const calls: SpawnCall[] = [];
     await runAliasSession(
       "cx",
-      ["--model", "5.6", "xhigh", "--continue"],
+      ["--model", "5.6", "max", "--continue"],
+      createSpawn(calls),
+    );
+    await runAliasSession(
+      "cx",
+      ["--model", "5.6 ultra", "--resume"],
       createSpawn(calls),
     );
 
-    expect(calls[0]?.args).toEqual([
-      "--dangerously-bypass-approvals-and-sandbox",
-      "--model",
-      "gpt-5.6-sol",
-      "-c",
-      "model_reasoning_effort=xhigh",
-      "--continue",
+    expect(calls.map((call) => call.args)).toEqual([
+      [
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--model",
+        "gpt-5.6-sol",
+        "-c",
+        "model_reasoning_effort=max",
+        "--continue",
+      ],
+      [
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--model",
+        "gpt-5.6-sol",
+        "-c",
+        "model_reasoning_effort=ultra",
+        "--resume",
+      ],
     ]);
   });
 

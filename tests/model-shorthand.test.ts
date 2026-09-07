@@ -107,6 +107,7 @@ describe("isModelEffort", () => {
     expect(isModelEffort("max")).toBe(true);
     expect(isModelEffort("XHIGH")).toBe(true);
     expect(isModelEffort("minimal")).toBe(true);
+    expect(isModelEffort("ultra")).toBe(true);
     expect(isModelEffort("turbo")).toBe(false);
     expect(isModelEffort(undefined)).toBe(false);
   });
@@ -118,7 +119,8 @@ describe("providerEffortLevels", () => {
     expect(providerEffortLevels("claude").has("ultracode")).toBe(true);
     expect(providerEffortLevels("claude").has("minimal")).toBe(false);
     expect(providerEffortLevels("codex").has("minimal")).toBe(true);
-    expect(providerEffortLevels("codex").has("max")).toBe(false);
+    expect(providerEffortLevels("codex").has("max")).toBe(true);
+    expect(providerEffortLevels("codex").has("ultra")).toBe(true);
     expect(providerEffortLevels("codex").has("ultracode")).toBe(false);
   });
 });

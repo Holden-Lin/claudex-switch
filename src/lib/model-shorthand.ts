@@ -21,6 +21,8 @@ const CODEX_EFFORT_LEVELS = new Set([
   "medium",
   "high",
   "xhigh",
+  "max",
+  "ultra",
 ]);
 const MODEL_EFFORT_LEVELS = new Set([
   ...CLAUDE_EFFORT_LEVELS,

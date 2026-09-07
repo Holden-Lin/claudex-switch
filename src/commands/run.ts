@@ -65,8 +65,8 @@ export async function runAliasSession(
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
-  // The two CLIs support different effort tiers (claude has max but not
-  // minimal; codex the reverse), so validate once the provider is known.
+  // The two CLIs support different effort tiers, so validate once the
+  // provider is known.
   if (runOptions.effortOverride) {
     const valid = providerEffortLevels(entry.target.provider);
     if (!valid.has(runOptions.effortOverride)) {
