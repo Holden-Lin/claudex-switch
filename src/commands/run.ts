@@ -12,13 +12,23 @@ import {
 } from "../lib/model-shorthand";
 import {
   getProfileData,
+  prepareIsolatedLocalCLIProxyAPIRun,
   prepareIsolatedOAuthRun,
   syncIsolatedOAuthSnapshot,
 } from "../providers/claude/profiles";
 import {
   CLAUDE_ENV_KEYS,
+  CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   getClaudeEnvNeutralizer,
 } from "../providers/claude/settings";
+import {
+  acquireManagedCLIProxyAPILease,
+  ensureManagedCLIProxyAPI,
+  prepareLocalCLIProxyAPIClaudeSettings,
+  resolveManagedLocalCLIProxyAPIDefaultModel,
+  resolveManagedLocalCLIProxyAPIModel,
+  type ManagedCLIProxyAPILease,
+} from "../providers/cliproxyapi/managed";
 import {
   readAccountAuth,
   syncActiveAuthSnapshot,
@@ -85,9 +95,13 @@ export async function runAliasSession(
     ? await getProfileData(claudeProfileName)
     : null;
   const resolvedModel = runOptions.modelOverride
-    ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
-    : profile?.type === "oauth"
-      ? profile.defaultModel
+    ? profile?.type === "local-cliproxyapi"
+      ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
+      : resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
+    : profile?.type === "oauth" || profile?.type === "local-cliproxyapi"
+      ? profile.type === "local-cliproxyapi"
+        ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
+        : profile.defaultModel
       : undefined;
   if (runOptions.modelOverride && resolvedModel) {
     await updateDefaultModel(entry, resolvedModel);
@@ -97,6 +111,8 @@ export async function runAliasSession(
   }
   const isolatedClaudeApi = profile?.type === "api-key";
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
+  const isolatedLocalCLIProxyAPI =
+    isClaude && profile?.type === "local-cliproxyapi";
 
   // Claude sessions run isolated from the global account state: API-key
   // profiles get their config via env vars, OAuth profiles get a per-profile
@@ -117,6 +133,8 @@ export async function runAliasSession(
   let secureStorageDir: string | undefined;
   let configDir: string | undefined;
   let settingsNeutralizer: string | null = null;
+  let localSettingsFile: string | undefined;
+  let localLease: ManagedCLIProxyAPILease | undefined;
   if (isolatedClaudeOAuth && claudeProfileName) {
     try {
       const context = await prepareIsolatedOAuthRun(claudeProfileName);
@@ -133,6 +151,43 @@ export async function runAliasSession(
     settingsNeutralizer = await getClaudeEnvNeutralizer();
   }
 
+  if (isolatedLocalCLIProxyAPI && profile?.type === "local-cliproxyapi") {
+    try {
+      const context = await prepareIsolatedLocalCLIProxyAPIRun(
+        claudeProfileName!,
+      );
+      secureStorageDir = context.secureStorageDir;
+      configDir = context.configDir;
+      // Acquire the lease before startup so a simultaneous purge/refresh
+      // cannot remove the account while this launch is preparing its private
+      // settings file. The lease is released when the real Claude process
+      // exits (including a failed spawn below).
+      localLease = await acquireManagedCLIProxyAPILease({
+        profileId: profile.profileId,
+        binaryPath: profile.binaryPath,
+      });
+      const runtime = await ensureManagedCLIProxyAPI({
+        profileId: profile.profileId,
+        binaryPath: profile.binaryPath,
+      });
+      localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(
+        profile,
+        runtime,
+      );
+    } catch (err) {
+      try {
+        await localLease?.release();
+      } catch {
+        // A stale lease is cleaned only after its owner PID exits; retain the
+        // original startup error as the useful recovery message.
+      }
+      error(err instanceof Error ? err.message : String(err));
+      hint(`Run ${chalk.cyan(`claudex-switch doctor ${aliasOrName}`)} after fixing the local proxy.`);
+      blank();
+      process.exit(1);
+    }
+  }
+
   const command = isClaude ? "claude" : "codex";
   const defaultPermissionArgs = isClaude
     ? ["--permission-mode", "auto"]
@@ -147,6 +202,7 @@ export async function runAliasSession(
     ...defaultPermissionArgs,
     ...(resolvedModel ? ["--model", resolvedModel] : []),
     ...effortArgs,
+    ...(localSettingsFile ? ["--settings", localSettingsFile] : []),
     ...(settingsNeutralizer ? ["--settings", settingsNeutralizer] : []),
     ...runOptions.forwardedArgs,
   ];
@@ -162,20 +218,36 @@ export async function runAliasSession(
 
   return new Promise((resolve) => {
     let settled = false;
-    const finish = (code: number): void => {
+    const finish = async (code: number): Promise<void> => {
       if (settled) return;
       settled = true;
+      try {
+        await localLease?.release();
+      } catch {
+        // A failed cleanup leaves only a PID-scoped lease; manager lifecycle
+        // code removes it after this launcher has exited.
+      }
       resolve(code);
     };
 
-    const proc = spawnCommand(command, args, { stdio: "inherit", env });
+    let proc: ChildProcess;
+    try {
+      proc = spawnCommand(command, args, { stdio: "inherit", env });
+    } catch (err) {
+      error(
+        `Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      blank();
+      void finish(1);
+      return;
+    }
 
     proc.on("error", (err) => {
       error(
         `Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`,
       );
       blank();
-      finish(1);
+      void finish(1);
     });
 
     proc.on("close", (code) => {
@@ -195,7 +267,7 @@ export async function runAliasSession(
             // Best effort; Codex's active auth file remains authoritative.
           }
         }
-        finish(code ?? 1);
+        await finish(code ?? 1);
       })();
     });
   });
@@ -212,6 +284,12 @@ async function getRunEnvironment(
     if (profile?.type === "api-key") {
       return applyClaudeAttributionHeader(
         buildClaudeApiEnvironment(profile),
+        headerEnabled,
+      );
+    }
+    if (profile?.type === "local-cliproxyapi") {
+      return applyClaudeAttributionHeader(
+        buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir),
         headerEnabled,
       );
     }
@@ -339,6 +417,12 @@ function buildClaudeApiEnvironment(
 ): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
+  // Do not inherit the local profile's Fable/subagent routing from a shell.
+  // API profiles then selectively restore only fields they explicitly own.
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env[key];
+  }
+
   setOptionalEnv(env, "ANTHROPIC_API_KEY", config.apiKey);
   setOptionalEnv(env, "ANTHROPIC_BASE_URL", config.baseUrl);
   setOptionalEnv(env, "ANTHROPIC_AUTH_TOKEN", config.authToken);
@@ -359,6 +443,30 @@ function buildClaudeApiEnvironment(
     config.defaultHaikuModel,
   );
 
+  return env;
+}
+
+function buildClaudeLocalCLIProxyAPIEnvironment(
+  secureStorageDir?: string,
+  configDir?: string,
+): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  // The generated 0600 `--settings` file is authoritative for all managed
+  // Claude routing values. Clearing shell inheritance here prevents a prior
+  // account's force/subagent settings from leaking into this run, without
+  // disabling normal Claude configuration, skills, MCP, hooks, or CLAUDE.md.
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env[key];
+  }
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    delete env[key];
+  }
+  if (secureStorageDir) {
+    env.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
+  }
+  if (configDir) {
+    env.CLAUDE_CONFIG_DIR = configDir;
+  }
   return env;
 }
 

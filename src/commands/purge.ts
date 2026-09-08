@@ -48,12 +48,11 @@ export async function purge(aliasName: string): Promise<void> {
   }
 
   if (entry.target.provider === "claude") {
-    try {
-      if (await profileExists(entry.target.profileName)) {
-        await removeProfile(entry.target.profileName);
-      }
-    } catch {
-      // Profile may already be gone
+    if (await profileExists(entry.target.profileName)) {
+      // In particular, an active local CLIProxyAPI run refuses removal. Do not
+      // hide that refusal then remove aliases anyway: the alias and managed
+      // login must remain together until the user ends the session.
+      await removeProfile(entry.target.profileName);
     }
   } else {
     try {

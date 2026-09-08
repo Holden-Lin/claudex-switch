@@ -50,6 +50,8 @@ export function formatType(type: ProfileType | string): string {
       return chalk.blue("oauth");
     case "api-key":
       return chalk.yellow("api-key");
+    case "local-cliproxyapi":
+      return chalk.green("local CLIProxyAPI");
     case "chatgpt":
       return chalk.green("chatgpt");
     case "apikey":

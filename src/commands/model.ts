@@ -24,6 +24,7 @@ import {
   resolveModelShorthand,
   splitModelEffort,
 } from "../lib/model-shorthand";
+import { resolveManagedLocalCLIProxyAPIModel } from "../providers/cliproxyapi/managed";
 import type { AliasEntry } from "../types";
 
 export async function updateDefaultModel(
@@ -97,10 +98,18 @@ export async function model(
     process.exit(1);
   }
 
-  const normalizedModel = resolveModelShorthand(
-    entry.target.provider,
-    modelPart,
-  );
+  // Claude's ordinary `fable` shorthand expands to Claude Fable 5. A local
+  // CLIProxyAPI account deliberately has a different mapping, so resolve it
+  // only after reading the selected persisted profile. Existing Claude API and
+  // OAuth shorthand behavior remains unchanged.
+  const profile =
+    entry.target.provider === "claude"
+      ? await getProfileData(entry.target.profileName)
+      : null;
+  const normalizedModel =
+    profile?.type === "local-cliproxyapi"
+      ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart)
+      : resolveModelShorthand(entry.target.provider, modelPart);
 
   let authMode: string;
   try {

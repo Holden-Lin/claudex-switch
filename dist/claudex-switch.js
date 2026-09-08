@@ -3443,7 +3443,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename, dirname as dirname5, join as join7, resolve } from "path";
+import { basename as basename2, dirname as dirname6, join as join8, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -3466,6 +3466,8 @@ var CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 var CLAUDEX_DIR = join(HOME, ".claudex-switch");
 var ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 var RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
+var CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
+var CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 function claudeProfileDir(name) {
   return join(CLAUDE_PROFILES_DIR, name);
 }
@@ -3475,6 +3477,9 @@ function claudeProfileCredentials(name) {
 function claudeProfileConfigDir(name) {
   return join(claudeProfileDir(name), "config");
 }
+function claudeProfileSecureStorageDir(name) {
+  return join(claudeProfileDir(name), "secure-storage");
+}
 function claudeProfileConfigJson(name) {
   return join(claudeProfileConfigDir(name), ".claude.json");
 }
@@ -3483,6 +3488,30 @@ function claudeProfileDataFile(name) {
 }
 function claudeProfileAccountFile(name) {
   return join(claudeProfileDir(name), "account.json");
+}
+function cliProxyAPIProfileDir(profileId) {
+  return join(CLI_PROXY_API_DIR, profileId);
+}
+function cliProxyAPIAuthDir(profileId) {
+  return join(cliProxyAPIProfileDir(profileId), "auth");
+}
+function cliProxyAPIEnvFile(profileId) {
+  return join(cliProxyAPIProfileDir(profileId), ".env");
+}
+function cliProxyAPIConfigFile(profileId) {
+  return join(cliProxyAPIProfileDir(profileId), "runtime.yaml");
+}
+function cliProxyAPIClaudeSettingsFile(profileId) {
+  return join(cliProxyAPIProfileDir(profileId), "claude-settings.json");
+}
+function cliProxyAPISessionsDir(profileId) {
+  return join(cliProxyAPIProfileDir(profileId), "sessions");
+}
+function cliProxyAPIStateFile(profileId) {
+  return join(cliProxyAPIProfileDir(profileId), "state.json");
+}
+function cliProxyAPIStartupLock(profileId) {
+  return join(CLI_PROXY_API_DIR, "locks", `${profileId}.lock`);
 }
 function codexAccountAuthFile(accountKey) {
   const needsEncoding = !accountKey || accountKey === "." || accountKey === ".." || [...accountKey].some((ch) => !/[a-zA-Z0-9\-_.]/.test(ch));
@@ -3529,6 +3558,7 @@ var RESERVED = new Set([
   "rename",
   "purge",
   "current",
+  "doctor",
   "model",
   "import",
   "update",
@@ -3652,16 +3682,17 @@ async function renameAlias(currentAlias, nextAlias) {
 
 // src/providers/claude/profiles.ts
 import {
+  chmod as chmod3,
   copyFile,
   lstat,
-  mkdir as mkdir3,
-  readdir,
+  mkdir as mkdir4,
+  readdir as readdir2,
   readlink,
-  rm as rm2,
+  rm as rm3,
   symlink,
   unlink
 } from "fs/promises";
-import { join as join3 } from "path";
+import { join as join5 } from "path";
 
 // src/providers/claude/credentials.ts
 import { platform } from "os";
@@ -3813,23 +3844,35 @@ async function writeOAuthAccount(account) {
 }
 
 // src/providers/claude/settings.ts
-import { mkdir as mkdir2 } from "fs/promises";
+import { chmod, mkdir as mkdir2 } from "fs/promises";
 import { dirname } from "path";
 var CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_FABLE_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "CLAUDE_CODE_SUBAGENT_MODEL",
+  "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"
+];
+var CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS = [
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY"
 ];
 async function read() {
   return readJson(SETTINGS_FILE, {});
 }
 async function write(settings) {
   await mkdir2(dirname(SETTINGS_FILE), { recursive: true });
-  await writeJson(SETTINGS_FILE, settings);
+  await writeJsonSecure(SETTINGS_FILE, settings);
+  try {
+    await chmod(SETTINGS_FILE, 384);
+  } catch {}
 }
 function normalizeEnv(settings) {
   const env2 = settings.env;
@@ -3867,6 +3910,9 @@ function setTopLevelModel(settings, model) {
 async function applyApiConfig(config) {
   const settings = await read();
   const env2 = normalizeEnv(settings);
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env2[key];
+  }
   setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
   setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
@@ -3894,6 +3940,25 @@ async function applyOAuthConfig(model) {
     settings.env = env2;
   }
   setTopLevelModel(settings, model);
+  await write(settings);
+}
+async function applyLocalCLIProxyAPIConfig(config) {
+  const settings = await read();
+  const env2 = normalizeEnv(settings);
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env2[key];
+  }
+  setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
+  setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", "1");
+  settings.env = env2;
+  setTopLevelModel(settings, config.model);
   await write(settings);
 }
 async function clearApiConfig() {
@@ -3935,6 +4000,975 @@ async function getApiConfig() {
   };
 }
 
+// src/providers/cliproxyapi/managed.ts
+import { spawn, spawnSync as spawnSync2 } from "child_process";
+import {
+  chmod as chmod2,
+  mkdir as mkdir3,
+  readFile as readFile2,
+  readdir,
+  rename,
+  rm as rm2,
+  rmdir,
+  stat,
+  writeFile as writeFile2
+} from "fs/promises";
+import { createServer } from "net";
+import { platform as platform3 } from "os";
+import { basename, dirname as dirname2, join as join4, resolve } from "path";
+import { createHash as createHash2, randomBytes, randomUUID } from "crypto";
+
+// src/lib/browser.ts
+import { platform as platform2 } from "os";
+import { join as join3 } from "path";
+import { tmpdir } from "os";
+import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
+var MACOS_SCRIPT = `#!/bin/bash
+URL="$1"
+if [ -d "/Applications/Google Chrome.app" ]; then
+  open -na "Google Chrome" --args --incognito "$URL"
+elif [ -d "/Applications/Firefox.app" ]; then
+  open -na "Firefox" --args --private-window "$URL"
+elif [ -d "/Applications/Microsoft Edge.app" ]; then
+  open -na "Microsoft Edge" --args --inprivate "$URL"
+else
+  open "$URL"
+fi
+`;
+var MACOS_OPEN_SHIM = `#!/bin/bash
+# Intercept \`open\` calls: auth URLs go to incognito, everything else to real open.
+AUTH_URL=""
+PASSTHROUGH_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    https://auth.openai.com/*|https://auth0.openai.com/*)
+      AUTH_URL="$arg" ;;
+    *)
+      PASSTHROUGH_ARGS+=("$arg") ;;
+  esac
+done
+if [ -n "$AUTH_URL" ]; then
+  if [ -d "/Applications/Google Chrome.app" ]; then
+    /usr/bin/open -na "Google Chrome" --args --incognito "$AUTH_URL"
+  elif [ -d "/Applications/Firefox.app" ]; then
+    /usr/bin/open -na "Firefox" --args --private-window "$AUTH_URL"
+  elif [ -d "/Applications/Microsoft Edge.app" ]; then
+    /usr/bin/open -na "Microsoft Edge" --args --inprivate "$AUTH_URL"
+  else
+    /usr/bin/open "$AUTH_URL"
+  fi
+else
+  /usr/bin/open "\${PASSTHROUGH_ARGS[@]}"
+fi
+`;
+function createPrivateBrowserScript() {
+  if (platform2() !== "darwin")
+    return null;
+  const path = join3(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
+  writeFileSync(path, MACOS_SCRIPT, { mode: 493 });
+  return path;
+}
+function cleanupBrowserScript(path) {
+  if (!path)
+    return;
+  try {
+    unlinkSync(path);
+  } catch {}
+}
+function createOpenShimDir() {
+  if (platform2() !== "darwin")
+    return null;
+  const dir = join3(tmpdir(), `claudex-open-shim-${process.pid}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join3(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
+  return dir;
+}
+function cleanupOpenShimDir(dir) {
+  if (!dir)
+    return;
+  try {
+    unlinkSync(join3(dir, "open"));
+    rmdirSync(dir);
+  } catch {}
+}
+
+// src/providers/cliproxyapi/managed.ts
+var CLI_PROXY_API_DEFAULTS = {
+  fableModel: "gpt-6-astra",
+  sonnetModel: "gpt-5.6-terra",
+  opusModel: "gpt-5.6-terra",
+  haikuModel: "gpt-5.6-luna",
+  subagentModel: "claudex-terra-max"
+};
+var ENV_CLIENT_KEY = "CLAUDEX_CLIPROXYAPI_CLIENT_API_KEY";
+var ENV_FABLE_MODEL = "CLAUDEX_CLIPROXYAPI_FABLE_MODEL";
+var ENV_SONNET_MODEL = "CLAUDEX_CLIPROXYAPI_SONNET_MODEL";
+var ENV_OPUS_MODEL = "CLAUDEX_CLIPROXYAPI_OPUS_MODEL";
+var ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
+var STARTUP_TIMEOUT_MS = 12000;
+var LOCK_TIMEOUT_MS = 20000;
+var ORPHAN_LOCK_GRACE_MS = 60000;
+var LOCK_HEARTBEAT_MS = 1e4;
+var LOOPBACK_HOST = "127.0.0.1";
+var CODEX_OAUTH_CALLBACK_PORT = 1455;
+var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+function assertProfileId(profileId) {
+  if (!PROFILE_ID_PATTERN.test(profileId)) {
+    throw new Error("Invalid managed CLIProxyAPI profile id");
+  }
+}
+function profilePaths(profileId) {
+  assertProfileId(profileId);
+  return {
+    dir: cliProxyAPIProfileDir(profileId),
+    authDir: cliProxyAPIAuthDir(profileId),
+    envFile: cliProxyAPIEnvFile(profileId),
+    configFile: cliProxyAPIConfigFile(profileId),
+    claudeSettingsFile: cliProxyAPIClaudeSettingsFile(profileId),
+    stateFile: cliProxyAPIStateFile(profileId),
+    sessionsDir: cliProxyAPISessionsDir(profileId),
+    lock: cliProxyAPIStartupLock(profileId)
+  };
+}
+async function mkdirPrivate(path) {
+  await mkdir3(path, { recursive: true, mode: 448 });
+  try {
+    await chmod2(path, 448);
+  } catch {}
+}
+async function writePrivate(path, data) {
+  await writeFile2(path, data, { mode: 384 });
+  try {
+    await chmod2(path, 384);
+  } catch {}
+}
+async function writePrivateOnce(path, data) {
+  try {
+    await writeFile2(path, data, { mode: 384, flag: "wx" });
+    try {
+      await chmod2(path, 384);
+    } catch {}
+    return true;
+  } catch (err) {
+    if (err.code === "EEXIST")
+      return false;
+    throw err;
+  }
+}
+async function writePrivateJson(path, data) {
+  await writeJsonSecure(path, data);
+  try {
+    await chmod2(path, 384);
+  } catch {}
+}
+function requireEnvValue(values, key) {
+  const value = values[key]?.trim();
+  if (!value) {
+    throw new Error(`Managed CLIProxyAPI configuration is missing ${key}`);
+  }
+  return value;
+}
+function parseManagedEnv(content) {
+  const values = {};
+  for (const line of content.split(/\r?\n/)) {
+    if (!line || line.startsWith("#"))
+      continue;
+    const separator = line.indexOf("=");
+    if (separator <= 0)
+      continue;
+    values[line.slice(0, separator)] = line.slice(separator + 1);
+  }
+  return {
+    apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
+    fableModel: values[ENV_FABLE_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.fableModel,
+    sonnetModel: values[ENV_SONNET_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.sonnetModel,
+    opusModel: values[ENV_OPUS_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.opusModel,
+    haikuModel: values[ENV_HAIKU_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.haikuModel
+  };
+}
+function renderManagedEnv(apiKey) {
+  return [
+    "# Managed by claudex-switch. Keep this directory private.",
+    `${ENV_CLIENT_KEY}=${apiKey}`,
+    `${ENV_FABLE_MODEL}=${CLI_PROXY_API_DEFAULTS.fableModel}`,
+    `${ENV_SONNET_MODEL}=${CLI_PROXY_API_DEFAULTS.sonnetModel}`,
+    `${ENV_OPUS_MODEL}=${CLI_PROXY_API_DEFAULTS.opusModel}`,
+    `${ENV_HAIKU_MODEL}=${CLI_PROXY_API_DEFAULTS.haikuModel}`,
+    ""
+  ].join(`
+`);
+}
+function yaml(value) {
+  return JSON.stringify(value);
+}
+function renderRuntimeConfig(authDir, apiKey, port) {
+  return [
+    `host: ${yaml(LOOPBACK_HOST)}`,
+    `port: ${port}`,
+    `auth-dir: ${yaml(authDir)}`,
+    "api-keys:",
+    `  - ${yaml(apiKey)}`,
+    "remote-management:",
+    "  allow-remote: false",
+    '  secret-key: ""',
+    "  disable-control-panel: true",
+    "logging-to-file: false",
+    "usage-statistics-enabled: false",
+    "oauth-model-alias:",
+    "  codex:",
+    `    - name: ${yaml("gpt-5.6-terra")}`,
+    `      alias: ${yaml(CLI_PROXY_API_DEFAULTS.subagentModel)}`,
+    "      fork: true",
+    "payload:",
+    "  override:",
+    "    - models:",
+    `        - name: ${yaml(CLI_PROXY_API_DEFAULTS.subagentModel)}`,
+    '          protocol: "codex"',
+    "      params:",
+    '        "reasoning.effort": "max"',
+    ""
+  ].join(`
+`);
+}
+function createManagedCLIProxyAPIProfileId() {
+  return randomUUID();
+}
+async function initializeManagedCLIProxyAPI(profileId) {
+  const paths = profilePaths(profileId);
+  await mkdirPrivate(paths.dir);
+  await mkdirPrivate(paths.authDir);
+  const apiKey = randomBytes(32).toString("base64url");
+  await writePrivateOnce(paths.envFile, renderManagedEnv(apiKey));
+}
+async function readManagedEnv(profileId) {
+  const paths = profilePaths(profileId);
+  const content = await readFile2(paths.envFile, "utf-8");
+  return parseManagedEnv(content);
+}
+async function readExistingManagedEnv(profileId) {
+  const paths = profilePaths(profileId);
+  if (!await fileExists(paths.envFile)) {
+    throw new Error("Managed CLIProxyAPI data is missing. The account may have been purged; add it again instead of recreating its private login state.");
+  }
+  try {
+    return await readManagedEnv(profileId);
+  } catch {
+    throw new Error("Managed CLIProxyAPI private environment is invalid. Do not recreate it automatically; add the account again.");
+  }
+}
+async function writeRuntimeConfig(profileId, port) {
+  const paths = profilePaths(profileId);
+  const config = await readManagedEnv(profileId);
+  await writePrivate(paths.configFile, renderRuntimeConfig(paths.authDir, config.apiKey, port));
+  return config;
+}
+async function isExpectedRuntimeConfig(paths, state, managed) {
+  if (!managed)
+    return false;
+  try {
+    const raw = await readFile2(paths.configFile, "utf-8");
+    const configuredPort = raw.match(/^port:\s*(\d+)\s*$/m)?.[1];
+    const port = state?.port ?? Number(configuredPort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535)
+      return false;
+    return raw === renderRuntimeConfig(paths.authDir, managed.apiKey, port);
+  } catch {
+    return false;
+  }
+}
+async function getLocalCLIProxyAPISettings(profile, runtime) {
+  const config = await readManagedEnv(profile.profileId);
+  return {
+    apiKey: runtime.apiKey,
+    baseUrl: runtime.baseUrl,
+    model: resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config),
+    fableModel: config.fableModel,
+    sonnetModel: config.sonnetModel,
+    opusModel: config.opusModel,
+    haikuModel: config.haikuModel,
+    subagentModel: CLI_PROXY_API_DEFAULTS.subagentModel
+  };
+}
+async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime) {
+  const config = await getLocalCLIProxyAPISettings(profile, runtime);
+  const paths = profilePaths(profile.profileId);
+  const env2 = {
+    ANTHROPIC_API_KEY: config.apiKey,
+    ANTHROPIC_BASE_URL: config.baseUrl,
+    ANTHROPIC_AUTH_TOKEN: "",
+    ANTHROPIC_MODEL: config.model,
+    ANTHROPIC_DEFAULT_FABLE_MODEL: config.fableModel,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: config.sonnetModel,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: config.opusModel,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: config.haikuModel,
+    CLAUDE_CODE_SUBAGENT_MODEL: config.subagentModel,
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1"
+  };
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    env2[key] = "";
+  }
+  await writePrivateJson(paths.claudeSettingsFile, {
+    model: config.model,
+    env: env2
+  });
+  return paths.claudeSettingsFile;
+}
+function resolveLocalCLIProxyAPIModelFromConfig(input, config) {
+  const normalized = input.trim();
+  switch (normalized.toLowerCase()) {
+    case "fable":
+      return config.fableModel;
+    case "sonnet":
+      return config.sonnetModel;
+    case "opus":
+      return config.opusModel;
+    case "haiku":
+      return config.haikuModel;
+    default:
+      return normalized;
+  }
+}
+function resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config) {
+  if (profile.defaultModel === CLI_PROXY_API_DEFAULTS.fableModel) {
+    return config.fableModel;
+  }
+  return resolveLocalCLIProxyAPIModelFromConfig(profile.defaultModel, config);
+}
+async function resolveManagedLocalCLIProxyAPIModel(profile, input) {
+  const config = await readExistingManagedEnv(profile.profileId);
+  return resolveLocalCLIProxyAPIModelFromConfig(input, config);
+}
+async function resolveManagedLocalCLIProxyAPIDefaultModel(profile) {
+  const config = await readExistingManagedEnv(profile.profileId);
+  return resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+}
+function baseUrl(port) {
+  return `http://${LOOPBACK_HOST}:${port}`;
+}
+function credentialHeaders(apiKey) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    "x-api-key": apiKey
+  };
+}
+async function probeProxy(port, apiKey) {
+  const controller = new AbortController;
+  const timeout = setTimeout(() => controller.abort(), 1500);
+  try {
+    const response = await fetch(`${baseUrl(port)}/v1/models`, {
+      headers: credentialHeaders(apiKey),
+      signal: controller.signal
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+async function verifyManagedCLIProxyAPILive(runtime) {
+  const controller = new AbortController;
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(`${runtime.baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        ...credentialHeaders(runtime.apiKey),
+        "content-type": "application/json",
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: CLI_PROXY_API_DEFAULTS.haikuModel,
+        max_tokens: 1,
+        messages: [{ role: "user", content: "Reply with OK." }]
+      }),
+      signal: controller.signal
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+async function waitForProxy(port, apiKey) {
+  const until = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < until) {
+    if (await probeProxy(port, apiKey))
+      return true;
+    await delay(150);
+  }
+  return false;
+}
+function delay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+async function portIsAvailable(port) {
+  return new Promise((resolveAvailable) => {
+    const server = createServer();
+    const closeAndResolve = (available) => {
+      server.close(() => resolveAvailable(available));
+    };
+    server.once("error", () => resolveAvailable(false));
+    server.listen({ host: LOOPBACK_HOST, port, exclusive: true }, () => {
+      closeAndResolve(true);
+    });
+  });
+}
+async function findAvailablePort() {
+  return new Promise((resolvePort, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen({ host: LOOPBACK_HOST, port: 0, exclusive: true }, () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : null;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+        } else if (port) {
+          resolvePort(port);
+        } else {
+          reject(new Error("Could not allocate a loopback port"));
+        }
+      });
+    });
+  });
+}
+function isPidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0)
+    return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function processCommandLine(pid) {
+  if (process.platform === "linux") {
+    try {
+      return (await readFile2(`/proc/${pid}/cmdline`, "utf-8")).replaceAll("\x00", " ");
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const result = spawnSync2("ps", ["-p", String(pid), "-o", "command="], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    if (result.status !== 0)
+      return null;
+    return result.stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+async function isOwnedProcess(state) {
+  if (!isPidAlive(state.pid))
+    return false;
+  const command = await processCommandLine(state.pid);
+  if (!command)
+    return false;
+  return command.includes(state.configPath) && command.includes(basename(state.binaryPath));
+}
+async function readState(profileId) {
+  const paths = profilePaths(profileId);
+  const state = await readJson(paths.stateFile, null);
+  if (!state || !Number.isInteger(state.pid) || !Number.isInteger(state.port) || state.port < 1 || state.port > 65535 || typeof state.binaryPath !== "string" || typeof state.configPath !== "string") {
+    return null;
+  }
+  return state;
+}
+async function writeState(profileId, state) {
+  const paths = profilePaths(profileId);
+  await writePrivateJson(paths.stateFile, state);
+}
+async function withLock(lock, action) {
+  const until = Date.now() + LOCK_TIMEOUT_MS;
+  const token = randomUUID();
+  let createdAt = 0;
+  await mkdirPrivate(dirname2(lock));
+  for (;; ) {
+    try {
+      await mkdir3(lock, { mode: 448 });
+      createdAt = Date.now();
+      try {
+        await writePrivateJson(join4(lock, "owner.json"), {
+          pid: process.pid,
+          token,
+          createdAt,
+          heartbeatAt: createdAt
+        });
+      } catch (err) {
+        await rm2(lock, { recursive: true, force: true });
+        throw err;
+      }
+      break;
+    } catch (err) {
+      const code = err.code;
+      if (code !== "EEXIST")
+        throw err;
+      if (await canReclaimLock(lock)) {
+        await rm2(lock, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() >= until) {
+        throw new Error("Timed out waiting for another CLIProxyAPI operation");
+      }
+      await delay(75);
+    }
+  }
+  const heartbeat = setInterval(() => {
+    refreshOwnedLock(lock, token, createdAt);
+  }, LOCK_HEARTBEAT_MS);
+  try {
+    return await action();
+  } finally {
+    clearInterval(heartbeat);
+    await removeLockIfOwned(lock, token);
+  }
+}
+async function refreshOwnedLock(lock, token, createdAt) {
+  try {
+    const owner = await readJson(join4(lock, "owner.json"), null);
+    if (owner?.token !== token || owner.pid !== process.pid)
+      return;
+    await writePrivateJson(join4(lock, "owner.json"), {
+      pid: process.pid,
+      token,
+      createdAt,
+      heartbeatAt: Date.now()
+    });
+  } catch {}
+}
+async function removeLockIfOwned(lock, token) {
+  try {
+    const owner = await readJson(join4(lock, "owner.json"), null);
+    if (owner?.token !== token || owner.pid !== process.pid)
+      return;
+    await rm2(lock, { recursive: true, force: true });
+  } catch {}
+}
+async function canReclaimLock(lock) {
+  const owner = await readJson(join4(lock, "owner.json"), null);
+  if (owner && Number.isInteger(owner.pid) && owner.pid > 0) {
+    return !isPidAlive(owner.pid);
+  }
+  try {
+    const lockStat = await stat(lock);
+    return Date.now() - lockStat.mtimeMs > ORPHAN_LOCK_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
+async function withStartupLock(profileId, action) {
+  return withLock(profilePaths(profileId).lock, action);
+}
+function proxyProcessEnvironment() {
+  const env2 = { ...process.env };
+  for (const key of [
+    "OPENAI_API_KEY",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN"
+  ]) {
+    delete env2[key];
+  }
+  for (const key of Object.keys(env2)) {
+    const upper = key.toUpperCase();
+    if (upper === "HOME_JWT" || upper === "MANAGEMENT_PASSWORD" || upper === "DEPLOY" || upper.startsWith("PGSTORE_") || upper.startsWith("GITSTORE_") || upper.startsWith("OBJECTSTORE_") || upper.startsWith("DEPLOY_")) {
+      delete env2[key];
+    }
+  }
+  return env2;
+}
+function startProxy(binaryPath, configPath, managedDirectory, spawnCommand = spawn) {
+  const proc = spawnCommand(binaryPath, ["-config", configPath], {
+    detached: true,
+    stdio: "ignore",
+    cwd: managedDirectory,
+    env: proxyProcessEnvironment()
+  });
+  proc.on("error", () => {});
+  proc.unref?.();
+  return proc;
+}
+function stopChildWeStarted(proc) {
+  try {
+    if (proc.pid && !proc.killed)
+      proc.kill("SIGTERM");
+  } catch {}
+}
+async function ensureManagedCLIProxyAPI(profile) {
+  assertProfileId(profile.profileId);
+  return withStartupLock(profile.profileId, async () => {
+    const paths = profilePaths(profile.profileId);
+    const state = await readState(profile.profileId);
+    const managed = await readExistingManagedEnv(profile.profileId);
+    if (state) {
+      const alive = isPidAlive(state.pid);
+      const owned = alive && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state);
+      if (owned) {
+        if (await probeProxy(state.port, managed.apiKey)) {
+          return {
+            port: state.port,
+            baseUrl: baseUrl(state.port),
+            apiKey: managed.apiKey
+          };
+        }
+        throw new Error("Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.");
+      }
+      if (alive) {
+        throw new Error("Refusing to replace CLIProxyAPI state because its PID is not a verified managed process.");
+      }
+      await rm2(paths.stateFile, { force: true });
+    }
+    for (let attempt = 0;attempt < 3; attempt += 1) {
+      const port = await findAvailablePort();
+      await writeRuntimeConfig(profile.profileId, port);
+      const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
+      const ready = await waitForProxy(port, managed.apiKey);
+      if (!ready) {
+        stopChildWeStarted(proc);
+        continue;
+      }
+      if (!proc.pid) {
+        stopChildWeStarted(proc);
+        throw new Error("CLIProxyAPI started without a process id");
+      }
+      await writeState(profile.profileId, {
+        pid: proc.pid,
+        port,
+        binaryPath: profile.binaryPath,
+        configPath: paths.configFile,
+        startedAt: Date.now()
+      });
+      return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
+    }
+    throw new Error("CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.");
+  });
+}
+async function managedCLIProxyAPIHasActiveLeases(profileId) {
+  const paths = profilePaths(profileId);
+  let entries;
+  try {
+    entries = await readdir(paths.sessionsDir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  let active = false;
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json"))
+      continue;
+    const leasePath = join4(paths.sessionsDir, entry.name);
+    const lease = await readJson(leasePath, null);
+    if (lease && Number.isInteger(lease.pid) && isPidAlive(lease.pid)) {
+      active = true;
+      continue;
+    }
+    await rm2(leasePath, { force: true });
+  }
+  return active;
+}
+async function acquireManagedCLIProxyAPILease(profile) {
+  assertProfileId(profile.profileId);
+  return withStartupLock(profile.profileId, async () => {
+    const paths = profilePaths(profile.profileId);
+    await readExistingManagedEnv(profile.profileId);
+    if (!await hasManagedCLIProxyAPILogin(profile.profileId)) {
+      throw new Error("No valid CLIProxyAPI ChatGPT login is available. Run `claudex-switch refresh <alias>` before starting Claude Code.");
+    }
+    await mkdirPrivate(paths.sessionsDir);
+    const leasePath = join4(paths.sessionsDir, `${randomUUID()}.json`);
+    await writePrivateJson(leasePath, {
+      pid: process.pid,
+      createdAt: Date.now()
+    });
+    return {
+      async release() {
+        await rm2(leasePath, { force: true });
+      }
+    };
+  });
+}
+async function authFiles(path) {
+  let entries;
+  try {
+    entries = await readdir(path, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const result = [];
+  for (const entry of entries) {
+    const child = join4(path, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...await authFiles(child));
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.endsWith(".json"))
+      continue;
+    try {
+      if ((await stat(child)).size > 0)
+        result.push(child);
+    } catch {}
+  }
+  return result;
+}
+function collectIdentityValues(value, result = []) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return result;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    const lower = key.toLowerCase();
+    const identityKey = /^(email|sub|account_?id|user_?id|chatgpt_account_?id|chatgpt_user_?id|organization_?id)$/.test(lower);
+    if (identityKey && (typeof child === "string" || typeof child === "number")) {
+      result.push(`${lower}=${String(child)}`);
+    }
+  }
+  return result;
+}
+function decodeJwtPayload(token) {
+  if (typeof token !== "string")
+    return null;
+  const encoded = token.split(".")[1];
+  if (!encoded)
+    return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf-8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+async function inspectAuthDirectory(authDir) {
+  const files = await authFiles(authDir);
+  if (files.length !== 1)
+    return { valid: false, identity: null };
+  try {
+    const parsed = JSON.parse(await readFile2(files[0], "utf-8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { valid: false, identity: null };
+    }
+    const auth = parsed;
+    if (auth.type !== "codex" || typeof auth.access_token !== "string" || !auth.access_token.trim()) {
+      return { valid: false, identity: null };
+    }
+    const values = [
+      ...collectIdentityValues(auth),
+      ...collectIdentityValues(decodeJwtPayload(auth.id_token))
+    ].sort();
+    if (values.length === 0)
+      return { valid: false, identity: null };
+    return {
+      valid: true,
+      identity: createHash2("sha256").update(values.join(`
+`)).digest("hex")
+    };
+  } catch {
+    return { valid: false, identity: null };
+  }
+}
+async function hasManagedCLIProxyAPILogin(profileId) {
+  return (await inspectAuthDirectory(profilePaths(profileId).authDir)).valid;
+}
+async function runManagedCLIProxyAPICodexLogin(profile, spawnCommand = spawn, expectedIdentity) {
+  assertProfileId(profile.profileId);
+  const paths = profilePaths(profile.profileId);
+  await mkdirPrivate(CLI_PROXY_API_DIR);
+  return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
+    if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
+      throw new Error("A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before refreshing the login.");
+    }
+    const stagingAuthDir = join4(paths.dir, `.login-${randomUUID()}`);
+    const loginConfig = join4(paths.dir, "login-runtime.yaml");
+    const apiPort = await findAvailablePort();
+    if (!await portIsAvailable(CODEX_OAUTH_CALLBACK_PORT)) {
+      throw new Error(`CLIProxyAPI Codex OAuth needs localhost:${CODEX_OAUTH_CALLBACK_PORT}, but that callback port is already in use. Stop the process using it and retry.`);
+    }
+    await mkdirPrivate(stagingAuthDir);
+    const config = await readExistingManagedEnv(profile.profileId);
+    await writePrivate(loginConfig, renderRuntimeConfig(stagingAuthDir, config.apiKey, apiPort));
+    const shimDir = createOpenShimDir();
+    const env2 = proxyProcessEnvironment();
+    if (shimDir)
+      env2.PATH = `${shimDir}:${env2.PATH ?? ""}`;
+    try {
+      const proc = spawnCommand(profile.binaryPath, [
+        "-config",
+        loginConfig,
+        "-codex-login"
+      ], { stdio: "inherit", cwd: paths.dir, env: env2 });
+      const exitCode = await new Promise((resolveCode, reject) => {
+        proc.on("close", resolveCode);
+        proc.on("error", reject);
+      });
+      const staged = await inspectAuthDirectory(stagingAuthDir);
+      if (exitCode !== 0 || !staged.valid || !staged.identity) {
+        return { success: false, identity: null, identityMismatch: false };
+      }
+      if (expectedIdentity && staged.identity !== expectedIdentity) {
+        return {
+          success: false,
+          identity: staged.identity,
+          identityMismatch: true
+        };
+      }
+      await stopManagedCLIProxyAPIUnlocked(profile);
+      const backup = join4(paths.dir, `.auth-backup-${randomUUID()}`);
+      let movedCurrent = false;
+      try {
+        if (await fileExists(paths.authDir)) {
+          await rename(paths.authDir, backup);
+          movedCurrent = true;
+        }
+        await rename(stagingAuthDir, paths.authDir);
+        if (movedCurrent)
+          await rm2(backup, { recursive: true, force: true });
+      } catch (err) {
+        if (movedCurrent && !await fileExists(paths.authDir)) {
+          try {
+            await rename(backup, paths.authDir);
+          } catch {}
+        }
+        throw err;
+      }
+      return { success: true, identity: staged.identity, identityMismatch: false };
+    } finally {
+      cleanupOpenShimDir(shimDir);
+      await rm2(stagingAuthDir, { recursive: true, force: true });
+      await rm2(loginConfig, { force: true });
+    }
+  }));
+}
+async function inspectManagedCLIProxyAPI(profile, options = {}) {
+  assertProfileId(profile.profileId);
+  const paths = profilePaths(profile.profileId);
+  let managed = null;
+  try {
+    managed = await readManagedEnv(profile.profileId);
+  } catch {}
+  const state = managed ? await readState(profile.profileId) : null;
+  const configured = await isExpectedRuntimeConfig(paths, state, managed);
+  const running = Boolean(state && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state));
+  const healthy = options.probe && running && state && managed ? await probeProxy(state.port, managed.apiKey) : null;
+  return {
+    installed: Boolean(findCLIProxyAPIBinary(profile.binaryPath)),
+    loggedIn: await hasManagedCLIProxyAPILogin(profile.profileId),
+    environmentValid: managed !== null,
+    running,
+    configured,
+    healthy,
+    port: state?.port ?? null
+  };
+}
+async function waitForProcessExit(pid, timeoutMs = 5000) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    if (!isPidAlive(pid))
+      return true;
+    await delay(50);
+  }
+  return !isPidAlive(pid);
+}
+async function stopManagedCLIProxyAPIUnlocked(profile) {
+  assertProfileId(profile.profileId);
+  if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
+    throw new Error("A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before stopping or purging the proxy.");
+  }
+  const paths = profilePaths(profile.profileId);
+  const state = await readState(profile.profileId);
+  if (!state)
+    return false;
+  if (!isPidAlive(state.pid)) {
+    await rm2(paths.stateFile, { force: true });
+    return false;
+  }
+  if (state.binaryPath !== profile.binaryPath || state.configPath !== paths.configFile || !await isOwnedProcess(state)) {
+    throw new Error("Refusing to stop a PID that is not a verified CLIProxyAPI process owned by this profile.");
+  }
+  try {
+    process.kill(state.pid, "SIGTERM");
+  } catch (err) {
+    throw new Error(`Could not stop the managed CLIProxyAPI process: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!await waitForProcessExit(state.pid)) {
+    throw new Error("Managed CLIProxyAPI did not stop in time; it was left intact and the profile was not removed.");
+  }
+  await rm2(paths.stateFile, { force: true });
+  return true;
+}
+async function stopManagedCLIProxyAPI(profile) {
+  return withStartupLock(profile.profileId, () => stopManagedCLIProxyAPIUnlocked(profile));
+}
+async function restartManagedCLIProxyAPI(profile) {
+  await stopManagedCLIProxyAPI(profile);
+  return ensureManagedCLIProxyAPI(profile);
+}
+async function purgeManagedCLIProxyAPI(profile) {
+  assertProfileId(profile.profileId);
+  const paths = profilePaths(profile.profileId);
+  if (!await fileExists(paths.dir))
+    return;
+  await withStartupLock(profile.profileId, async () => {
+    await stopManagedCLIProxyAPIUnlocked(profile);
+    await rm2(paths.dir, { recursive: true, force: true });
+  });
+}
+async function cleanupFailedManagedCLIProxyAPI(profileId) {
+  assertProfileId(profileId);
+  const paths = profilePaths(profileId);
+  await rm2(paths.dir, { recursive: true, force: true });
+  try {
+    await rmdir(dirname2(paths.lock));
+  } catch {}
+}
+function commandWorks(command) {
+  try {
+    return spawnSync2(command, ["--help"], {
+      stdio: "ignore"
+    }).status === 0;
+  } catch {
+    return false;
+  }
+}
+function resolvedCommand(command) {
+  if (command.includes("/") || command.includes("\\")) {
+    return resolve(command);
+  }
+  const locator = platform3() === "win32" ? "where" : "which";
+  try {
+    const result = spawnSync2(locator, [command], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    const first = result.stdout.trim().split(/\r?\n/)[0]?.trim();
+    return first || command;
+  } catch {
+    return command;
+  }
+}
+function findCLIProxyAPIBinary(explicitPath) {
+  const candidates = explicitPath ? [explicitPath] : ["cliproxyapi", "cli-proxy-api"];
+  for (const candidate of candidates) {
+    if (commandWorks(candidate))
+      return resolvedCommand(candidate);
+  }
+  return null;
+}
+async function installCLIProxyAPIWithHomebrew(spawnCommand = spawn) {
+  const proc = spawnCommand("brew", ["install", "cliproxyapi"], {
+    stdio: "inherit",
+    env: process.env
+  });
+  const exitCode = await new Promise((resolveCode, reject) => {
+    proc.on("close", resolveCode);
+    proc.on("error", reject);
+  });
+  return exitCode === 0;
+}
+
 // src/lib/ui.ts
 var icons = {
   active: source_default.green("▸"),
@@ -3971,6 +5005,8 @@ function formatType(type) {
       return source_default.blue("oauth");
     case "api-key":
       return source_default.yellow("api-key");
+    case "local-cliproxyapi":
+      return source_default.green("local CLIProxyAPI");
     case "chatgpt":
       return source_default.green("chatgpt");
     case "apikey":
@@ -4058,12 +5094,18 @@ var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
   "backups"
 ]);
 async function ensureDir2(path) {
-  await mkdir3(path, { recursive: true });
+  await mkdir4(path, { recursive: true });
 }
-async function readState() {
+async function ensurePrivateDir(path) {
+  await mkdir4(path, { recursive: true, mode: 448 });
+  try {
+    await chmod3(path, 448);
+  } catch {}
+}
+async function readState2() {
   return readJson(CLAUDE_STATE_FILE, { active: null });
 }
-async function writeState(state) {
+async function writeState2(state) {
   await ensureDir2(CLAUDE_PROFILES_DIR);
   await writeJson(CLAUDE_STATE_FILE, state);
 }
@@ -4091,9 +5133,9 @@ async function updateProfileDefaultModel(name, model) {
   const nextData = currentData.type === "api-key" ? normalizeApiKeyProfileData({
     ...currentData,
     model: normalizedModel
-  }) : normalizeOAuthProfileData({ defaultModel: normalizedModel });
+  }) : currentData.type === "local-cliproxyapi" ? { ...currentData, defaultModel: normalizedModel } : normalizeOAuthProfileData({ defaultModel: normalizedModel });
   await writeProfileData(name, nextData);
-  const state = await readState();
+  const state = await readState2();
   if (state.active === name) {
     await activateProfile(name, nextData);
   }
@@ -4109,10 +5151,10 @@ async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config 
     await writeJson(claudeProfileAccountFile(name), account);
   }
   await activateProfile(name, data);
-  await writeState({ active: name });
+  await writeState2({ active: name });
 }
 async function addApiKeyProfile(name, config) {
-  const state = await readState();
+  const state = await readState2();
   if (state.active && state.active !== name && await profileExists(state.active)) {
     const oldData = await readProfileData(state.active);
     if (oldData.type === "oauth") {
@@ -4123,13 +5165,33 @@ async function addApiKeyProfile(name, config) {
   const data = normalizeApiKeyProfileData(config);
   await writeProfileData(name, data);
   await activateProfile(name, data);
-  await writeState({ active: name });
+  await writeState2({ active: name });
+}
+async function addLocalCLIProxyAPIProfile(name, config) {
+  const state = await readState2();
+  if (state.active && state.active !== name && await profileExists(state.active)) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
+    }
+  }
+  await ensureDir2(claudeProfileDir(name));
+  await writeProfileData(name, config);
+  await activateProfile(name, config);
+  await writeState2({ active: name });
+}
+async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
+  const current = await readProfileData(name);
+  if (current.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  await writeProfileData(name, { ...current, authIdentity });
 }
 async function switchProfile(name) {
   if (!await profileExists(name)) {
     throw new Error(`Profile "${name}" does not exist`);
   }
-  const state = await readState();
+  const state = await readState2();
   const targetData = await readProfileData(name);
   if (state.active === name && await isProfileApplied(name, targetData)) {
     return targetData;
@@ -4141,7 +5203,7 @@ async function switchProfile(name) {
     }
   }
   await activateProfile(name, targetData);
-  await writeState({ active: name });
+  await writeState2({ active: name });
   return targetData;
 }
 async function snapshotCurrentOAuthProfile(name) {
@@ -4171,10 +5233,21 @@ async function activateProfile(name, targetData) {
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
-  } else {
-    await applyOAuthConfig(targetData.defaultModel);
-    await restoreOAuthCredentials(name);
+    return;
   }
+  if (targetData.type === "local-cliproxyapi") {
+    const runtime = await ensureManagedCLIProxyAPI({
+      profileId: targetData.profileId,
+      binaryPath: targetData.binaryPath
+    });
+    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
+    await applyLocalCLIProxyAPIConfig(config);
+    return;
+  }
+  await applyOAuthConfig(targetData.defaultModel);
+  await restoreOAuthCredentials(name);
 }
 async function restoreOAuthCredentials(name) {
   const savedAccount = await readJson(claudeProfileAccountFile(name), null);
@@ -4227,7 +5300,7 @@ async function prepareIsolatedOAuthRun(name) {
   }
   const dir = claudeProfileDir(name);
   const configDir = claudeProfileConfigDir(name);
-  const state = await readState();
+  const state = await readState2();
   const stores = await readOAuthCredentialStores(name, state.active === name);
   const { snapshot, isolated } = stores;
   const freshest = freshestOAuthCredentials(stores);
@@ -4244,6 +5317,22 @@ async function prepareIsolatedOAuthRun(name) {
   await prepareIsolatedOAuthConfig(name);
   return { secureStorageDir: dir, configDir };
 }
+async function prepareIsolatedLocalCLIProxyAPIRun(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const data = await readProfileData(name);
+  if (data.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  const configDir = claudeProfileConfigDir(name);
+  const secureStorageDir = claudeProfileSecureStorageDir(name);
+  await ensureDir2(configDir);
+  await ensurePrivateDir(secureStorageDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await writeIsolatedLocalClaudeJson(name);
+  return { secureStorageDir, configDir };
+}
 async function prepareIsolatedOAuthConfig(name) {
   const configDir = claudeProfileConfigDir(name);
   await ensureDir2(configDir);
@@ -4253,23 +5342,23 @@ async function prepareIsolatedOAuthConfig(name) {
 async function linkSharedClaudeConfigEntries(configDir) {
   let entries;
   try {
-    entries = await readdir(CLAUDE_DIR, { withFileTypes: true });
+    entries = await readdir2(CLAUDE_DIR, { withFileTypes: true });
   } catch {
     return;
   }
   for (const entry of entries) {
     if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name))
       continue;
-    const source = join3(CLAUDE_DIR, entry.name);
-    const destination = join3(configDir, entry.name);
+    const source = join5(CLAUDE_DIR, entry.name);
+    const destination = join5(configDir, entry.name);
     const type = entry.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
     await ensureSymlinkOrCopy(source, destination, type);
   }
 }
 async function ensureSymlinkOrCopy(source, destination, type) {
   try {
-    const stat = await lstat(destination);
-    if (!stat.isSymbolicLink())
+    const stat2 = await lstat(destination);
+    if (!stat2.isSymbolicLink())
       return;
     const existing = await readlink(destination);
     if (existing === source)
@@ -4296,6 +5385,11 @@ async function writeIsolatedClaudeJson(name) {
   }
   await writeJson(claudeProfileConfigJson(name), data);
 }
+async function writeIsolatedLocalClaudeJson(name) {
+  const data = await readJson(CLAUDE_JSON, {});
+  delete data.oauthAccount;
+  await writeJson(claudeProfileConfigJson(name), data);
+}
 async function syncIsolatedOAuthSnapshot(name) {
   const isolated = await readIsolatedCredentials(claudeProfileDir(name));
   if (!isolated)
@@ -4306,6 +5400,9 @@ async function syncIsolatedOAuthSnapshot(name) {
   }
 }
 async function isProfileApplied(name, targetData) {
+  if (targetData.type === "local-cliproxyapi") {
+    return false;
+  }
   if (targetData.type === "api-key") {
     if (!sameApiConfig(targetData, await getApiConfig()))
       return false;
@@ -4358,17 +5455,23 @@ async function removeProfile(name) {
   if (!await profileExists(name)) {
     throw new Error(`Profile "${name}" does not exist`);
   }
-  const state = await readState();
+  const state = await readState2();
   const data = await readProfileData(name);
-  if (state.active === name && data.type === "api-key") {
-    await clearApiConfig();
-  }
   if (data.type === "oauth") {
     await deleteIsolatedCredentials(claudeProfileDir(name));
   }
-  await rm2(claudeProfileDir(name), { recursive: true });
+  if (data.type === "local-cliproxyapi") {
+    await purgeManagedCLIProxyAPI({
+      profileId: data.profileId,
+      binaryPath: data.binaryPath
+    });
+  }
+  if (state.active === name && (data.type === "api-key" || data.type === "local-cliproxyapi")) {
+    await clearApiConfig();
+  }
+  await rm3(claudeProfileDir(name), { recursive: true });
   if (state.active === name) {
-    await writeState({ active: null });
+    await writeState2({ active: null });
   }
 }
 function normalizeOptionalValue(value) {
@@ -4401,11 +5504,11 @@ function sameApiConfig(expected, actual) {
 }
 
 // src/providers/codex/registry.ts
-import { mkdir as mkdir5 } from "fs/promises";
+import { mkdir as mkdir6 } from "fs/promises";
 
 // src/providers/codex/config.ts
-import { chmod, mkdir as mkdir4, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
-import { dirname as dirname2 } from "path";
+import { chmod as chmod4, mkdir as mkdir5, readFile as readFile3, writeFile as writeFile3 } from "fs/promises";
+import { dirname as dirname3 } from "path";
 
 // src/lib/toml.ts
 function parseKeyPath(path) {
@@ -4608,7 +5711,7 @@ async function readCodexConfig() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return {};
   try {
-    const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile3(CODEX_CONFIG_FILE, "utf-8");
     return cloneConfig(parseToml(content));
   } catch {
     return {};
@@ -4742,7 +5845,7 @@ async function applyCodexApiProvider(provider, apiKey, defaultModel) {
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return false;
-  const content = await readFile2(CODEX_CONFIG_FILE, "utf-8");
+  const content = await readFile3(CODEX_CONFIG_FILE, "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
   for (let i = 0;i < lines.length; i++) {
@@ -4765,7 +5868,7 @@ async function repairCodexStringifiedArrays() {
     changed = true;
   }
   if (changed) {
-    await writeFile2(CODEX_CONFIG_FILE, lines.join(`
+    await writeFile3(CODEX_CONFIG_FILE, lines.join(`
 `), { mode: 384 });
   }
   return changed;
@@ -4773,14 +5876,14 @@ async function repairCodexStringifiedArrays() {
 async function writeCodexConfig(config) {
   const content = renderCodexConfig(config);
   try {
-    if (await readFile2(CODEX_CONFIG_FILE, "utf-8") === content) {
-      await chmod(CODEX_CONFIG_FILE, 384);
+    if (await readFile3(CODEX_CONFIG_FILE, "utf-8") === content) {
+      await chmod4(CODEX_CONFIG_FILE, 384);
       return;
     }
   } catch {}
-  await mkdir4(dirname2(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile2(CODEX_CONFIG_FILE, content, { mode: 384 });
-  await chmod(CODEX_CONFIG_FILE, 384);
+  await mkdir5(dirname3(CODEX_CONFIG_FILE), { recursive: true });
+  await writeFile3(CODEX_CONFIG_FILE, content, { mode: 384 });
+  await chmod4(CODEX_CONFIG_FILE, 384);
 }
 
 // src/providers/codex/registry.ts
@@ -4797,7 +5900,7 @@ var DEFAULT_REGISTRY = {
   accounts: []
 };
 async function ensureAccountsDir() {
-  await mkdir5(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function loadRegistry() {
   if (!await fileExists(CODEX_REGISTRY_FILE)) {
@@ -4879,88 +5982,15 @@ function managedProviderNames(reg) {
 }
 
 // src/commands/add.ts
-import { spawn as spawn2, spawnSync as spawnSync2 } from "child_process";
-
-// src/lib/browser.ts
-import { platform as platform2 } from "os";
-import { join as join4 } from "path";
-import { tmpdir } from "os";
-import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
-var MACOS_SCRIPT = `#!/bin/bash
-URL="$1"
-if [ -d "/Applications/Google Chrome.app" ]; then
-  open -na "Google Chrome" --args --incognito "$URL"
-elif [ -d "/Applications/Firefox.app" ]; then
-  open -na "Firefox" --args --private-window "$URL"
-elif [ -d "/Applications/Microsoft Edge.app" ]; then
-  open -na "Microsoft Edge" --args --inprivate "$URL"
-else
-  open "$URL"
-fi
-`;
-var MACOS_OPEN_SHIM = `#!/bin/bash
-# Intercept \`open\` calls: auth URLs go to incognito, everything else to real open.
-AUTH_URL=""
-PASSTHROUGH_ARGS=()
-for arg in "$@"; do
-  case "$arg" in
-    https://auth.openai.com/*|https://auth0.openai.com/*)
-      AUTH_URL="$arg" ;;
-    *)
-      PASSTHROUGH_ARGS+=("$arg") ;;
-  esac
-done
-if [ -n "$AUTH_URL" ]; then
-  if [ -d "/Applications/Google Chrome.app" ]; then
-    /usr/bin/open -na "Google Chrome" --args --incognito "$AUTH_URL"
-  elif [ -d "/Applications/Firefox.app" ]; then
-    /usr/bin/open -na "Firefox" --args --private-window "$AUTH_URL"
-  elif [ -d "/Applications/Microsoft Edge.app" ]; then
-    /usr/bin/open -na "Microsoft Edge" --args --inprivate "$AUTH_URL"
-  else
-    /usr/bin/open "$AUTH_URL"
-  fi
-else
-  /usr/bin/open "\${PASSTHROUGH_ARGS[@]}"
-fi
-`;
-function createPrivateBrowserScript() {
-  if (platform2() !== "darwin")
-    return null;
-  const path = join4(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
-  writeFileSync(path, MACOS_SCRIPT, { mode: 493 });
-  return path;
-}
-function cleanupBrowserScript(path) {
-  if (!path)
-    return;
-  try {
-    unlinkSync(path);
-  } catch {}
-}
-function createOpenShimDir() {
-  if (platform2() !== "darwin")
-    return null;
-  const dir = join4(tmpdir(), `claudex-open-shim-${process.pid}`);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join4(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
-  return dir;
-}
-function cleanupOpenShimDir(dir) {
-  if (!dir)
-    return;
-  try {
-    unlinkSync(join4(dir, "open"));
-    rmdirSync(dir);
-  } catch {}
-}
+import { spawn as spawn3, spawnSync as spawnSync3 } from "child_process";
+import { platform as platform4 } from "os";
 
 // src/providers/codex/auth.ts
-import { chmod as chmod2, copyFile as copyFile2, mkdir as mkdir6, readFile as readFile3, rename, unlink as unlink2, writeFile as writeFile3 } from "fs/promises";
-import { randomUUID } from "crypto";
-import { dirname as dirname3 } from "path";
+import { chmod as chmod5, copyFile as copyFile2, mkdir as mkdir7, readFile as readFile4, rename as rename2, unlink as unlink2, writeFile as writeFile4 } from "fs/promises";
+import { randomUUID as randomUUID2 } from "crypto";
+import { dirname as dirname4 } from "path";
 async function ensureAccountsDir2() {
-  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir7(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function readActiveAuth() {
   if (!await fileExists(CODEX_AUTH_FILE))
@@ -4978,7 +6008,7 @@ async function switchToAccount(accountKey) {
   if (!await fileExists(srcPath)) {
     throw new Error(`Auth file not found for account: ${accountKey}`);
   }
-  const srcContent = await readFile3(srcPath, "utf-8");
+  const srcContent = await readFile4(srcPath, "utf-8");
   const auth = parseAuthContent(srcContent);
   if (auth?.auth_mode === "apikey") {
     const normalized = normalizeAuthForCodexCli(auth);
@@ -5001,20 +6031,20 @@ async function writeAuthFileIfChanged(path, authData) {
 }
 async function writeRawAuthFileIfChanged(path, content) {
   try {
-    if (await readFile3(path, "utf-8") === content) {
-      await chmod2(path, 384);
+    if (await readFile4(path, "utf-8") === content) {
+      await chmod5(path, 384);
       return;
     }
   } catch {}
   await writeRawAuthFile(path, content);
 }
 async function writeRawAuthFile(path, content) {
-  await mkdir6(dirname3(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  await mkdir7(dirname4(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${randomUUID2()}.tmp`;
   try {
-    await writeFile3(tempPath, content, { mode: 384 });
-    await rename(tempPath, path);
-    await chmod2(path, 384);
+    await writeFile4(tempPath, content, { mode: 384 });
+    await rename2(tempPath, path);
+    await chmod5(path, 384);
   } catch (err) {
     try {
       await unlink2(tempPath);
@@ -5037,7 +6067,7 @@ function parseAuthContent(content) {
     return null;
   }
 }
-function decodeJwtPayload(token) {
+function decodeJwtPayload2(token) {
   try {
     const parts = token.split(".");
     if (parts.length < 2)
@@ -5049,7 +6079,7 @@ function decodeJwtPayload(token) {
 }
 function decodeIdToken(idToken) {
   try {
-    const payload = decodeJwtPayload(idToken);
+    const payload = decodeJwtPayload2(idToken);
     if (!payload)
       return null;
     const authInfo = payload["https://api.openai.com/auth"] ?? {};
@@ -5066,7 +6096,7 @@ function decodeIdToken(idToken) {
   }
 }
 function decodeCodexPlan(tokens) {
-  const accessPayload = decodeJwtPayload(tokens.access_token);
+  const accessPayload = decodeJwtPayload2(tokens.access_token);
   const accessAuth = accessPayload?.["https://api.openai.com/auth"] ?? {};
   const accessPlan = typeof accessAuth.chatgpt_plan_type === "string" ? accessAuth.chatgpt_plan_type : typeof accessAuth.plan_type === "string" ? accessAuth.plan_type : null;
   return accessPlan ?? decodeIdToken(tokens.id_token)?.plan_type ?? null;
@@ -5126,33 +6156,33 @@ async function removeAccountAuthFile(accountKey) {
 }
 
 // src/providers/codex/login.ts
-import { spawn } from "child_process";
+import { spawn as spawn2 } from "child_process";
 
 // src/providers/codex/isolated-home.ts
-import { chmod as chmod3, copyFile as copyFile3, mkdtemp, readFile as readFile4, rm as rm3, writeFile as writeFile4 } from "fs/promises";
+import { chmod as chmod6, copyFile as copyFile3, mkdtemp, readFile as readFile5, rm as rm4, writeFile as writeFile5 } from "fs/promises";
 import { tmpdir as tmpdir2 } from "os";
-import { join as join5 } from "path";
+import { join as join6 } from "path";
 var AUTH_FILE_NAME = "auth.json";
 async function prepareIsolatedCodexHome(auth = null) {
-  const home = await mkdtemp(join5(tmpdir2(), "claudex-codex-"));
-  await chmod3(home, 448);
+  const home = await mkdtemp(join6(tmpdir2(), "claudex-codex-"));
+  await chmod6(home, 448);
   if (await fileExists(CODEX_CONFIG_FILE)) {
-    await copyFile3(CODEX_CONFIG_FILE, join5(home, "config.toml"));
+    await copyFile3(CODEX_CONFIG_FILE, join6(home, "config.toml"));
   }
   if (auth) {
-    await writeFile4(join5(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
+    await writeFile5(join6(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
   }
   return home;
 }
 async function readIsolatedCodexAuth(home) {
   try {
-    return JSON.parse(await readFile4(join5(home, AUTH_FILE_NAME), "utf-8"));
+    return JSON.parse(await readFile5(join6(home, AUTH_FILE_NAME), "utf-8"));
   } catch {
     return null;
   }
 }
 async function cleanupIsolatedCodexHome(home) {
-  await rm3(home, { recursive: true, force: true });
+  await rm4(home, { recursive: true, force: true });
 }
 
 // src/providers/codex/login.ts
@@ -5166,9 +6196,9 @@ async function runIsolatedCodexLogin() {
   delete env2.CODEX_API_KEY;
   delete env2.CODEX_ACCESS_TOKEN;
   try {
-    const proc = spawn("codex", ["login", "-c", 'cli_auth_credentials_store="file"'], { stdio: "inherit", env: env2 });
-    const exitCode = await new Promise((resolve, reject) => {
-      proc.on("close", resolve);
+    const proc = spawn2("codex", ["login", "-c", 'cli_auth_credentials_store="file"'], { stdio: "inherit", env: env2 });
+    const exitCode = await new Promise((resolve2, reject) => {
+      proc.on("close", resolve2);
       proc.on("error", reject);
     });
     const auth = exitCode === 0 ? await readIsolatedCodexAuth(codexHome) : null;
@@ -5180,15 +6210,15 @@ async function runIsolatedCodexLogin() {
 }
 
 // src/lib/oneapi.ts
-import { mkdir as mkdir7 } from "fs/promises";
-import { dirname as dirname4 } from "path";
+import { mkdir as mkdir8 } from "fs/promises";
+import { dirname as dirname5 } from "path";
 var FETCH_TIMEOUT_MS = 4000;
 var UNLIMITED_THRESHOLD_USD = 1e7;
 var DEFAULT_QUOTA_PER_UNIT = 500000;
-async function fetchRelayBalance(baseUrl, apiKey) {
+async function fetchRelayBalance(baseUrl2, apiKey) {
   let origin;
   try {
-    origin = new URL(baseUrl).origin;
+    origin = new URL(baseUrl2).origin;
   } catch {
     return null;
   }
@@ -5232,7 +6262,7 @@ async function getRelayConfig(origin) {
 async function saveRelayConfig(origin, config) {
   const relays = await readJson(RELAYS_FILE, {});
   relays[origin] = config;
-  await mkdir7(dirname4(RELAYS_FILE), { recursive: true });
+  await mkdir8(dirname5(RELAYS_FILE), { recursive: true });
   await writeJsonSecure(RELAYS_FILE, relays);
 }
 async function detectRelay(origin) {
@@ -5307,7 +6337,7 @@ async function getJson(url, headers) {
 
 // src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result = spawnSync2("claude", ["auth", "status"], {
+  const result = spawnSync3("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
   if (result.status !== 0)
@@ -5347,6 +6377,10 @@ async function add(alias) {
         value: "claude-apikey"
       },
       {
+        name: "Claude Code · ChatGPT（本机 CLIProxyAPI）",
+        value: "claude-local-cliproxyapi"
+      },
+      {
         name: "Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)",
         value: "codex-chatgpt"
       },
@@ -5362,6 +6396,9 @@ async function add(alias) {
       break;
     case "claude-apikey":
       await addClaudeApiKey(alias);
+      break;
+    case "claude-local-cliproxyapi":
+      await addLocalCLIProxyAPI(alias);
       break;
     case "codex-chatgpt":
       await addCodexChatGPT(alias);
@@ -5400,7 +6437,7 @@ async function addClaudeOAuth(alias) {
     if (authStatus?.loggedIn) {
       info("Logging out current Claude session...");
       blank();
-      const logout = spawnSync2("claude", ["auth", "logout"], {
+      const logout = spawnSync3("claude", ["auth", "logout"], {
         stdio: "inherit"
       });
       if (logout.status !== 0) {
@@ -5415,8 +6452,8 @@ async function addClaudeOAuth(alias) {
   blank();
   const browserScript = createPrivateBrowserScript();
   const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
-  const proc = spawn2("claude", ["auth", "login"], { stdio: "inherit", env: env2 });
-  const exitCode = await new Promise((resolve) => proc.on("close", resolve));
+  const proc = spawn3("claude", ["auth", "login"], { stdio: "inherit", env: env2 });
+  const exitCode = await new Promise((resolve2) => proc.on("close", resolve2));
   cleanupBrowserScript(browserScript);
   const newCreds = await readCredentials(CREDENTIALS_FILE);
   if (exitCode !== 0 || !newCreds) {
@@ -5441,12 +6478,96 @@ async function addClaudeApiKey(alias) {
   await maybeSetupRelayBalance(config.baseUrl);
   blank();
 }
-async function maybeSetupRelayBalance(baseUrl) {
-  if (!baseUrl)
+async function addLocalCLIProxyAPI(alias) {
+  const binaryPath = await resolveCLIProxyAPIBinaryForAdd();
+  if (!binaryPath) {
+    blank();
+    error("CLIProxyAPI was not installed or no valid executable was selected.");
+    hint("Install it with Homebrew on macOS, or rerun add and provide an existing cli-proxy-api path.");
+    blank();
+    process.exit(1);
+  }
+  const profileId = createManagedCLIProxyAPIProfileId();
+  const profileName = `cliproxy-${profileId}`;
+  const profile = {
+    type: "local-cliproxyapi",
+    profileId,
+    binaryPath,
+    defaultModel: CLI_PROXY_API_DEFAULTS.fableModel
+  };
+  let profileWritten = false;
+  try {
+    await initializeManagedCLIProxyAPI(profileId);
+    info("Opening CLIProxyAPI's own ChatGPT login in your browser...");
+    blank();
+    const login = await runManagedCLIProxyAPICodexLogin({
+      profileId,
+      binaryPath
+    });
+    if (!login.success || !login.identity) {
+      throw new Error("Login failed, was cancelled, or did not produce one valid Codex OAuth credential.");
+    }
+    profile.authIdentity = login.identity;
+    await addLocalCLIProxyAPIProfile(profileName, profile);
+    profileWritten = true;
+    await addAlias(alias, { provider: "claude", profileName });
+    blank();
+    success(`${source_default.bold(alias)} created  ${source_default.dim("ChatGPT via local CLIProxyAPI")}`);
+    hint(`Default mapping: fable → ${CLI_PROXY_API_DEFAULTS.fableModel}, opus/sonnet → ${CLI_PROXY_API_DEFAULTS.opusModel}, haiku → ${CLI_PROXY_API_DEFAULTS.haikuModel}.`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start Claude Code; its normal skills, MCP servers, hooks, and CLAUDE.md remain enabled.`);
+    blank();
+  } catch (err) {
+    try {
+      if (profileWritten || await profileExists(profileName)) {
+        await removeProfile(profileName);
+      } else {
+        await cleanupFailedManagedCLIProxyAPI(profileId);
+      }
+    } catch {}
+    blank();
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
+}
+async function resolveCLIProxyAPIBinaryForAdd() {
+  const existing = findCLIProxyAPIBinary();
+  if (existing)
+    return existing;
+  if (platform4() === "darwin" && hasHomebrew()) {
+    const install = await esm_default2({
+      message: "CLIProxyAPI is not installed. Install it with Homebrew now?",
+      default: true
+    });
+    if (install) {
+      info("Installing CLIProxyAPI with Homebrew (no brew service will be started)...");
+      const installed = await installCLIProxyAPIWithHomebrew();
+      if (installed) {
+        const afterInstall = findCLIProxyAPIBinary();
+        if (afterInstall)
+          return afterInstall;
+      }
+      error("Homebrew did not provide a usable CLIProxyAPI executable.");
+    }
+  }
+  const explicitPath = (await esm_default3({
+    message: "Path to an existing CLIProxyAPI executable (Enter to cancel)"
+  })).trim();
+  return explicitPath ? findCLIProxyAPIBinary(explicitPath) : null;
+}
+function hasHomebrew() {
+  try {
+    return spawnSync3("brew", ["--version"], { stdio: "ignore" }).status === 0;
+  } catch {
+    return false;
+  }
+}
+async function maybeSetupRelayBalance(baseUrl2) {
+  if (!baseUrl2)
     return;
   let origin;
   try {
-    origin = new URL(baseUrl).origin;
+    origin = new URL(baseUrl2).origin;
   } catch {
     return;
   }
@@ -5491,7 +6612,7 @@ async function promptClaudeApiConfig() {
       return true;
     }
   });
-  const baseUrl = await esm_default3({
+  const baseUrl2 = await esm_default3({
     message: "Base URL (optional, for proxy/custom endpoint)",
     validate: (value) => {
       const trimmed = value.trim();
@@ -5523,7 +6644,7 @@ async function promptClaudeApiConfig() {
   });
   return {
     apiKey: apiKey.trim(),
-    baseUrl: baseUrl.trim() || undefined,
+    baseUrl: baseUrl2.trim() || undefined,
     authToken: authToken.trim() || undefined,
     model: model.trim() || undefined,
     defaultSonnetModel: defaultSonnetModel.trim() || undefined,
@@ -5539,7 +6660,7 @@ async function promptClaudeDefaultModel() {
   return normalized || undefined;
 }
 async function addCodexChatGPT(alias) {
-  const codexCheck = spawnSync2("codex", ["--version"], {
+  const codexCheck = spawnSync3("codex", ["--version"], {
     encoding: "utf-8"
   });
   const hasCodex = codexCheck.status === 0;
@@ -5635,8 +6756,8 @@ async function addCodexApiKey(alias) {
       return true;
     }
   });
-  const { createHash: createHash2 } = await import("crypto");
-  const keyHash = createHash2("sha256").update(key.trim()).digest("hex").slice(0, 16);
+  const { createHash: createHash3 } = await import("crypto");
+  const keyHash = createHash3("sha256").update(key.trim()).digest("hex").slice(0, 16);
   const accountKey = `apikey::${keyHash}`;
   const existingAlias = findAliasByTarget(await loadAliases(), {
     provider: "codex",
@@ -5733,7 +6854,7 @@ async function promptCodexApiProvider() {
       return true;
     }
   });
-  const baseUrl = await esm_default3({
+  const baseUrl2 = await esm_default3({
     message: "Base URL",
     default: "https://newapi.hybaliez.com/v1",
     validate: (value) => {
@@ -5765,7 +6886,7 @@ async function promptCodexApiProvider() {
     provider: {
       type: "custom",
       name: name.trim(),
-      base_url: baseUrl.trim(),
+      base_url: baseUrl2.trim(),
       model,
       env_key: envKey.trim()
     },
@@ -5778,19 +6899,19 @@ import { execFile } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import {
   open,
-  readdir as readdir2,
+  readdir as readdir3,
   realpath,
-  rename as rename2,
-  rm as rm4,
-  stat,
+  rename as rename3,
+  rm as rm5,
+  stat as stat2,
   utimes
 } from "fs/promises";
-import { join as join6 } from "path";
+import { join as join7 } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
-  join6("sqlite", "state_5.sqlite"),
+  join7("sqlite", "state_5.sqlite"),
   "state_5.sqlite"
 ];
 var FIRST_LINE_MAX_BYTES = 4 * 1024 * 1024;
@@ -5802,12 +6923,12 @@ async function listJsonlFiles(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = await readdir2(dir, { withFileTypes: true });
+      entries = await readdir3(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = join6(dir, entry.name);
+      const fullPath = join7(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
@@ -5885,25 +7006,25 @@ async function rewriteRolloutProvider(filePath, targetProvider, managedProviders
   const updatedLine = rewriteSessionMetaLine(first.line, targetProvider, managedProviders);
   if (updatedLine === null)
     return false;
-  const { mode, size, atime, mtime } = await stat(filePath);
+  const { mode, size, atime, mtime } = await stat2(filePath);
   const tmpPath = `${filePath}.claudex-sync.${process.pid}.tmp`;
   try {
     const out = createWriteStream(tmpPath, { mode });
-    await new Promise((resolve, reject) => {
-      out.write(updatedLine + first.separator, (err) => err ? reject(err) : resolve());
+    await new Promise((resolve2, reject) => {
+      out.write(updatedLine + first.separator, (err) => err ? reject(err) : resolve2());
     });
     if (first.restOffset < size) {
       await pipeline(createReadStream(filePath, { start: first.restOffset }), out);
     } else {
-      await new Promise((resolve, reject) => {
-        out.end((err) => err ? reject(err) : resolve());
+      await new Promise((resolve2, reject) => {
+        out.end((err) => err ? reject(err) : resolve2());
       });
     }
-    await rename2(tmpPath, filePath);
+    await rename3(tmpPath, filePath);
     await utimes(filePath, atime, mtime).catch(() => {});
     return true;
   } catch (err) {
-    await rm4(tmpPath, { force: true }).catch(() => {});
+    await rm5(tmpPath, { force: true }).catch(() => {});
     throw err;
   }
 }
@@ -5947,7 +7068,7 @@ async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProvid
 async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   let dbPath = null;
   for (const candidate of STATE_DB_CANDIDATES) {
-    const fullPath = join6(CODEX_DIR, candidate);
+    const fullPath = join7(CODEX_DIR, candidate);
     if (await fileExists(fullPath)) {
       dbPath = fullPath;
       break;
@@ -6027,7 +7148,7 @@ async function anyCodexProcessRunning() {
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
   const candidates = [];
   for (const dirName of SESSION_DIRS) {
-    const root = join6(CODEX_DIR, dirName);
+    const root = join7(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
       try {
         const first = await readFirstLine(filePath);
@@ -6090,6 +7211,8 @@ async function switchClaude(alias, profileName) {
   let label;
   if (data.type === "api-key" && data.apiKey) {
     label = source_default.dim(maskKey(data.apiKey));
+  } else if (data.type === "local-cliproxyapi") {
+    label = source_default.dim("CLIProxyAPI · local ChatGPT login");
   } else {
     const creds = await readCredentials(claudeProfileCredentials(profileName));
     label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
@@ -6146,7 +7269,7 @@ async function syncSessionVisibility(account, managedProviders) {
 }
 
 // src/commands/run.ts
-import { spawn as spawn3 } from "child_process";
+import { spawn as spawn4 } from "child_process";
 
 // src/lib/model-shorthand.ts
 var CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
@@ -6263,7 +7386,8 @@ async function model(aliasOrName, defaultModel) {
     blank();
     process.exit(1);
   }
-  const normalizedModel = resolveModelShorthand(entry.target.provider, modelPart);
+  const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
+  const normalizedModel = profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart) : resolveModelShorthand(entry.target.provider, modelPart);
   let authMode;
   try {
     authMode = await updateDefaultModel(entry, normalizedModel);
@@ -6285,7 +7409,7 @@ var CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
 }
-async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn3) {
+async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn4) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
   if (runOptions.effortOverride) {
@@ -6300,7 +7424,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   const claudeProfileName = entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;
   let profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
-  const resolvedModel = runOptions.modelOverride ? resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" ? profile.defaultModel : undefined;
+  const resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile) : profile.defaultModel : undefined;
   if (runOptions.modelOverride && resolvedModel) {
     await updateDefaultModel(entry, resolvedModel);
     if (claudeProfileName) {
@@ -6309,6 +7433,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   const isolatedClaudeApi = profile?.type === "api-key";
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
+  const isolatedLocalCLIProxyAPI = isClaude && profile?.type === "local-cliproxyapi";
   if (!isClaude) {
     await use(aliasOrName);
     try {
@@ -6320,6 +7445,8 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   let secureStorageDir;
   let configDir;
   let settingsNeutralizer = null;
+  let localSettingsFile;
+  let localLease;
   if (isolatedClaudeOAuth && claudeProfileName) {
     try {
       const context = await prepareIsolatedOAuthRun(claudeProfileName);
@@ -6333,6 +7460,30 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     }
     settingsNeutralizer = await getClaudeEnvNeutralizer();
   }
+  if (isolatedLocalCLIProxyAPI && profile?.type === "local-cliproxyapi") {
+    try {
+      const context = await prepareIsolatedLocalCLIProxyAPIRun(claudeProfileName);
+      secureStorageDir = context.secureStorageDir;
+      configDir = context.configDir;
+      localLease = await acquireManagedCLIProxyAPILease({
+        profileId: profile.profileId,
+        binaryPath: profile.binaryPath
+      });
+      const runtime = await ensureManagedCLIProxyAPI({
+        profileId: profile.profileId,
+        binaryPath: profile.binaryPath
+      });
+      localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime);
+    } catch (err) {
+      try {
+        await localLease?.release();
+      } catch {}
+      error(err instanceof Error ? err.message : String(err));
+      hint(`Run ${source_default.cyan(`claudex-switch doctor ${aliasOrName}`)} after fixing the local proxy.`);
+      blank();
+      process.exit(1);
+    }
+  }
   const command = isClaude ? "claude" : "codex";
   const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
   const effortArgs = runOptions.effortOverride ? isClaude ? ["--effort", runOptions.effortOverride] : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`] : [];
@@ -6341,20 +7492,32 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     ...defaultPermissionArgs,
     ...resolvedModel ? ["--model", resolvedModel] : [],
     ...effortArgs,
+    ...localSettingsFile ? ["--settings", localSettingsFile] : [],
     ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
     ...runOptions.forwardedArgs
   ];
   const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir, configDir);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
-  return new Promise((resolve) => {
+  return new Promise((resolve2) => {
     let settled = false;
-    const finish = (code) => {
+    const finish = async (code) => {
       if (settled)
         return;
       settled = true;
-      resolve(code);
+      try {
+        await localLease?.release();
+      } catch {}
+      resolve2(code);
     };
-    const proc = spawnCommand(command, args, { stdio: "inherit", env: env2 });
+    let proc;
+    try {
+      proc = spawnCommand(command, args, { stdio: "inherit", env: env2 });
+    } catch (err) {
+      error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
+      blank();
+      finish(1);
+      return;
+    }
     proc.on("error", (err) => {
       error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
       blank();
@@ -6371,7 +7534,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
             await syncActiveAuthSnapshot(await loadRegistry());
           } catch {}
         }
-        finish(code ?? 1);
+        await finish(code ?? 1);
       })();
     });
   });
@@ -6380,6 +7543,9 @@ async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
       return applyClaudeAttributionHeader(buildClaudeApiEnvironment(profile), headerEnabled);
+    }
+    if (profile?.type === "local-cliproxyapi") {
+      return applyClaudeAttributionHeader(buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir), headerEnabled);
     }
     return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir, configDir), headerEnabled);
   }
@@ -6466,6 +7632,9 @@ function buildClaudeOAuthEnvironment(secureStorageDir, configDir) {
 }
 function buildClaudeApiEnvironment(config) {
   const env2 = { ...process.env };
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env2[key];
+  }
   setOptionalEnv(env2, "ANTHROPIC_API_KEY", config.apiKey);
   setOptionalEnv(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
   setOptionalEnv(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
@@ -6473,6 +7642,22 @@ function buildClaudeApiEnvironment(config) {
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
+  return env2;
+}
+function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir) {
+  const env2 = { ...process.env };
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env2[key];
+  }
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    delete env2[key];
+  }
+  if (secureStorageDir) {
+    env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
+  }
+  if (configDir) {
+    env2.CLAUDE_CONFIG_DIR = configDir;
+  }
   return env2;
 }
 function applyClaudeAttributionHeader(baseEnv, headerEnabled) {
@@ -6628,7 +7813,7 @@ async function refreshOAuthToken(creds) {
 }
 
 // src/providers/codex/app-server.ts
-import { spawn as spawn4 } from "child_process";
+import { spawn as spawn5 } from "child_process";
 import { createInterface as createInterface2 } from "readline";
 var REQUEST_TIMEOUT_MS = 1e4;
 var MAX_CONCURRENT_SERVERS = 3;
@@ -6645,7 +7830,7 @@ var activeServers = 0;
 var serverWaiters = [];
 async function acquireServerSlot() {
   if (activeServers >= MAX_CONCURRENT_SERVERS) {
-    await new Promise((resolve) => serverWaiters.push(resolve));
+    await new Promise((resolve2) => serverWaiters.push(resolve2));
   }
   activeServers += 1;
   return () => {
@@ -6653,7 +7838,7 @@ async function acquireServerSlot() {
     serverWaiters.shift()?.();
   };
 }
-async function readCodexRateLimits(auth, spawnAppServer = spawn4) {
+async function readCodexRateLimits(auth, spawnAppServer = spawn5) {
   const release = await acquireServerSlot();
   let codexHome = null;
   try {
@@ -6681,7 +7866,7 @@ async function requestRateLimits(codexHome, spawnAppServer) {
   delete env2.OPENAI_API_KEY;
   delete env2.CODEX_API_KEY;
   delete env2.CODEX_ACCESS_TOKEN;
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     const proc = spawnAppServer("codex", ["app-server", "-c", 'cli_auth_credentials_store="file"'], { stdio: ["pipe", "pipe", "pipe"], env: env2 });
     const stdout = proc.stdout;
     const stdin = proc.stdin;
@@ -6703,7 +7888,7 @@ async function requestRateLimits(codexHome, spawnAppServer) {
       if (error2)
         reject(error2);
       else
-        resolve(response ?? {});
+        resolve2(response ?? {});
     };
     const send = (message) => {
       stdin.write(`${JSON.stringify(message)}
@@ -6875,7 +8060,7 @@ async function list(options = {}) {
   }
   const claudeAliases = aliasReg.aliases.filter((a) => a.target.provider === "claude");
   const codexAliases = aliasReg.aliases.filter((a) => a.target.provider === "codex");
-  const claudeState = await readState();
+  const claudeState = await readState2();
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
@@ -6946,7 +8131,14 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
     const profileData = await readJson(claudeProfileDataFile(profileName), { type: "oauth" });
     info2.authMode = profileData.type;
     info2.defaultModel = profileData.type === "api-key" ? profileData.model ?? null : profileData.defaultModel ?? null;
-    if (profileData.type === "api-key" && profileData.apiKey) {
+    if (profileData.type === "local-cliproxyapi") {
+      const status = await inspectManagedCLIProxyAPI({
+        profileId: profileData.profileId,
+        binaryPath: profileData.binaryPath
+      });
+      info2.apiProvider = status.loggedIn ? !status.environmentValid ? "CLIProxyAPI · invalid private env" : !status.configured ? "CLIProxyAPI · invalid config" : status.running ? "CLIProxyAPI · running" : "CLIProxyAPI · stopped" : "CLIProxyAPI · login required";
+      info2.usageNote = "quota unavailable";
+    } else if (profileData.type === "api-key" && profileData.apiKey) {
       info2.plan = maskKey(profileData.apiKey);
       if (withUsage && profileData.baseUrl) {
         info2.balance = await fetchRelayBalance(profileData.baseUrl, profileData.apiKey);
@@ -7002,11 +8194,11 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
   let serverPlan = null;
   if (withUsage) {
     if (account.auth_mode === "apikey") {
-      const baseUrl = account.api_provider?.base_url;
-      if (baseUrl) {
+      const baseUrl2 = account.api_provider?.base_url;
+      if (baseUrl2) {
         const auth = await readAccountAuth(accountKey);
         if (auth?.OPENAI_API_KEY) {
-          info2.balance = await fetchRelayBalance(baseUrl, auth.OPENAI_API_KEY);
+          info2.balance = await fetchRelayBalance(baseUrl2, auth.OPENAI_API_KEY);
         }
       }
     } else {
@@ -7074,7 +8266,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename3(currentAlias, nextAlias) {
+async function rename4(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -7136,11 +8328,9 @@ async function purge(aliasName) {
     return;
   }
   if (entry.target.provider === "claude") {
-    try {
-      if (await profileExists(entry.target.profileName)) {
-        await removeProfile(entry.target.profileName);
-      }
-    } catch {}
+    if (await profileExists(entry.target.profileName)) {
+      await removeProfile(entry.target.profileName);
+    }
   } else {
     try {
       const codexReg = await loadRegistry();
@@ -7163,7 +8353,7 @@ async function purge(aliasName) {
 // src/commands/current.ts
 async function current() {
   const aliasReg = await loadAliases();
-  const claudeState = await readState();
+  const claudeState = await readState2();
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
@@ -7191,7 +8381,7 @@ async function current() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir3 } from "fs/promises";
+import { readdir as readdir4 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -7222,7 +8412,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir3(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir4(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory())
       continue;
@@ -7304,7 +8494,7 @@ async function importCodexAccounts(reg) {
 }
 
 // src/commands/refresh.ts
-import { spawn as spawn5 } from "child_process";
+import { spawn as spawn6 } from "child_process";
 async function refresh(aliasOrName) {
   blank();
   const aliasReg = await loadAliases();
@@ -7329,6 +8519,10 @@ async function refreshClaude(alias, profileName) {
     process.exit(1);
   }
   const profile = await getProfileData(profileName);
+  if (profile.type === "local-cliproxyapi") {
+    await refreshLocalCLIProxyAPI(alias, profileName, profile);
+    return;
+  }
   if (profile.type !== "oauth") {
     error("Claude API key accounts do not need refresh.");
     blank();
@@ -7372,6 +8566,35 @@ async function refreshClaude(alias, profileName) {
   const label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
   const email = account?.emailAddress ? `  ${source_default.dim(account.emailAddress)}` : "";
   success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("oauth")}  ${label}${email}`);
+  blank();
+}
+async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
+  if (!profile.authIdentity) {
+    error("This local CLIProxyAPI account has no saved identity fingerprint and cannot be safely refreshed.");
+    hint("Remove and add it again to create a new isolated local login.");
+    blank();
+    process.exit(1);
+  }
+  info(`Opening CLIProxyAPI's own ChatGPT login for ${source_default.bold(alias)}...`);
+  blank();
+  let login;
+  try {
+    login = await runManagedCLIProxyAPICodexLogin({ profileId: profile.profileId, binaryPath: profile.binaryPath }, undefined, profile.authIdentity);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
+  if (!login?.success || !login.identity) {
+    error(login?.identityMismatch ? "ChatGPT login completed for a different account; the existing local account was left unchanged." : "CLIProxyAPI ChatGPT login failed or was cancelled; the existing local account was left unchanged.");
+    blank();
+    process.exit(1);
+  }
+  await updateLocalCLIProxyAPIProfileIdentity(profileName, login.identity);
+  if ((await readState2()).active === profileName) {
+    await switchProfile(profileName);
+  }
+  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("local-cliproxyapi")}`);
   blank();
 }
 async function refreshCodex(alias, accountKey) {
@@ -7471,9 +8694,9 @@ async function runLoginCommand(command, args) {
   const browserScript = createPrivateBrowserScript();
   const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
-    const proc = spawn5(command, args, { stdio: "inherit", env: env2 });
-    return await new Promise((resolve, reject) => {
-      proc.on("close", resolve);
+    const proc = spawn6(command, args, { stdio: "inherit", env: env2 });
+    return await new Promise((resolve2, reject) => {
+      proc.on("close", resolve2);
       proc.on("error", reject);
     });
   } catch (err) {
@@ -7487,7 +8710,7 @@ async function runLoginCommand(command, args) {
 
 // src/lib/update.ts
 import { realpathSync } from "fs";
-import { spawnSync as spawnSync3 } from "child_process";
+import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
@@ -7576,7 +8799,7 @@ async function fetchLatestReleaseVersion(fetchImpl = fetch) {
     return null;
   }
 }
-function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync3) {
+function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync4) {
   const brewPrefix = readCommandStdout(runCommand("brew", ["--prefix"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"]
@@ -7641,7 +8864,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
   const env2 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
-  const runCommand = options.runCommand ?? spawnSync3;
+  const runCommand = options.runCommand ?? spawnSync4;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
   if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV] === "1" || env2[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {
@@ -7802,6 +9025,109 @@ async function update() {
   }
 }
 
+// src/commands/doctor.ts
+async function doctor(aliasOrName, options = {}) {
+  blank();
+  const aliases = await loadAliases();
+  const entry = findAlias(aliases, aliasOrName);
+  if (!entry) {
+    fail(`Alias "${aliasOrName}" not found.`);
+    return;
+  }
+  if (entry.target.provider !== "claude") {
+    fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
+    return;
+  }
+  if (!await profileExists(entry.target.profileName)) {
+    fail(`Claude profile "${entry.target.profileName}" no longer exists.`);
+    return;
+  }
+  const profile = await getProfileData(entry.target.profileName);
+  if (profile.type !== "local-cliproxyapi") {
+    fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
+    return;
+  }
+  const managedProfile = {
+    profileId: profile.profileId,
+    binaryPath: profile.binaryPath
+  };
+  let status = await inspectManagedCLIProxyAPI(managedProfile, {
+    probe: true
+  });
+  info(`CLIProxyAPI binary: ${status.installed ? "available" : "not found"}`);
+  info(`ChatGPT login: ${status.loggedIn ? "available" : "required"}`);
+  info(`Managed daemon: ${status.running ? `running on 127.0.0.1:${status.port}` : "stopped"}`);
+  info(`Managed environment: ${status.environmentValid ? "valid" : "invalid or missing"}`);
+  info(`Managed configuration: ${status.configured ? "valid" : "missing or needs rebuild"}`);
+  if (status.running) {
+    info(`Local authenticated probe: ${status.healthy ? "passed" : "failed"}`);
+  }
+  if (!status.installed) {
+    fail("CLIProxyAPI binary is unavailable. Reinstall it or add the account again with a valid executable.");
+    return;
+  }
+  if (!status.loggedIn) {
+    fail(`No valid local ChatGPT login is available. Run ${source_default.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
+    return;
+  }
+  if (!status.environmentValid) {
+    fail("Managed CLIProxyAPI private environment is invalid or missing. Add the account again; a restart cannot safely recreate its client key.");
+    return;
+  }
+  if (!status.configured && !options.restart) {
+    fail("Managed CLIProxyAPI runtime configuration is missing or invalid. Run `claudex-switch doctor <alias> --restart` to rebuild it from the private environment.");
+    return;
+  }
+  if (status.running && !status.healthy && !options.restart) {
+    fail("The managed daemon is running but did not pass its authenticated loopback probe. Use `claudex-switch doctor <alias> --restart` after ending active sessions.");
+    return;
+  }
+  let runtime;
+  try {
+    if (options.restart) {
+      info("Restarting this account's managed loopback proxy...");
+      runtime = await restartManagedCLIProxyAPI(managedProfile);
+      status = await inspectManagedCLIProxyAPI(managedProfile, { probe: true });
+    } else if (options.live) {
+      runtime = await ensureManagedCLIProxyAPI(managedProfile);
+      status = await inspectManagedCLIProxyAPI(managedProfile, { probe: true });
+    }
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+    return;
+  }
+  if (!status.configured) {
+    fail("The managed runtime configuration could not be rebuilt.");
+    return;
+  }
+  if (status.running && !status.healthy) {
+    fail("The managed daemon did not pass its authenticated loopback probe after startup.");
+    return;
+  }
+  if (options.live) {
+    const liveRuntime = runtime ?? await ensureManagedCLIProxyAPI(managedProfile);
+    if (!await verifyManagedCLIProxyAPILive(liveRuntime)) {
+      fail("Luna (gpt-5.6-luna) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request.");
+      return;
+    }
+    success(`${source_default.bold(entry.alias)} Luna (gpt-5.6-luna) live verification passed`);
+    blank();
+    return;
+  }
+  if (options.restart && status.running) {
+    success(`${source_default.bold(entry.alias)} managed proxy restarted`);
+  } else {
+    success(`${source_default.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
+    hint(`Use ${source_default.cyan(`claudex-switch doctor ${entry.alias} --live`)} for a small, quota-consuming model request.`);
+  }
+  blank();
+}
+function fail(message) {
+  error(message);
+  blank();
+  process.exit(1);
+}
+
 // src/index.ts
 var HELP = `
   ${source_default.bold("claudex-switch")} — Manage Claude Code and Codex accounts
@@ -7818,6 +9144,7 @@ var HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
+    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
     claudex-switch update              Upgrade to the latest release
@@ -7839,18 +9166,18 @@ function isHelpCommand(command) {
 function isRepoLocalEntrypoint(scriptPath) {
   if (!scriptPath)
     return false;
-  const entry = resolve(scriptPath);
-  const entryName = basename(entry);
-  const parentName = basename(dirname5(entry));
+  const entry = resolve2(scriptPath);
+  const entryName = basename2(entry);
+  const parentName = basename2(dirname6(entry));
   let root = null;
   if (parentName === "src" && entryName === "index.ts") {
-    root = dirname5(dirname5(entry));
+    root = dirname6(dirname6(entry));
   } else if (parentName === "dist" && (entryName === "claudex-switch.js" || entryName === "claudex-switch")) {
-    root = dirname5(dirname5(entry));
+    root = dirname6(dirname6(entry));
   }
   if (!root)
     return false;
-  const packageFile = join7(root, "package.json");
+  const packageFile = join8(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
@@ -7888,7 +9215,7 @@ async function interactivePicker() {
     return;
   }
   blank();
-  const claudeState = await readState();
+  const claudeState = await readState2();
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
@@ -7978,7 +9305,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename3(args[0], args[1]);
+        await rename4(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {
@@ -8000,6 +9327,24 @@ async function main() {
           process.exit(1);
         }
         await refresh(args[0]);
+        break;
+      case "doctor":
+        if (!args[0]) {
+          console.error(source_default.red(`
+  Usage: claudex-switch doctor <alias> [--live] [--restart]
+`));
+          process.exit(1);
+        }
+        if (args.slice(1).some((arg) => arg !== "--live" && arg !== "--restart")) {
+          console.error(source_default.red(`
+  Usage: claudex-switch doctor <alias> [--live] [--restart]
+`));
+          process.exit(1);
+        }
+        await doctor(args[0], {
+          live: args.includes("--live"),
+          restart: args.includes("--restart")
+        });
         break;
       case "import":
         await importAccounts();

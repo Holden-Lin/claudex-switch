@@ -56,7 +56,7 @@ export interface OAuthAccount {
   [key: string]: unknown;
 }
 
-export type ProfileType = "oauth" | "api-key";
+export type ProfileType = "oauth" | "api-key" | "local-cliproxyapi";
 
 export interface ClaudeOAuthProfileConfig {
   defaultModel?: string;
@@ -81,7 +81,24 @@ export interface ApiKeyProfileData extends ClaudeApiProfileConfig {
   type: "api-key";
 }
 
-export type ProfileData = OAuthProfileData | ApiKeyProfileData;
+// OAuth credentials for this profile are owned by CLIProxyAPI in its private
+// auth directory. Only a stable managed id and a non-secret executable path
+// are stored in the regular Claude profile registry.
+export interface LocalCLIProxyAPIProfileData {
+  type: "local-cliproxyapi";
+  profileId: string;
+  binaryPath: string;
+  defaultModel: string;
+  // One-way identity fingerprint of the one credential in the managed auth
+  // directory. It lets refresh reject a different ChatGPT account before it
+  // replaces the existing login, without persisting tokens or account metadata.
+  authIdentity?: string;
+}
+
+export type ProfileData =
+  | OAuthProfileData
+  | ApiKeyProfileData
+  | LocalCLIProxyAPIProfileData;
 
 export interface ProfileState {
   active: string | null;

@@ -22,6 +22,8 @@ export const CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 export const CLAUDEX_DIR = join(HOME, ".claudex-switch");
 export const ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 export const RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
+export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
+export const CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 
 // Claude profile helpers
 export function claudeProfileDir(name: string): string {
@@ -36,6 +38,13 @@ export function claudeProfileConfigDir(name: string): string {
   return join(claudeProfileDir(name), "config");
 }
 
+// A local CLIProxyAPI run must not inherit the real Claude OAuth store. This
+// empty per-profile secure-storage root is intentionally separate from the
+// normal profile directory and its snapshot files.
+export function claudeProfileSecureStorageDir(name: string): string {
+  return join(claudeProfileDir(name), "secure-storage");
+}
+
 export function claudeProfileConfigJson(name: string): string {
   return join(claudeProfileConfigDir(name), ".claude.json");
 }
@@ -46,6 +55,42 @@ export function claudeProfileDataFile(name: string): string {
 
 export function claudeProfileAccountFile(name: string): string {
   return join(claudeProfileDir(name), "account.json");
+}
+
+// CLIProxyAPI data is keyed by an opaque profile id rather than the user-facing
+// alias. Renaming an alias must never move, replace, or disconnect its login.
+export function cliProxyAPIProfileDir(profileId: string): string {
+  return join(CLI_PROXY_API_DIR, profileId);
+}
+
+export function cliProxyAPIAuthDir(profileId: string): string {
+  return join(cliProxyAPIProfileDir(profileId), "auth");
+}
+
+export function cliProxyAPIEnvFile(profileId: string): string {
+  return join(cliProxyAPIProfileDir(profileId), ".env");
+}
+
+export function cliProxyAPIConfigFile(profileId: string): string {
+  return join(cliProxyAPIProfileDir(profileId), "runtime.yaml");
+}
+
+export function cliProxyAPIClaudeSettingsFile(profileId: string): string {
+  return join(cliProxyAPIProfileDir(profileId), "claude-settings.json");
+}
+
+export function cliProxyAPISessionsDir(profileId: string): string {
+  return join(cliProxyAPIProfileDir(profileId), "sessions");
+}
+
+export function cliProxyAPIStateFile(profileId: string): string {
+  return join(cliProxyAPIProfileDir(profileId), "state.json");
+}
+
+export function cliProxyAPIStartupLock(profileId: string): string {
+  // Locks live outside removable per-account data. A purge can then delete an
+  // exact profile directory without deleting a lock still owned by its caller.
+  return join(CLI_PROXY_API_DIR, "locks", `${profileId}.lock`);
 }
 
 // Codex account helpers - matches codex-auth's file naming convention

@@ -1,20 +1,45 @@
-import { mkdir } from "fs/promises";
+import { chmod, mkdir } from "fs/promises";
 import { dirname } from "path";
 import { SETTINGS_FILE } from "../../lib/paths";
-import { readJson, writeJson } from "../../lib/fs";
+import { readJson, writeJsonSecure } from "../../lib/fs";
 import type { ClaudeApiProfileConfig } from "../../types";
 
 type Settings = Record<string, unknown>;
 type SettingsEnv = Record<string, string>;
+
+export interface LocalCLIProxyAPISettings {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  fableModel: string;
+  sonnetModel: string;
+  opusModel: string;
+  haikuModel: string;
+  subagentModel: string;
+}
 
 export const CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_FABLE_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "CLAUDE_CODE_SUBAGENT_MODEL",
+  "CLAUDE_CODE_SUBAGENT_MODEL_FORCE",
+] as const;
+
+// These settings choose a Claude authentication/provider path before the
+// generated loopback API key can be used. They are neutralized only for the
+// local CLIProxyAPI launch (both process env and its private --settings file),
+// rather than changing the user's normal OAuth/API account behavior.
+export const CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS = [
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY",
 ] as const;
 
 export type ClaudeEnvKey = (typeof CLAUDE_ENV_KEYS)[number];
@@ -25,7 +50,14 @@ async function read(): Promise<Settings> {
 
 async function write(settings: Settings): Promise<void> {
   await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-  await writeJson(SETTINGS_FILE, settings);
+  await writeJsonSecure(SETTINGS_FILE, settings);
+  try {
+    // writeFile's mode only applies at creation. Local proxy activation writes
+    // a generated client key here, so also repair legacy permissive files.
+    await chmod(SETTINGS_FILE, 0o600);
+  } catch {
+    // Windows ACLs remain authoritative where POSIX chmod is unavailable.
+  }
 }
 
 function normalizeEnv(
@@ -82,6 +114,13 @@ export async function applyApiConfig(
   const settings = await read();
   const env = normalizeEnv(settings);
 
+  // A previous local CLIProxyAPI selection may have written Fable/subagent
+  // mappings that ordinary API-key profiles do not own. Start from a clean
+  // managed-key set so returning to this profile cannot retain proxy routing.
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env[key];
+  }
+
   setEnvValue(env, "ANTHROPIC_API_KEY", config.apiKey);
   setEnvValue(env, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env, "ANTHROPIC_AUTH_TOKEN", config.authToken);
@@ -130,6 +169,34 @@ export async function applyOAuthConfig(
   }
 
   setTopLevelModel(settings, model);
+  await write(settings);
+}
+
+// The loopback proxy uses a generated client key, never a Claude OAuth
+// snapshot. Apply every mapping for a normal `claude` launch after a global
+// switch; applyOAuthConfig clears the same keys when returning to other types.
+export async function applyLocalCLIProxyAPIConfig(
+  config: LocalCLIProxyAPISettings,
+): Promise<void> {
+  const settings = await read();
+  const env = normalizeEnv(settings);
+
+  for (const key of CLAUDE_ENV_KEYS) {
+    delete env[key];
+  }
+
+  setEnvValue(env, "ANTHROPIC_API_KEY", config.apiKey);
+  setEnvValue(env, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setEnvValue(env, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", "1");
+
+  settings.env = env;
+  setTopLevelModel(settings, config.model);
   await write(settings);
 }
 

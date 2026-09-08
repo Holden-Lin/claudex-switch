@@ -20,6 +20,7 @@ import { refresh } from "./commands/refresh";
 import { model } from "./commands/model";
 import { version } from "./commands/version";
 import { update } from "./commands/update";
+import { doctor } from "./commands/doctor";
 import { blank, error, formatProvider, hint } from "./lib/ui";
 import { runAutoUpdateIfNeeded } from "./lib/update";
 
@@ -38,6 +39,7 @@ const HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
+    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
     claudex-switch update              Upgrade to the latest release
@@ -271,6 +273,25 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await refresh(args[0]);
+        break;
+
+      case "doctor":
+        if (!args[0]) {
+          console.error(
+            chalk.red("\n  Usage: claudex-switch doctor <alias> [--live] [--restart]\n"),
+          );
+          process.exit(1);
+        }
+        if (args.slice(1).some((arg) => arg !== "--live" && arg !== "--restart")) {
+          console.error(
+            chalk.red("\n  Usage: claudex-switch doctor <alias> [--live] [--restart]\n"),
+          );
+          process.exit(1);
+        }
+        await doctor(args[0], {
+          live: args.includes("--live"),
+          restart: args.includes("--restart"),
+        });
         break;
 
       case "import":

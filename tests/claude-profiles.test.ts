@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { chmod, mkdir, rm, stat, writeFile } from "fs/promises";
 import { dirname } from "path";
 import {
   CLAUDE_JSON,
@@ -18,7 +18,7 @@ import {
   prepareIsolatedOAuthRun,
   switchProfile,
 } from "../src/providers/claude/profiles";
-import { resetTestHome } from "./helpers";
+import { fileMode, resetTestHome } from "./helpers";
 import type {
   ClaudeApiProfileConfig,
   CredentialsFile,
@@ -517,6 +517,7 @@ describe("claude profiles", () => {
         2,
       ),
     );
+    await chmod(SETTINGS_FILE, 0o644);
 
     await addApiKeyProfile("api-work", config);
 
@@ -534,6 +535,7 @@ describe("claude profiles", () => {
       model: "sonnet",
       theme: "dark",
     });
+    expect(fileMode((await stat(SETTINGS_FILE)).mode)).toBe(0o600);
   });
 
   test("keeps active Claude auth single-mode when switching between oauth and api key", async () => {
