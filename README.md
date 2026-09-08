@@ -319,7 +319,7 @@ claudex-switch 采用「薄别名层」架构：
 
 ## 兼容性
 
-- 与 `claude-switch`、`codex-auth` 完全兼容，三个工具可以并行使用
+- 原有 Claude / Codex 账号格式兼容 `claude-switch`、`codex-auth`，可继续使用这些工具
 - 本机 CLIProxyAPI 是本项目独有的账号类型，其他切换工具不负责它的代理生命周期
 - macOS：已验证 Claude Code Keychain JSON 格式 + 旧版 hex 编码格式
 - Claude：Pro、Max、Team、Enterprise 订阅 + API Key

@@ -62,6 +62,7 @@ CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callba
 
 ## 验收记录（2026-09-08）
 
+- 自动化回归：`bun run verify`，164 项通过、0 失败、554 个断言；`bunx --no-install tsc --noEmit`、`git diff --check` 通过。
 - 实机：Claude Code 2.1.263、Homebrew CLIProxyAPI 7.2.150；另校验过官方 7.2.154 二进制及校验和。
 - 真实浏览器登录完成，真实 ChatGPT 上游分别通过 GPT-6、Terra、Luna 的最小调用；默认主模型恢复为 GPT-6。
 - 真实 Claude Explore 子代理读取测试项目的 CLAUDE.md 并返回标记；统计为启动 1、完成 1、失败 0、无权限拒绝，主对话及子代理分别使用 GPT-6 与私有 Terra 别名。
