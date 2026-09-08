@@ -141,6 +141,7 @@ claudex-switch add work
 
 - **Claude OAuth** — 使用 Claude 订阅（Pro、Max、Team 等）
 - **Claude API Key** — 使用 Anthropic API key，可选自定义 Base URL、Auth Token、默认模型和 Sonnet / Opus / Haiku 模型映射
+- **Claude Code · ChatGPT（本机 CLIProxyAPI）** — 在 Claude Code 中使用独立的 ChatGPT 登录；本项目管理本机代理、模型映射和启动
 - **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等），可为该账号保存默认模型
 - **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商，并为该账号保存默认模型
 
@@ -168,6 +169,36 @@ env_key = "OPENAI_API_KEY"
 requires_openai_auth = false
 ```
 
+### 在 Claude Code 中使用 ChatGPT 账号
+
+```bash
+claudex-switch add chatgpt
+# 选择「Claude Code · ChatGPT（本机 CLIProxyAPI）」并完成浏览器登录
+claudex-switch chatgpt --run
+```
+
+macOS 已安装 Homebrew 时，缺少 CLIProxyAPI 会询问是否自动安装；已有安装会直接复用。Linux 可提供已安装的 `cli-proxy-api` 路径。默认无需手写代理配置，也不需要 OpenAI API key。本功能是第三方兼容桥接，不是 Claude/OpenAI 官方提供的互通方案；可用模型和额度取决于你的账号及上游支持。
+
+| Claude Code 入口 | 默认模型 |
+|---|---|
+| 默认主模型 / `fable` | `gpt-6-astra` |
+| `opus` | `gpt-5.6-terra` |
+| `haiku` | `gpt-5.6-luna` |
+| 子代理 | `gpt-5.6-terra`，`reasoning.effort=max` |
+
+`sonnet` 兼容映射为 Terra。子代理使用私有别名 `claudex-terra-max`，因此不会把主对话的 Terra 请求也强制成 max。`--run` 与 `-run` 等价；该新类型不使用 `--bare`，保留正常的 skills、MCP、hooks 和 CLAUDE.md 配置发现，同时隔离 Claude 登录态。
+
+```bash
+claudex-switch doctor chatgpt           # 本地诊断，不发模型请求
+claudex-switch doctor chatgpt --live    # 小额真实 Luna 请求，会消耗账号额度
+claudex-switch doctor chatgpt --restart # 结束使用该账号的会话后，重启其代理
+claudex-switch refresh chatgpt          # 必要时重新进行该账号的浏览器登录
+claudex-switch chatgpt --run --model opus low
+claudex-switch model chatgpt fable      # 恢复默认主模型
+```
+
+普通启动会自动确保代理可用，不会安装系统常驻服务。`list` 对该类型显示本机状态和 `quota unavailable`，不把进程存在当作账号额度验证。详见[设计、配置与验收说明](docs/local-cliproxyapi.md)。
+
 ## 命令
 
 | 命令 | 说明 |
@@ -184,6 +215,7 @@ requires_openai_auth = false
 | `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置；支持同一套模型缩写 |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
+| `claudex-switch doctor <alias> [--live] [--restart]` | 诊断本机 CLIProxyAPI 账号；可显式发送 Luna 测试请求或重启其代理 |
 | `claudex-switch current` | 显示当前活跃账号 |
 | `claudex-switch remove <alias>` | 只删除别名，不删除底层账号 |
 | `claudex-switch purge <alias>` | 删除底层账号及其关联别名 |
@@ -288,9 +320,11 @@ claudex-switch 采用「薄别名层」架构：
 ## 兼容性
 
 - 与 `claude-switch`、`codex-auth` 完全兼容，三个工具可以并行使用
+- 本机 CLIProxyAPI 是本项目独有的账号类型，其他切换工具不负责它的代理生命周期
 - macOS：已验证 Claude Code Keychain JSON 格式 + 旧版 hex 编码格式
 - Claude：Pro、Max、Team、Enterprise 订阅 + API Key
 - Codex：Free、Plus、Pro、Team 等 + OpenAI API Key / OpenAI-compatible API provider
+- 本机 CLIProxyAPI：macOS 已作真实登录及调用验收；Linux 支持预装二进制路径，Windows 暂不支持此账号类型。子代理强制路由需要 Claude Code 2.1.257 或更新版本
 
 ## 注意事项
 
