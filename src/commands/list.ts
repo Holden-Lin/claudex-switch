@@ -19,6 +19,7 @@ import {
 } from "../providers/codex/auth";
 import { fetchCodexUsage } from "../providers/codex/usage";
 import { fetchRelayBalance } from "../lib/oneapi";
+import { inspectManagedCLIProxyAPI } from "../providers/cliproxyapi/managed";
 import {
   blank,
   header,
@@ -190,7 +191,22 @@ async function getClaudeAccountInfo(
         ? profileData.model ?? null
         : profileData.defaultModel ?? null;
 
-    if (profileData.type === "api-key" && profileData.apiKey) {
+    if (profileData.type === "local-cliproxyapi") {
+      const status = await inspectManagedCLIProxyAPI({
+        profileId: profileData.profileId,
+        binaryPath: profileData.binaryPath,
+      });
+      info.apiProvider = status.loggedIn
+        ? !status.environmentValid
+          ? "CLIProxyAPI · invalid private env"
+          : !status.configured
+          ? "CLIProxyAPI · invalid config"
+          : status.running
+          ? "CLIProxyAPI · running"
+          : "CLIProxyAPI · stopped"
+        : "CLIProxyAPI · login required";
+      info.usageNote = "quota unavailable";
+    } else if (profileData.type === "api-key" && profileData.apiKey) {
       info.plan = maskKey(profileData.apiKey);
       if (withUsage && profileData.baseUrl) {
         info.balance = await fetchRelayBalance(

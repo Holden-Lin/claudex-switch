@@ -1,4 +1,5 @@
 import {
+  chmod,
   copyFile,
   lstat,
   mkdir,
@@ -18,6 +19,7 @@ import {
   claudeProfileDir,
   claudeProfileConfigDir,
   claudeProfileConfigJson,
+  claudeProfileSecureStorageDir,
   claudeProfileCredentials,
   claudeProfileDataFile,
   claudeProfileAccountFile,
@@ -35,11 +37,17 @@ import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
 import {
   applyApiConfig,
+  applyLocalCLIProxyAPIConfig,
   applyOAuthConfig,
   clearApiConfig,
   getApiConfig,
   getConfiguredModel,
 } from "./settings";
+import {
+  ensureManagedCLIProxyAPI,
+  getLocalCLIProxyAPISettings,
+  purgeManagedCLIProxyAPI,
+} from "../cliproxyapi/managed";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
@@ -50,6 +58,7 @@ import type {
   ClaudeOAuthProfileConfig,
   ApiKeyProfileData,
   CredentialsFile,
+  LocalCLIProxyAPIProfileData,
 } from "../../types";
 
 const PROFILE_CONFIG_LINK_EXCLUDES = new Set([
@@ -63,6 +72,11 @@ export interface IsolatedOAuthRunContext {
   configDir: string;
 }
 
+export interface IsolatedLocalCLIProxyAPIRunContext {
+  secureStorageDir: string;
+  configDir: string;
+}
+
 export interface OAuthCredentialStores {
   snapshot: CredentialsFile | null;
   isolated: CredentialsFile | null;
@@ -71,6 +85,15 @@ export interface OAuthCredentialStores {
 
 async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
+}
+
+async function ensurePrivateDir(path: string): Promise<void> {
+  await mkdir(path, { recursive: true, mode: 0o700 });
+  try {
+    await chmod(path, 0o700);
+  } catch {
+    // Windows ACLs are the applicable protection there.
+  }
 }
 
 export async function readState(): Promise<ProfileState> {
@@ -107,6 +130,8 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
 
     if (data.type === "api-key" && data.apiKey) {
       label = maskKey(data.apiKey);
+    } else if (data.type === "local-cliproxyapi") {
+      label = "CLIProxyAPI";
     } else {
       const creds = await readCredentials(
         claudeProfileCredentials(entry.name),
@@ -147,13 +172,15 @@ export async function updateProfileDefaultModel(
     throw new Error("Default model cannot be empty");
   }
 
-  const nextData =
+  const nextData: ProfileData =
     currentData.type === "api-key"
       ? normalizeApiKeyProfileData({
           ...currentData,
           model: normalizedModel,
         })
-      : normalizeOAuthProfileData({ defaultModel: normalizedModel });
+      : currentData.type === "local-cliproxyapi"
+        ? { ...currentData, defaultModel: normalizedModel }
+        : normalizeOAuthProfileData({ defaultModel: normalizedModel });
 
   await writeProfileData(name, nextData);
 
@@ -205,6 +232,39 @@ export async function addApiKeyProfile(
   await writeProfileData(name, data);
   await activateProfile(name, data);
   await writeState({ active: name });
+}
+
+export async function addLocalCLIProxyAPIProfile(
+  name: string,
+  config: LocalCLIProxyAPIProfileData,
+): Promise<void> {
+  const state = await readState();
+  if (
+    state.active &&
+    state.active !== name &&
+    (await profileExists(state.active))
+  ) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
+    }
+  }
+
+  await ensureDir(claudeProfileDir(name));
+  await writeProfileData(name, config);
+  await activateProfile(name, config);
+  await writeState({ active: name });
+}
+
+export async function updateLocalCLIProxyAPIProfileIdentity(
+  name: string,
+  authIdentity: string,
+): Promise<void> {
+  const current = await readProfileData(name);
+  if (current.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  await writeProfileData(name, { ...current, authIdentity });
 }
 
 export async function switchProfile(name: string): Promise<ProfileData> {
@@ -274,10 +334,26 @@ async function activateProfile(
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
-  } else {
-    await applyOAuthConfig(targetData.defaultModel);
-    await restoreOAuthCredentials(name);
+    return;
   }
+
+  if (targetData.type === "local-cliproxyapi") {
+    // Start and verify the loopback daemon before touching the current Claude
+    // credential store. A broken local proxy must leave the prior account
+    // intact instead of producing a half-switched global configuration.
+    const runtime = await ensureManagedCLIProxyAPI({
+      profileId: targetData.profileId,
+      binaryPath: targetData.binaryPath,
+    });
+    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
+    await applyLocalCLIProxyAPIConfig(config);
+    return;
+  }
+
+  await applyOAuthConfig(targetData.defaultModel);
+  await restoreOAuthCredentials(name);
 }
 
 async function restoreOAuthCredentials(name: string): Promise<void> {
@@ -407,6 +483,31 @@ export async function prepareIsolatedOAuthRun(
   return { secureStorageDir: dir, configDir };
 }
 
+// Local CLIProxyAPI sessions use the user's skills/agents/hooks/settings via
+// the same linked configuration pattern as OAuth sessions, but never point
+// Claude at the real global credential store. That keeps normal customization
+// and project discovery available without allowing an inherited OAuth login to
+// win over the generated loopback API credentials.
+export async function prepareIsolatedLocalCLIProxyAPIRun(
+  name: string,
+): Promise<IsolatedLocalCLIProxyAPIRunContext> {
+  if (!(await profileExists(name))) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const data = await readProfileData(name);
+  if (data.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+
+  const configDir = claudeProfileConfigDir(name);
+  const secureStorageDir = claudeProfileSecureStorageDir(name);
+  await ensureDir(configDir);
+  await ensurePrivateDir(secureStorageDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await writeIsolatedLocalClaudeJson(name);
+  return { secureStorageDir, configDir };
+}
+
 async function prepareIsolatedOAuthConfig(name: string): Promise<void> {
   const configDir = claudeProfileConfigDir(name);
   await ensureDir(configDir);
@@ -486,6 +587,14 @@ async function writeIsolatedClaudeJson(name: string): Promise<void> {
   await writeJson(claudeProfileConfigJson(name), data);
 }
 
+async function writeIsolatedLocalClaudeJson(name: string): Promise<void> {
+  // Preserve non-auth UI/customization metadata that Claude keeps here, but
+  // never carry the globally active OAuth account into this API-key session.
+  const data = await readJson<Record<string, unknown>>(CLAUDE_JSON, {});
+  delete data.oauthAccount;
+  await writeJson(claudeProfileConfigJson(name), data);
+}
+
 // After an isolated `-run` session ends, fold any tokens it refreshed back
 // into the profile snapshot so later global switches restore a live refresh
 // token instead of a rotated-out one.
@@ -502,6 +611,13 @@ async function isProfileApplied(
   name: string,
   targetData: ProfileData,
 ): Promise<boolean> {
+  if (targetData.type === "local-cliproxyapi") {
+    // A process can disappear after a prior global switch. Re-activation is
+    // deliberately cheap when healthy and guarantees `claudex-switch <alias>`
+    // still ensures the per-account proxy on every invocation.
+    return false;
+  }
+
   if (targetData.type === "api-key") {
     if (!sameApiConfig(targetData, await getApiConfig())) return false;
     if (await readCredentials(CREDENTIALS_FILE)) return false;
@@ -585,12 +701,24 @@ export async function removeProfile(name: string): Promise<void> {
   const state = await readState();
   const data = await readProfileData(name);
 
-  if (state.active === name && data.type === "api-key") {
-    await clearApiConfig();
-  }
-
   if (data.type === "oauth") {
     await deleteIsolatedCredentials(claudeProfileDir(name));
+  }
+
+  if (data.type === "local-cliproxyapi") {
+    // This can refuse when a tracked `--run` session is active. Let that error
+    // reach purge unchanged so aliases and managed auth remain intact.
+    await purgeManagedCLIProxyAPI({
+      profileId: data.profileId,
+      binaryPath: data.binaryPath,
+    });
+  }
+
+  if (
+    state.active === name &&
+    (data.type === "api-key" || data.type === "local-cliproxyapi")
+  ) {
+    await clearApiConfig();
   }
 
   await rm(claudeProfileDir(name), { recursive: true });

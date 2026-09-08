@@ -10,9 +10,12 @@ import { readCredentials } from "../providers/claude/credentials";
 import {
   getProfileData,
   profileExists,
+  readState,
   snapshotActiveOAuthProfile,
   switchProfile,
+  updateLocalCLIProxyAPIProfileIdentity,
 } from "../providers/claude/profiles";
+import { runManagedCLIProxyAPICodexLogin } from "../providers/cliproxyapi/managed";
 import {
   decodeIdToken,
   removeAccountAuthFile,
@@ -63,6 +66,10 @@ async function refreshClaude(
   }
 
   const profile = await getProfileData(profileName);
+  if (profile.type === "local-cliproxyapi") {
+    await refreshLocalCLIProxyAPI(alias, profileName, profile);
+    return;
+  }
   if (profile.type !== "oauth") {
     error("Claude API key accounts do not need refresh.");
     blank();
@@ -130,6 +137,62 @@ async function refreshClaude(
 
   success(
     `Refreshed ${chalk.bold(alias)}  ${formatProvider("claude")}  ${formatType("oauth")}  ${label}${email}`,
+  );
+  blank();
+}
+
+async function refreshLocalCLIProxyAPI(
+  alias: string,
+  profileName: string,
+  profile: Extract<Awaited<ReturnType<typeof getProfileData>>, { type: "local-cliproxyapi" }>,
+): Promise<void> {
+  if (!profile.authIdentity) {
+    error("This local CLIProxyAPI account has no saved identity fingerprint and cannot be safely refreshed.");
+    hint("Remove and add it again to create a new isolated local login.");
+    blank();
+    process.exit(1);
+  }
+
+  info(`Opening CLIProxyAPI's own ChatGPT login for ${chalk.bold(alias)}...`);
+  blank();
+
+  let login;
+  try {
+    // The manager logs into a staging auth directory, checks that exactly one
+    // valid Codex credential belongs to the same fingerprint, stops only an
+    // idle verified daemon, then atomically replaces the active auth dir.
+    login = await runManagedCLIProxyAPICodexLogin(
+      { profileId: profile.profileId, binaryPath: profile.binaryPath },
+      undefined,
+      profile.authIdentity,
+    );
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
+
+  if (!login?.success || !login.identity) {
+    error(
+      login?.identityMismatch
+        ? "ChatGPT login completed for a different account; the existing local account was left unchanged."
+        : "CLIProxyAPI ChatGPT login failed or was cancelled; the existing local account was left unchanged.",
+    );
+    blank();
+    process.exit(1);
+  }
+
+  await updateLocalCLIProxyAPIProfileIdentity(profileName, login.identity);
+
+  // A non-run `claudex-switch <alias>` applies global settings. If this local
+  // profile is active, recreate its stopped proxy and refresh those settings
+  // so plain `claude` immediately follows the renewed private runtime.
+  if ((await readState()).active === profileName) {
+    await switchProfile(profileName);
+  }
+
+  success(
+    `Refreshed ${chalk.bold(alias)}  ${formatProvider("claude")}  ${formatType("local-cliproxyapi")}`,
   );
   blank();
 }

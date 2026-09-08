@@ -73,6 +73,8 @@ async function switchClaude(
 
   if (data.type === "api-key" && data.apiKey) {
     label = chalk.dim(maskKey(data.apiKey));
+  } else if (data.type === "local-cliproxyapi") {
+    label = chalk.dim("CLIProxyAPI · local ChatGPT login");
   } else {
     const creds = await readCredentials(
       claudeProfileCredentials(profileName),
