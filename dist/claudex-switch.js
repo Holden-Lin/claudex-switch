@@ -9049,7 +9049,7 @@ import { spawnSync as spawnSync5 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.10.0",
+  version: "1.10.1",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -10606,6 +10606,38 @@ function aliasRejectionMessage(rejection) {
   return ALIAS_REJECTIONS[rejection];
 }
 
+// src/webconfig/validation.ts
+function optional(value) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+function requireValidUrl(value) {
+  const trimmed = value.trim();
+  if (!trimmed)
+    return;
+  try {
+    new URL(trimmed);
+  } catch {
+    throw new Error(`请求地址不是合法 URL：${trimmed}`);
+  }
+}
+function validateCustomEnv(env2) {
+  const result = {};
+  for (const [rawKey, rawValue] of Object.entries(env2 ?? {})) {
+    const key = String(rawKey).trim();
+    if (!key)
+      continue;
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+      throw new Error(`环境变量名 "${key}" 无效：只能用大写字母、数字和下划线，且不能以数字开头`);
+    }
+    if (!isValidCustomEnvKey(key)) {
+      throw new Error(`"${key}" 上面已有专门的输入框，请填在那里`);
+    }
+    result[key] = typeof rawValue === "string" ? rawValue.trim() : "";
+  }
+  return result;
+}
+
 // src/webconfig/snapshot.ts
 async function buildSnapshot() {
   const aliasReg = await loadAliases();
@@ -10794,7 +10826,7 @@ async function applyChange(change) {
     throw new Error(`别名 "${change.alias}" 不存在`);
   }
   const fields = sanitizeFields(change.fields);
-  const env2 = change.env === undefined ? undefined : validateEnv(change.env);
+  const env2 = change.env === undefined ? undefined : validateCustomEnv(change.env);
   if (entry.target.provider === "claude") {
     validateClaudeFields(fields);
     const { reapplied } = await updateClaudeProfileConfig(entry.target.profileName, { fields, env: env2 });
@@ -10804,7 +10836,7 @@ async function applyChange(change) {
 }
 async function applyCodexChange(accountKey, alias, fields) {
   if (fields.baseUrl !== undefined)
-    validateUrl(fields.baseUrl);
+    requireValidUrl(fields.baseUrl);
   const registry = await loadRegistry();
   const existing = findAccountByKey(registry, accountKey);
   if (existing?.api_provider?.type === "custom" && fields.baseUrl !== undefined && !fields.baseUrl.trim()) {
@@ -10846,36 +10878,10 @@ function sanitizeFields(fields) {
 }
 function validateClaudeFields(fields) {
   if (fields.baseUrl !== undefined)
-    validateUrl(fields.baseUrl);
+    requireValidUrl(fields.baseUrl);
   if (fields.apiKey !== undefined && !fields.apiKey.trim()) {
     throw new Error("API Key 不能为空");
   }
-}
-function validateUrl(value) {
-  const trimmed = value.trim();
-  if (!trimmed)
-    return;
-  try {
-    new URL(trimmed);
-  } catch {
-    throw new Error(`请求地址不是合法 URL：${trimmed}`);
-  }
-}
-function validateEnv(env2) {
-  const result = {};
-  for (const [rawKey, rawValue] of Object.entries(env2 ?? {})) {
-    const key = String(rawKey).trim();
-    if (!key)
-      continue;
-    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
-      throw new Error(`环境变量名 "${key}" 无效：只能用大写字母、数字和下划线，且不能以数字开头`);
-    }
-    if (!isValidCustomEnvKey(key)) {
-      throw new Error(`"${key}" 上面已有专门的输入框，请填在那里`);
-    }
-    result[key] = typeof rawValue === "string" ? rawValue.trim() : "";
-  }
-  return result;
 }
 
 // src/webconfig/create.ts
@@ -10900,7 +10906,7 @@ async function createClaude(request, alias, fields) {
     throw new Error("API Key 不能为空");
   const baseUrl2 = optional(fields.baseUrl);
   if (baseUrl2)
-    requireUrl(baseUrl2);
+    requireValidUrl(baseUrl2);
   await createClaudeApiKeyAccount({
     alias,
     apiKey,
@@ -10912,17 +10918,17 @@ async function createClaude(request, alias, fields) {
     defaultOpusModel: optional(fields.defaultOpusModel),
     defaultHaikuModel: optional(fields.defaultHaikuModel),
     subagentModel: optional(fields.subagentModel),
-    env: request.env
+    env: validateCustomEnv(request.env)
   });
 }
 async function createCodex(request, alias, fields) {
   const apiKey = (fields.apiKey ?? "").trim();
   if (!apiKey)
     throw new Error("API Key 不能为空");
+  const provider = resolveCodexProvider(fields);
   const defaultModel = (fields.defaultModel ?? "").trim();
   if (!defaultModel)
     throw new Error("默认模型不能为空");
-  const provider = resolveCodexProvider(fields);
   const existing = findAliasByTarget(await loadAliases(), {
     provider: "codex",
     accountKey: codexApiAccountKey(apiKey)
@@ -10955,7 +10961,7 @@ function resolveCodexProvider(fields) {
   const baseUrl2 = (fields.baseUrl ?? "").trim();
   if (!baseUrl2)
     throw new Error("中转站的请求地址不能为空");
-  requireUrl(baseUrl2);
+  requireValidUrl(baseUrl2);
   const model2 = (fields.model ?? "").trim();
   if (!model2)
     throw new Error("Provider 模型不能为空");
@@ -10970,17 +10976,6 @@ function resolveCodexProvider(fields) {
     model: model2,
     env_key: envKey
   };
-}
-function optional(value) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-function requireUrl(value) {
-  try {
-    new URL(value);
-  } catch {
-    throw new Error(`请求地址不是合法 URL：${value}`);
-  }
 }
 
 // src/webconfig/server.ts

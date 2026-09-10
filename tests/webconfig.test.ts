@@ -894,6 +894,54 @@ describe("webconfig account creation", () => {
     expect((await buildSnapshot()).codex).toEqual([]);
   });
 
+  test("rejects a bad custom env key instead of silently dropping it", async () => {
+    await seedAliases([]);
+
+    // The edit path already refuses these; creating must not quietly discard a
+    // variable the user typed and the form reported as saved.
+    await expect(
+      createAccount({
+        provider: "claude",
+        alias: "envy",
+        fields: { apiKey: "sk-envy" },
+        env: { "lower-case": "1" },
+      }),
+    ).rejects.toThrow("无效");
+
+    await expect(
+      createAccount({
+        provider: "claude",
+        alias: "envy",
+        fields: { apiKey: "sk-envy" },
+        env: { ANTHROPIC_BASE_URL: "https://x.example.com" },
+      }),
+    ).rejects.toThrow("专门的输入框");
+
+    expect((await buildSnapshot()).claude).toEqual([]);
+  });
+
+  test("names the relay model field when a relay create omits it", async () => {
+    await seedAliases([]);
+
+    // A relay's default model is derived from its provider model, so an empty
+    // model must not be reported as a missing "默认模型" the form never showed.
+    await expect(
+      createAccount({
+        provider: "codex",
+        alias: "relay",
+        fields: {
+          apiKey: "sk-relay",
+          providerType: "custom",
+          providerName: "deepseekrelay",
+          baseUrl: "https://api.deepseek.com/v1",
+          model: "",
+          envKey: "OPENAI_API_KEY",
+          defaultModel: "",
+        },
+      }),
+    ).rejects.toThrow("Provider 模型不能为空");
+  });
+
   test("rejects bad input before creating anything", async () => {
     await setActiveClaudeProfile(null);
     await seedAliases([

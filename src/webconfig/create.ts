@@ -5,6 +5,7 @@ import {
   createCodexApiKeyAccount,
 } from "../accounts/create";
 import { aliasRejectionMessage } from "./messages";
+import { optional, requireValidUrl, validateCustomEnv } from "./validation";
 import type { CodexApiProviderConfig, CustomEnv, Provider } from "../types";
 
 // Request-shaped input for the page's "new account" form. Kept flat and string
@@ -51,7 +52,7 @@ async function createClaude(
   if (!apiKey) throw new Error("API Key 不能为空");
 
   const baseUrl = optional(fields.baseUrl);
-  if (baseUrl) requireUrl(baseUrl);
+  if (baseUrl) requireValidUrl(baseUrl);
 
   await createClaudeApiKeyAccount({
     alias,
@@ -64,7 +65,7 @@ async function createClaude(
     defaultOpusModel: optional(fields.defaultOpusModel),
     defaultHaikuModel: optional(fields.defaultHaikuModel),
     subagentModel: optional(fields.subagentModel),
-    env: request.env,
+    env: validateCustomEnv(request.env),
   });
 }
 
@@ -76,10 +77,13 @@ async function createCodex(
   const apiKey = (fields.apiKey ?? "").trim();
   if (!apiKey) throw new Error("API Key 不能为空");
 
+  // Resolve the provider first: for a relay it owns the model field, and its
+  // message names that field, whereas the default-model check below would
+  // complain about an input the relay form does not even show.
+  const provider = resolveCodexProvider(fields);
+
   const defaultModel = (fields.defaultModel ?? "").trim();
   if (!defaultModel) throw new Error("默认模型不能为空");
-
-  const provider = resolveCodexProvider(fields);
 
   // Check the duplicate here rather than letting the shared creator throw, so a
   // re-added key reads in the page's language instead of English.
@@ -123,7 +127,7 @@ function resolveCodexProvider(
 
   const baseUrl = (fields.baseUrl ?? "").trim();
   if (!baseUrl) throw new Error("中转站的请求地址不能为空");
-  requireUrl(baseUrl);
+  requireValidUrl(baseUrl);
 
   const model = (fields.model ?? "").trim();
   if (!model) throw new Error("Provider 模型不能为空");
@@ -142,15 +146,3 @@ function resolveCodexProvider(
   };
 }
 
-function optional(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function requireUrl(value: string): void {
-  try {
-    new URL(value);
-  } catch {
-    throw new Error(`请求地址不是合法 URL：${value}`);
-  }
-}
