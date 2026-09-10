@@ -204,6 +204,15 @@ claudex-switch webconfig
 
 Starts a loopback-only server on `127.0.0.1`, opens it in a browser, and prints a link carrying a one-time token (it will not work from another machine, and the token is stripped from the address bar once the page loads). `Ctrl-C` stops it.
 
+The `+` beside each section heading (`CLAUDE` / `CODEX`) creates an account, with the same effect as the CLI's `add` (the new account becomes active immediately). Two credential-based types are supported:
+
+| `+` beside | Types |
+|---|---|
+| Claude | Claude API key (base URL, auth token, model mappings, custom env, plus paste-an-export-block import) |
+| Codex | Codex API key (OpenAI official, or a custom relay: provider name / base URL / model / env key) |
+
+The three types that need a browser authorization flow — Claude OAuth, Codex ChatGPT login, and local CLIProxyAPI — are not in the page yet; use `claudex-switch add <alias>` for those.
+
 Each account row carries two actions: a pencil icon that renames the alias in place (Enter saves, Esc cancels), and `删除` / delete, which destroys the account. Expanding a card edits its configuration, and every changed account saves at once:
 
 | Account type | Editable |

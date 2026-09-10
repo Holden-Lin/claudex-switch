@@ -7,6 +7,7 @@ import {
   deleteAccount,
   renameAccountAlias,
 } from "./snapshot";
+import { createAccount, type CreateAccountRequest } from "./create";
 import type { WebConfigChange } from "../types";
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -96,6 +97,34 @@ async function handleRequest(
 
   if (req.method === "GET" && url.pathname === "/api/accounts") {
     sendJson(res, 200, await buildSnapshot());
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/accounts/create") {
+    const body = (await readJsonBody(req)) as CreateAccountRequest | null;
+    if (
+      !body ||
+      (body.provider !== "claude" && body.provider !== "codex") ||
+      typeof body.alias !== "string"
+    ) {
+      sendJson(res, 400, { error: "expected { provider, alias, fields }" });
+      return;
+    }
+
+    try {
+      await createAccount({
+        provider: body.provider,
+        alias: body.alias,
+        fields: body.fields ?? {},
+        env: body.env,
+      });
+      sendJson(res, 200, { ok: true, snapshot: await buildSnapshot() });
+    } catch (err) {
+      sendJson(res, 200, {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     return;
   }
 

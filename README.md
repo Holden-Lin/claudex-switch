@@ -236,6 +236,15 @@ claudex-switch webconfig
 
 会在 `127.0.0.1` 上起一个只监听本机的服务，自动用浏览器打开，命令行里也会打印带一次性 token 的地址（换台机器打不开，页面加载后 token 会从地址栏清掉）。`Ctrl-C` 结束。
 
+分组标题（`CLAUDE` / `CODEX`）右边的 `+` 可以新增账号，选类型填表即可，效果等同 CLI 的 `add`（建完会立即切为当前生效账号）。目前支持两种凭据型账号：
+
+| `+` 位置 | 可选类型 |
+|---|---|
+| Claude | Claude API Key（含请求地址、Auth Token、各模型映射、自定义环境变量，支持贴 export 块导入） |
+| Codex | Codex API Key（OpenAI 官方，或自定义中转：Provider 名称 / base URL / 模型 / env key） |
+
+Claude OAuth、Codex ChatGPT 登录、本机 CLIProxyAPI 这三种需要浏览器授权的类型暂未放进网页，仍走 CLI 的 `claudex-switch add <alias>`。
+
 每个账号行右侧有两个按钮：铅笔图标可以**原位改别名**（回车保存、Esc 取消），`删除` 则是**彻底删除账号**。点开卡片就能改配置，底部一次性保存所有改动的账号：
 
 | 账号类型 | 可改内容 |

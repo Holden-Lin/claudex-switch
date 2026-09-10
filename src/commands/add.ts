@@ -10,11 +10,14 @@ import {
   aliasExists,
   findAliasByTarget,
 } from "../alias/store";
+import {
+  createClaudeApiKeyAccount,
+  createCodexApiKeyAccount,
+} from "../accounts/create";
 import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
 import {
   profileExists,
   addOAuthProfile,
-  addApiKeyProfile,
   addLocalCLIProxyAPIProfile,
   removeProfile,
 } from "../providers/claude/profiles";
@@ -241,8 +244,7 @@ async function addClaudeOAuth(alias: string): Promise<void> {
 async function addClaudeApiKey(alias: string): Promise<void> {
   const config = await promptClaudeApiConfig();
 
-  await addApiKeyProfile(alias, config);
-  await addAlias(alias, { provider: "claude", profileName: alias });
+  await createClaudeApiKeyAccount({ alias, ...config });
   blank();
   success(
     `${chalk.bold(alias)} created  ${chalk.dim(maskKey(config.apiKey))}`,
@@ -605,70 +607,33 @@ async function addCodexChatGPT(alias: string): Promise<void> {
 
 async function addCodexApiKey(alias: string): Promise<void> {
   const { provider: apiProvider, defaultModel } = await promptCodexApiProvider();
-  const key = await password({
-    message: "Paste your OpenAI API key",
-    mask: "*",
-    validate: (v) => {
-      if (!v.trim()) return "API key cannot be empty";
-      return true;
-    },
-  });
+  const key = (
+    await password({
+      message: "Paste your OpenAI API key",
+      mask: "*",
+      validate: (v) => {
+        if (!v.trim()) return "API key cannot be empty";
+        return true;
+      },
+    })
+  ).trim();
 
-  // Use a hash of the key for the account key to avoid leaking key material
-  const { createHash } = await import("crypto");
-  const keyHash = createHash("sha256").update(key.trim()).digest("hex").slice(0, 16);
-  const accountKey = `apikey::${keyHash}`;
-  const existingAlias = findAliasByTarget(await loadAliases(), {
-    provider: "codex",
-    accountKey,
-  });
-
-  if (existingAlias) {
+  try {
+    await createCodexApiKeyAccount({
+      alias,
+      apiKey: key,
+      provider: apiProvider,
+      defaultModel,
+    });
+  } catch (err) {
     blank();
-    error(`This Codex account is already imported as "${existingAlias.alias}".`);
+    error(err instanceof Error ? err.message : String(err));
     blank();
     process.exit(1);
   }
 
-  const reg = await loadRegistry();
-  await syncActiveAuthSnapshot(reg);
-
-  // Create auth file
-  await saveAccountAuth(accountKey, {
-    auth_mode: "apikey",
-    OPENAI_API_KEY: key.trim(),
-  });
-
-  // Update registry
-  const accountRecord: CodexRegistryAccount = {
-    account_key: accountKey,
-    chatgpt_account_id: "",
-    chatgpt_user_id: "",
-    email: "",
-    alias: alias,
-    account_name: null,
-    plan: null,
-    auth_mode: "apikey",
-    default_model: defaultModel,
-    api_provider: apiProvider,
-    created_at: Math.floor(Date.now() / 1000),
-    last_used_at: Math.floor(Date.now() / 1000),
-    last_usage: null,
-    last_usage_at: null,
-    last_local_rollout: null,
-  };
-  addAccountToRegistry(reg, accountRecord);
-  setActiveAccount(reg, accountKey);
-  await saveRegistry(reg);
-  await switchToAccount(accountKey);
-  await applyCodexApiProvider(apiProvider, key.trim(), defaultModel);
-
-  await addAlias(alias, { provider: "codex", accountKey });
-
   blank();
-  success(
-    `${chalk.bold(alias)} created  ${chalk.dim(maskKey(key.trim()))}`,
-  );
+  success(`${chalk.bold(alias)} created  ${chalk.dim(maskKey(key))}`);
   await maybeSetupRelayBalance(apiProvider.base_url ?? undefined);
   blank();
 }

@@ -83,12 +83,12 @@ const PAGE = `<!doctype html>
   .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   .field label code { font-size: 11px; opacity: .75; }
   .row { display: flex; gap: 6px; }
-  input, textarea {
+  input, textarea, select {
     width: 100%; padding: 7px 9px; font: inherit; font-size: 13px;
     color: var(--text); background: var(--field-bg);
     border: 1px solid var(--border); border-radius: 6px;
   }
-  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   input:disabled { color: var(--muted); cursor: not-allowed; }
   textarea { resize: vertical; min-height: 68px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   button {
@@ -127,6 +127,14 @@ const PAGE = `<!doctype html>
   button.confirm-delete { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
   button.confirm-delete:hover { color: #fff; opacity: .9; }
   .alias-input { width: 190px; padding: 4px 8px; font-size: 13px; font-weight: 600; }
+  .section-head { display: flex; align-items: center; gap: 8px; }
+  .card.new-card { border-color: var(--accent); }
+  .new-card .card-head { cursor: default; }
+  .new-card .card-head:hover { background: none; }
+  .new-note {
+    margin: 12px 0 0; padding: 8px 10px; border-radius: 6px;
+    background: var(--accent-soft); color: var(--text); font-size: 12.5px;
+  }
   .alias-wrap { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
   /* Icon-only affordances: no chrome until hovered, so the header stays quiet. */
   button.icon-btn {
@@ -158,6 +166,7 @@ const PAGE = `<!doctype html>
   .status.ok { color: var(--ok); }
   .status.bad { color: var(--danger); }
   .empty { color: var(--muted); padding: 24px 0; }
+  button.add-account { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -195,6 +204,7 @@ const PAGE = `<!doctype html>
     subagentModel: ["子代理模型", "CLAUDE_CODE_SUBAGENT_MODEL"],
     defaultModel: ["默认模型", ""],
     binaryPath: ["CLIProxyAPI 可执行文件", ""],
+    providerType: ["Provider 类型", ""],
     providerName: ["Provider 名称", "model_providers"],
     envKey: ["环境变量名", "env_key"]
   };
@@ -230,6 +240,9 @@ const PAGE = `<!doctype html>
   var renaming = {};
   var pendingDelete = {};
   var busy = {};
+  // Open "new account" forms, keyed by provider. Lazily created so a section
+  // that was never opened holds no state.
+  var newForms = {};
 
   var listEl = document.getElementById("list");
   var subEl = document.getElementById("sub");
@@ -268,6 +281,8 @@ const PAGE = `<!doctype html>
       iconPath(svg, "M11.1 2.3l2.6 2.6-8.3 8.3-3.3.7.7-3.3 8.3-8.3zM10.2 3.2l2.6 2.6");
     } else if (name === "check") {
       iconPath(svg, "M3 8.5l3.2 3.2L13 5");
+    } else if (name === "plus") {
+      iconPath(svg, "M8 3.2v9.6M3.2 8h9.6");
     } else {
       iconPath(svg, "M4 4l8 8M12 4l-8 8");
     }
@@ -358,17 +373,24 @@ const PAGE = `<!doctype html>
     statusEl.className = "status" + (kind ? " " + kind : "");
   }
 
-  function fieldLabel(account, key) {
-    var entry = (account.provider === "codex" && CODEX_FIELD_LABELS[key]) ||
+  function fieldLabel(provider, key) {
+    var entry = (provider === "codex" && CODEX_FIELD_LABELS[key]) ||
       FIELD_LABELS[key] || [key, ""];
     return entry;
   }
 
-  function buildField(account, key, onChange) {
-    var draft = draftOf(account);
-    var labels = fieldLabel(account, key);
+  // spec: what this form is (provider, which keys are secret/readonly).
+  // entry: { key, kind, options, showWhen } describing one field.
+  // draft: the live values ({ fields, reveal }) this renderer binds to.
+  function buildField(spec, entry, draft, onChange) {
+    var key = entry.key;
+    var labels = fieldLabel(spec.provider, key);
+    // Associate the label with its control: it is what makes the form usable
+    // with a screen reader, and what lets a test address a field by its name.
+    var inputId = "f-" + spec.scope + "-" + key;
     var wrap = el("div", "field");
     var label = el("label", null, labels[0]);
+    label.htmlFor = inputId;
     if (labels[1]) {
       label.appendChild(document.createTextNode("  "));
       label.appendChild(el("code", null, labels[1]));
@@ -376,13 +398,34 @@ const PAGE = `<!doctype html>
     wrap.appendChild(label);
 
     var row = el("div", "row");
+    var isSecret = spec.secretFields.indexOf(key) >= 0;
+
+    if (entry.kind === "select") {
+      var select = document.createElement("select");
+      select.id = inputId;
+      entry.options.forEach(function (option) {
+        var node = document.createElement("option");
+        node.value = option[0];
+        node.textContent = option[1];
+        select.appendChild(node);
+      });
+      select.value = draft.fields[key] || entry.options[0][0];
+      select.addEventListener("change", function () {
+        draft.fields[key] = select.value;
+        onChange(entry);
+      });
+      row.appendChild(select);
+      wrap.appendChild(row);
+      return wrap;
+    }
+
     var input = document.createElement("input");
-    var isSecret = account.secretFields.indexOf(key) >= 0;
+    input.id = inputId;
     input.type = isSecret && !draft.reveal[key] ? "password" : "text";
     input.value = draft.fields[key] || "";
     input.autocomplete = "off";
     input.spellcheck = false;
-    if (account.readonly.indexOf(key) >= 0) input.disabled = true;
+    if (spec.readonly.indexOf(key) >= 0) input.disabled = true;
     input.addEventListener("input", function () {
       draft.fields[key] = input.value;
       onChange();
@@ -404,8 +447,7 @@ const PAGE = `<!doctype html>
     return wrap;
   }
 
-  function buildEnvSection(account, rerender, onChange) {
-    var draft = draftOf(account);
+  function buildEnvSection(draft, rerender, onChange) {
     var box = document.createElement("div");
     var label = el("div", "section-label", "自定义环境变量");
     box.appendChild(label);
@@ -458,8 +500,9 @@ const PAGE = `<!doctype html>
     return box;
   }
 
-  function buildPasteBox(account, rerender) {
-    var draft = draftOf(account);
+  // fieldKeys is the set of fixed fields this form owns; a pasted key that
+  // matches one lands there, everything else becomes a custom env var.
+  function buildPasteBox(draft, fieldKeys, rerender) {
     var details = el("details", "paste");
     details.appendChild(el("summary", null, "从 export 代码块粘贴导入"));
 
@@ -476,7 +519,7 @@ const PAGE = `<!doctype html>
       var extra = 0;
       Object.keys(parsed).forEach(function (envKey) {
         var field = ENV_TO_FIELD[envKey];
-        if (field && Object.prototype.hasOwnProperty.call(account.fields, field)) {
+        if (field && fieldKeys.indexOf(field) >= 0) {
           draft.fields[field] = parsed[envKey];
           known += 1;
           return;
@@ -486,7 +529,7 @@ const PAGE = `<!doctype html>
         else draft.env.push({ key: envKey, value: parsed[envKey] });
         extra += 1;
       });
-      setStatus("已填入 " + known + " 个字段、" + extra + " 个自定义变量，确认后点保存。");
+      setStatus("已填入 " + known + " 个字段、" + extra + " 个自定义变量。");
       rerender();
     });
     row.appendChild(apply);
@@ -605,6 +648,254 @@ const PAGE = `<!doctype html>
     return head;
   }
 
+  // What an existing account's card edits. Derived from the account so the card
+  // and the new-account form can share one field renderer.
+  function accountSpec(account) {
+    return {
+      scope: "card-" + account.alias,
+      provider: account.provider,
+      secretFields: account.secretFields,
+      readonly: account.readonly,
+      supportsEnv: account.supportsEnv,
+      fields: FIELD_ORDER.filter(function (key) {
+        return Object.prototype.hasOwnProperty.call(account.fields, key);
+      }).map(function (key) { return { key: key }; })
+    };
+  }
+
+  function isCustomCodexProvider(draft) {
+    return (draft.fields.providerType || "official") === "custom";
+  }
+
+  function isOfficialCodexProvider(draft) {
+    return (draft.fields.providerType || "official") !== "custom";
+  }
+
+  var NEW_ACCOUNT_SPECS = {
+    claude: {
+      scope: "new-claude",
+      provider: "claude",
+      title: "新增 Claude API Key 账号",
+      note: "创建后会立即切为当前生效的 Claude 账号（与 CLI 的 add 一致）。",
+      secretFields: ["apiKey", "authToken"],
+      readonly: [],
+      supportsEnv: true,
+      fields: [
+        { key: "apiKey" },
+        { key: "baseUrl" },
+        { key: "authToken" },
+        { key: "model" },
+        { key: "defaultFableModel" },
+        { key: "defaultOpusModel" },
+        { key: "defaultSonnetModel" },
+        { key: "defaultHaikuModel" },
+        { key: "subagentModel" }
+      ]
+    },
+    codex: {
+      scope: "new-codex",
+      provider: "codex",
+      title: "新增 Codex API Key 账号",
+      note: "创建后会立即切为当前生效的 Codex 账号，并重写 ~/.codex/config.toml。",
+      secretFields: ["apiKey"],
+      readonly: [],
+      supportsEnv: false,
+      fields: [
+        {
+          key: "providerType",
+          kind: "select",
+          options: [
+            ["official", "OpenAI 官方"],
+            ["custom", "自定义中转（relay）"]
+          ]
+        },
+        { key: "apiKey" },
+        { key: "defaultModel", showWhen: isOfficialCodexProvider },
+        { key: "providerName", showWhen: isCustomCodexProvider },
+        { key: "baseUrl", showWhen: isCustomCodexProvider },
+        { key: "model", showWhen: isCustomCodexProvider },
+        { key: "envKey", showWhen: isCustomCodexProvider }
+      ]
+    }
+  };
+
+  function visibleFields(spec, draft) {
+    return spec.fields.filter(function (entry) {
+      return !entry.showWhen || entry.showWhen(draft);
+    });
+  }
+
+  function newFormOf(provider) {
+    var form = newForms[provider];
+    if (form) return form;
+
+    var spec = NEW_ACCOUNT_SPECS[provider];
+    var fields = {};
+    spec.fields.forEach(function (entry) {
+      if (entry.kind === "select") fields[entry.key] = entry.options[0][0];
+    });
+    if (provider === "codex") {
+      fields.defaultModel = (snapshot && snapshot.codexDefaultModel) || "";
+      fields.envKey = "OPENAI_API_KEY";
+    }
+
+    form = {
+      alias: "",
+      fields: fields,
+      env: [],
+      reveal: {},
+      error: null,
+      busy: false
+    };
+    newForms[provider] = form;
+    return form;
+  }
+
+  function openNewForm(provider) {
+    newFormOf(provider);
+    render();
+  }
+
+  function closeNewForm(provider) {
+    delete newForms[provider];
+    render();
+  }
+
+  function rerenderNewForm(provider, focus) {
+    var current = listEl.querySelector('[data-new="' + cssEscape(provider) + '"]');
+    if (!current) return render();
+    var next = buildNewForm(provider);
+    next.setAttribute("data-new", provider);
+    current.replaceWith(next);
+    if (focus && focus.env !== undefined) {
+      var input = next.querySelector('[data-env-key="' + focus.env + '"]');
+      if (input) input.focus();
+    }
+  }
+
+  function buildNewForm(provider) {
+    var spec = NEW_ACCOUNT_SPECS[provider];
+    var form = newFormOf(provider);
+    var card = el("div", "card new-card");
+
+    var head = el("div", "card-head");
+    head.appendChild(el("span", "alias", spec.title));
+    head.appendChild(el("span", "spacer"));
+    var cancelTop = el("button", "mini", "取消");
+    cancelTop.type = "button";
+    cancelTop.addEventListener("click", function () { closeNewForm(provider); });
+    head.appendChild(cancelTop);
+    card.appendChild(head);
+
+    var body = el("div", "card-body");
+    body.appendChild(el("div", "new-note", spec.note));
+
+    var aliasField = el("div", "field");
+    var aliasLabel = el("label", null, "别名");
+    aliasLabel.htmlFor = "f-" + spec.scope + "-alias";
+    aliasField.appendChild(aliasLabel);
+    var aliasRow = el("div", "row");
+    var aliasInput = document.createElement("input");
+    aliasInput.id = "f-" + spec.scope + "-alias";
+    aliasInput.value = form.alias;
+    aliasInput.placeholder = "例如 deepseek";
+    aliasInput.autocomplete = "off";
+    aliasInput.spellcheck = false;
+    aliasInput.addEventListener("input", function () {
+      form.alias = aliasInput.value;
+    });
+    aliasRow.appendChild(aliasInput);
+    aliasField.appendChild(aliasRow);
+    body.appendChild(aliasField);
+
+    var grid = el("div", "grid");
+    visibleFields(spec, form).forEach(function (entry) {
+      grid.appendChild(
+        buildField(spec, entry, form, function (changed) {
+          // Only a visibility-affecting change redraws; redrawing on every
+          // keystroke would steal focus from the input being typed in.
+          if (changed && changed.kind === "select") rerenderNewForm(provider);
+        })
+      );
+    });
+    body.appendChild(grid);
+
+    if (spec.supportsEnv) {
+      body.appendChild(
+        buildEnvSection(
+          form,
+          function (focus) { rerenderNewForm(provider, focus); },
+          function () {}
+        )
+      );
+      body.appendChild(
+        buildPasteBox(form, spec.fields.map(function (e) { return e.key; }), function () {
+          rerenderNewForm(provider);
+        })
+      );
+    }
+
+    var actions = el("div", "row");
+    actions.style.marginTop = "16px";
+    var submit = el("button", "primary", form.busy ? "创建中…" : "创建账号");
+    submit.type = "button";
+    submit.disabled = form.busy;
+    submit.addEventListener("click", function () { submitNewForm(provider); });
+    actions.appendChild(submit);
+
+    var cancelBottom = el("button", null, "取消");
+    cancelBottom.type = "button";
+    cancelBottom.addEventListener("click", function () { closeNewForm(provider); });
+    actions.appendChild(cancelBottom);
+    body.appendChild(actions);
+
+    if (form.error) body.appendChild(el("div", "err", form.error));
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function submitNewForm(provider) {
+    var spec = NEW_ACCOUNT_SPECS[provider];
+    var form = newFormOf(provider);
+    if (form.busy) return;
+
+    form.busy = true;
+    form.error = null;
+    rerenderNewForm(provider);
+
+    var fields = {};
+    visibleFields(spec, form).forEach(function (entry) {
+      fields[entry.key] = form.fields[entry.key] || "";
+    });
+    // A relay's provider model doubles as the default model, the way
+    // "claudex-switch add" sets both from the single model it prompts for.
+    if (provider === "codex" && fields.providerType === "custom") {
+      fields.defaultModel = fields.model || "";
+    }
+
+    var payload = { provider: spec.provider, alias: form.alias, fields: fields };
+    if (spec.supportsEnv) payload.env = envToObject(form.env);
+
+    api("/api/accounts/create", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (data) {
+      form.busy = false;
+      if (!data.ok) throw new Error(data.error || "创建失败");
+      var created = form.alias.trim();
+      delete newForms[provider];
+      snapshot = data.snapshot;
+      render();
+      setStatus("已创建 " + created + "，并切为当前生效账号", "ok");
+    }).catch(function (err) {
+      form.busy = false;
+      form.error = err.message;
+      rerenderNewForm(provider);
+    });
+  }
+
   function buildCard(account) {
     var alias = account.alias;
     var card = el("div", "card" + (isDirty(account) ? " dirty" : ""));
@@ -631,16 +922,19 @@ const PAGE = `<!doctype html>
       rerenderCard(account.alias, focus);
     };
 
+    var spec = accountSpec(account);
+    var draft = draftOf(account);
     var grid = el("div", "grid");
-    FIELD_ORDER.forEach(function (key) {
-      if (!Object.prototype.hasOwnProperty.call(account.fields, key)) return;
-      grid.appendChild(buildField(account, key, onChange));
+    spec.fields.forEach(function (entry) {
+      grid.appendChild(buildField(spec, entry, draft, onChange));
     });
     body.appendChild(grid);
 
-    if (account.supportsEnv) {
-      body.appendChild(buildEnvSection(account, rerender, onChange));
-      body.appendChild(buildPasteBox(account, rerender));
+    if (spec.supportsEnv) {
+      body.appendChild(buildEnvSection(draft, rerender, onChange));
+      body.appendChild(
+        buildPasteBox(draft, spec.fields.map(function (e) { return e.key; }), rerender)
+      );
     } else {
       body.appendChild(el("div", "hint",
         "Codex 从 ~/.codex/config.toml 读取配置，不使用 Claude Code 的环境变量。"));
@@ -816,10 +1110,23 @@ const PAGE = `<!doctype html>
     return String(value).replace(/["\\\\]/g, "\\\\$&");
   }
 
-  function renderGroup(title, items) {
+  function renderGroup(title, items, provider) {
     var box = document.createDocumentFragment();
-    box.appendChild(el("h2", null, title));
-    if (items.length === 0) {
+
+    var heading = el("h2", "section-head");
+    heading.appendChild(document.createTextNode(title));
+    var add = iconButton("plus", "新增 " + title + " 账号", "add-account");
+    add.addEventListener("click", function () { openNewForm(provider); });
+    heading.appendChild(add);
+    box.appendChild(heading);
+
+    if (newForms[provider]) {
+      var form = buildNewForm(provider);
+      form.setAttribute("data-new", provider);
+      box.appendChild(form);
+    }
+
+    if (items.length === 0 && !newForms[provider]) {
       box.appendChild(el("div", "empty", "没有账号"));
       return box;
     }
@@ -834,8 +1141,8 @@ const PAGE = `<!doctype html>
   function render() {
     listEl.textContent = "";
     if (!snapshot) return;
-    listEl.appendChild(renderGroup("Claude", snapshot.claude));
-    listEl.appendChild(renderGroup("Codex", snapshot.codex));
+    listEl.appendChild(renderGroup("Claude", snapshot.claude, "claude"));
+    listEl.appendChild(renderGroup("Codex", snapshot.codex, "codex"));
     subEl.textContent = "共 " + accounts().length + " 个账号 · " +
       "改完点底部保存；当前生效的账号会立即同步到全局配置";
     refreshFooter();

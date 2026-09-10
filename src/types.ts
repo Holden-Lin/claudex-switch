@@ -295,6 +295,8 @@ export interface WebConfigSnapshot {
   generatedAt: number;
   claude: WebConfigAccount[];
   codex: WebConfigAccount[];
+  /** Prefill for the new-account form; avoids duplicating it in the page. */
+  codexDefaultModel: string;
 }
 
 export interface WebConfigChange {

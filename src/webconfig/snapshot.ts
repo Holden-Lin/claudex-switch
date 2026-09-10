@@ -14,8 +14,12 @@ import {
   updateClaudeProfileConfig,
 } from "../providers/claude/profiles";
 import { isValidCustomEnvKey } from "../providers/claude/settings";
+import { aliasRejectionMessage } from "./messages";
 import { readAccountAuth, saveAccountAuth } from "../providers/codex/auth";
-import { applyCodexApiProvider } from "../providers/codex/config";
+import {
+  applyCodexApiProvider,
+  DEFAULT_CODEX_MODEL,
+} from "../providers/codex/config";
 import {
   findAccountByKey,
   loadRegistry,
@@ -67,7 +71,13 @@ export async function buildSnapshot(): Promise<WebConfigSnapshot> {
     }
   }
 
-  return { version: 1, generatedAt: Date.now(), claude, codex };
+  return {
+    version: 1,
+    generatedAt: Date.now(),
+    claude,
+    codex,
+    codexDefaultModel: DEFAULT_CODEX_MODEL,
+  };
 }
 
 async function describeClaudeAccount(
@@ -211,13 +221,6 @@ async function describeCodexAccount(
   };
 }
 
-const RENAME_REJECTIONS: Record<string, string> = {
-  empty: "别名不能为空",
-  reserved: "这个名字是保留命令，换一个",
-  charset: "别名只能用字母、数字、连字符和下划线",
-  taken: "这个别名已经被占用了",
-};
-
 /**
  * Rename one alias, leaving the underlying account and its login untouched.
  * Identity-level, so it applies immediately rather than through the batch save.
@@ -235,7 +238,7 @@ export async function renameAccountAlias(
 
   const rejection = checkAlias(registry, target, { ignoreAlias: from });
   if (rejection) {
-    throw new Error(RENAME_REJECTIONS[rejection] ?? "别名无效");
+    throw new Error(aliasRejectionMessage(rejection));
   }
 
   // A case-only change still has to land, since checkAlias ignores self.

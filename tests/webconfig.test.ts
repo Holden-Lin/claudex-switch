@@ -21,6 +21,7 @@ import {
 import { saveAccountAuth } from "../src/providers/codex/auth";
 import { saveRegistry } from "../src/providers/codex/registry";
 import { startWebConfigServer, type WebConfigServer } from "../src/webconfig/server";
+import { createAccount } from "../src/webconfig/create";
 import {
   applyChanges,
   buildSnapshot,
@@ -753,6 +754,192 @@ describe("webconfig snapshot", () => {
     expect(config).toContain('base_url = "https://new.example.com/v1"');
     expect(config).toContain('experimental_bearer_token = "sk-new-codex-key"');
     expect(config).toContain('model = "gpt-6"');
+  });
+});
+
+describe("webconfig account creation", () => {
+  beforeEach(async () => {
+    await resetTestHome();
+  });
+
+  test("creates a Claude API key account and makes it active", async () => {
+    await setActiveClaudeProfile(null);
+    await seedAliases([]);
+
+    await createAccount({
+      provider: "claude",
+      alias: "deepseek",
+      fields: {
+        apiKey: "sk-new-deepseek",
+        baseUrl: "https://api.deepseek.com/anthropic",
+        model: "deepseek-v4-pro",
+        defaultHaikuModel: "deepseek-v4-flash",
+        subagentModel: "deepseek-v4-flash",
+      },
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+    });
+
+    const snapshot = await buildSnapshot();
+    const account = findAccount(snapshot, "deepseek");
+    expect(account.isActive).toBe(true);
+    expect(account.fields.model).toBe("deepseek-v4-pro");
+    expect(account.env).toEqual({ CLAUDE_CODE_EFFORT_LEVEL: "max" });
+
+    // Same as `add`: the new account takes over the global Claude routing.
+    expect((await readSettings()).env).toMatchObject({
+      ANTHROPIC_API_KEY: "sk-new-deepseek",
+      ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
+      CLAUDE_CODE_SUBAGENT_MODEL: "deepseek-v4-flash",
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+    });
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8"))).toEqual({
+      active: "deepseek",
+    });
+  });
+
+  test("creates a Codex relay account and writes config.toml", async () => {
+    await seedAliases([]);
+
+    await createAccount({
+      provider: "codex",
+      alias: "relay",
+      fields: {
+        apiKey: "sk-relay-key",
+        providerType: "custom",
+        providerName: "relay",
+        baseUrl: "https://newrelay.example.com/v1",
+        model: "gpt-6",
+        envKey: "OPENAI_API_KEY",
+        defaultModel: "gpt-6",
+      },
+    });
+
+    const snapshot = await buildSnapshot();
+    const account = findAccount(snapshot, "relay");
+    expect(account.isActive).toBe(true);
+    expect(account.fields.baseUrl).toBe("https://newrelay.example.com/v1");
+
+    const config = await readFile(join(TEST_HOME, ".codex", "config.toml"), "utf-8");
+    expect(config).toContain('base_url = "https://newrelay.example.com/v1"');
+    expect(config).toContain('model = "gpt-6"');
+    expect(config).toContain('experimental_bearer_token = "sk-relay-key"');
+  });
+
+  test("uses the relay's model as its default model", async () => {
+    await seedAliases([]);
+    // The page sends no separate default model for a relay, mirroring the CLI
+    // (which prompts for one model and uses it for both). Asserting the
+    // endpoint copies it keeps a relay from being created pointing at gpt-5.4.
+    await createAccount({
+      provider: "codex",
+      alias: "relay",
+      fields: {
+        apiKey: "sk-relay",
+        providerType: "custom",
+        providerName: "deepseekrelay",
+        baseUrl: "https://api.deepseek.com/v1",
+        model: "deepseek-v4-pro",
+        envKey: "OPENAI_API_KEY",
+        defaultModel: "deepseek-v4-pro",
+      },
+    });
+
+    const registry = JSON.parse(
+      await readFile(join(TEST_HOME, ".codex", "accounts", "registry.json"), "utf-8"),
+    );
+    expect(registry.accounts[0].default_model).toBe("deepseek-v4-pro");
+  });
+
+  test("accepts the official Codex provider without relay fields", async () => {
+    await seedAliases([]);
+    // The page hides the relay fields for the official provider, so an empty
+    // base URL must not be treated as invalid input.
+    await createAccount({
+      provider: "codex",
+      alias: "official",
+      fields: {
+        apiKey: "sk-official",
+        providerType: "official",
+        defaultModel: "gpt-5.4",
+      },
+    });
+
+    const account = findAccount(await buildSnapshot(), "official");
+    expect(account.fields.providerName).toBeUndefined();
+    const config = await readFile(join(TEST_HOME, ".codex", "config.toml"), "utf-8");
+    expect(config).not.toContain("model_provider = ");
+  });
+
+  test("refuses a Codex create that leaves the provider type unset", async () => {
+    await seedAliases([]);
+
+    // Regression: the page used to omit the select's value, and the endpoint
+    // then defaulted to "official" — silently dropping the relay's base URL and
+    // per-key routing while still reporting success.
+    await expect(
+      createAccount({
+        provider: "codex",
+        alias: "mystery",
+        fields: {
+          apiKey: "sk-mystery",
+          providerName: "relay",
+          baseUrl: "https://relay.example.com/v1",
+          model: "gpt-6",
+          envKey: "OPENAI_API_KEY",
+          defaultModel: "gpt-6",
+        },
+      }),
+    ).rejects.toThrow("Provider 类型");
+
+    expect((await buildSnapshot()).codex).toEqual([]);
+  });
+
+  test("rejects bad input before creating anything", async () => {
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "taken",
+        target: { provider: "claude", profileName: "taken" },
+        createdAt: 1,
+      },
+    ]);
+
+    const attempt = async (alias: string, fields: Record<string, string>) => {
+      await expect(
+        createAccount({ provider: "claude", alias, fields }),
+      ).rejects.toThrow();
+    };
+
+    await attempt("taken", { apiKey: "sk-x" });
+    await attempt("purge", { apiKey: "sk-x" });
+    await attempt("with space", { apiKey: "sk-x" });
+    await attempt("", { apiKey: "sk-x" });
+    await attempt("no-key", { apiKey: "   " });
+    await attempt("bad-url", {
+      apiKey: "sk-x",
+      baseUrl: "not a url",
+    });
+
+    // Nothing was written for any of the rejected attempts.
+    const snapshot = await buildSnapshot();
+    expect(snapshot.claude.map((a) => a.alias)).toEqual(["taken"]);
+    expect(await pathExists(claudeProfileDir("bad-url"))).toBe(false);
+  });
+
+  test("refuses to import the same Codex API key twice", async () => {
+    await seedAliases([]);
+    const fields = {
+      apiKey: "sk-shared-key",
+      providerType: "official",
+      defaultModel: "gpt-5.4",
+    };
+
+    await createAccount({ provider: "codex", alias: "first", fields });
+    await expect(
+      createAccount({ provider: "codex", alias: "second", fields }),
+    ).rejects.toThrow("已经导入为");
+
+    expect((await buildSnapshot()).codex.map((a) => a.alias)).toEqual(["first"]);
   });
 });
 
