@@ -20,6 +20,7 @@ import { refresh } from "./commands/refresh";
 import { model } from "./commands/model";
 import { version } from "./commands/version";
 import { update } from "./commands/update";
+import { webconfig } from "./commands/webconfig";
 import { doctor } from "./commands/doctor";
 import { blank, error, formatProvider, hint } from "./lib/ui";
 import { runAutoUpdateIfNeeded } from "./lib/update";
@@ -40,6 +41,7 @@ const HELP = `
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
     claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account
+    claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
     claudex-switch update              Upgrade to the latest release
@@ -292,6 +294,10 @@ async function main(): Promise<void> {
           live: args.includes("--live"),
           restart: args.includes("--restart"),
         });
+        break;
+
+      case "webconfig":
+        await webconfig(args);
         break;
 
       case "import":

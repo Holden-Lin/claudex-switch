@@ -22,6 +22,10 @@ export const CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 export const CLAUDEX_DIR = join(HOME, ".claudex-switch");
 export const ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 export const RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
+// Records which extra (non CLAUDE_ENV_KEYS) env keys claudex-switch last wrote
+// into ~/.claude/settings.json. Switching accounts clears exactly those and
+// leaves every env entry the user added by hand untouched.
+export const MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 export const CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 

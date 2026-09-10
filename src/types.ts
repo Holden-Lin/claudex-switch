@@ -58,23 +58,35 @@ export interface OAuthAccount {
 
 export type ProfileType = "oauth" | "api-key" | "local-cliproxyapi";
 
+// Extra Claude Code environment variables a profile owns beyond the fixed
+// CLAUDE_ENV_KEYS set (e.g. CLAUDE_CODE_EFFORT_LEVEL). Keys written from here
+// are tracked in managed-env.json so switching accounts can clear exactly the
+// ones claudex-switch wrote, and never a user's own settings.json entries.
+export type CustomEnv = Record<string, string>;
+
 export interface ClaudeOAuthProfileConfig {
   defaultModel?: string;
+  env?: CustomEnv;
 }
+
 
 export interface ClaudeApiProfileConfig {
   apiKey: string;
   baseUrl?: string;
   authToken?: string;
   model?: string;
+  defaultFableModel?: string;
   defaultSonnetModel?: string;
   defaultOpusModel?: string;
   defaultHaikuModel?: string;
+  subagentModel?: string;
+  env?: CustomEnv;
 }
 
 export interface OAuthProfileData {
   type: "oauth";
   defaultModel?: string;
+  env?: CustomEnv;
 }
 
 export interface ApiKeyProfileData extends ClaudeApiProfileConfig {
@@ -89,6 +101,7 @@ export interface LocalCLIProxyAPIProfileData {
   profileId: string;
   binaryPath: string;
   defaultModel: string;
+  env?: CustomEnv;
   // One-way identity fingerprint of the one credential in the managed auth
   // directory. It lets refresh reject a different ChatGPT account before it
   // replaces the existing login, without persisting tokens or account metadata.
@@ -253,4 +266,45 @@ export interface RelayConfig {
   accessToken: string;
   userId?: number | string;
   quotaPerUnit?: number;
+}
+
+// -- webconfig types --
+// One editable account as the local web UI sees it. `fields` is a flat string
+// map so the page can render inputs generically; `readonly` names the ones it
+// must display but never submit.
+export interface WebConfigAccount {
+  provider: Provider;
+  alias: string;
+  profileName?: string;
+  accountKey?: string;
+  type: string;
+  label: string;
+  isActive: boolean;
+  email: string | null;
+  fields: Record<string, string>;
+  env: CustomEnv;
+  supportsEnv: boolean;
+  secretFields: string[];
+  readonly: string[];
+}
+
+export interface WebConfigSnapshot {
+  version: 1;
+  generatedAt: number;
+  claude: WebConfigAccount[];
+  codex: WebConfigAccount[];
+}
+
+export interface WebConfigChange {
+  provider: Provider;
+  alias: string;
+  fields?: Record<string, string>;
+  env?: CustomEnv;
+}
+
+export interface WebConfigChangeResult {
+  alias: string;
+  ok: boolean;
+  reapplied: boolean;
+  error?: string;
 }

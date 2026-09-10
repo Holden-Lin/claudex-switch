@@ -42,6 +42,7 @@ import {
   clearApiConfig,
   getApiConfig,
   getConfiguredModel,
+  normalizeCustomEnv,
 } from "./settings";
 import {
   ensureManagedCLIProxyAPI,
@@ -58,6 +59,7 @@ import type {
   ClaudeOAuthProfileConfig,
   ApiKeyProfileData,
   CredentialsFile,
+  CustomEnv,
   LocalCLIProxyAPIProfileData,
 } from "../../types";
 
@@ -75,6 +77,11 @@ export interface IsolatedOAuthRunContext {
 export interface IsolatedLocalCLIProxyAPIRunContext {
   secureStorageDir: string;
   configDir: string;
+}
+
+export interface ClaudeProfileConfigPatch {
+  fields?: Record<string, string>;
+  env?: CustomEnv;
 }
 
 export interface OAuthCredentialStores {
@@ -190,6 +197,68 @@ export async function updateProfileDefaultModel(
   }
 
   return nextData;
+}
+
+// Apply a partial edit from the web UI. Only fields the profile's own type
+// owns are read out of the patch, so a stray key can never turn an OAuth
+// profile into an API-key one. Re-activates when this profile is the active
+// account, exactly like updateProfileDefaultModel does.
+export async function updateClaudeProfileConfig(
+  name: string,
+  patch: ClaudeProfileConfigPatch,
+): Promise<{ data: ProfileData; reapplied: boolean }> {
+  if (!(await profileExists(name))) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+
+  const current = await readProfileData(name);
+  const fields = patch.fields ?? {};
+  const pick = (key: string, fallback: string | undefined): string | undefined =>
+    key in fields ? fields[key] : fallback;
+  const env = patch.env === undefined ? current.env : patch.env;
+
+  let next: ProfileData;
+  if (current.type === "api-key") {
+    next = normalizeApiKeyProfileData({
+      apiKey: pick("apiKey", current.apiKey) ?? "",
+      baseUrl: pick("baseUrl", current.baseUrl),
+      authToken: pick("authToken", current.authToken),
+      model: pick("model", current.model),
+      defaultFableModel: pick("defaultFableModel", current.defaultFableModel),
+      defaultSonnetModel: pick("defaultSonnetModel", current.defaultSonnetModel),
+      defaultOpusModel: pick("defaultOpusModel", current.defaultOpusModel),
+      defaultHaikuModel: pick("defaultHaikuModel", current.defaultHaikuModel),
+      subagentModel: pick("subagentModel", current.subagentModel),
+      env,
+    });
+    if (!next.apiKey) {
+      throw new Error("API key cannot be empty");
+    }
+  } else if (current.type === "local-cliproxyapi") {
+    const defaultModel = normalizeOptionalValue(
+      pick("defaultModel", current.defaultModel),
+    );
+    if (!defaultModel) {
+      throw new Error("Default model cannot be empty");
+    }
+    next = { ...current, defaultModel, ...withCustomEnv(env) };
+    if (!next.env) delete next.env;
+  } else {
+    next = normalizeOAuthProfileData({
+      defaultModel: pick("defaultModel", current.defaultModel),
+      env,
+    });
+  }
+
+  await writeProfileData(name, next);
+
+  const state = await readState();
+  const reapplied = state.active === name;
+  if (reapplied) {
+    await activateProfile(name, next);
+  }
+
+  return { data: next, reapplied };
 }
 
 export async function addOAuthProfile(
@@ -348,11 +417,11 @@ async function activateProfile(
     const config = await getLocalCLIProxyAPISettings(targetData, runtime);
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
-    await applyLocalCLIProxyAPIConfig(config);
+    await applyLocalCLIProxyAPIConfig(config, targetData.env);
     return;
   }
 
-  await applyOAuthConfig(targetData.defaultModel);
+  await applyOAuthConfig(targetData.defaultModel, targetData.env);
   await restoreOAuthCredentials(name);
 }
 
@@ -748,6 +817,9 @@ function normalizeApiKeyProfileData(
     ...(normalizeOptionalValue(config.model)
       ? { model: normalizeOptionalValue(config.model) }
       : {}),
+    ...(normalizeOptionalValue(config.defaultFableModel)
+      ? { defaultFableModel: normalizeOptionalValue(config.defaultFableModel) }
+      : {}),
     ...(normalizeOptionalValue(config.defaultSonnetModel)
       ? { defaultSonnetModel: normalizeOptionalValue(config.defaultSonnetModel) }
       : {}),
@@ -757,6 +829,10 @@ function normalizeApiKeyProfileData(
     ...(normalizeOptionalValue(config.defaultHaikuModel)
       ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) }
       : {}),
+    ...(normalizeOptionalValue(config.subagentModel)
+      ? { subagentModel: normalizeOptionalValue(config.subagentModel) }
+      : {}),
+    ...withCustomEnv(config.env),
   };
 }
 
@@ -764,11 +840,29 @@ function normalizeOAuthProfileData(
   config: ClaudeOAuthProfileConfig,
 ): ProfileData {
   const defaultModel = normalizeOptionalValue(config.defaultModel);
-  if (defaultModel) {
-    return { type: "oauth", defaultModel };
-  }
+  return {
+    type: "oauth",
+    ...(defaultModel ? { defaultModel } : {}),
+    ...withCustomEnv(config.env),
+  };
+}
 
-  return { type: "oauth" };
+// Omit the key entirely when a profile owns no extra env, so profile.json for
+// untouched accounts keeps the exact shape it has today.
+function withCustomEnv(env: CustomEnv | undefined): { env?: CustomEnv } {
+  const normalized = normalizeCustomEnv(env);
+  return Object.keys(normalized).length > 0 ? { env: normalized } : {};
+}
+
+export function sameCustomEnv(
+  expected: CustomEnv | undefined,
+  actual: CustomEnv | undefined,
+): boolean {
+  const a = normalizeCustomEnv(expected);
+  const b = normalizeCustomEnv(actual);
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((key) => a[key] === b[key]);
 }
 
 function sameApiConfig(
@@ -785,11 +879,16 @@ function sameApiConfig(
       normalizeOptionalValue(actual.authToken) &&
     normalizeOptionalValue(expected.model) ===
       normalizeOptionalValue(actual.model) &&
+    normalizeOptionalValue(expected.defaultFableModel) ===
+      normalizeOptionalValue(actual.defaultFableModel) &&
+    normalizeOptionalValue(expected.subagentModel) ===
+      normalizeOptionalValue(actual.subagentModel) &&
     normalizeOptionalValue(expected.defaultSonnetModel) ===
       normalizeOptionalValue(actual.defaultSonnetModel) &&
     normalizeOptionalValue(expected.defaultOpusModel) ===
       normalizeOptionalValue(actual.defaultOpusModel) &&
     normalizeOptionalValue(expected.defaultHaikuModel) ===
-      normalizeOptionalValue(actual.defaultHaikuModel)
+      normalizeOptionalValue(actual.defaultHaikuModel) &&
+    sameCustomEnv(expected.env, actual.env)
   );
 }

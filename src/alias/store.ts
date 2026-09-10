@@ -22,6 +22,7 @@ const RESERVED = new Set([
   "model",
   "import",
   "update",
+  "webconfig",
   "help",
   "-run",
   "--run",

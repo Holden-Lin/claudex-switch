@@ -15,7 +15,8 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - `claudex-switch list` fetches remaining quota for all accounts in parallel, updates the Codex tier from the live rate-limit response, and updates the Claude tier from the freshest matching credentials. Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip network requests while still refreshing tiers from local credentials
 - Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
-- Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs and Sonnet / Opus / Haiku model mapping
+- `claudex-switch webconfig` opens a local web page for viewing and editing every account's base URL, key and model configuration in one place, including pasting a whole `export ANTHROPIC_*` block (see "Web Config" below)
+- Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs, Fable / Sonnet / Opus / Haiku model mapping, a subagent model, and arbitrary custom environment variables
 - Codex: ChatGPT OAuth + OpenAI API keys
 - macOS Keychain credential support
 
@@ -184,6 +185,7 @@ requires_openai_auth = false
 | `claudex-switch model <alias> <model>` | Update an existing account default model and sync it immediately when active; accepts the same shorthands |
 | `claudex-switch rename <old> <new>` | Rename an alias |
 | `claudex-switch refresh <alias>` | Re-login and update the saved credential snapshot for that alias |
+| `claudex-switch webconfig [--port <n>] [--no-open]` | Open the local web UI to view and edit every account's configuration |
 | `claudex-switch current` | Show active accounts |
 | `claudex-switch remove <alias>` | Remove an alias only |
 | `claudex-switch purge <alias>` | Delete an account and its linked aliases |
@@ -193,6 +195,33 @@ requires_openai_auth = false
 | `claudex-switch help` | Show help |
 
 **Shortcuts:** `ls` = `list`, `rm` = `remove`, `-V` = `--version`
+
+### Web Config
+
+```bash
+claudex-switch webconfig
+```
+
+Starts a loopback-only server on `127.0.0.1`, opens it in a browser, and prints a link carrying a one-time token (it will not work from another machine, and the token is stripped from the address bar once the page loads). `Ctrl-C` stops it.
+
+The page lists every account under Claude / Codex, expands into an inline form, and saves all changed accounts at once:
+
+| Account type | Editable |
+|---|---|
+| Claude API key | API key, base URL, auth token, main model, Fable / Opus / Sonnet / Haiku mapping, subagent model |
+| Claude OAuth | Default model |
+| Claude local CLIProxyAPI | Default model (the proxy owns everything else) |
+| Codex ChatGPT | Default model |
+| Codex API key | Default model, base URL, provider model, env key, API key |
+
+Two extras:
+
+- **Custom environment variables** — a Claude account can carry any `CLAUDE_CODE_*` variable (e.g. `CLAUDE_CODE_EFFORT_LEVEL=max`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW=786432`). They follow the account: cleared when you switch away, injected into isolated `-run` sessions, and env entries you added to `~/.claude/settings.json` by hand are never touched.
+- **Paste import** — drop a whole `export ANTHROPIC_BASE_URL=... / export CLAUDE_CODE_EFFORT_LEVEL=...` block in and hit parse; known keys land in their own inputs, everything else in the custom variable table.
+
+Saving an account that is currently active immediately rewrites `~/.claude/settings.json` or `~/.codex/config.toml`; an inactive account only gets its own profile updated and takes effect the next time you switch to it.
+
+The Codex provider name is read-only: it keys the `[model_providers.<name>]` table in `config.toml`, so renaming it would orphan that config and break session visibility.
 
 ### Relay Account Balance (optional)
 

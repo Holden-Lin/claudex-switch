@@ -3466,6 +3466,7 @@ var CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
 var CLAUDEX_DIR = join(HOME, ".claudex-switch");
 var ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 var RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
+var MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 var CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 var CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 function claudeProfileDir(name) {
@@ -3565,6 +3566,7 @@ var RESERVED = new Set([
   "model",
   "import",
   "update",
+  "webconfig",
   "help",
   "-run",
   "--run",
@@ -3910,47 +3912,85 @@ function setTopLevelModel(settings, model) {
   }
   delete settings.model;
 }
-async function applyApiConfig(config) {
-  const settings = await read();
+var CUSTOM_ENV_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+async function readManagedExtraEnvKeys() {
+  const record = await readJson(MANAGED_ENV_FILE, {
+    keys: []
+  });
+  if (!Array.isArray(record.keys))
+    return [];
+  return record.keys.filter((key) => typeof key === "string");
+}
+async function writeManagedExtraEnvKeys(keys) {
+  await mkdir2(dirname(MANAGED_ENV_FILE), { recursive: true });
+  await writeJson(MANAGED_ENV_FILE, { keys });
+}
+function isReservedClaudeEnvKey(key) {
+  return CLAUDE_ENV_KEYS.includes(key) || CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS.includes(key);
+}
+function isValidCustomEnvKey(key) {
+  return CUSTOM_ENV_KEY_PATTERN.test(key) && !isReservedClaudeEnvKey(key);
+}
+function normalizeCustomEnv(env2) {
+  const result = {};
+  for (const [rawKey, rawValue] of Object.entries(env2 ?? {})) {
+    const key = rawKey.trim();
+    if (!isValidCustomEnvKey(key))
+      continue;
+    const value = typeof rawValue === "string" ? rawValue.trim() : "";
+    if (!value)
+      continue;
+    result[key] = value;
+  }
+  return result;
+}
+async function beginManagedEnv(settings) {
   const env2 = normalizeEnv(settings);
   for (const key of CLAUDE_ENV_KEYS) {
     delete env2[key];
   }
+  for (const key of await readManagedExtraEnvKeys()) {
+    delete env2[key];
+  }
+  return env2;
+}
+async function commitManagedEnv(settings, env2, extraEnv) {
+  const extra = normalizeCustomEnv(extraEnv);
+  for (const [key, value] of Object.entries(extra)) {
+    env2[key] = value;
+  }
+  if (Object.keys(env2).length === 0) {
+    delete settings.env;
+  } else {
+    settings.env = env2;
+  }
+  await writeManagedExtraEnvKeys(Object.keys(extra));
+  await write(settings);
+}
+async function applyApiConfig(config) {
+  const settings = await read();
+  const env2 = await beginManagedEnv(settings);
   setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
   setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
   setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
-  if (Object.keys(env2).length === 0) {
-    delete settings.env;
-  } else {
-    settings.env = env2;
-  }
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
   setTopLevelModel(settings, config.model);
-  await write(settings);
+  await commitManagedEnv(settings, env2, config.env);
 }
-async function applyOAuthConfig(model) {
+async function applyOAuthConfig(model, extraEnv) {
   const settings = await read();
-  const env2 = normalizeEnv(settings);
-  for (const key of CLAUDE_ENV_KEYS) {
-    delete env2[key];
-  }
-  if (Object.keys(env2).length === 0) {
-    delete settings.env;
-  } else {
-    settings.env = env2;
-  }
+  const env2 = await beginManagedEnv(settings);
   setTopLevelModel(settings, model);
-  await write(settings);
+  await commitManagedEnv(settings, env2, extraEnv);
 }
-async function applyLocalCLIProxyAPIConfig(config) {
+async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
   const settings = await read();
-  const env2 = normalizeEnv(settings);
-  for (const key of CLAUDE_ENV_KEYS) {
-    delete env2[key];
-  }
+  const env2 = await beginManagedEnv(settings);
   setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
   setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
@@ -3960,9 +4000,8 @@ async function applyLocalCLIProxyAPIConfig(config) {
   setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
   setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
   setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", "1");
-  settings.env = env2;
   setTopLevelModel(settings, config.model);
-  await write(settings);
+  await commitManagedEnv(settings, env2, extraEnv);
 }
 async function prepareApiProfileClaudeSettings(name, config) {
   const env2 = {};
@@ -3976,13 +4015,38 @@ async function prepareApiProfileClaudeSettings(name, config) {
   env2.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
   env2.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
   env2.ANTHROPIC_MODEL = config.model ?? "";
+  env2.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
   env2.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
   env2.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel ?? "";
   env2.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
+  env2.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
+  for (const [key, value] of Object.entries(normalizeCustomEnv(config.env))) {
+    env2[key] = value;
+  }
   const settings = { env: env2 };
   if (config.model) {
     settings.model = config.model;
   }
+  return writePrivateRunSettings(name, settings);
+}
+async function prepareOAuthProfileClaudeSettings(name, profile) {
+  const env2 = {};
+  for (const key of CLAUDE_ENV_KEYS) {
+    env2[key] = "";
+  }
+  for (const key of await readManagedExtraEnvKeys()) {
+    env2[key] = "";
+  }
+  for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
+    env2[key] = value;
+  }
+  const settings = { env: env2 };
+  if (profile.defaultModel) {
+    settings.model = profile.defaultModel;
+  }
+  return writePrivateRunSettings(name, settings);
+}
+async function writePrivateRunSettings(name, settings) {
   const file = claudeProfileClaudeSettingsFile(name);
   await mkdir2(claudeProfileDir(name), { recursive: true });
   await writeJsonSecure(file, settings);
@@ -4002,6 +4066,10 @@ async function getClaudeEnvNeutralizer() {
   const settings = await read();
   const env2 = normalizeEnv(settings);
   const present = CLAUDE_ENV_KEYS.filter((key) => env2[key]);
+  for (const key of await readManagedExtraEnvKeys()) {
+    if (env2[key] && !present.includes(key))
+      present.push(key);
+  }
   if (present.length === 0)
     return null;
   const override = {};
@@ -4019,19 +4087,27 @@ async function getApiConfig() {
   const topLevelModel = normalizeModelValue(settings.model);
   const envModel = env2.ANTHROPIC_MODEL;
   const model = topLevelModel ?? envModel;
+  const extraEnv = {};
+  for (const key of await readManagedExtraEnvKeys()) {
+    if (env2[key])
+      extraEnv[key] = env2[key];
+  }
   return {
     apiKey,
     baseUrl: env2.ANTHROPIC_BASE_URL,
     authToken: env2.ANTHROPIC_AUTH_TOKEN,
     model,
+    defaultFableModel: env2.ANTHROPIC_DEFAULT_FABLE_MODEL,
     defaultSonnetModel: env2.ANTHROPIC_DEFAULT_SONNET_MODEL,
     defaultOpusModel: env2.ANTHROPIC_DEFAULT_OPUS_MODEL,
-    defaultHaikuModel: env2.ANTHROPIC_DEFAULT_HAIKU_MODEL
+    defaultHaikuModel: env2.ANTHROPIC_DEFAULT_HAIKU_MODEL,
+    subagentModel: env2.CLAUDE_CODE_SUBAGENT_MODEL,
+    ...Object.keys(extraEnv).length > 0 ? { env: extraEnv } : {}
   };
 }
 
 // src/providers/cliproxyapi/managed.ts
-import { spawn, spawnSync as spawnSync2 } from "child_process";
+import { spawn, spawnSync as spawnSync3 } from "child_process";
 import {
   chmod as chmod2,
   mkdir as mkdir3,
@@ -4049,6 +4125,7 @@ import { basename, dirname as dirname2, join as join4, resolve } from "path";
 import { createHash as createHash2, randomBytes, randomUUID } from "crypto";
 
 // src/lib/browser.ts
+import { spawnSync as spawnSync2 } from "child_process";
 import { platform as platform2 } from "os";
 import { join as join3 } from "path";
 import { tmpdir } from "os";
@@ -4120,6 +4197,34 @@ function cleanupOpenShimDir(dir) {
     unlinkSync(join3(dir, "open"));
     rmdirSync(dir);
   } catch {}
+}
+function getBrowserOpenCommand(url) {
+  switch (platform2()) {
+    case "darwin":
+      return { command: "open", args: [url] };
+    case "linux":
+      return { command: "xdg-open", args: [url] };
+    case "win32":
+      return { command: "cmd", args: ["/c", "start", "", url] };
+    default:
+      return null;
+  }
+}
+function openExternalUrl(url, privateWindow = false) {
+  const browserScript = privateWindow ? createPrivateBrowserScript() : null;
+  const openCommand = browserScript ? { command: browserScript, args: [url] } : getBrowserOpenCommand(url);
+  if (!openCommand)
+    return false;
+  try {
+    const result = spawnSync2(openCommand.command, openCommand.args, {
+      stdio: "ignore"
+    });
+    return result.status === 0 && !result.error;
+  } catch {
+    return false;
+  } finally {
+    cleanupBrowserScript(browserScript);
+  }
 }
 
 // src/providers/cliproxyapi/managed.ts
@@ -4337,6 +4442,9 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime) {
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env2[key] = "";
   }
+  for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
+    env2[key] = value;
+  }
   await writePrivateJson(paths.claudeSettingsFile, {
     model: config.model,
     env: env2
@@ -4483,7 +4591,7 @@ async function processCommandLine(pid) {
     }
   }
   try {
-    const result = spawnSync2("ps", ["-p", String(pid), "-o", "command="], {
+    const result = spawnSync3("ps", ["-p", String(pid), "-o", "command="], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
@@ -4956,7 +5064,7 @@ async function cleanupFailedManagedCLIProxyAPI(profileId) {
 }
 function commandWorks(command) {
   try {
-    return spawnSync2(command, ["--help"], {
+    return spawnSync3(command, ["--help"], {
       stdio: "ignore"
     }).status === 0;
   } catch {
@@ -4969,7 +5077,7 @@ function resolvedCommand(command) {
   }
   const locator = platform3() === "win32" ? "where" : "which";
   try {
-    const result = spawnSync2(locator, [command], {
+    const result = spawnSync3(locator, [command], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
@@ -5171,6 +5279,53 @@ async function updateProfileDefaultModel(name, model) {
   }
   return nextData;
 }
+async function updateClaudeProfileConfig(name, patch) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const current = await readProfileData(name);
+  const fields = patch.fields ?? {};
+  const pick = (key, fallback) => (key in fields) ? fields[key] : fallback;
+  const env2 = patch.env === undefined ? current.env : patch.env;
+  let next;
+  if (current.type === "api-key") {
+    next = normalizeApiKeyProfileData({
+      apiKey: pick("apiKey", current.apiKey) ?? "",
+      baseUrl: pick("baseUrl", current.baseUrl),
+      authToken: pick("authToken", current.authToken),
+      model: pick("model", current.model),
+      defaultFableModel: pick("defaultFableModel", current.defaultFableModel),
+      defaultSonnetModel: pick("defaultSonnetModel", current.defaultSonnetModel),
+      defaultOpusModel: pick("defaultOpusModel", current.defaultOpusModel),
+      defaultHaikuModel: pick("defaultHaikuModel", current.defaultHaikuModel),
+      subagentModel: pick("subagentModel", current.subagentModel),
+      env: env2
+    });
+    if (!next.apiKey) {
+      throw new Error("API key cannot be empty");
+    }
+  } else if (current.type === "local-cliproxyapi") {
+    const defaultModel = normalizeOptionalValue(pick("defaultModel", current.defaultModel));
+    if (!defaultModel) {
+      throw new Error("Default model cannot be empty");
+    }
+    next = { ...current, defaultModel, ...withCustomEnv(env2) };
+    if (!next.env)
+      delete next.env;
+  } else {
+    next = normalizeOAuthProfileData({
+      defaultModel: pick("defaultModel", current.defaultModel),
+      env: env2
+    });
+  }
+  await writeProfileData(name, next);
+  const state = await readState2();
+  const reapplied = state.active === name;
+  if (reapplied) {
+    await activateProfile(name, next);
+  }
+  return { data: next, reapplied };
+}
 async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
   const data = normalizeOAuthProfileData(config);
   await ensureDir2(claudeProfileDir(name));
@@ -5273,10 +5428,10 @@ async function activateProfile(name, targetData) {
     const config = await getLocalCLIProxyAPISettings(targetData, runtime);
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
-    await applyLocalCLIProxyAPIConfig(config);
+    await applyLocalCLIProxyAPIConfig(config, targetData.env);
     return;
   }
-  await applyOAuthConfig(targetData.defaultModel);
+  await applyOAuthConfig(targetData.defaultModel, targetData.env);
   await restoreOAuthCredentials(name);
 }
 async function restoreOAuthCredentials(name) {
@@ -5515,22 +5670,38 @@ function normalizeApiKeyProfileData(config) {
     ...normalizeOptionalValue(config.baseUrl) ? { baseUrl: normalizeOptionalValue(config.baseUrl) } : {},
     ...normalizeOptionalValue(config.authToken) ? { authToken: normalizeOptionalValue(config.authToken) } : {},
     ...normalizeOptionalValue(config.model) ? { model: normalizeOptionalValue(config.model) } : {},
+    ...normalizeOptionalValue(config.defaultFableModel) ? { defaultFableModel: normalizeOptionalValue(config.defaultFableModel) } : {},
     ...normalizeOptionalValue(config.defaultSonnetModel) ? { defaultSonnetModel: normalizeOptionalValue(config.defaultSonnetModel) } : {},
     ...normalizeOptionalValue(config.defaultOpusModel) ? { defaultOpusModel: normalizeOptionalValue(config.defaultOpusModel) } : {},
-    ...normalizeOptionalValue(config.defaultHaikuModel) ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) } : {}
+    ...normalizeOptionalValue(config.defaultHaikuModel) ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) } : {},
+    ...normalizeOptionalValue(config.subagentModel) ? { subagentModel: normalizeOptionalValue(config.subagentModel) } : {},
+    ...withCustomEnv(config.env)
   };
 }
 function normalizeOAuthProfileData(config) {
   const defaultModel = normalizeOptionalValue(config.defaultModel);
-  if (defaultModel) {
-    return { type: "oauth", defaultModel };
-  }
-  return { type: "oauth" };
+  return {
+    type: "oauth",
+    ...defaultModel ? { defaultModel } : {},
+    ...withCustomEnv(config.env)
+  };
+}
+function withCustomEnv(env2) {
+  const normalized = normalizeCustomEnv(env2);
+  return Object.keys(normalized).length > 0 ? { env: normalized } : {};
+}
+function sameCustomEnv(expected, actual) {
+  const a = normalizeCustomEnv(expected);
+  const b = normalizeCustomEnv(actual);
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length)
+    return false;
+  return keys.every((key) => a[key] === b[key]);
 }
 function sameApiConfig(expected, actual) {
   if (!actual)
     return false;
-  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel);
+  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultFableModel) === normalizeOptionalValue(actual.defaultFableModel) && normalizeOptionalValue(expected.subagentModel) === normalizeOptionalValue(actual.subagentModel) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel) && sameCustomEnv(expected.env, actual.env);
 }
 
 // src/providers/codex/registry.ts
@@ -5976,6 +6147,28 @@ function updateAccountDefaultModel(reg, accountKey, model) {
   account.default_model = resolveCodexModel(model);
   return account;
 }
+function updateAccountConfig(reg, accountKey, patch) {
+  const account = findAccountByKey(reg, accountKey);
+  if (!account) {
+    throw new Error(`Codex account not found: ${accountKey}`);
+  }
+  if (patch.defaultModel !== undefined) {
+    account.default_model = resolveCodexModel(patch.defaultModel);
+  }
+  const provider = account.api_provider;
+  if (provider && provider.type === "custom") {
+    if (patch.baseUrl !== undefined) {
+      provider.base_url = patch.baseUrl.trim() || null;
+    }
+    if (patch.model !== undefined) {
+      provider.model = patch.model.trim() || null;
+    }
+    if (patch.envKey !== undefined) {
+      provider.env_key = patch.envKey.trim() || null;
+    }
+  }
+  return account;
+}
 function removeAccountFromRegistry(reg, accountKey) {
   const idx = reg.accounts.findIndex((a) => a.account_key === accountKey);
   if (idx < 0)
@@ -6012,7 +6205,7 @@ function managedProviderNames(reg) {
 }
 
 // src/commands/add.ts
-import { spawn as spawn3, spawnSync as spawnSync3 } from "child_process";
+import { spawn as spawn3, spawnSync as spawnSync4 } from "child_process";
 import { platform as platform4 } from "os";
 
 // src/providers/codex/auth.ts
@@ -6367,7 +6560,7 @@ async function getJson(url, headers) {
 
 // src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result = spawnSync3("claude", ["auth", "status"], {
+  const result = spawnSync4("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
   if (result.status !== 0)
@@ -6467,7 +6660,7 @@ async function addClaudeOAuth(alias) {
     if (authStatus?.loggedIn) {
       info("Logging out current Claude session...");
       blank();
-      const logout = spawnSync3("claude", ["auth", "logout"], {
+      const logout = spawnSync4("claude", ["auth", "logout"], {
         stdio: "inherit"
       });
       if (logout.status !== 0) {
@@ -6587,7 +6780,7 @@ async function resolveCLIProxyAPIBinaryForAdd() {
 }
 function hasHomebrew() {
   try {
-    return spawnSync3("brew", ["--version"], { stdio: "ignore" }).status === 0;
+    return spawnSync4("brew", ["--version"], { stdio: "ignore" }).status === 0;
   } catch {
     return false;
   }
@@ -6690,7 +6883,7 @@ async function promptClaudeDefaultModel() {
   return normalized || undefined;
 }
 async function addCodexChatGPT(alias) {
-  const codexCheck = spawnSync3("codex", ["--version"], {
+  const codexCheck = spawnSync4("codex", ["--version"], {
     encoding: "utf-8"
   });
   const hasCodex = codexCheck.status === 0;
@@ -7488,7 +7681,11 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       blank();
       process.exit(1);
     }
-    settingsNeutralizer = await getClaudeEnvNeutralizer();
+    if (profile?.type === "oauth" && Object.keys(normalizeCustomEnv(profile.env)).length > 0) {
+      localSettingsFile = await prepareOAuthProfileClaudeSettings(claudeProfileName, profile);
+    } else {
+      settingsNeutralizer = await getClaudeEnvNeutralizer();
+    }
   }
   if (isolatedClaudeApi && claudeProfileName && profile?.type === "api-key") {
     localSettingsFile = await prepareApiProfileClaudeSettings(claudeProfileName, profile);
@@ -7578,9 +7775,9 @@ async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir
       return applyClaudeAttributionHeader(buildClaudeApiEnvironment(profile), headerEnabled);
     }
     if (profile?.type === "local-cliproxyapi") {
-      return applyClaudeAttributionHeader(buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir), headerEnabled);
+      return applyClaudeAttributionHeader(buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir, profile.env), headerEnabled);
     }
-    return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir, configDir), headerEnabled);
+    return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir, configDir, profile?.env), headerEnabled);
   }
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
@@ -7647,14 +7844,15 @@ function parseRunArgumentOptions(args) {
   }
   return { forwardedArgs, modelOverride, effortOverride, headerEnabled };
 }
-function buildClaudeOAuthEnvironment(secureStorageDir, configDir) {
-  if (!secureStorageDir && !configDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key])) {
+function buildClaudeOAuthEnvironment(secureStorageDir, configDir, extraEnv) {
+  if (!secureStorageDir && !configDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key]) && Object.keys(normalizeCustomEnv(extraEnv)).length === 0) {
     return;
   }
   const env2 = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
     delete env2[key];
   }
+  applyCustomEnv(env2, extraEnv);
   if (secureStorageDir) {
     env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
@@ -7672,12 +7870,15 @@ function buildClaudeApiEnvironment(config) {
   setOptionalEnv(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
   setOptionalEnv(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
   setOptionalEnv(env2, "ANTHROPIC_MODEL", config.model);
+  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
   setOptionalEnv(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
+  setOptionalEnv(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
+  applyCustomEnv(env2, config.env);
   return env2;
 }
-function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir) {
+function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir, extraEnv) {
   const env2 = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
     delete env2[key];
@@ -7685,6 +7886,7 @@ function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir) {
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     delete env2[key];
   }
+  applyCustomEnv(env2, extraEnv);
   if (secureStorageDir) {
     env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
@@ -7692,6 +7894,11 @@ function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir) {
     env2.CLAUDE_CONFIG_DIR = configDir;
   }
   return env2;
+}
+function applyCustomEnv(env2, extraEnv) {
+  for (const [key, value] of Object.entries(normalizeCustomEnv(extraEnv))) {
+    env2[key] = value;
+  }
 }
 function applyClaudeAttributionHeader(baseEnv, headerEnabled) {
   if (headerEnabled === undefined) {
@@ -8743,11 +8950,11 @@ async function runLoginCommand(command, args) {
 
 // src/lib/update.ts
 import { realpathSync } from "fs";
-import { spawnSync as spawnSync4 } from "child_process";
+import { spawnSync as spawnSync5 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.7.1",
+  version: "1.8.0",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -8832,7 +9039,7 @@ async function fetchLatestReleaseVersion(fetchImpl = fetch) {
     return null;
   }
 }
-function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync4) {
+function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync5) {
   const brewPrefix = readCommandStdout(runCommand("brew", ["--prefix"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"]
@@ -8897,7 +9104,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
   const env2 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
-  const runCommand = options.runCommand ?? spawnSync4;
+  const runCommand = options.runCommand ?? spawnSync5;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
   if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV] === "1" || env2[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {
@@ -9058,6 +9265,1054 @@ async function update() {
   }
 }
 
+// src/webconfig/server.ts
+import { createServer as createServer2 } from "http";
+import { randomBytes as randomBytes2, timingSafeEqual } from "crypto";
+
+// src/webconfig/page.ts
+var PAGE = `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claudex-switch 配置</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f6f4;
+    --surface: #ffffff;
+    --border: #e2e0da;
+    --text: #1d1c1a;
+    --muted: #78746c;
+    --accent: #b8552a;
+    --accent-soft: #fdf1ea;
+    --danger: #b3261e;
+    --ok: #2f6f3e;
+    --field-bg: #fbfbf9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17171a;
+      --surface: #1f1f23;
+      --border: #33333a;
+      --text: #ececec;
+      --muted: #9b968d;
+      --accent: #e08b5f;
+      --accent-soft: #2a211c;
+      --danger: #f2837b;
+      --ok: #7cc98d;
+      --field-bg: #26262b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 16px 120px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  header { padding: 28px 0 16px; }
+  h1 { margin: 0; font-size: 19px; letter-spacing: .2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 5px; }
+  h2 {
+    margin: 26px 0 10px; font-size: 12px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 10px; overflow: hidden;
+  }
+  .card.dirty { border-color: var(--accent); }
+  .card-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 12px 14px; cursor: pointer; user-select: none;
+  }
+  .card-head:hover { background: var(--accent-soft); }
+  .caret { color: var(--muted); width: 10px; flex: none; font-size: 11px; }
+  .alias { font-weight: 600; }
+  .badge {
+    font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 20px; padding: 1px 8px; white-space: nowrap;
+  }
+  .badge.active { color: var(--ok); border-color: currentColor; }
+  .badge.changed { color: var(--accent); border-color: currentColor; }
+  .email { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1 1 auto; }
+  .card-body { padding: 4px 14px 16px; border-top: 1px solid var(--border); }
+  .grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px; margin-top: 14px;
+  }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field label code { font-size: 11px; opacity: .75; }
+  .row { display: flex; gap: 6px; }
+  input, textarea {
+    width: 100%; padding: 7px 9px; font: inherit; font-size: 13px;
+    color: var(--text); background: var(--field-bg);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input:disabled { color: var(--muted); cursor: not-allowed; }
+  textarea { resize: vertical; min-height: 68px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text);
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+  }
+  button.primary:hover { color: #fff; opacity: .9; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.icon { padding: 7px 9px; flex: none; }
+  .section-label {
+    margin: 18px 0 8px; font-size: 12px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .env-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .env-row input:first-child { flex: 0 0 42%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  @media (max-width: 520px) {
+    .env-row { flex-wrap: wrap; }
+    .env-row input:first-child { flex: 1 1 100%; }
+  }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .err {
+    color: var(--danger); font-size: 12px; margin-top: 10px;
+    border-left: 2px solid currentColor; padding-left: 8px;
+  }
+  details.paste { margin-top: 18px; }
+  details.paste summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+  details.paste .row { margin-top: 8px; }
+  footer {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 12px 16px;
+  }
+  .bar {
+    max-width: 900px; margin: 0 auto; display: flex;
+    align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .status { font-size: 13px; color: var(--muted); }
+  .status.ok { color: var(--ok); }
+  .status.bad { color: var(--danger); }
+  .empty { color: var(--muted); padding: 24px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>claudex-switch 配置</h1>
+    <div class="sub" id="sub">加载中…</div>
+  </header>
+  <div id="list"></div>
+</div>
+<footer>
+  <div class="bar">
+    <button class="primary" id="save" disabled>保存修改</button>
+    <button id="reload">放弃改动并重新读取</button>
+    <span class="status" id="status"></span>
+  </div>
+</footer>
+<script>
+(function () {
+  "use strict";
+
+  var token = new URL(location.href).searchParams.get("t") || "";
+  // Keep the token out of the visible address bar, history and screenshots.
+  history.replaceState(null, "", location.pathname);
+
+  var FIELD_LABELS = {
+    apiKey: ["API Key", "ANTHROPIC_API_KEY"],
+    baseUrl: ["请求地址", "ANTHROPIC_BASE_URL"],
+    authToken: ["Auth Token", "ANTHROPIC_AUTH_TOKEN"],
+    model: ["主模型", "ANTHROPIC_MODEL"],
+    defaultFableModel: ["Fable 映射", "ANTHROPIC_DEFAULT_FABLE_MODEL"],
+    defaultOpusModel: ["Opus 映射", "ANTHROPIC_DEFAULT_OPUS_MODEL"],
+    defaultSonnetModel: ["Sonnet 映射", "ANTHROPIC_DEFAULT_SONNET_MODEL"],
+    defaultHaikuModel: ["Haiku 映射", "ANTHROPIC_DEFAULT_HAIKU_MODEL"],
+    subagentModel: ["子代理模型", "CLAUDE_CODE_SUBAGENT_MODEL"],
+    defaultModel: ["默认模型", ""],
+    binaryPath: ["CLIProxyAPI 可执行文件", ""],
+    providerName: ["Provider 名称", "model_providers"],
+    envKey: ["环境变量名", "env_key"]
+  };
+  var CODEX_FIELD_LABELS = {
+    baseUrl: ["请求地址", "base_url"],
+    model: ["Provider 模型", "model"],
+    apiKey: ["API Key", "OPENAI_API_KEY"]
+  };
+  var FIELD_ORDER = [
+    "apiKey", "baseUrl", "authToken", "model",
+    "defaultFableModel", "defaultOpusModel", "defaultSonnetModel",
+    "defaultHaikuModel", "subagentModel",
+    "defaultModel", "providerName", "envKey", "binaryPath"
+  ];
+  var ENV_TO_FIELD = {
+    ANTHROPIC_API_KEY: "apiKey",
+    ANTHROPIC_BASE_URL: "baseUrl",
+    ANTHROPIC_AUTH_TOKEN: "authToken",
+    ANTHROPIC_MODEL: "model",
+    ANTHROPIC_DEFAULT_FABLE_MODEL: "defaultFableModel",
+    ANTHROPIC_DEFAULT_OPUS_MODEL: "defaultOpusModel",
+    ANTHROPIC_DEFAULT_SONNET_MODEL: "defaultSonnetModel",
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: "defaultHaikuModel",
+    CLAUDE_CODE_SUBAGENT_MODEL: "subagentModel"
+  };
+
+  var snapshot = null;
+  var drafts = {};
+  var errors = {};
+  var expanded = {};
+
+  var listEl = document.getElementById("list");
+  var subEl = document.getElementById("sub");
+  var saveEl = document.getElementById("save");
+  var statusEl = document.getElementById("status");
+  document.getElementById("reload").addEventListener("click", function () {
+    load(true);
+  });
+  saveEl.addEventListener("click", save);
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function api(path, options) {
+    var opts = options || {};
+    opts.headers = Object.assign({}, opts.headers, {
+      authorization: "Bearer " + token
+    });
+    return fetch(path, opts).then(function (res) {
+      return res.json().then(function (body) {
+        if (!res.ok) throw new Error(body && body.error ? body.error : "请求失败");
+        return body;
+      });
+    });
+  }
+
+  function accounts() {
+    if (!snapshot) return [];
+    return snapshot.claude.concat(snapshot.codex);
+  }
+
+  function draftOf(account) {
+    var draft = drafts[account.alias];
+    if (!draft) {
+      draft = {
+        fields: Object.assign({}, account.fields),
+        env: Object.keys(account.env).map(function (key) {
+          return { key: key, value: account.env[key] };
+        }),
+        reveal: {}
+      };
+      drafts[account.alias] = draft;
+    }
+    return draft;
+  }
+
+  function envToObject(rows) {
+    var out = {};
+    rows.forEach(function (row) {
+      var key = row.key.trim();
+      if (key) out[key] = row.value;
+    });
+    return out;
+  }
+
+  function sameObject(a, b) {
+    var ka = Object.keys(a);
+    var kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    return ka.every(function (key) { return a[key] === b[key]; });
+  }
+
+  function isDirty(account) {
+    var draft = draftOf(account);
+    var fieldsChanged = Object.keys(account.fields).some(function (key) {
+      return account.readonly.indexOf(key) < 0 &&
+        (draft.fields[key] || "") !== (account.fields[key] || "");
+    });
+    if (fieldsChanged) return true;
+    if (!account.supportsEnv) return false;
+    return !sameObject(envToObject(draft.env), account.env);
+  }
+
+  function dirtyAccounts() {
+    return accounts().filter(isDirty);
+  }
+
+  function refreshFooter() {
+    var count = dirtyAccounts().length;
+    saveEl.disabled = count === 0;
+    saveEl.textContent = count > 0 ? "保存修改 (" + count + ")" : "保存修改";
+  }
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text;
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function fieldLabel(account, key) {
+    var entry = (account.provider === "codex" && CODEX_FIELD_LABELS[key]) ||
+      FIELD_LABELS[key] || [key, ""];
+    return entry;
+  }
+
+  function buildField(account, key, onChange) {
+    var draft = draftOf(account);
+    var labels = fieldLabel(account, key);
+    var wrap = el("div", "field");
+    var label = el("label", null, labels[0]);
+    if (labels[1]) {
+      label.appendChild(document.createTextNode("  "));
+      label.appendChild(el("code", null, labels[1]));
+    }
+    wrap.appendChild(label);
+
+    var row = el("div", "row");
+    var input = document.createElement("input");
+    var isSecret = account.secretFields.indexOf(key) >= 0;
+    input.type = isSecret && !draft.reveal[key] ? "password" : "text";
+    input.value = draft.fields[key] || "";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    if (account.readonly.indexOf(key) >= 0) input.disabled = true;
+    input.addEventListener("input", function () {
+      draft.fields[key] = input.value;
+      onChange();
+    });
+    row.appendChild(input);
+
+    if (isSecret) {
+      var toggle = el("button", "icon", draft.reveal[key] ? "隐藏" : "显示");
+      toggle.type = "button";
+      toggle.addEventListener("click", function () {
+        draft.reveal[key] = !draft.reveal[key];
+        input.type = draft.reveal[key] ? "text" : "password";
+        toggle.textContent = draft.reveal[key] ? "隐藏" : "显示";
+      });
+      row.appendChild(toggle);
+    }
+
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  function buildEnvSection(account, rerender, onChange) {
+    var draft = draftOf(account);
+    var box = document.createElement("div");
+    var label = el("div", "section-label", "自定义环境变量");
+    box.appendChild(label);
+
+    draft.env.forEach(function (row, index) {
+      var line = el("div", "env-row");
+      var keyInput = document.createElement("input");
+      keyInput.value = row.key;
+      keyInput.placeholder = "CLAUDE_CODE_EFFORT_LEVEL";
+      keyInput.autocomplete = "off";
+      keyInput.spellcheck = false;
+      keyInput.setAttribute("data-env-key", String(index));
+      keyInput.addEventListener("input", function () {
+        row.key = keyInput.value;
+        onChange();
+      });
+
+      var valueInput = document.createElement("input");
+      valueInput.value = row.value;
+      valueInput.placeholder = "max";
+      valueInput.autocomplete = "off";
+      valueInput.spellcheck = false;
+      valueInput.addEventListener("input", function () {
+        row.value = valueInput.value;
+        onChange();
+      });
+
+      var remove = el("button", "icon", "删除");
+      remove.type = "button";
+      remove.addEventListener("click", function () {
+        draft.env.splice(index, 1);
+        rerender();
+      });
+
+      line.appendChild(keyInput);
+      line.appendChild(valueInput);
+      line.appendChild(remove);
+      box.appendChild(line);
+    });
+
+    var add = el("button", null, "+ 添加变量");
+    add.type = "button";
+    add.addEventListener("click", function () {
+      draft.env.push({ key: "", value: "" });
+      rerender(draft.env.length - 1);
+    });
+    box.appendChild(add);
+    box.appendChild(el("div", "hint",
+      "这些变量会写进该账号自己的配置；切换到别的账号时会被自动清理。"));
+    return box;
+  }
+
+  function buildPasteBox(account, rerender) {
+    var draft = draftOf(account);
+    var details = el("details", "paste");
+    details.appendChild(el("summary", null, "从 export 代码块粘贴导入"));
+
+    var area = document.createElement("textarea");
+    area.placeholder = "export ANTHROPIC_BASE_URL=https://api.example.com/anthropic\\nexport ANTHROPIC_MODEL=some-model";
+    details.appendChild(area);
+
+    var row = el("div", "row");
+    var apply = el("button", null, "解析并填入");
+    apply.type = "button";
+    apply.addEventListener("click", function () {
+      var parsed = parseExportBlock(area.value);
+      var known = 0;
+      var extra = 0;
+      Object.keys(parsed).forEach(function (envKey) {
+        var field = ENV_TO_FIELD[envKey];
+        if (field && Object.prototype.hasOwnProperty.call(account.fields, field)) {
+          draft.fields[field] = parsed[envKey];
+          known += 1;
+          return;
+        }
+        var existing = draft.env.filter(function (r) { return r.key === envKey; })[0];
+        if (existing) existing.value = parsed[envKey];
+        else draft.env.push({ key: envKey, value: parsed[envKey] });
+        extra += 1;
+      });
+      setStatus("已填入 " + known + " 个字段、" + extra + " 个自定义变量，确认后点保存。");
+      rerender();
+    });
+    row.appendChild(apply);
+    details.appendChild(row);
+    return details;
+  }
+
+  function parseExportBlock(text) {
+    var out = {};
+    text.split(/\\r?\\n/).forEach(function (raw) {
+      var line = raw.trim();
+      if (!line || line.charAt(0) === "#") return;
+      if (line.indexOf("export ") === 0) line = line.slice(7).trim();
+      var eq = line.indexOf("=");
+      if (eq <= 0) return;
+      var key = line.slice(0, eq).trim();
+      var value = line.slice(eq + 1).trim();
+      if (value.length > 1) {
+        var first = value.charAt(0);
+        var last = value.charAt(value.length - 1);
+        if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+          value = value.slice(1, -1);
+        }
+      }
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) out[key.toUpperCase()] = value;
+    });
+    return out;
+  }
+
+  function buildCard(account) {
+    var card = el("div", "card" + (isDirty(account) ? " dirty" : ""));
+    var head = el("div", "card-head");
+    var open = expanded[account.alias] === true;
+
+    head.appendChild(el("span", "caret", open ? "▼" : "▶"));
+    head.appendChild(el("span", "alias", account.alias));
+    head.appendChild(el("span", "badge", account.label));
+    if (account.isActive) head.appendChild(el("span", "badge active", "当前生效"));
+    if (isDirty(account)) head.appendChild(el("span", "badge changed", "已修改"));
+    if (account.email) head.appendChild(el("span", "email", account.email));
+    head.appendChild(el("span", "spacer"));
+    head.addEventListener("click", function () {
+      expanded[account.alias] = !open;
+      rerenderCard(account.alias);
+    });
+    card.appendChild(head);
+
+    if (!open) return card;
+
+    var body = el("div", "card-body");
+    var onChange = function () {
+      refreshFooter();
+      card.className = "card" + (isDirty(account) ? " dirty" : "");
+    };
+    var rerender = function (focusEnvIndex) {
+      rerenderCard(account.alias, focusEnvIndex);
+    };
+
+    var grid = el("div", "grid");
+    FIELD_ORDER.forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(account.fields, key)) return;
+      grid.appendChild(buildField(account, key, onChange));
+    });
+    body.appendChild(grid);
+
+    if (account.supportsEnv) {
+      body.appendChild(buildEnvSection(account, rerender, onChange));
+      body.appendChild(buildPasteBox(account, rerender));
+    } else {
+      body.appendChild(el("div", "hint",
+        "Codex 从 ~/.codex/config.toml 读取配置，不使用 Claude Code 的环境变量。"));
+    }
+
+    if (errors[account.alias]) {
+      body.appendChild(el("div", "err", errors[account.alias]));
+    }
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function rerenderCard(alias, focusEnvIndex) {
+    var account = accounts().filter(function (a) { return a.alias === alias; })[0];
+    if (!account) return render();
+    var current = listEl.querySelector('[data-alias="' + cssEscape(alias) + '"]');
+    if (!current) return render();
+    var next = buildCard(account);
+    next.setAttribute("data-alias", alias);
+    current.replaceWith(next);
+    refreshFooter();
+    if (focusEnvIndex !== undefined) {
+      var input = next.querySelector('[data-env-key="' + focusEnvIndex + '"]');
+      if (input) input.focus();
+    }
+  }
+
+  function cssEscape(value) {
+    return String(value).replace(/["\\\\]/g, "\\\\$&");
+  }
+
+  function renderGroup(title, items) {
+    var box = document.createDocumentFragment();
+    box.appendChild(el("h2", null, title));
+    if (items.length === 0) {
+      box.appendChild(el("div", "empty", "没有账号"));
+      return box;
+    }
+    items.forEach(function (account) {
+      var card = buildCard(account);
+      card.setAttribute("data-alias", account.alias);
+      box.appendChild(card);
+    });
+    return box;
+  }
+
+  function render() {
+    listEl.textContent = "";
+    if (!snapshot) return;
+    listEl.appendChild(renderGroup("Claude", snapshot.claude));
+    listEl.appendChild(renderGroup("Codex", snapshot.codex));
+    subEl.textContent = "共 " + accounts().length + " 个账号 · " +
+      "改完点底部保存；当前生效的账号会立即同步到全局配置";
+    refreshFooter();
+  }
+
+  function load(announce) {
+    api("/api/accounts").then(function (data) {
+      snapshot = data;
+      drafts = {};
+      errors = {};
+      render();
+      if (announce) setStatus("已重新读取", "ok");
+    }).catch(function (err) {
+      setStatus("读取失败：" + err.message, "bad");
+    });
+  }
+
+  function save() {
+    var dirty = dirtyAccounts();
+    if (dirty.length === 0) return;
+
+    var changes = dirty.map(function (account) {
+      var draft = draftOf(account);
+      var fields = {};
+      Object.keys(account.fields).forEach(function (key) {
+        if (account.readonly.indexOf(key) >= 0) return;
+        fields[key] = draft.fields[key] || "";
+      });
+      var change = {
+        provider: account.provider,
+        alias: account.alias,
+        fields: fields
+      };
+      if (account.supportsEnv) change.env = envToObject(draft.env);
+      return change;
+    });
+
+    saveEl.disabled = true;
+    setStatus("保存中…");
+
+    api("/api/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ changes: changes })
+    }).then(function (data) {
+      errors = {};
+      var failed = [];
+      data.results.forEach(function (result) {
+        if (!result.ok) {
+          errors[result.alias] = result.error || "保存失败";
+          failed.push(result.alias);
+          expanded[result.alias] = true;
+        }
+      });
+
+      snapshot = data.snapshot;
+      // Keep unsaved edits for the accounts that failed so the user can fix
+      // them in place; everything else reloads from the fresh snapshot.
+      Object.keys(drafts).forEach(function (alias) {
+        if (failed.indexOf(alias) < 0) delete drafts[alias];
+      });
+      render();
+
+      if (failed.length === 0) {
+        var reapplied = data.results.filter(function (r) { return r.reapplied; });
+        setStatus(
+          "已保存 " + data.results.length + " 个账号" +
+          (reapplied.length > 0 ? "，其中 " + reapplied.length + " 个已同步到全局配置" : ""),
+          "ok"
+        );
+      } else {
+        setStatus(failed.length + " 个账号保存失败：" + failed.join("、"), "bad");
+      }
+    }).catch(function (err) {
+      setStatus("保存失败：" + err.message, "bad");
+      refreshFooter();
+    });
+  }
+
+  load(false);
+})();
+</script>
+</body>
+</html>
+`;
+function renderPage() {
+  return PAGE;
+}
+
+// src/webconfig/snapshot.ts
+async function buildSnapshot() {
+  const aliasReg = await loadAliases();
+  const claudeState = await readState2();
+  let codexReg = null;
+  try {
+    codexReg = await loadRegistry();
+  } catch {}
+  const claude = [];
+  const codex = [];
+  for (const entry of aliasReg.aliases) {
+    if (entry.target.provider === "claude") {
+      const account = await describeClaudeAccount(entry, claudeState.active);
+      if (account)
+        claude.push(account);
+    } else if (codexReg) {
+      const account = await describeCodexAccount(entry, codexReg);
+      if (account)
+        codex.push(account);
+    }
+  }
+  return { version: 1, generatedAt: Date.now(), claude, codex };
+}
+async function describeClaudeAccount(entry, activeProfile) {
+  if (entry.target.provider !== "claude")
+    return null;
+  const profileName = entry.target.profileName;
+  let data;
+  try {
+    data = await getProfileData(profileName);
+  } catch {
+    return null;
+  }
+  const base = {
+    provider: "claude",
+    alias: entry.alias,
+    profileName,
+    isActive: activeProfile === profileName,
+    env: data.env ?? {},
+    supportsEnv: true
+  };
+  if (data.type === "api-key") {
+    return {
+      ...base,
+      type: "api-key",
+      label: "API Key",
+      email: null,
+      fields: {
+        apiKey: data.apiKey ?? "",
+        baseUrl: data.baseUrl ?? "",
+        authToken: data.authToken ?? "",
+        model: data.model ?? "",
+        defaultFableModel: data.defaultFableModel ?? "",
+        defaultOpusModel: data.defaultOpusModel ?? "",
+        defaultSonnetModel: data.defaultSonnetModel ?? "",
+        defaultHaikuModel: data.defaultHaikuModel ?? "",
+        subagentModel: data.subagentModel ?? ""
+      },
+      secretFields: ["apiKey", "authToken"],
+      readonly: []
+    };
+  }
+  if (data.type === "local-cliproxyapi") {
+    return {
+      ...base,
+      type: "local-cliproxyapi",
+      label: "本机 CLIProxyAPI",
+      email: null,
+      fields: {
+        defaultModel: data.defaultModel ?? "",
+        binaryPath: data.binaryPath ?? ""
+      },
+      secretFields: [],
+      readonly: ["binaryPath"]
+    };
+  }
+  const account = await readJson(claudeProfileAccountFile(profileName), null);
+  return {
+    ...base,
+    type: "oauth",
+    label: "OAuth 订阅",
+    email: account?.emailAddress ?? null,
+    fields: { defaultModel: data.defaultModel ?? "" },
+    secretFields: [],
+    readonly: []
+  };
+}
+async function describeCodexAccount(entry, registry) {
+  if (entry.target.provider !== "codex")
+    return null;
+  const accountKey = entry.target.accountKey;
+  const account = findAccountByKey(registry, accountKey);
+  if (!account)
+    return null;
+  const base = {
+    provider: "codex",
+    alias: entry.alias,
+    accountKey,
+    isActive: registry.active_account_key === accountKey,
+    email: account.email || null,
+    env: {},
+    supportsEnv: false
+  };
+  if (account.auth_mode !== "apikey") {
+    return {
+      ...base,
+      type: "chatgpt",
+      label: "ChatGPT 订阅",
+      fields: { defaultModel: account.default_model ?? "" },
+      secretFields: [],
+      readonly: []
+    };
+  }
+  const auth = await readAccountAuth(accountKey);
+  const apiKey = auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY ?? "" : "";
+  const provider = account.api_provider;
+  const isCustom = provider?.type === "custom";
+  return {
+    ...base,
+    type: "apikey",
+    label: isCustom ? `API Key · ${provider?.name ?? ""}` : "API Key · 官方",
+    fields: {
+      defaultModel: account.default_model ?? "",
+      apiKey,
+      ...isCustom ? {
+        providerName: provider?.name ?? "",
+        baseUrl: provider?.base_url ?? "",
+        model: provider?.model ?? "",
+        envKey: provider?.env_key ?? "OPENAI_API_KEY"
+      } : {}
+    },
+    secretFields: ["apiKey"],
+    readonly: isCustom ? ["providerName"] : []
+  };
+}
+async function applyChanges(changes) {
+  const results = [];
+  for (const change of changes) {
+    try {
+      results.push(await applyChange(change));
+    } catch (err) {
+      results.push({
+        alias: change?.alias ?? "",
+        ok: false,
+        reapplied: false,
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
+  }
+  return results;
+}
+async function applyChange(change) {
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, change.alias);
+  if (!entry) {
+    throw new Error(`别名 "${change.alias}" 不存在`);
+  }
+  const fields = sanitizeFields(change.fields);
+  const env2 = change.env === undefined ? undefined : validateEnv(change.env);
+  if (entry.target.provider === "claude") {
+    validateClaudeFields(fields);
+    const { reapplied } = await updateClaudeProfileConfig(entry.target.profileName, { fields, env: env2 });
+    return { alias: entry.alias, ok: true, reapplied };
+  }
+  return applyCodexChange(entry.target.accountKey, entry.alias, fields);
+}
+async function applyCodexChange(accountKey, alias, fields) {
+  if (fields.baseUrl !== undefined)
+    validateUrl(fields.baseUrl);
+  const registry = await loadRegistry();
+  const account = updateAccountConfig(registry, accountKey, {
+    defaultModel: fields.defaultModel,
+    baseUrl: fields.baseUrl,
+    model: fields.model,
+    envKey: fields.envKey
+  });
+  if (fields.apiKey !== undefined && account.auth_mode === "apikey") {
+    const key = fields.apiKey.trim();
+    if (!key)
+      throw new Error("API Key 不能为空");
+    const auth = await readAccountAuth(accountKey);
+    await saveAccountAuth(accountKey, {
+      ...auth?.auth_mode === "apikey" ? auth : {},
+      auth_mode: "apikey",
+      OPENAI_API_KEY: key
+    });
+  }
+  await saveRegistry(registry);
+  const reapplied = registry.active_account_key === accountKey;
+  if (reapplied) {
+    const auth = account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
+    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
+  }
+  return { alias, ok: true, reapplied };
+}
+function sanitizeFields(fields) {
+  const result = {};
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    if (typeof value !== "string")
+      continue;
+    result[key] = value;
+  }
+  return result;
+}
+function validateClaudeFields(fields) {
+  if (fields.baseUrl !== undefined)
+    validateUrl(fields.baseUrl);
+  if (fields.apiKey !== undefined && !fields.apiKey.trim()) {
+    throw new Error("API Key 不能为空");
+  }
+}
+function validateUrl(value) {
+  const trimmed = value.trim();
+  if (!trimmed)
+    return;
+  try {
+    new URL(trimmed);
+  } catch {
+    throw new Error(`请求地址不是合法 URL：${trimmed}`);
+  }
+}
+function validateEnv(env2) {
+  const result = {};
+  for (const [rawKey, rawValue] of Object.entries(env2 ?? {})) {
+    const key = String(rawKey).trim();
+    if (!key)
+      continue;
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+      throw new Error(`环境变量名 "${key}" 无效：只能用大写字母、数字和下划线，且不能以数字开头`);
+    }
+    if (!isValidCustomEnvKey(key)) {
+      throw new Error(`"${key}" 上面已有专门的输入框，请填在那里`);
+    }
+    result[key] = typeof rawValue === "string" ? rawValue.trim() : "";
+  }
+  return result;
+}
+
+// src/webconfig/server.ts
+var MAX_BODY_BYTES = 1e6;
+async function startWebConfigServer(options = {}) {
+  const host = options.host ?? "127.0.0.1";
+  const token = randomBytes2(32).toString("base64url");
+  const server = createServer2((req, res) => {
+    handleRequest(req, res, token, host).catch(() => {
+      sendJson(res, 500, { error: "internal error" });
+    });
+  });
+  await new Promise((resolve2, reject) => {
+    server.once("error", reject);
+    server.listen(options.port ?? 0, host, () => {
+      server.removeListener("error", reject);
+      resolve2();
+    });
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  return {
+    url: `http://${host}:${port}/?t=${token}`,
+    port,
+    token,
+    close: () => closeServer(server)
+  };
+}
+function closeServer(server) {
+  return new Promise((resolve2) => {
+    server.closeAllConnections?.();
+    server.close(() => resolve2());
+  });
+}
+async function handleRequest(req, res, token, host) {
+  if (!isAllowedHost(req.headers.host, host)) {
+    sendJson(res, 403, { error: "forbidden host" });
+    return;
+  }
+  const url = new URL(req.url ?? "/", `http://${host}`);
+  if (!isAuthorized(req, url, token)) {
+    sendJson(res, 403, { error: "invalid or missing token" });
+    return;
+  }
+  if (req.method === "GET" && url.pathname === "/") {
+    const body = renderPage();
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-frame-options": "DENY",
+      "referrer-policy": "no-referrer"
+    });
+    res.end(body);
+    return;
+  }
+  if (req.method === "GET" && url.pathname === "/api/accounts") {
+    sendJson(res, 200, await buildSnapshot());
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/accounts") {
+    const payload = await readJsonBody(req);
+    const changes = Array.isArray(payload?.changes) ? payload.changes : null;
+    if (!changes) {
+      sendJson(res, 400, { error: "expected { changes: [...] }" });
+      return;
+    }
+    const results = await applyChanges(changes);
+    sendJson(res, 200, { results, snapshot: await buildSnapshot() });
+    return;
+  }
+  sendJson(res, 404, { error: "not found" });
+}
+function isAllowedHost(header2, host) {
+  if (!header2)
+    return false;
+  const name = header2.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+  return name === host || name === "localhost" || name === "127.0.0.1";
+}
+function isAuthorized(req, url, token) {
+  const header2 = req.headers.authorization ?? "";
+  const bearer = header2.startsWith("Bearer ") ? header2.slice(7) : "";
+  const provided = bearer || url.searchParams.get("t") || "";
+  return safeEqual(provided, token);
+}
+function safeEqual(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length)
+    return false;
+  return timingSafeEqual(left, right);
+}
+async function readJsonBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > MAX_BODY_BYTES)
+      throw new Error("request body too large");
+    chunks.push(buffer);
+  }
+  if (chunks.length === 0)
+    return null;
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  } catch {
+    return null;
+  }
+}
+function sendJson(res, status, body) {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store"
+  });
+  res.end(payload);
+}
+
+// src/commands/webconfig.ts
+function parseWebConfigArgs(args) {
+  const options = { open: true };
+  for (let index = 0;index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--no-open") {
+      options.open = false;
+      continue;
+    }
+    if (arg === "--port" || arg === "-p") {
+      const value = Number(args[index + 1]);
+      if (!Number.isInteger(value) || value < 0 || value > 65535) {
+        throw new Error("--port needs a number between 0 and 65535.");
+      }
+      options.port = value;
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown option: ${arg}`);
+  }
+  return options;
+}
+async function webconfig(args = []) {
+  blank();
+  let options;
+  try {
+    options = parseWebConfigArgs(args);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    hint(`Usage: ${source_default.cyan("claudex-switch webconfig [--port <n>] [--no-open]")}`);
+    blank();
+    process.exit(1);
+  }
+  let server;
+  try {
+    server = await startWebConfigServer({ port: options.port });
+  } catch (err) {
+    error(`Could not start the config server: ${err instanceof Error ? err.message : String(err)}`);
+    blank();
+    process.exit(1);
+  }
+  success(`Config UI running at ${source_default.cyan(server.url)}`);
+  hint("The link carries a one-time token and only works from this machine.");
+  hint(`Press ${source_default.cyan("Ctrl-C")} to stop.`);
+  blank();
+  if (options.open !== false && !openExternalUrl(server.url)) {
+    info("Could not open a browser automatically — open the link above.");
+  }
+  await new Promise((resolve2) => {
+    const stop = () => {
+      server.close().then(() => {
+        blank();
+        resolve2();
+      });
+    };
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+  });
+}
+
 // src/commands/doctor.ts
 async function doctor(aliasOrName, options = {}) {
   blank();
@@ -9178,6 +10433,7 @@ var HELP = `
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
     claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account
+    claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
     claudex-switch update              Upgrade to the latest release
@@ -9378,6 +10634,9 @@ async function main() {
           live: args.includes("--live"),
           restart: args.includes("--restart")
         });
+        break;
+      case "webconfig":
+        await webconfig(args);
         break;
       case "import":
         await importAccounts();

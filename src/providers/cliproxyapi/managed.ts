@@ -33,6 +33,7 @@ import {
 } from "../../lib/browser";
 import {
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
+  normalizeCustomEnv,
   type LocalCLIProxyAPISettings,
 } from "../claude/settings";
 import type { LocalCLIProxyAPIProfileData } from "../../types";
@@ -392,6 +393,11 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   // file neutralize them without modifying the user's global configuration.
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env[key] = "";
+  }
+  // Extra env the user attached to this profile (e.g. CLAUDE_CODE_EFFORT_LEVEL)
+  // is applied after the managed keys, and can never shadow one of them.
+  for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
+    env[key] = value;
   }
   await writePrivateJson(paths.claudeSettingsFile, {
     model: config.model,

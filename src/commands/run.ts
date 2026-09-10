@@ -20,7 +20,9 @@ import {
   CLAUDE_ENV_KEYS,
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   getClaudeEnvNeutralizer,
+  normalizeCustomEnv,
   prepareApiProfileClaudeSettings,
+  prepareOAuthProfileClaudeSettings,
 } from "../providers/claude/settings";
 import {
   acquireManagedCLIProxyAPILease,
@@ -39,6 +41,7 @@ import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 import type {
   AliasEntry,
   ClaudeApiProfileConfig,
+  CustomEnv,
   ProfileData,
 } from "../types";
 
@@ -149,7 +152,20 @@ export async function runAliasSession(
       blank();
       process.exit(1);
     }
-    settingsNeutralizer = await getClaudeEnvNeutralizer();
+    // A profile that owns extra env needs a private 0600 file rather than the
+    // inline neutralizer JSON, which `ps` exposes. Everything else keeps the
+    // cheaper inline form.
+    if (
+      profile?.type === "oauth" &&
+      Object.keys(normalizeCustomEnv(profile.env)).length > 0
+    ) {
+      localSettingsFile = await prepareOAuthProfileClaudeSettings(
+        claudeProfileName,
+        profile,
+      );
+    } else {
+      settingsNeutralizer = await getClaudeEnvNeutralizer();
+    }
   }
 
   if (isolatedClaudeApi && claudeProfileName && profile?.type === "api-key") {
@@ -299,12 +315,16 @@ async function getRunEnvironment(
     }
     if (profile?.type === "local-cliproxyapi") {
       return applyClaudeAttributionHeader(
-        buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir),
+        buildClaudeLocalCLIProxyAPIEnvironment(
+          secureStorageDir,
+          configDir,
+          profile.env,
+        ),
         headerEnabled,
       );
     }
     return applyClaudeAttributionHeader(
-      buildClaudeOAuthEnvironment(secureStorageDir, configDir),
+      buildClaudeOAuthEnvironment(secureStorageDir, configDir, profile?.env),
       headerEnabled,
     );
   }
@@ -400,11 +420,13 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
 function buildClaudeOAuthEnvironment(
   secureStorageDir?: string,
   configDir?: string,
+  extraEnv?: CustomEnv,
 ): NodeJS.ProcessEnv | undefined {
   if (
     !secureStorageDir &&
     !configDir &&
-    !CLAUDE_ENV_KEYS.some((key) => process.env[key])
+    !CLAUDE_ENV_KEYS.some((key) => process.env[key]) &&
+    Object.keys(normalizeCustomEnv(extraEnv)).length === 0
   ) {
     return undefined;
   }
@@ -413,6 +435,7 @@ function buildClaudeOAuthEnvironment(
   for (const key of CLAUDE_ENV_KEYS) {
     delete env[key];
   }
+  applyCustomEnv(env, extraEnv);
   if (secureStorageDir) {
     env.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
@@ -439,6 +462,11 @@ function buildClaudeApiEnvironment(
   setOptionalEnv(env, "ANTHROPIC_MODEL", config.model);
   setOptionalEnv(
     env,
+    "ANTHROPIC_DEFAULT_FABLE_MODEL",
+    config.defaultFableModel,
+  );
+  setOptionalEnv(
+    env,
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     config.defaultSonnetModel,
   );
@@ -452,6 +480,8 @@ function buildClaudeApiEnvironment(
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     config.defaultHaikuModel,
   );
+  setOptionalEnv(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
+  applyCustomEnv(env, config.env);
 
   return env;
 }
@@ -459,6 +489,7 @@ function buildClaudeApiEnvironment(
 function buildClaudeLocalCLIProxyAPIEnvironment(
   secureStorageDir?: string,
   configDir?: string,
+  extraEnv?: CustomEnv,
 ): NodeJS.ProcessEnv {
   const env = { ...process.env };
   // The generated 0600 `--settings` file is authoritative for all managed
@@ -471,6 +502,7 @@ function buildClaudeLocalCLIProxyAPIEnvironment(
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     delete env[key];
   }
+  applyCustomEnv(env, extraEnv);
   if (secureStorageDir) {
     env.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
@@ -478,6 +510,15 @@ function buildClaudeLocalCLIProxyAPIEnvironment(
     env.CLAUDE_CONFIG_DIR = configDir;
   }
   return env;
+}
+
+function applyCustomEnv(
+  env: NodeJS.ProcessEnv,
+  extraEnv: CustomEnv | undefined,
+): void {
+  for (const [key, value] of Object.entries(normalizeCustomEnv(extraEnv))) {
+    env[key] = value;
+  }
 }
 
 function applyClaudeAttributionHeader(

@@ -15,7 +15,8 @@
 - `claudex-switch list` 并行拉取并显示所有账号的剩余额度，同时以服务端额度响应更新 Codex 订阅等级、以最新匹配凭据更新 Claude 等级：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。加 `--no-usage` 可跳过网络请求，但仍会从本地凭据更新等级
 - 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
-- Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型和 Sonnet / Opus / Haiku 模型映射）
+- `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
+- Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
 - macOS Keychain 凭证兼容
 
@@ -216,6 +217,7 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
 | `claudex-switch doctor <alias> [--live] [--restart]` | 诊断本机 CLIProxyAPI 账号；可显式发送 Luna 测试请求或重启其代理 |
+| `claudex-switch webconfig [--port <n>] [--no-open]` | 打开本机网页，批量查看和修改所有账号的配置 |
 | `claudex-switch current` | 显示当前活跃账号 |
 | `claudex-switch remove <alias>` | 只删除别名，不删除底层账号 |
 | `claudex-switch purge <alias>` | 删除底层账号及其关联别名 |
@@ -225,6 +227,33 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 | `claudex-switch help` | 显示帮助 |
 
 **快捷方式:** `ls` = `list`，`rm` = `remove`，`-V` = `--version`
+
+### 网页配置
+
+```bash
+claudex-switch webconfig
+```
+
+会在 `127.0.0.1` 上起一个只监听本机的服务，自动用浏览器打开，命令行里也会打印带一次性 token 的地址（换台机器打不开，页面加载后 token 会从地址栏清掉）。`Ctrl-C` 结束。
+
+页面按 Claude / Codex 两组列出全部账号，点开就能改，底部一次性保存所有改动的账号：
+
+| 账号类型 | 可改内容 |
+|---|---|
+| Claude API Key | API Key、请求地址、Auth Token、主模型、Fable / Opus / Sonnet / Haiku 映射、子代理模型 |
+| Claude OAuth | 默认模型 |
+| Claude 本机 CLIProxyAPI | 默认模型（其余由代理自己管理） |
+| Codex ChatGPT | 默认模型 |
+| Codex API Key | 默认模型、请求地址、Provider 模型、环境变量名、API Key |
+
+两个额外能力：
+
+- **自定义环境变量**：Claude 账号可以挂任意 `CLAUDE_CODE_*` 变量（如 `CLAUDE_CODE_EFFORT_LEVEL=max`、`CLAUDE_CODE_AUTO_COMPACT_WINDOW=786432`）。这些变量跟着账号走：切到别的账号时会被自动清掉，`-run` 隔离会话里也会带上；你自己手写在 `~/.claude/settings.json` 里的其它 env 不会被动。
+- **粘贴导入**：把一整段 `export ANTHROPIC_BASE_URL=... / export CLAUDE_CODE_EFFORT_LEVEL=...` 直接贴进去点「解析并填入」，已知的键落到对应输入框，其余落到自定义变量表。
+
+保存时如果这个账号正好是当前生效的账号，会立刻同步到 `~/.claude/settings.json` 或 `~/.codex/config.toml`；不是当前账号就只写它自己的配置，等下次切过去再生效。
+
+Codex 的 Provider 名称是只读的：它是 `config.toml` 里 `[model_providers.<name>]` 的表名，改名会留下孤儿配置并打乱历史会话的可见性。
 
 ### 中转站账号余额（可选）
 

@@ -1,0 +1,613 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, readFile, stat } from "fs/promises";
+import { join } from "path";
+import { saveAliases } from "../src/alias/store";
+import { parseWebConfigArgs } from "../src/commands/webconfig";
+import { writeJson } from "../src/lib/fs";
+import {
+  CLAUDE_STATE_FILE,
+  MANAGED_ENV_FILE,
+  SETTINGS_FILE,
+  claudeProfileDataFile,
+  claudeProfileDir,
+} from "../src/lib/paths";
+import { getProfileData } from "../src/providers/claude/profiles";
+import {
+  getClaudeEnvNeutralizer,
+  prepareApiProfileClaudeSettings,
+  prepareOAuthProfileClaudeSettings,
+} from "../src/providers/claude/settings";
+import { saveAccountAuth } from "../src/providers/codex/auth";
+import { saveRegistry } from "../src/providers/codex/registry";
+import { startWebConfigServer, type WebConfigServer } from "../src/webconfig/server";
+import { applyChanges, buildSnapshot } from "../src/webconfig/snapshot";
+import { assertIsolatedHome, fileMode, resetTestHome, TEST_HOME } from "./helpers";
+import type {
+  AliasRegistry,
+  ApiKeyProfileData,
+  CodexRegistry,
+  ProfileData,
+  WebConfigAccount,
+  WebConfigSnapshot,
+} from "../src/types";
+
+const CODEX_ACCOUNT_KEY = "user-1::acct-1";
+
+async function writeClaudeProfile(
+  name: string,
+  data: ProfileData,
+): Promise<void> {
+  assertIsolatedHome(claudeProfileDir(name));
+  await mkdir(claudeProfileDir(name), { recursive: true });
+  await writeJson(claudeProfileDataFile(name), data);
+}
+
+async function setActiveClaudeProfile(name: string | null): Promise<void> {
+  assertIsolatedHome(CLAUDE_STATE_FILE);
+  await mkdir(join(TEST_HOME, ".claude-profiles"), { recursive: true });
+  await writeJson(CLAUDE_STATE_FILE, { active: name });
+}
+
+async function seedCodexAccount(alias: string): Promise<void> {
+  const registry: CodexRegistry = {
+    schema_version: 1,
+    active_account_key: CODEX_ACCOUNT_KEY,
+    active_account_activated_at_ms: Date.now(),
+    auto_switch: {
+      enabled: false,
+      threshold_5h_percent: 90,
+      threshold_weekly_percent: 90,
+    },
+    api: { usage: true, account: true },
+    accounts: [
+      {
+        account_key: CODEX_ACCOUNT_KEY,
+        chatgpt_account_id: "acct-1",
+        chatgpt_user_id: "user-1",
+        email: "relay@example.com",
+        alias,
+        account_name: null,
+        plan: null,
+        auth_mode: "apikey",
+        default_model: "gpt-5.4",
+        api_provider: {
+          type: "custom",
+          name: "relay",
+          base_url: "https://old.example.com/v1",
+          model: "gpt-5.4",
+          env_key: "OPENAI_API_KEY",
+        },
+        created_at: 1,
+        last_used_at: null,
+        last_usage: null,
+        last_usage_at: null,
+        last_local_rollout: null,
+      },
+    ],
+  };
+  await saveRegistry(registry);
+  await saveAccountAuth(CODEX_ACCOUNT_KEY, {
+    auth_mode: "apikey",
+    OPENAI_API_KEY: "sk-old-codex-key",
+  });
+}
+
+async function seedAliases(entries: AliasRegistry["aliases"]): Promise<void> {
+  await saveAliases({ version: 1, aliases: entries });
+}
+
+function findAccount(
+  snapshot: WebConfigSnapshot,
+  alias: string,
+): WebConfigAccount {
+  const account = [...snapshot.claude, ...snapshot.codex].find(
+    (candidate) => candidate.alias === alias,
+  );
+  if (!account) throw new Error(`missing account ${alias}`);
+  return account;
+}
+
+async function readSettings(): Promise<{
+  env?: Record<string, string>;
+  model?: string;
+}> {
+  return JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+}
+
+describe("webconfig snapshot", () => {
+  beforeEach(async () => {
+    await resetTestHome();
+  });
+
+  test("reports each account's editable fields and current env", async () => {
+    await writeClaudeProfile("deepseek", {
+      type: "api-key",
+      apiKey: "sk-deepseek",
+      baseUrl: "https://api.deepseek.com/anthropic",
+      model: "deepseek-v4-pro",
+      defaultHaikuModel: "deepseek-v4-flash",
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+    });
+    await writeClaudeProfile("sub", { type: "oauth", defaultModel: "opus" });
+    await setActiveClaudeProfile("deepseek");
+    await seedCodexAccount("cx");
+    await seedAliases([
+      {
+        alias: "deepseek",
+        target: { provider: "claude", profileName: "deepseek" },
+        createdAt: 1,
+      },
+      {
+        alias: "sub",
+        target: { provider: "claude", profileName: "sub" },
+        createdAt: 2,
+      },
+      {
+        alias: "cx",
+        target: { provider: "codex", accountKey: CODEX_ACCOUNT_KEY },
+        createdAt: 3,
+      },
+    ]);
+
+    const snapshot = await buildSnapshot();
+    expect(snapshot.claude).toHaveLength(2);
+    expect(snapshot.codex).toHaveLength(1);
+
+    const deepseek = findAccount(snapshot, "deepseek");
+    expect(deepseek.type).toBe("api-key");
+    expect(deepseek.isActive).toBe(true);
+    expect(deepseek.fields.baseUrl).toBe("https://api.deepseek.com/anthropic");
+    expect(deepseek.fields.apiKey).toBe("sk-deepseek");
+    expect(deepseek.env).toEqual({ CLAUDE_CODE_EFFORT_LEVEL: "max" });
+    expect(deepseek.secretFields).toContain("apiKey");
+
+    const oauth = findAccount(snapshot, "sub");
+    expect(oauth.type).toBe("oauth");
+    expect(oauth.fields).toEqual({ defaultModel: "opus" });
+
+    const codex = findAccount(snapshot, "cx");
+    expect(codex.supportsEnv).toBe(false);
+    expect(codex.fields.baseUrl).toBe("https://old.example.com/v1");
+    expect(codex.fields.apiKey).toBe("sk-old-codex-key");
+    // The provider name keys config.toml's [model_providers.<name>] table.
+    expect(codex.readonly).toContain("providerName");
+  });
+
+  test("saves only the submitted accounts and keeps the rest untouched", async () => {
+    await writeClaudeProfile("one", { type: "api-key", apiKey: "sk-one" });
+    await writeClaudeProfile("two", { type: "api-key", apiKey: "sk-two" });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "one",
+        target: { provider: "claude", profileName: "one" },
+        createdAt: 1,
+      },
+      {
+        alias: "two",
+        target: { provider: "claude", profileName: "two" },
+        createdAt: 2,
+      },
+    ]);
+
+    const results = await applyChanges([
+      {
+        provider: "claude",
+        alias: "one",
+        fields: { apiKey: "sk-one-new", baseUrl: "https://relay.example.com" },
+      },
+    ]);
+
+    expect(results).toEqual([{ alias: "one", ok: true, reapplied: false }]);
+    const one = await getProfileData("one");
+    expect(one).toMatchObject({
+      apiKey: "sk-one-new",
+      baseUrl: "https://relay.example.com",
+    });
+    expect(await getProfileData("two")).toEqual({
+      type: "api-key",
+      apiKey: "sk-two",
+    });
+  });
+
+  test("re-applies global settings when the edited account is active", async () => {
+    await writeClaudeProfile("live", {
+      type: "api-key",
+      apiKey: "sk-live",
+      model: "old-model",
+    });
+    await setActiveClaudeProfile("live");
+    await seedAliases([
+      {
+        alias: "live",
+        target: { provider: "claude", profileName: "live" },
+        createdAt: 1,
+      },
+    ]);
+
+    const results = await applyChanges([
+      {
+        provider: "claude",
+        alias: "live",
+        fields: {
+          apiKey: "sk-live",
+          baseUrl: "https://api.deepseek.com/anthropic",
+          model: "deepseek-v4-pro",
+          defaultHaikuModel: "deepseek-v4-flash",
+        },
+        env: {
+          CLAUDE_CODE_EFFORT_LEVEL: "max",
+          CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
+        },
+      },
+    ]);
+
+    expect(results[0]).toEqual({ alias: "live", ok: true, reapplied: true });
+
+    const settings = await readSettings();
+    expect(settings.env).toMatchObject({
+      ANTHROPIC_API_KEY: "sk-live",
+      ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
+      ANTHROPIC_MODEL: "deepseek-v4-pro",
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-v4-flash",
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
+    });
+    expect(settings.model).toBe("deepseek-v4-pro");
+  });
+
+  test("accepts a pasted export block verbatim, including subagent routing", async () => {
+    await writeClaudeProfile("paste", { type: "api-key", apiKey: "sk-paste" });
+    await setActiveClaudeProfile("paste");
+    await seedAliases([
+      {
+        alias: "paste",
+        target: { provider: "claude", profileName: "paste" },
+        createdAt: 1,
+      },
+    ]);
+
+    const results = await applyChanges([
+      {
+        provider: "claude",
+        alias: "paste",
+        fields: {
+          apiKey: "sk-paste",
+          baseUrl: "https://api.deepseek.com/anthropic",
+          model: "deepseek-v4-pro[1m]",
+          defaultOpusModel: "deepseek-v4-pro[1m]",
+          defaultSonnetModel: "deepseek-v4-pro[1m]",
+          defaultHaikuModel: "deepseek-v4-flash",
+          // CLAUDE_CODE_SUBAGENT_MODEL is a managed key: it needs its own
+          // field, otherwise a pasted export block is rejected as reserved.
+          subagentModel: "deepseek-v4-flash",
+        },
+        env: {
+          CLAUDE_CODE_EFFORT_LEVEL: "max",
+          CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
+        },
+      },
+    ]);
+
+    expect(results[0].ok).toBe(true);
+    expect((await readSettings()).env).toMatchObject({
+      CLAUDE_CODE_SUBAGENT_MODEL: "deepseek-v4-flash",
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
+    });
+
+    // The same routing must reach an isolated -run through its private,
+    // higher-precedence settings file, not only the global settings.
+    const runSettingsFile = await prepareApiProfileClaudeSettings(
+      "paste",
+      (await getProfileData("paste")) as ApiKeyProfileData,
+    );
+    const runSettings = JSON.parse(await readFile(runSettingsFile, "utf-8"));
+    expect(runSettings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
+      CLAUDE_CODE_SUBAGENT_MODEL: "deepseek-v4-flash",
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
+    });
+  });
+
+  test("neutralizes another profile's custom env for an isolated OAuth run", async () => {
+    await writeClaudeProfile("api", {
+      type: "api-key",
+      apiKey: "sk-api",
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+    });
+    await writeClaudeProfile("sub", { type: "oauth" });
+    await setActiveClaudeProfile("api");
+    await seedAliases([
+      {
+        alias: "api",
+        target: { provider: "claude", profileName: "api" },
+        createdAt: 1,
+      },
+    ]);
+    await applyChanges([
+      {
+        provider: "claude",
+        alias: "api",
+        fields: { apiKey: "sk-api" },
+        env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+      },
+    ]);
+
+    const neutralizer = JSON.parse((await getClaudeEnvNeutralizer()) ?? "{}");
+    expect(neutralizer.env.CLAUDE_CODE_EFFORT_LEVEL).toBe("");
+    expect(neutralizer.env.ANTHROPIC_API_KEY).toBe("");
+
+    // An OAuth profile that owns extra env gets a private 0600 file instead,
+    // because the inline neutralizer JSON is visible in `ps`.
+    const file = await prepareOAuthProfileClaudeSettings("sub", {
+      type: "oauth",
+      env: { CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432" },
+    });
+    const settings = JSON.parse(await readFile(file, "utf-8"));
+    expect(settings.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe("786432");
+    expect(settings.env.CLAUDE_CODE_EFFORT_LEVEL).toBe("");
+    expect(fileMode((await stat(file)).mode)).toBe(0o600);
+  });
+
+  test("rejects invalid values without touching the profile", async () => {
+    await writeClaudeProfile("bad", { type: "api-key", apiKey: "sk-bad" });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "bad",
+        target: { provider: "claude", profileName: "bad" },
+        createdAt: 1,
+      },
+    ]);
+
+    const results = await applyChanges([
+      { provider: "claude", alias: "bad", fields: { baseUrl: "not a url" } },
+      { provider: "claude", alias: "bad", env: { "lower-case": "1" } },
+      {
+        provider: "claude",
+        alias: "bad",
+        env: { ANTHROPIC_BASE_URL: "https://x.example.com" },
+      },
+      { provider: "claude", alias: "nope", fields: {} },
+    ]);
+
+    expect(results.map((result) => result.ok)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    // The reserved-key rejection must name the dedicated input, not just fail.
+    expect(results[2].error).toContain("ANTHROPIC_BASE_URL");
+    expect(await getProfileData("bad")).toEqual({
+      type: "api-key",
+      apiKey: "sk-bad",
+    });
+  });
+
+  test("clears the previous account's custom env on the next switch", async () => {
+    await writeClaudeProfile("withenv", {
+      type: "api-key",
+      apiKey: "sk-env",
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+    });
+    await writeClaudeProfile("plain", { type: "oauth" });
+    await setActiveClaudeProfile("withenv");
+    await seedAliases([
+      {
+        alias: "withenv",
+        target: { provider: "claude", profileName: "withenv" },
+        createdAt: 1,
+      },
+      {
+        alias: "plain",
+        target: { provider: "claude", profileName: "plain" },
+        createdAt: 2,
+      },
+    ]);
+
+    await applyChanges([
+      {
+        provider: "claude",
+        alias: "withenv",
+        fields: { apiKey: "sk-env" },
+        env: { CLAUDE_CODE_EFFORT_LEVEL: "max", MY_OWN_FLAG: "1" },
+      },
+    ]);
+    expect((await readSettings()).env).toMatchObject({
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+      MY_OWN_FLAG: "1",
+    });
+    expect(JSON.parse(await readFile(MANAGED_ENV_FILE, "utf-8")).keys).toEqual([
+      "CLAUDE_CODE_EFFORT_LEVEL",
+      "MY_OWN_FLAG",
+    ]);
+
+    // Switching to a profile that owns no extra env must remove them again.
+    await setActiveClaudeProfile("plain");
+    await applyChanges([
+      { provider: "claude", alias: "plain", fields: { defaultModel: "opus" } },
+    ]);
+
+    const settings = await readSettings();
+    expect(settings.env?.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
+    expect(settings.env?.MY_OWN_FLAG).toBeUndefined();
+  });
+
+  test("never removes env entries the user added by hand", async () => {
+    await writeClaudeProfile("hand", { type: "api-key", apiKey: "sk-hand" });
+    await setActiveClaudeProfile("hand");
+    await mkdir(join(TEST_HOME, ".claude"), { recursive: true });
+    await writeJson(SETTINGS_FILE, {
+      env: { MY_MANUAL_SETTING: "keep-me" },
+    });
+    await seedAliases([
+      {
+        alias: "hand",
+        target: { provider: "claude", profileName: "hand" },
+        createdAt: 1,
+      },
+    ]);
+
+    await applyChanges([
+      {
+        provider: "claude",
+        alias: "hand",
+        fields: { apiKey: "sk-hand" },
+        env: { CLAUDE_CODE_EFFORT_LEVEL: "high" },
+      },
+    ]);
+
+    expect((await readSettings()).env).toMatchObject({
+      MY_MANUAL_SETTING: "keep-me",
+      CLAUDE_CODE_EFFORT_LEVEL: "high",
+    });
+  });
+
+  test("writes codex edits to the registry, auth file and config.toml", async () => {
+    await seedCodexAccount("cx");
+    await seedAliases([
+      {
+        alias: "cx",
+        target: { provider: "codex", accountKey: CODEX_ACCOUNT_KEY },
+        createdAt: 1,
+      },
+    ]);
+
+    const results = await applyChanges([
+      {
+        provider: "codex",
+        alias: "cx",
+        fields: {
+          baseUrl: "https://new.example.com/v1",
+          model: "gpt-6",
+          defaultModel: "gpt-6",
+          apiKey: "sk-new-codex-key",
+          // Read-only in the UI; a hand-crafted request must not rename it.
+          providerName: "hijacked",
+        },
+      },
+    ]);
+
+    expect(results[0]).toEqual({ alias: "cx", ok: true, reapplied: true });
+
+    const snapshot = await buildSnapshot();
+    const codex = findAccount(snapshot, "cx");
+    expect(codex.fields.baseUrl).toBe("https://new.example.com/v1");
+    expect(codex.fields.providerName).toBe("relay");
+    expect(codex.fields.apiKey).toBe("sk-new-codex-key");
+
+    const config = await readFile(join(TEST_HOME, ".codex", "config.toml"), "utf-8");
+    expect(config).toContain('base_url = "https://new.example.com/v1"');
+    expect(config).toContain('experimental_bearer_token = "sk-new-codex-key"');
+    expect(config).toContain('model = "gpt-6"');
+  });
+});
+
+describe("webconfig server", () => {
+  let server: WebConfigServer;
+
+  beforeEach(async () => {
+    await resetTestHome();
+    await seedAliases([]);
+    server = await startWebConfigServer();
+  });
+
+  afterEach(async () => {
+    await server.close();
+  });
+
+  test("serves the page only with a valid token", async () => {
+    const anonymous = await fetch(`http://127.0.0.1:${server.port}/`);
+    expect(anonymous.status).toBe(403);
+
+    const wrong = await fetch(`http://127.0.0.1:${server.port}/?t=nope`);
+    expect(wrong.status).toBe(403);
+
+    const ok = await fetch(server.url);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toContain("text/html");
+    expect(await ok.text()).toContain("claudex-switch 配置");
+  });
+
+  test("rejects a foreign Host header", async () => {
+    const res = await fetch(`http://127.0.0.1:${server.port}/api/accounts`, {
+      headers: {
+        authorization: `Bearer ${server.token}`,
+        host: "evil.example.com",
+      },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test("round-trips a save through the HTTP API", async () => {
+    await writeClaudeProfile("web", { type: "api-key", apiKey: "sk-web" });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "web",
+        target: { provider: "claude", profileName: "web" },
+        createdAt: 1,
+      },
+    ]);
+
+    const listed = await fetch(`http://127.0.0.1:${server.port}/api/accounts`, {
+      headers: { authorization: `Bearer ${server.token}` },
+    });
+    const snapshot = (await listed.json()) as WebConfigSnapshot;
+    expect(findAccount(snapshot, "web").fields.apiKey).toBe("sk-web");
+
+    const saved = await fetch(`http://127.0.0.1:${server.port}/api/accounts`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${server.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        changes: [
+          {
+            provider: "claude",
+            alias: "web",
+            fields: { apiKey: "sk-web", model: "some-model" },
+            env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+          },
+        ],
+      }),
+    });
+    const body = (await saved.json()) as {
+      results: { ok: boolean }[];
+      snapshot: WebConfigSnapshot;
+    };
+    expect(body.results[0].ok).toBe(true);
+    expect(findAccount(body.snapshot, "web").env).toEqual({
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+    });
+  });
+
+  test("rejects a malformed save body", async () => {
+    const res = await fetch(`http://127.0.0.1:${server.port}/api/accounts`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${server.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ nope: true }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("webconfig args", () => {
+  test("parses port and open flags", () => {
+    expect(parseWebConfigArgs([])).toEqual({ open: true });
+    expect(parseWebConfigArgs(["--no-open"])).toEqual({ open: false });
+    expect(parseWebConfigArgs(["--port", "8899"])).toEqual({
+      open: true,
+      port: 8899,
+    });
+    expect(() => parseWebConfigArgs(["--port", "abc"])).toThrow();
+    expect(() => parseWebConfigArgs(["--what"])).toThrow();
+  });
+});

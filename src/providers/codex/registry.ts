@@ -113,6 +113,46 @@ export function updateAccountDefaultModel(
   return account;
 }
 
+export interface CodexAccountConfigPatch {
+  defaultModel?: string;
+  baseUrl?: string;
+  model?: string;
+  envKey?: string;
+}
+
+// Apply a partial edit from the web UI. The provider *name* is deliberately not
+// patchable: it keys the [model_providers.<name>] table in config.toml and the
+// session-visibility stamp, so renaming it would orphan both.
+export function updateAccountConfig(
+  reg: CodexRegistry,
+  accountKey: string,
+  patch: CodexAccountConfigPatch,
+): CodexRegistryAccount {
+  const account = findAccountByKey(reg, accountKey);
+  if (!account) {
+    throw new Error(`Codex account not found: ${accountKey}`);
+  }
+
+  if (patch.defaultModel !== undefined) {
+    account.default_model = resolveCodexModel(patch.defaultModel);
+  }
+
+  const provider = account.api_provider;
+  if (provider && provider.type === "custom") {
+    if (patch.baseUrl !== undefined) {
+      provider.base_url = patch.baseUrl.trim() || null;
+    }
+    if (patch.model !== undefined) {
+      provider.model = patch.model.trim() || null;
+    }
+    if (patch.envKey !== undefined) {
+      provider.env_key = patch.envKey.trim() || null;
+    }
+  }
+
+  return account;
+}
+
 export function removeAccountFromRegistry(
   reg: CodexRegistry,
   accountKey: string,
