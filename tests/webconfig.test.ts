@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, readFile, stat } from "fs/promises";
+import { access, mkdir, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { saveAliases } from "../src/alias/store";
+import { codexAccountAuthFile } from "../src/lib/paths";
 import { parseWebConfigArgs } from "../src/commands/webconfig";
 import { writeJson } from "../src/lib/fs";
 import {
@@ -20,7 +21,12 @@ import {
 import { saveAccountAuth } from "../src/providers/codex/auth";
 import { saveRegistry } from "../src/providers/codex/registry";
 import { startWebConfigServer, type WebConfigServer } from "../src/webconfig/server";
-import { applyChanges, buildSnapshot } from "../src/webconfig/snapshot";
+import {
+  applyChanges,
+  buildSnapshot,
+  deleteAccount,
+  renameAccountAlias,
+} from "../src/webconfig/snapshot";
 import { assertIsolatedHome, fileMode, resetTestHome, TEST_HOME } from "./helpers";
 import type {
   AliasRegistry,
@@ -107,6 +113,15 @@ function findAccount(
   return account;
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function readSettings(): Promise<{
   env?: Record<string, string>;
   model?: string;
@@ -117,6 +132,186 @@ async function readSettings(): Promise<{
 describe("webconfig snapshot", () => {
   beforeEach(async () => {
     await resetTestHome();
+  });
+
+  test("names every alias a delete would also remove", async () => {
+    await writeClaudeProfile("shared", { type: "api-key", apiKey: "sk-shared" });
+    await setActiveClaudeProfile("shared");
+    await seedAliases([
+      {
+        alias: "one",
+        target: { provider: "claude", profileName: "shared" },
+        createdAt: 1,
+      },
+      {
+        alias: "two",
+        target: { provider: "claude", profileName: "shared" },
+        createdAt: 2,
+      },
+      {
+        alias: "other",
+        target: { provider: "claude", profileName: "other" },
+        createdAt: 3,
+      },
+    ]);
+
+    const snapshot = await buildSnapshot();
+    expect(findAccount(snapshot, "one").linkedAliases).toEqual(["one", "two"]);
+    expect(findAccount(snapshot, "two").linkedAliases).toEqual(["one", "two"]);
+    expect(findAccount(snapshot, "other").linkedAliases).toEqual(["other"]);
+  });
+
+  test("renames an alias without touching the account underneath", async () => {
+    await writeClaudeProfile("keepme", {
+      type: "api-key",
+      apiKey: "sk-keepme",
+      baseUrl: "https://relay.example.com",
+    });
+    await setActiveClaudeProfile("keepme");
+    await seedAliases([
+      {
+        alias: "before",
+        target: { provider: "claude", profileName: "keepme" },
+        createdAt: 1,
+      },
+    ]);
+
+    expect(await renameAccountAlias("before", "after")).toBe("after");
+
+    const snapshot = await buildSnapshot();
+    expect(snapshot.claude.map((a) => a.alias)).toEqual(["after"]);
+    // The profile name is the account's own identity and must not move.
+    expect(findAccount(snapshot, "after").profileName).toBe("keepme");
+    expect(await getProfileData("keepme")).toMatchObject({
+      apiKey: "sk-keepme",
+      baseUrl: "https://relay.example.com",
+    });
+  });
+
+  test("rejects a rename to a bad or occupied alias", async () => {
+    await writeClaudeProfile("a", { type: "api-key", apiKey: "sk-a" });
+    await writeClaudeProfile("b", { type: "api-key", apiKey: "sk-b" });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      { alias: "a", target: { provider: "claude", profileName: "a" }, createdAt: 1 },
+      { alias: "b", target: { provider: "claude", profileName: "b" }, createdAt: 2 },
+    ]);
+
+    await expect(renameAccountAlias("a", "b")).rejects.toThrow("占用");
+    await expect(renameAccountAlias("a", "purge")).rejects.toThrow("保留命令");
+    await expect(renameAccountAlias("a", "with space")).rejects.toThrow();
+    await expect(renameAccountAlias("a", "")).rejects.toThrow("不能为空");
+    await expect(renameAccountAlias("nope", "c")).rejects.toThrow("不存在");
+
+    expect((await buildSnapshot()).claude.map((a) => a.alias)).toEqual(["a", "b"]);
+  });
+
+  test("deletes the account and every alias pointing at it", async () => {
+    await writeClaudeProfile("target", { type: "api-key", apiKey: "sk-target" });
+    await writeClaudeProfile("survivor", {
+      type: "api-key",
+      apiKey: "sk-survivor",
+    });
+    await setActiveClaudeProfile("target");
+    await seedCodexAccount("cx");
+    await seedAliases([
+      {
+        alias: "gone1",
+        target: { provider: "claude", profileName: "target" },
+        createdAt: 1,
+      },
+      {
+        alias: "gone2",
+        target: { provider: "claude", profileName: "target" },
+        createdAt: 2,
+      },
+      {
+        alias: "kept",
+        target: { provider: "claude", profileName: "survivor" },
+        createdAt: 3,
+      },
+      {
+        alias: "cx",
+        target: { provider: "codex", accountKey: CODEX_ACCOUNT_KEY },
+        createdAt: 4,
+      },
+    ]);
+
+    const removed = await deleteAccount("gone1");
+    expect(removed.sort()).toEqual(["gone1", "gone2"]);
+
+    const snapshot = await buildSnapshot();
+    expect(snapshot.claude.map((a) => a.alias).sort()).toEqual(["kept"]);
+    // The target profile's directory, credentials and all, is gone.
+    expect(await pathExists(claudeProfileDir("target"))).toBe(false);
+    expect(await pathExists(claudeProfileDir("survivor"))).toBe(true);
+    expect(await getProfileData("survivor")).toMatchObject({
+      apiKey: "sk-survivor",
+    });
+
+    // Purging an active account clears the global active pointer.
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8"))).toEqual({
+      active: null,
+    });
+
+    // Codex keeps its own account until it is the one being deleted.
+    expect(findAccount(snapshot, "cx").fields.apiKey).toBe("sk-old-codex-key");
+  });
+
+  test("deletes a codex account and its stored login file", async () => {
+    await seedCodexAccount("cx");
+    await seedAliases([
+      {
+        alias: "cx",
+        target: { provider: "codex", accountKey: CODEX_ACCOUNT_KEY },
+        createdAt: 1,
+      },
+    ]);
+
+    const authFile = codexAccountAuthFile(CODEX_ACCOUNT_KEY);
+    expect(await pathExists(authFile)).toBe(true);
+
+    await deleteAccount("cx");
+
+    expect(await pathExists(authFile)).toBe(false);
+    const snapshot = await buildSnapshot();
+    expect(snapshot.codex).toEqual([]);
+    const registry = JSON.parse(
+      await readFile(join(TEST_HOME, ".codex", "accounts", "registry.json"), "utf-8"),
+    );
+    expect(registry.accounts).toEqual([]);
+  });
+
+  test("leaves the alias alone when the account underneath cannot be removed", async () => {
+    // Ordering contract: the account is removed before its aliases, so any
+    // refusal (here a corrupt profile id, as a held -run lease would be) must
+    // leave at least one alias pointing at a still-present account. Dropping
+    // the aliases first would strand the account with no way to reach it.
+    await writeClaudeProfile("proxy", {
+      type: "local-cliproxyapi",
+      profileId: "not-a-uuid",
+      binaryPath: "/nonexistent/cli-proxy-api",
+      defaultModel: "gpt-6",
+    });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "p",
+        target: { provider: "claude", profileName: "proxy" },
+        createdAt: 1,
+      },
+    ]);
+
+    await expect(deleteAccount("p")).rejects.toThrow("Invalid managed");
+
+    const snapshot = await buildSnapshot();
+    expect(snapshot.claude.map((a) => a.alias)).toEqual(["p"]);
+    expect(await pathExists(claudeProfileDir("proxy"))).toBe(true);
+  });
+
+  test("refuses to delete an alias that is already gone", async () => {
+    await seedAliases([]);
+    await expect(deleteAccount("ghost")).rejects.toThrow("不存在");
   });
 
   test("reports each account's editable fields and current env", async () => {
@@ -639,6 +834,61 @@ describe("webconfig server", () => {
     expect(findAccount(body.snapshot, "web").env).toEqual({
       CLAUDE_CODE_EFFORT_LEVEL: "max",
     });
+  });
+
+  test("renames and deletes through the HTTP API", async () => {
+    await writeClaudeProfile("erased", {
+      type: "api-key",
+      apiKey: "sk-erased",
+    });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "old",
+        target: { provider: "claude", profileName: "erased" },
+        createdAt: 1,
+      },
+    ]);
+
+    const post = async (path: string, body: unknown) => {
+      const res = await fetch(`http://127.0.0.1:${server.port}${path}`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${server.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      return { status: res.status, body: (await res.json()) as any };
+    };
+
+    const renamed = await post("/api/accounts/rename", {
+      alias: "old",
+      newAlias: "new",
+    });
+    expect(renamed.body.ok).toBe(true);
+    expect(renamed.body.alias).toBe("new");
+    expect(renamed.body.snapshot.claude[0].alias).toBe("new");
+
+    const bad = await post("/api/accounts/rename", {
+      alias: "new",
+      newAlias: "purge",
+    });
+    expect(bad.body.ok).toBe(false);
+    expect(bad.body.error).toContain("保留命令");
+
+    const deleted = await post("/api/accounts/delete", { alias: "new" });
+    expect(deleted.body.ok).toBe(true);
+    expect(deleted.body.removedAliases).toEqual(["new"]);
+    expect(deleted.body.snapshot.claude).toEqual([]);
+    expect(await pathExists(claudeProfileDir("erased"))).toBe(false);
+
+    const missing = await post("/api/accounts/delete", { alias: "new" });
+    expect(missing.body.ok).toBe(false);
+    expect(missing.body.error).toContain("不存在");
+
+    const malformed = await post("/api/accounts/delete", {});
+    expect(malformed.status).toBe(400);
   });
 
   test("rejects a malformed save body", async () => {

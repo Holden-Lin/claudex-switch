@@ -286,6 +286,8 @@ export interface WebConfigAccount {
   supportsEnv: boolean;
   secretFields: string[];
   readonly: string[];
+  /** Every alias that a purge of this account would also remove. */
+  linkedAliases: string[];
 }
 
 export interface WebConfigSnapshot {

@@ -103,6 +103,46 @@ export function isValidAlias(alias: string): boolean {
   return true;
 }
 
+// Why an alias cannot be used, in language-neutral form so each surface can
+// render its own text: the CLI speaks English, the web UI speaks Chinese, and
+// neither should own the rule itself. `ignoreAlias` is the alias being renamed,
+// which is allowed to keep its own name under a different case.
+export type AliasRejection = "empty" | "reserved" | "charset" | "taken";
+
+export function checkAlias(
+  reg: AliasRegistry,
+  alias: string,
+  options: { ignoreAlias?: string } = {},
+): AliasRejection | null {
+  if (!alias) return "empty";
+  if (isReservedAlias(alias)) return "reserved";
+  if (!isValidAlias(alias)) return "charset";
+  if (
+    options.ignoreAlias !== undefined &&
+    options.ignoreAlias.toLowerCase() === alias.toLowerCase()
+  ) {
+    return null;
+  }
+  if (aliasExists(reg, alias)) return "taken";
+  return null;
+}
+
+export function describeAliasRejection(
+  rejection: AliasRejection,
+  alias: string,
+): string {
+  switch (rejection) {
+    case "empty":
+      return "Alias cannot be empty";
+    case "reserved":
+      return `"${alias}" is a reserved command name`;
+    case "charset":
+      return "Invalid alias. Use letters, numbers, hyphens, or underscores.";
+    case "taken":
+      return `Alias "${alias}" already exists`;
+  }
+}
+
 export async function addAlias(
   alias: string,
   target: AliasTarget,
@@ -176,14 +216,9 @@ export async function renameAlias(
   if (!entry) {
     throw new Error(`Alias "${currentAlias}" not found`);
   }
-  if (!isValidAlias(nextAlias)) {
-    throw new Error(`Alias "${nextAlias}" is invalid`);
-  }
-  if (
-    currentAlias.toLowerCase() !== nextAlias.toLowerCase() &&
-    aliasExists(reg, nextAlias)
-  ) {
-    throw new Error(`Alias "${nextAlias}" already exists`);
+  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
+  if (rejection) {
+    throw new Error(describeAliasRejection(rejection, nextAlias));
   }
 
   entry.alias = nextAlias;

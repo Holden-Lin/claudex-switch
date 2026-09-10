@@ -121,6 +121,30 @@ const PAGE = `<!doctype html>
   details.paste { margin-top: 18px; }
   details.paste summary { color: var(--muted); font-size: 12px; cursor: pointer; }
   details.paste .row { margin-top: 8px; }
+  button.mini { padding: 4px 9px; font-size: 12px; }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+  button.confirm-delete { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+  button.confirm-delete:hover { color: #fff; opacity: .9; }
+  .alias-input { width: 190px; padding: 4px 8px; font-size: 13px; font-weight: 600; }
+  .alias-wrap { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+  /* Icon-only affordances: no chrome until hovered, so the header stays quiet. */
+  button.icon-btn {
+    display: inline-flex; align-items: center; line-height: 0;
+    padding: 3px; border-color: transparent; background: none;
+    color: var(--muted); border-radius: 5px;
+  }
+  button.icon-btn:hover { color: var(--accent); border-color: transparent; background: none; }
+  button.icon-btn.accept:hover { color: var(--ok); }
+  button.icon-btn.reject:hover { color: var(--danger); }
+  button.icon-btn svg { display: block; }
+  .danger-panel {
+    margin-top: 14px; padding: 12px 14px;
+    border: 1px solid var(--danger); border-radius: 8px;
+  }
+  .danger-title { color: var(--danger); font-weight: 600; font-size: 13px; }
+  .danger-facts { margin: 8px 0 12px; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+  .danger-facts li { margin: 3px 0; }
   footer {
     position: fixed; left: 0; right: 0; bottom: 0;
     background: var(--surface); border-top: 1px solid var(--border);
@@ -201,6 +225,11 @@ const PAGE = `<!doctype html>
   var drafts = {};
   var errors = {};
   var expanded = {};
+  // Alias-level state for the two identity operations, which apply on their
+  // own rather than through the batch save.
+  var renaming = {};
+  var pendingDelete = {};
+  var busy = {};
 
   var listEl = document.getElementById("list");
   var subEl = document.getElementById("sub");
@@ -216,6 +245,42 @@ const PAGE = `<!doctype html>
     if (className) node.className = className;
     if (text !== undefined && text !== null) node.textContent = String(text);
     return node;
+  }
+
+  function iconPath(svg, d) {
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "1.7");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+  }
+
+  function icon(name) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "14");
+    svg.setAttribute("height", "14");
+    svg.setAttribute("aria-hidden", "true");
+    if (name === "pencil") {
+      iconPath(svg, "M11.1 2.3l2.6 2.6-8.3 8.3-3.3.7.7-3.3 8.3-8.3zM10.2 3.2l2.6 2.6");
+    } else if (name === "check") {
+      iconPath(svg, "M3 8.5l3.2 3.2L13 5");
+    } else {
+      iconPath(svg, "M4 4l8 8M12 4l-8 8");
+    }
+    return svg;
+  }
+
+  function iconButton(name, title, className) {
+    var button = el("button", "icon-btn" + (className ? " " + className : ""));
+    button.type = "button";
+    button.title = title;
+    button.setAttribute("aria-label", title);
+    button.appendChild(icon(name));
+    return button;
   }
 
   function api(path, options) {
@@ -385,7 +450,7 @@ const PAGE = `<!doctype html>
     add.type = "button";
     add.addEventListener("click", function () {
       draft.env.push({ key: "", value: "" });
-      rerender(draft.env.length - 1);
+      rerender({ env: draft.env.length - 1 });
     });
     box.appendChild(add);
     box.appendChild(el("div", "hint",
@@ -451,33 +516,119 @@ const PAGE = `<!doctype html>
     return out;
   }
 
-  function buildCard(account) {
-    var card = el("div", "card" + (isDirty(account) ? " dirty" : ""));
+  function buildHead(account) {
+    var alias = account.alias;
     var head = el("div", "card-head");
-    var open = expanded[account.alias] === true;
+    var renamingThis = Object.prototype.hasOwnProperty.call(renaming, alias);
+    var open = expanded[alias] === true || pendingDelete[alias] === true;
 
     head.appendChild(el("span", "caret", open ? "▼" : "▶"));
-    head.appendChild(el("span", "alias", account.alias));
+
+    if (renamingThis) {
+      var input = document.createElement("input");
+      input.className = "alias-input";
+      input.value = renaming[alias];
+      input.setAttribute("aria-label", "别名");
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      input.addEventListener("input", function () {
+        renaming[alias] = input.value;
+      });
+      input.addEventListener("click", function (event) {
+        event.stopPropagation();
+      });
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          submitRename(account);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelRename(alias);
+        }
+      });
+      head.appendChild(input);
+
+      var accept = iconButton("check", "保存", "accept");
+      accept.addEventListener("click", function (event) {
+        event.stopPropagation();
+        submitRename(account);
+      });
+      head.appendChild(accept);
+
+      var reject = iconButton("reject", "取消", "reject");
+      reject.addEventListener("click", function (event) {
+        event.stopPropagation();
+        cancelRename(alias);
+      });
+      head.appendChild(reject);
+      // Keep the type badge next to the input; the spacer belongs at the end so
+      // the row does not visibly come apart while the name is being edited.
+      head.appendChild(el("span", "badge", account.label));
+      head.appendChild(el("span", "spacer"));
+      return head;
+    }
+
+    var aliasWrap = el("span", "alias-wrap");
+    aliasWrap.appendChild(el("span", "alias", account.alias));
+    if (pendingDelete[alias] !== true) {
+      var pencil = iconButton("pencil", "修改别名");
+      pencil.addEventListener("click", function (event) {
+        event.stopPropagation();
+        startRename(account);
+      });
+      aliasWrap.appendChild(pencil);
+    }
+    head.appendChild(aliasWrap);
     head.appendChild(el("span", "badge", account.label));
     if (account.isActive) head.appendChild(el("span", "badge active", "当前生效"));
     if (isDirty(account)) head.appendChild(el("span", "badge changed", "已修改"));
     if (account.email) head.appendChild(el("span", "email", account.email));
     head.appendChild(el("span", "spacer"));
-    head.addEventListener("click", function () {
-      expanded[account.alias] = !open;
-      rerenderCard(account.alias);
-    });
-    card.appendChild(head);
 
+    if (pendingDelete[alias] !== true) {
+      var remove = el("button", "mini danger", "删除");
+      remove.type = "button";
+      remove.title = "删除账号（不可撤销）";
+      remove.addEventListener("click", function (event) {
+        event.stopPropagation();
+        pendingDelete[alias] = true;
+        expanded[alias] = true;
+        rerenderCard(alias);
+      });
+      head.appendChild(remove);
+    }
+
+    head.addEventListener("click", function () {
+      expanded[alias] = !open;
+      rerenderCard(alias);
+    });
+    return head;
+  }
+
+  function buildCard(account) {
+    var alias = account.alias;
+    var card = el("div", "card" + (isDirty(account) ? " dirty" : ""));
+    card.appendChild(buildHead(account));
+
+    var open = expanded[alias] === true || pendingDelete[alias] === true;
     if (!open) return card;
 
     var body = el("div", "card-body");
+
+    // A pending delete replaces the form entirely: this is a confirmation
+    // state, and the form's fields are not what the user is being asked about.
+    if (pendingDelete[alias] === true) {
+      body.appendChild(buildDeletePanel(account));
+      card.appendChild(body);
+      return card;
+    }
+
     var onChange = function () {
       refreshFooter();
       card.className = "card" + (isDirty(account) ? " dirty" : "");
     };
-    var rerender = function (focusEnvIndex) {
-      rerenderCard(account.alias, focusEnvIndex);
+    var rerender = function (focus) {
+      rerenderCard(account.alias, focus);
     };
 
     var grid = el("div", "grid");
@@ -503,7 +654,7 @@ const PAGE = `<!doctype html>
     return card;
   }
 
-  function rerenderCard(alias, focusEnvIndex) {
+  function rerenderCard(alias, focus) {
     var account = accounts().filter(function (a) { return a.alias === alias; })[0];
     if (!account) return render();
     var current = listEl.querySelector('[data-alias="' + cssEscape(alias) + '"]');
@@ -512,10 +663,149 @@ const PAGE = `<!doctype html>
     next.setAttribute("data-alias", alias);
     current.replaceWith(next);
     refreshFooter();
-    if (focusEnvIndex !== undefined) {
-      var input = next.querySelector('[data-env-key="' + focusEnvIndex + '"]');
+
+    if (focus && focus.alias === true) {
+      var aliasInput = next.querySelector(".alias-input");
+      if (aliasInput) {
+        aliasInput.focus();
+        aliasInput.select();
+      }
+    } else if (focus && focus.env !== undefined) {
+      var input = next.querySelector('[data-env-key="' + focus.env + '"]');
       if (input) input.focus();
     }
+  }
+
+  function startRename(account) {
+    // Only the flag is set here; the input itself is built by buildHead, so
+    // there is exactly one construction site for it. The card deliberately does
+    // not expand — the name is swapped in place.
+    renaming[account.alias] = account.alias;
+    rerenderCard(account.alias, { alias: true });
+  }
+
+  function cancelRename(alias) {
+    delete renaming[alias];
+    rerenderCard(alias);
+  }
+
+  function submitRename(account) {
+    var alias = account.alias;
+    var next = (renaming[alias] || "").trim();
+
+    if (!next || next === alias) {
+      cancelRename(alias);
+      return;
+    }
+
+    busy[alias] = true;
+    api("/api/accounts/rename", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ alias: alias, newAlias: next })
+    }).then(function (data) {
+      delete busy[alias];
+      if (!data.ok) throw new Error(data.error || "重命名失败");
+      delete renaming[alias];
+      delete drafts[alias];
+      delete expanded[alias];
+      delete errors[alias];
+      snapshot = data.snapshot;
+      render();
+      setStatus("已重命名为 " + data.alias, "ok");
+    }).catch(function (err) {
+      delete busy[alias];
+      // Keep the input open so the name can be corrected in place.
+      errors[alias] = err.message;
+      expanded[alias] = true;
+      rerenderCard(alias);
+    });
+  }
+
+  function submitDelete(account) {
+    var alias = account.alias;
+    busy[alias] = true;
+    rerenderCard(alias);
+
+    api("/api/accounts/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ alias: alias })
+    }).then(function (data) {
+      delete busy[alias];
+      if (!data.ok) throw new Error(data.error || "删除失败");
+      var removed = data.removedAliases || [alias];
+      delete pendingDelete[alias];
+      delete drafts[alias];
+      delete expanded[alias];
+      delete errors[alias];
+      snapshot = data.snapshot;
+      render();
+      setStatus("已删除 " + removed.join("、"), "ok");
+    }).catch(function (err) {
+      delete busy[alias];
+      errors[alias] = err.message;
+      rerenderCard(alias);
+    });
+  }
+
+  // Spells out exactly what is about to be lost. A refusal (an active local
+  // CLIProxyAPI session, say) surfaces in the same panel and removes nothing.
+  function buildDeletePanel(account) {
+    var alias = account.alias;
+    var panel = el("div", "danger-panel");
+    panel.appendChild(el("div", "danger-title",
+      '删除账号 "' + alias + '"？此操作不可撤销。'));
+
+    var facts = el("ul", "danger-facts");
+    var linked = account.linkedAliases || [alias];
+    if (linked.length > 1) {
+      facts.appendChild(el("li", null,
+        "会同时删除 " + linked.length + " 个指向它的别名：" + linked.join("、")));
+    } else {
+      facts.appendChild(el("li", null, "会删除别名 " + alias));
+    }
+    facts.appendChild(el("li", null, deleteCredentialFact(account)));
+    if (account.isActive) {
+      facts.appendChild(el("li", null,
+        "该账号当前生效，删除后裸 " +
+        (account.provider === "claude" ? "claude" : "codex") +
+        " 将没有可用账号"));
+    }
+    panel.appendChild(facts);
+
+    var row = el("div", "row");
+    var keep = el("button", null, "取消");
+    keep.type = "button";
+    keep.addEventListener("click", function () {
+      delete pendingDelete[alias];
+      delete errors[alias];
+      rerenderCard(alias);
+    });
+    row.appendChild(keep);
+
+    var confirmDelete = el("button", "confirm-delete",
+      account.isActive ? "仍然删除" : "确认删除");
+    confirmDelete.type = "button";
+    confirmDelete.disabled = busy[alias] === true;
+    confirmDelete.addEventListener("click", function () {
+      submitDelete(account);
+    });
+    row.appendChild(confirmDelete);
+    panel.appendChild(row);
+
+    if (errors[alias]) panel.appendChild(el("div", "err", errors[alias]));
+    return panel;
+  }
+
+  function deleteCredentialFact(account) {
+    if (account.provider === "claude") {
+      if (account.type === "oauth") return "保存的登录凭据会被删除，需要重新登录";
+      if (account.type === "api-key") return "API Key 与其账号配置会被删除";
+      return "本机 CLIProxyAPI 的登录与配置会被删除，需要重新登录";
+    }
+    if (account.type === "chatgpt") return "Codex 登录文件会被删除，需要重新登录";
+    return "API Key 与 Codex 登录文件会被删除";
   }
 
   function cssEscape(value) {

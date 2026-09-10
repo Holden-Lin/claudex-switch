@@ -1,7 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "http";
 import { randomBytes, timingSafeEqual } from "crypto";
 import { renderPage } from "./page";
-import { applyChanges, buildSnapshot } from "./snapshot";
+import {
+  applyChanges,
+  buildSnapshot,
+  deleteAccount,
+  renameAccountAlias,
+} from "./snapshot";
 import type { WebConfigChange } from "../types";
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -91,6 +96,55 @@ async function handleRequest(
 
   if (req.method === "GET" && url.pathname === "/api/accounts") {
     sendJson(res, 200, await buildSnapshot());
+    return;
+  }
+
+  // Rename and delete are identity-level and irreversible, so they are their
+  // own endpoints rather than fields in the batch save.
+  if (req.method === "POST" && url.pathname === "/api/accounts/rename") {
+    const body = (await readJsonBody(req)) as {
+      alias?: unknown;
+      newAlias?: unknown;
+    } | null;
+    if (typeof body?.alias !== "string" || typeof body?.newAlias !== "string") {
+      sendJson(res, 400, { error: "expected { alias, newAlias }" });
+      return;
+    }
+
+    try {
+      const alias = await renameAccountAlias(body.alias, body.newAlias);
+      sendJson(res, 200, { ok: true, alias, snapshot: await buildSnapshot() });
+    } catch (err) {
+      sendJson(res, 200, {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/accounts/delete") {
+    const body = (await readJsonBody(req)) as { alias?: unknown } | null;
+    if (typeof body?.alias !== "string") {
+      sendJson(res, 400, { error: "expected { alias }" });
+      return;
+    }
+
+    try {
+      const removedAliases = await deleteAccount(body.alias);
+      sendJson(res, 200, {
+        ok: true,
+        removedAliases,
+        snapshot: await buildSnapshot(),
+      });
+    } catch (err) {
+      // A refusal (e.g. an active local CLIProxyAPI session) leaves the account
+      // untouched; report it so the page can show the reason on the card.
+      sendJson(res, 200, {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     return;
   }
 

@@ -3625,6 +3625,32 @@ function isValidAlias(alias) {
     return false;
   return true;
 }
+function checkAlias(reg, alias, options = {}) {
+  if (!alias)
+    return "empty";
+  if (isReservedAlias(alias))
+    return "reserved";
+  if (!isValidAlias(alias))
+    return "charset";
+  if (options.ignoreAlias !== undefined && options.ignoreAlias.toLowerCase() === alias.toLowerCase()) {
+    return null;
+  }
+  if (aliasExists(reg, alias))
+    return "taken";
+  return null;
+}
+function describeAliasRejection(rejection, alias) {
+  switch (rejection) {
+    case "empty":
+      return "Alias cannot be empty";
+    case "reserved":
+      return `"${alias}" is a reserved command name`;
+    case "charset":
+      return "Invalid alias. Use letters, numbers, hyphens, or underscores.";
+    case "taken":
+      return `Alias "${alias}" already exists`;
+  }
+}
 async function addAlias(alias, target) {
   const reg = await loadAliases();
   if (aliasExists(reg, alias)) {
@@ -3675,11 +3701,9 @@ async function renameAlias(currentAlias, nextAlias) {
   if (!entry) {
     throw new Error(`Alias "${currentAlias}" not found`);
   }
-  if (!isValidAlias(nextAlias)) {
-    throw new Error(`Alias "${nextAlias}" is invalid`);
-  }
-  if (currentAlias.toLowerCase() !== nextAlias.toLowerCase() && aliasExists(reg, nextAlias)) {
-    throw new Error(`Alias "${nextAlias}" already exists`);
+  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
+  if (rejection) {
+    throw new Error(describeAliasRejection(rejection, nextAlias));
   }
   entry.alias = nextAlias;
   await saveAliases(reg);
@@ -8514,17 +8538,9 @@ async function rename4(currentAlias, nextAlias) {
     blank();
     process.exit(1);
   }
-  if (!isValidAlias(nextAlias)) {
-    if (isReservedAlias(nextAlias)) {
-      error(`"${nextAlias}" is a reserved command name.`);
-    } else {
-      error("Invalid alias. Use letters, numbers, hyphens, or underscores.");
-    }
-    blank();
-    process.exit(1);
-  }
-  if (currentAlias.toLowerCase() !== nextAlias.toLowerCase() && aliasExists(reg, nextAlias)) {
-    error(`Alias "${nextAlias}" already exists.`);
+  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
+  if (rejection) {
+    error(describeAliasRejection(rejection, nextAlias));
     blank();
     process.exit(1);
   }
@@ -8543,29 +8559,22 @@ async function rename4(currentAlias, nextAlias) {
   blank();
 }
 
-// src/commands/purge.ts
+// src/accounts/purge.ts
 import { unlink as unlink3 } from "fs/promises";
-async function purge(aliasName) {
-  blank();
+async function planPurge(aliasName) {
   const reg = await loadAliases();
   const entry = findAlias(reg, aliasName);
   if (!entry) {
-    error(`Alias "${aliasName}" not found.`);
-    blank();
-    process.exit(1);
+    throw new Error(`Alias "${aliasName}" not found`);
   }
-  const linkedAliases = findAliasesByTarget(reg, entry.target).map((item) => item.alias);
-  const aliasCount = linkedAliases.length;
-  const aliasLabel = aliasCount === 1 ? `This will also remove alias "${aliasName}".` : `This will also remove ${aliasCount} aliases: ${linkedAliases.join(", ")}.`;
-  const ok = await esm_default2({
-    message: `Purge ${formatProvider(entry.target.provider)} account "${aliasName}"? ${aliasLabel}`,
-    default: false
-  });
-  if (!ok) {
-    console.log(source_default.dim("  Cancelled"));
-    blank();
-    return;
-  }
+  return {
+    entry,
+    linkedAliases: findAliasesByTarget(reg, entry.target).map((a) => a.alias)
+  };
+}
+async function purgeAccount(aliasName) {
+  const plan = await planPurge(aliasName);
+  const { entry } = plan;
   if (entry.target.provider === "claude") {
     if (await profileExists(entry.target.profileName)) {
       await removeProfile(entry.target.profileName);
@@ -8584,6 +8593,38 @@ async function purge(aliasName) {
     } catch {}
   }
   await removeAliasesByTarget(entry.target);
+  return plan;
+}
+
+// src/commands/purge.ts
+async function purge(aliasName) {
+  blank();
+  let plan;
+  try {
+    plan = await planPurge(aliasName);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
+  const { linkedAliases } = plan;
+  const aliasLabel = linkedAliases.length === 1 ? `This will also remove alias "${aliasName}".` : `This will also remove ${linkedAliases.length} aliases: ${linkedAliases.join(", ")}.`;
+  const ok = await esm_default2({
+    message: `Purge ${formatProvider(plan.entry.target.provider)} account "${aliasName}"? ${aliasLabel}`,
+    default: false
+  });
+  if (!ok) {
+    console.log(source_default.dim("  Cancelled"));
+    blank();
+    return;
+  }
+  try {
+    await purgeAccount(aliasName);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
   blank();
   success(`${source_default.bold(aliasName)} account purged`);
   blank();
@@ -8953,7 +8994,7 @@ import { spawnSync as spawnSync5 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.8.1",
+  version: "1.9.0",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -9388,6 +9429,30 @@ var PAGE = `<!doctype html>
   details.paste { margin-top: 18px; }
   details.paste summary { color: var(--muted); font-size: 12px; cursor: pointer; }
   details.paste .row { margin-top: 8px; }
+  button.mini { padding: 4px 9px; font-size: 12px; }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+  button.confirm-delete { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+  button.confirm-delete:hover { color: #fff; opacity: .9; }
+  .alias-input { width: 190px; padding: 4px 8px; font-size: 13px; font-weight: 600; }
+  .alias-wrap { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+  /* Icon-only affordances: no chrome until hovered, so the header stays quiet. */
+  button.icon-btn {
+    display: inline-flex; align-items: center; line-height: 0;
+    padding: 3px; border-color: transparent; background: none;
+    color: var(--muted); border-radius: 5px;
+  }
+  button.icon-btn:hover { color: var(--accent); border-color: transparent; background: none; }
+  button.icon-btn.accept:hover { color: var(--ok); }
+  button.icon-btn.reject:hover { color: var(--danger); }
+  button.icon-btn svg { display: block; }
+  .danger-panel {
+    margin-top: 14px; padding: 12px 14px;
+    border: 1px solid var(--danger); border-radius: 8px;
+  }
+  .danger-title { color: var(--danger); font-weight: 600; font-size: 13px; }
+  .danger-facts { margin: 8px 0 12px; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+  .danger-facts li { margin: 3px 0; }
   footer {
     position: fixed; left: 0; right: 0; bottom: 0;
     background: var(--surface); border-top: 1px solid var(--border);
@@ -9468,6 +9533,11 @@ var PAGE = `<!doctype html>
   var drafts = {};
   var errors = {};
   var expanded = {};
+  // Alias-level state for the two identity operations, which apply on their
+  // own rather than through the batch save.
+  var renaming = {};
+  var pendingDelete = {};
+  var busy = {};
 
   var listEl = document.getElementById("list");
   var subEl = document.getElementById("sub");
@@ -9483,6 +9553,42 @@ var PAGE = `<!doctype html>
     if (className) node.className = className;
     if (text !== undefined && text !== null) node.textContent = String(text);
     return node;
+  }
+
+  function iconPath(svg, d) {
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "1.7");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+  }
+
+  function icon(name) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "14");
+    svg.setAttribute("height", "14");
+    svg.setAttribute("aria-hidden", "true");
+    if (name === "pencil") {
+      iconPath(svg, "M11.1 2.3l2.6 2.6-8.3 8.3-3.3.7.7-3.3 8.3-8.3zM10.2 3.2l2.6 2.6");
+    } else if (name === "check") {
+      iconPath(svg, "M3 8.5l3.2 3.2L13 5");
+    } else {
+      iconPath(svg, "M4 4l8 8M12 4l-8 8");
+    }
+    return svg;
+  }
+
+  function iconButton(name, title, className) {
+    var button = el("button", "icon-btn" + (className ? " " + className : ""));
+    button.type = "button";
+    button.title = title;
+    button.setAttribute("aria-label", title);
+    button.appendChild(icon(name));
+    return button;
   }
 
   function api(path, options) {
@@ -9652,7 +9758,7 @@ var PAGE = `<!doctype html>
     add.type = "button";
     add.addEventListener("click", function () {
       draft.env.push({ key: "", value: "" });
-      rerender(draft.env.length - 1);
+      rerender({ env: draft.env.length - 1 });
     });
     box.appendChild(add);
     box.appendChild(el("div", "hint",
@@ -9718,33 +9824,119 @@ var PAGE = `<!doctype html>
     return out;
   }
 
-  function buildCard(account) {
-    var card = el("div", "card" + (isDirty(account) ? " dirty" : ""));
+  function buildHead(account) {
+    var alias = account.alias;
     var head = el("div", "card-head");
-    var open = expanded[account.alias] === true;
+    var renamingThis = Object.prototype.hasOwnProperty.call(renaming, alias);
+    var open = expanded[alias] === true || pendingDelete[alias] === true;
 
     head.appendChild(el("span", "caret", open ? "▼" : "▶"));
-    head.appendChild(el("span", "alias", account.alias));
+
+    if (renamingThis) {
+      var input = document.createElement("input");
+      input.className = "alias-input";
+      input.value = renaming[alias];
+      input.setAttribute("aria-label", "别名");
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      input.addEventListener("input", function () {
+        renaming[alias] = input.value;
+      });
+      input.addEventListener("click", function (event) {
+        event.stopPropagation();
+      });
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          submitRename(account);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelRename(alias);
+        }
+      });
+      head.appendChild(input);
+
+      var accept = iconButton("check", "保存", "accept");
+      accept.addEventListener("click", function (event) {
+        event.stopPropagation();
+        submitRename(account);
+      });
+      head.appendChild(accept);
+
+      var reject = iconButton("reject", "取消", "reject");
+      reject.addEventListener("click", function (event) {
+        event.stopPropagation();
+        cancelRename(alias);
+      });
+      head.appendChild(reject);
+      // Keep the type badge next to the input; the spacer belongs at the end so
+      // the row does not visibly come apart while the name is being edited.
+      head.appendChild(el("span", "badge", account.label));
+      head.appendChild(el("span", "spacer"));
+      return head;
+    }
+
+    var aliasWrap = el("span", "alias-wrap");
+    aliasWrap.appendChild(el("span", "alias", account.alias));
+    if (pendingDelete[alias] !== true) {
+      var pencil = iconButton("pencil", "修改别名");
+      pencil.addEventListener("click", function (event) {
+        event.stopPropagation();
+        startRename(account);
+      });
+      aliasWrap.appendChild(pencil);
+    }
+    head.appendChild(aliasWrap);
     head.appendChild(el("span", "badge", account.label));
     if (account.isActive) head.appendChild(el("span", "badge active", "当前生效"));
     if (isDirty(account)) head.appendChild(el("span", "badge changed", "已修改"));
     if (account.email) head.appendChild(el("span", "email", account.email));
     head.appendChild(el("span", "spacer"));
-    head.addEventListener("click", function () {
-      expanded[account.alias] = !open;
-      rerenderCard(account.alias);
-    });
-    card.appendChild(head);
 
+    if (pendingDelete[alias] !== true) {
+      var remove = el("button", "mini danger", "删除");
+      remove.type = "button";
+      remove.title = "删除账号（不可撤销）";
+      remove.addEventListener("click", function (event) {
+        event.stopPropagation();
+        pendingDelete[alias] = true;
+        expanded[alias] = true;
+        rerenderCard(alias);
+      });
+      head.appendChild(remove);
+    }
+
+    head.addEventListener("click", function () {
+      expanded[alias] = !open;
+      rerenderCard(alias);
+    });
+    return head;
+  }
+
+  function buildCard(account) {
+    var alias = account.alias;
+    var card = el("div", "card" + (isDirty(account) ? " dirty" : ""));
+    card.appendChild(buildHead(account));
+
+    var open = expanded[alias] === true || pendingDelete[alias] === true;
     if (!open) return card;
 
     var body = el("div", "card-body");
+
+    // A pending delete replaces the form entirely: this is a confirmation
+    // state, and the form's fields are not what the user is being asked about.
+    if (pendingDelete[alias] === true) {
+      body.appendChild(buildDeletePanel(account));
+      card.appendChild(body);
+      return card;
+    }
+
     var onChange = function () {
       refreshFooter();
       card.className = "card" + (isDirty(account) ? " dirty" : "");
     };
-    var rerender = function (focusEnvIndex) {
-      rerenderCard(account.alias, focusEnvIndex);
+    var rerender = function (focus) {
+      rerenderCard(account.alias, focus);
     };
 
     var grid = el("div", "grid");
@@ -9770,7 +9962,7 @@ var PAGE = `<!doctype html>
     return card;
   }
 
-  function rerenderCard(alias, focusEnvIndex) {
+  function rerenderCard(alias, focus) {
     var account = accounts().filter(function (a) { return a.alias === alias; })[0];
     if (!account) return render();
     var current = listEl.querySelector('[data-alias="' + cssEscape(alias) + '"]');
@@ -9779,10 +9971,149 @@ var PAGE = `<!doctype html>
     next.setAttribute("data-alias", alias);
     current.replaceWith(next);
     refreshFooter();
-    if (focusEnvIndex !== undefined) {
-      var input = next.querySelector('[data-env-key="' + focusEnvIndex + '"]');
+
+    if (focus && focus.alias === true) {
+      var aliasInput = next.querySelector(".alias-input");
+      if (aliasInput) {
+        aliasInput.focus();
+        aliasInput.select();
+      }
+    } else if (focus && focus.env !== undefined) {
+      var input = next.querySelector('[data-env-key="' + focus.env + '"]');
       if (input) input.focus();
     }
+  }
+
+  function startRename(account) {
+    // Only the flag is set here; the input itself is built by buildHead, so
+    // there is exactly one construction site for it. The card deliberately does
+    // not expand — the name is swapped in place.
+    renaming[account.alias] = account.alias;
+    rerenderCard(account.alias, { alias: true });
+  }
+
+  function cancelRename(alias) {
+    delete renaming[alias];
+    rerenderCard(alias);
+  }
+
+  function submitRename(account) {
+    var alias = account.alias;
+    var next = (renaming[alias] || "").trim();
+
+    if (!next || next === alias) {
+      cancelRename(alias);
+      return;
+    }
+
+    busy[alias] = true;
+    api("/api/accounts/rename", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ alias: alias, newAlias: next })
+    }).then(function (data) {
+      delete busy[alias];
+      if (!data.ok) throw new Error(data.error || "重命名失败");
+      delete renaming[alias];
+      delete drafts[alias];
+      delete expanded[alias];
+      delete errors[alias];
+      snapshot = data.snapshot;
+      render();
+      setStatus("已重命名为 " + data.alias, "ok");
+    }).catch(function (err) {
+      delete busy[alias];
+      // Keep the input open so the name can be corrected in place.
+      errors[alias] = err.message;
+      expanded[alias] = true;
+      rerenderCard(alias);
+    });
+  }
+
+  function submitDelete(account) {
+    var alias = account.alias;
+    busy[alias] = true;
+    rerenderCard(alias);
+
+    api("/api/accounts/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ alias: alias })
+    }).then(function (data) {
+      delete busy[alias];
+      if (!data.ok) throw new Error(data.error || "删除失败");
+      var removed = data.removedAliases || [alias];
+      delete pendingDelete[alias];
+      delete drafts[alias];
+      delete expanded[alias];
+      delete errors[alias];
+      snapshot = data.snapshot;
+      render();
+      setStatus("已删除 " + removed.join("、"), "ok");
+    }).catch(function (err) {
+      delete busy[alias];
+      errors[alias] = err.message;
+      rerenderCard(alias);
+    });
+  }
+
+  // Spells out exactly what is about to be lost. A refusal (an active local
+  // CLIProxyAPI session, say) surfaces in the same panel and removes nothing.
+  function buildDeletePanel(account) {
+    var alias = account.alias;
+    var panel = el("div", "danger-panel");
+    panel.appendChild(el("div", "danger-title",
+      '删除账号 "' + alias + '"？此操作不可撤销。'));
+
+    var facts = el("ul", "danger-facts");
+    var linked = account.linkedAliases || [alias];
+    if (linked.length > 1) {
+      facts.appendChild(el("li", null,
+        "会同时删除 " + linked.length + " 个指向它的别名：" + linked.join("、")));
+    } else {
+      facts.appendChild(el("li", null, "会删除别名 " + alias));
+    }
+    facts.appendChild(el("li", null, deleteCredentialFact(account)));
+    if (account.isActive) {
+      facts.appendChild(el("li", null,
+        "该账号当前生效，删除后裸 " +
+        (account.provider === "claude" ? "claude" : "codex") +
+        " 将没有可用账号"));
+    }
+    panel.appendChild(facts);
+
+    var row = el("div", "row");
+    var keep = el("button", null, "取消");
+    keep.type = "button";
+    keep.addEventListener("click", function () {
+      delete pendingDelete[alias];
+      delete errors[alias];
+      rerenderCard(alias);
+    });
+    row.appendChild(keep);
+
+    var confirmDelete = el("button", "confirm-delete",
+      account.isActive ? "仍然删除" : "确认删除");
+    confirmDelete.type = "button";
+    confirmDelete.disabled = busy[alias] === true;
+    confirmDelete.addEventListener("click", function () {
+      submitDelete(account);
+    });
+    row.appendChild(confirmDelete);
+    panel.appendChild(row);
+
+    if (errors[alias]) panel.appendChild(el("div", "err", errors[alias]));
+    return panel;
+  }
+
+  function deleteCredentialFact(account) {
+    if (account.provider === "claude") {
+      if (account.type === "oauth") return "保存的登录凭据会被删除，需要重新登录";
+      if (account.type === "api-key") return "API Key 与其账号配置会被删除";
+      return "本机 CLIProxyAPI 的登录与配置会被删除，需要重新登录";
+    }
+    if (account.type === "chatgpt") return "Codex 登录文件会被删除，需要重新登录";
+    return "API Key 与 Codex 登录文件会被删除";
   }
 
   function cssEscape(value) {
@@ -9909,19 +10240,20 @@ async function buildSnapshot() {
   const claude = [];
   const codex = [];
   for (const entry of aliasReg.aliases) {
+    const linkedAliases = findAliasesByTarget(aliasReg, entry.target).map((item) => item.alias);
     if (entry.target.provider === "claude") {
-      const account = await describeClaudeAccount(entry, claudeState.active);
+      const account = await describeClaudeAccount(entry, claudeState.active, linkedAliases);
       if (account)
         claude.push(account);
     } else if (codexReg) {
-      const account = await describeCodexAccount(entry, codexReg);
+      const account = await describeCodexAccount(entry, codexReg, linkedAliases);
       if (account)
         codex.push(account);
     }
   }
   return { version: 1, generatedAt: Date.now(), claude, codex };
 }
-async function describeClaudeAccount(entry, activeProfile) {
+async function describeClaudeAccount(entry, activeProfile, linkedAliases) {
   if (entry.target.provider !== "claude")
     return null;
   const profileName = entry.target.profileName;
@@ -9937,7 +10269,8 @@ async function describeClaudeAccount(entry, activeProfile) {
     profileName,
     isActive: activeProfile === profileName,
     env: data.env ?? {},
-    supportsEnv: true
+    supportsEnv: true,
+    linkedAliases
   };
   if (data.type === "api-key") {
     return {
@@ -9985,7 +10318,7 @@ async function describeClaudeAccount(entry, activeProfile) {
     readonly: []
   };
 }
-async function describeCodexAccount(entry, registry) {
+async function describeCodexAccount(entry, registry, linkedAliases) {
   if (entry.target.provider !== "codex")
     return null;
   const accountKey = entry.target.accountKey;
@@ -9999,7 +10332,8 @@ async function describeCodexAccount(entry, registry) {
     isActive: registry.active_account_key === accountKey,
     email: account.email || null,
     env: {},
-    supportsEnv: false
+    supportsEnv: false,
+    linkedAliases
   };
   if (account.auth_mode !== "apikey") {
     return {
@@ -10032,6 +10366,33 @@ async function describeCodexAccount(entry, registry) {
     secretFields: ["apiKey"],
     readonly: isCustom ? ["providerName"] : []
   };
+}
+var RENAME_REJECTIONS = {
+  empty: "别名不能为空",
+  reserved: "这个名字是保留命令，换一个",
+  charset: "别名只能用字母、数字、连字符和下划线",
+  taken: "这个别名已经被占用了"
+};
+async function renameAccountAlias(from, to) {
+  const target = to.trim();
+  const registry = await loadAliases();
+  if (!findAlias(registry, from)) {
+    throw new Error(`别名 "${from}" 不存在`);
+  }
+  const rejection = checkAlias(registry, target, { ignoreAlias: from });
+  if (rejection) {
+    throw new Error(RENAME_REJECTIONS[rejection] ?? "别名无效");
+  }
+  await renameAlias(from, target);
+  return target;
+}
+async function deleteAccount(alias) {
+  const registry = await loadAliases();
+  if (!findAlias(registry, alias)) {
+    throw new Error(`别名 "${alias}" 不存在`);
+  }
+  const { linkedAliases } = await purgeAccount(alias);
+  return linkedAliases;
 }
 async function applyChanges(changes) {
   const results = [];
@@ -10195,6 +10556,44 @@ async function handleRequest(req, res, token, host) {
   }
   if (req.method === "GET" && url.pathname === "/api/accounts") {
     sendJson(res, 200, await buildSnapshot());
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/accounts/rename") {
+    const body = await readJsonBody(req);
+    if (typeof body?.alias !== "string" || typeof body?.newAlias !== "string") {
+      sendJson(res, 400, { error: "expected { alias, newAlias }" });
+      return;
+    }
+    try {
+      const alias = await renameAccountAlias(body.alias, body.newAlias);
+      sendJson(res, 200, { ok: true, alias, snapshot: await buildSnapshot() });
+    } catch (err) {
+      sendJson(res, 200, {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/accounts/delete") {
+    const body = await readJsonBody(req);
+    if (typeof body?.alias !== "string") {
+      sendJson(res, 400, { error: "expected { alias }" });
+      return;
+    }
+    try {
+      const removedAliases = await deleteAccount(body.alias);
+      sendJson(res, 200, {
+        ok: true,
+        removedAliases,
+        snapshot: await buildSnapshot()
+      });
+    } catch (err) {
+      sendJson(res, 200, {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/accounts") {

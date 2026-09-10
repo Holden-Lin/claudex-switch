@@ -11,7 +11,8 @@ import { createServer } from "net";
 import { randomUUID } from "crypto";
 import { dirname, join } from "path";
 import { lstat, mkdir, readFile, realpath, stat, writeFile } from "fs/promises";
-import { saveAliases } from "../src/alias/store";
+import { loadAliases, saveAliases } from "../src/alias/store";
+import { buildSnapshot, deleteAccount } from "../src/webconfig/snapshot";
 import { doctor } from "../src/commands/doctor";
 import { model as updateModel } from "../src/commands/model";
 import { runAliasSession } from "../src/commands/run";
@@ -249,6 +250,46 @@ describe("managed local CLIProxyAPI", () => {
       "may have been purged",
     );
     await expect(stat(cliProxyAPIProfileDir(profile.profileId))).rejects.toThrow();
+  });
+
+  test("a web-config delete is refused while a run lease is active", async () => {
+    // The web UI's delete is the same purge the CLI runs, so it must honour the
+    // same guard: an account with a live session cannot be torn out from under
+    // it, and the alias has to survive so the account stays reachable.
+    const profile = makeProfile();
+    await initializeManagedCLIProxyAPI(profile.profileId);
+    expect((await runManagedCLIProxyAPICodexLogin(profile)).success).toBe(true);
+    await ensureManagedCLIProxyAPI(profile);
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "busy",
+          target: { provider: "claude", profileName: "busy-profile" },
+          createdAt: 1,
+        },
+      ],
+    });
+    await saveLocalProfile("busy-profile", profile);
+
+    const lease = await acquireManagedCLIProxyAPILease(profile);
+    await expect(deleteAccount("busy")).rejects.toThrow(
+      "still using this CLIProxyAPI account",
+    );
+
+    // Nothing was removed: alias, profile and its private login all remain.
+    expect((await buildSnapshot()).claude.map((a) => a.alias)).toEqual(["busy"]);
+    expect(
+      (await loadAliases()).aliases.map((item) => item.alias),
+    ).toEqual(["busy"]);
+    expect((await stat(cliProxyAPIProfileDir(profile.profileId))).isDirectory()).toBe(
+      true,
+    );
+
+    // Once the session ends the delete goes through and takes everything.
+    await lease.release();
+    expect(await deleteAccount("busy")).toEqual(["busy"]);
+    expect((await buildSnapshot()).claude).toEqual([]);
   });
 
   test("uses an isolated Claude context without losing shared customizations", async () => {

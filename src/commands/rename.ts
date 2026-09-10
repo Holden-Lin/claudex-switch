@@ -3,9 +3,8 @@ import { confirm } from "@inquirer/prompts";
 import {
   loadAliases,
   findAlias,
-  aliasExists,
-  isReservedAlias,
-  isValidAlias,
+  checkAlias,
+  describeAliasRejection,
   renameAlias,
 } from "../alias/store";
 import { blank, success, error } from "../lib/ui";
@@ -21,22 +20,9 @@ export async function rename(currentAlias: string, nextAlias: string): Promise<v
     blank();
     process.exit(1);
   }
-  if (!isValidAlias(nextAlias)) {
-    if (isReservedAlias(nextAlias)) {
-      error(`"${nextAlias}" is a reserved command name.`);
-    } else {
-      error(
-        "Invalid alias. Use letters, numbers, hyphens, or underscores.",
-      );
-    }
-    blank();
-    process.exit(1);
-  }
-  if (
-    currentAlias.toLowerCase() !== nextAlias.toLowerCase() &&
-    aliasExists(reg, nextAlias)
-  ) {
-    error(`Alias "${nextAlias}" already exists.`);
+  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
+  if (rejection) {
+    error(describeAliasRejection(rejection, nextAlias));
     blank();
     process.exit(1);
   }

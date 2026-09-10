@@ -204,7 +204,7 @@ claudex-switch webconfig
 
 Starts a loopback-only server on `127.0.0.1`, opens it in a browser, and prints a link carrying a one-time token (it will not work from another machine, and the token is stripped from the address bar once the page loads). `Ctrl-C` stops it.
 
-The page lists every account under Claude / Codex, expands into an inline form, and saves all changed accounts at once:
+Each account row carries two actions: a pencil icon that renames the alias in place (Enter saves, Esc cancels), and `删除` / delete, which destroys the account. Expanding a card edits its configuration, and every changed account saves at once:
 
 | Account type | Editable |
 |---|---|
@@ -220,6 +220,12 @@ Two extras:
 - **Paste import** — drop a whole `export ANTHROPIC_BASE_URL=... / export CLAUDE_CODE_EFFORT_LEVEL=...` block in and hit parse; known keys land in their own inputs, everything else in the custom variable table.
 
 Saving an account that is currently active immediately rewrites `~/.claude/settings.json` or `~/.codex/config.toml`; an inactive account only gets its own profile updated and takes effect the next time you switch to it.
+
+**Delete** is the CLI's `purge`: it removes the underlying account **and every alias pointing at it**, including the OAuth credential snapshot or the Codex `.auth.json` — the login is gone and has to be redone. The confirmation lists the cost first (which aliases go, whether a re-login is needed, whether it is the active account) before anything happens.
+
+**Rename** only changes the alias; the account and its login are untouched (the CLI's `rename`).
+
+Two safety boundaries: an account with a live `-run` session refuses deletion and **removes nothing** (the page shows the reason), and deleting the active account clears the global active pointer, leaving bare `claude` / `codex` with no account. The page deliberately offers no "drop the alias but keep the account" action, since that strands data you can no longer reach — use the CLI's `remove` if you want it.
 
 The Codex provider name is read-only: it keys the `[model_providers.<name>]` table in `config.toml`, so renaming it would orphan that config and break session visibility.
 

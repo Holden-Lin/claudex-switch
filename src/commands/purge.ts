@@ -1,43 +1,28 @@
 import chalk from "chalk";
-import { unlink } from "fs/promises";
 import { confirm } from "@inquirer/prompts";
-import {
-  loadAliases,
-  findAlias,
-  findAliasesByTarget,
-  removeAliasesByTarget,
-} from "../alias/store";
-import { removeProfile, profileExists } from "../providers/claude/profiles";
-import {
-  loadRegistry,
-  saveRegistry,
-  removeAccountFromRegistry,
-} from "../providers/codex/registry";
-import { codexAccountAuthFile } from "../lib/paths";
-import { fileExists } from "../lib/fs";
+import { planPurge, purgeAccount } from "../accounts/purge";
 import { blank, success, error, formatProvider } from "../lib/ui";
 
 export async function purge(aliasName: string): Promise<void> {
   blank();
 
-  const reg = await loadAliases();
-  const entry = findAlias(reg, aliasName);
-
-  if (!entry) {
-    error(`Alias "${aliasName}" not found.`);
+  let plan;
+  try {
+    plan = await planPurge(aliasName);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
     blank();
     process.exit(1);
   }
 
-  const linkedAliases = findAliasesByTarget(reg, entry.target).map((item) => item.alias);
-  const aliasCount = linkedAliases.length;
+  const { linkedAliases } = plan;
   const aliasLabel =
-    aliasCount === 1
+    linkedAliases.length === 1
       ? `This will also remove alias "${aliasName}".`
-      : `This will also remove ${aliasCount} aliases: ${linkedAliases.join(", ")}.`;
+      : `This will also remove ${linkedAliases.length} aliases: ${linkedAliases.join(", ")}.`;
 
   const ok = await confirm({
-    message: `Purge ${formatProvider(entry.target.provider)} account "${aliasName}"? ${aliasLabel}`,
+    message: `Purge ${formatProvider(plan.entry.target.provider)} account "${aliasName}"? ${aliasLabel}`,
     default: false,
   });
 
@@ -47,34 +32,15 @@ export async function purge(aliasName: string): Promise<void> {
     return;
   }
 
-  if (entry.target.provider === "claude") {
-    if (await profileExists(entry.target.profileName)) {
-      // In particular, an active local CLIProxyAPI run refuses removal. Do not
-      // hide that refusal then remove aliases anyway: the alias and managed
-      // login must remain together until the user ends the session.
-      await removeProfile(entry.target.profileName);
-    }
-  } else {
-    try {
-      const codexReg = await loadRegistry();
-      const removed = removeAccountFromRegistry(
-        codexReg,
-        entry.target.accountKey,
-      );
-      if (removed) {
-        await saveRegistry(codexReg);
-      }
-
-      const authFile = codexAccountAuthFile(entry.target.accountKey);
-      if (await fileExists(authFile)) {
-        await unlink(authFile);
-      }
-    } catch {
-      // Registry may not exist
-    }
+  try {
+    await purgeAccount(aliasName);
+  } catch (err) {
+    // In particular, an active local CLIProxyAPI run refuses removal. Surface
+    // it and leave the alias and its managed login untouched.
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
   }
-
-  await removeAliasesByTarget(entry.target);
 
   blank();
   success(`${chalk.bold(aliasName)} account purged`);

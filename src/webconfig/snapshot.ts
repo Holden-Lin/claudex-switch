@@ -1,4 +1,11 @@
-import { loadAliases, findAlias } from "../alias/store";
+import {
+  checkAlias,
+  findAlias,
+  findAliasesByTarget,
+  loadAliases,
+  renameAlias,
+} from "../alias/store";
+import { purgeAccount } from "../accounts/purge";
 import { readJson } from "../lib/fs";
 import { claudeProfileAccountFile } from "../lib/paths";
 import {
@@ -41,11 +48,21 @@ export async function buildSnapshot(): Promise<WebConfigSnapshot> {
   const codex: WebConfigAccount[] = [];
 
   for (const entry of aliasReg.aliases) {
+    // A purge removes every alias sharing this target, so the delete prompt
+    // has to name them. Computed once here rather than per account.
+    const linkedAliases = findAliasesByTarget(aliasReg, entry.target).map(
+      (item) => item.alias,
+    );
+
     if (entry.target.provider === "claude") {
-      const account = await describeClaudeAccount(entry, claudeState.active);
+      const account = await describeClaudeAccount(
+        entry,
+        claudeState.active,
+        linkedAliases,
+      );
       if (account) claude.push(account);
     } else if (codexReg) {
-      const account = await describeCodexAccount(entry, codexReg);
+      const account = await describeCodexAccount(entry, codexReg, linkedAliases);
       if (account) codex.push(account);
     }
   }
@@ -56,6 +73,7 @@ export async function buildSnapshot(): Promise<WebConfigSnapshot> {
 async function describeClaudeAccount(
   entry: AliasEntry,
   activeProfile: string | null,
+  linkedAliases: string[],
 ): Promise<WebConfigAccount | null> {
   if (entry.target.provider !== "claude") return null;
   const profileName = entry.target.profileName;
@@ -74,6 +92,7 @@ async function describeClaudeAccount(
     isActive: activeProfile === profileName,
     env: data.env ?? {},
     supportsEnv: true,
+    linkedAliases,
   };
 
   if (data.type === "api-key") {
@@ -134,6 +153,7 @@ async function describeClaudeAccount(
 async function describeCodexAccount(
   entry: AliasEntry,
   registry: CodexRegistry,
+  linkedAliases: string[],
 ): Promise<WebConfigAccount | null> {
   if (entry.target.provider !== "codex") return null;
   const accountKey = entry.target.accountKey;
@@ -150,6 +170,7 @@ async function describeCodexAccount(
     // environment variables, so the custom env table does not apply.
     env: {} as CustomEnv,
     supportsEnv: false,
+    linkedAliases,
   };
 
   if (account.auth_mode !== "apikey") {
@@ -188,6 +209,53 @@ async function describeCodexAccount(
     secretFields: ["apiKey"],
     readonly: isCustom ? ["providerName"] : [],
   };
+}
+
+const RENAME_REJECTIONS: Record<string, string> = {
+  empty: "别名不能为空",
+  reserved: "这个名字是保留命令，换一个",
+  charset: "别名只能用字母、数字、连字符和下划线",
+  taken: "这个别名已经被占用了",
+};
+
+/**
+ * Rename one alias, leaving the underlying account and its login untouched.
+ * Identity-level, so it applies immediately rather than through the batch save.
+ */
+export async function renameAccountAlias(
+  from: string,
+  to: string,
+): Promise<string> {
+  const target = to.trim();
+  const registry = await loadAliases();
+
+  if (!findAlias(registry, from)) {
+    throw new Error(`别名 "${from}" 不存在`);
+  }
+
+  const rejection = checkAlias(registry, target, { ignoreAlias: from });
+  if (rejection) {
+    throw new Error(RENAME_REJECTIONS[rejection] ?? "别名无效");
+  }
+
+  // A case-only change still has to land, since checkAlias ignores self.
+  await renameAlias(from, target);
+  return target;
+}
+
+/**
+ * Destroy an account and every alias pointing at it. Deliberately re-derives
+ * the blast radius from current state rather than trusting what the browser
+ * showed, and re-checks the alias still exists.
+ */
+export async function deleteAccount(alias: string): Promise<string[]> {
+  const registry = await loadAliases();
+  if (!findAlias(registry, alias)) {
+    throw new Error(`别名 "${alias}" 不存在`);
+  }
+
+  const { linkedAliases } = await purgeAccount(alias);
+  return linkedAliases;
 }
 
 export async function applyChanges(
