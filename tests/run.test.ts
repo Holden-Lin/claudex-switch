@@ -8,7 +8,7 @@ import {
 } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
@@ -17,6 +17,8 @@ import {
   CODEX_AUTH_FILE,
   CODEX_CONFIG_FILE,
   CREDENTIALS_FILE,
+  SETTINGS_FILE,
+  claudeProfileClaudeSettingsFile,
   claudeProfileConfigJson,
   claudeProfileDir,
   claudeProfileConfigDir,
@@ -53,6 +55,12 @@ type SpawnCall = {
   stdio: string;
   env?: NodeJS.ProcessEnv;
 };
+
+// Every isolated API-key run carries the profile's private settings file so
+// global settings.json env cannot outrank the profile's own routing.
+function apiSettingsArgs(profileName: string): string[] {
+  return ["--settings", claudeProfileClaudeSettingsFile(profileName)];
+}
 
 function createRegistry(accountKey: string): CodexRegistry {
   return {
@@ -438,6 +446,7 @@ describe("run alias session", () => {
         "--bare",
         "--permission-mode",
         "auto",
+        ...apiSettingsArgs("api"),
       ]);
       expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
       expect(calls[0]?.env?.ANTHROPIC_BASE_URL).toBe(
@@ -458,6 +467,80 @@ describe("run alias session", () => {
         process.env.ANTHROPIC_MODEL = oldModel;
       }
     }
+  });
+
+  test("outranks global settings.json routing for an isolated API-key run", async () => {
+    // A globally active proxy/API profile leaves its own routing in
+    // ~/.claude/settings.json, and Claude Code applies that env *over* the
+    // spawned process env. Without a higher-precedence settings file the
+    // session would silently answer from the other account's models.
+    await addApiKeyProfile("other", {
+      apiKey: "sk-ant-other",
+      baseUrl: "http://127.0.0.1:64834",
+      model: "gpt-6-astra",
+      defaultOpusModel: "gpt-5.6-terra",
+    });
+    await addApiKeyProfile("api", {
+      apiKey: "sk-ant-profile",
+      baseUrl: "https://api.deepseek.com/anthropic",
+      model: "deepseek-v4-pro",
+      defaultHaikuModel: "deepseek-v4-flash",
+    });
+    await switchProfile("other");
+
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "api",
+          target: { provider: "claude", profileName: "api" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession("api", [], createSpawn(calls));
+
+    const settingsFile = claudeProfileClaudeSettingsFile("api");
+    expect(calls[0]?.args).toEqual([
+      "--bare",
+      "--permission-mode",
+      "auto",
+      "--settings",
+      settingsFile,
+    ]);
+
+    const override = await readJson<{
+      model?: string;
+      env?: Record<string, string>;
+    }>(settingsFile, {});
+    expect(override.model).toBe("deepseek-v4-pro");
+    expect(override.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
+    expect(override.env?.ANTHROPIC_BASE_URL).toBe(
+      "https://api.deepseek.com/anthropic",
+    );
+    expect(override.env?.ANTHROPIC_MODEL).toBe("deepseek-v4-pro");
+    expect(override.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe(
+      "deepseek-v4-flash",
+    );
+    // Keys this profile does not own are blanked, not inherited.
+    expect(override.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("");
+    expect(override.env?.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("");
+    expect(override.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe("");
+    expect(override.env?.CLAUDE_CODE_SUBAGENT_MODEL_FORCE).toBe("");
+    expect(override.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe("");
+
+    // The globally active account is untouched by the isolated run.
+    expect(await readState()).toEqual({ active: "other" });
+    const globalSettings = await readJson<{ env?: Record<string, string> }>(
+      SETTINGS_FILE,
+      {},
+    );
+    expect(globalSettings.env?.ANTHROPIC_API_KEY).toBe("sk-ant-other");
+
+    const mode = (await stat(settingsFile)).mode & 0o777;
+    expect(mode).toBe(0o600);
   });
 
   test("maps -model and saves it as the Claude account default", async () => {
@@ -490,6 +573,7 @@ describe("run alias session", () => {
       "auto",
       "--model",
       "claude-sonnet-4-20250514",
+      ...apiSettingsArgs("api"),
       "--continue",
     ]);
     expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe(
@@ -532,6 +616,7 @@ describe("run alias session", () => {
       "auto",
       "--model",
       "claude-opus-5",
+      ...apiSettingsArgs("api"),
       "--continue",
     ]);
   });
@@ -609,6 +694,7 @@ describe("run alias session", () => {
       "claude-opus-4-8",
       "--effort",
       "max",
+      ...apiSettingsArgs("api"),
       "--continue",
     ]);
   });
@@ -641,6 +727,7 @@ describe("run alias session", () => {
       "claude-opus-5",
       "--effort",
       "max",
+      ...apiSettingsArgs("api"),
     ]);
   });
 
@@ -676,6 +763,7 @@ describe("run alias session", () => {
       "claude-fable-5",
       "--effort",
       "max",
+      ...apiSettingsArgs("api"),
     ]);
   });
 
@@ -709,6 +797,7 @@ describe("run alias session", () => {
       "auto",
       "--model",
       "claude-opus-4-8",
+      ...apiSettingsArgs("api"),
       "hello",
     ]);
   });
@@ -802,6 +891,7 @@ describe("run alias session", () => {
         "--bare",
         "--permission-mode",
         "auto",
+        ...apiSettingsArgs("api"),
       ]);
       expect(calls[0]?.env?.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
     } finally {
@@ -857,6 +947,7 @@ describe("run alias session", () => {
       "--bare",
       "--permission-mode",
       "auto",
+      ...apiSettingsArgs("api"),
       "--continue",
     ]);
     expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");

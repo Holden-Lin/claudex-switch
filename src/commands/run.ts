@@ -20,6 +20,7 @@ import {
   CLAUDE_ENV_KEYS,
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   getClaudeEnvNeutralizer,
+  prepareApiProfileClaudeSettings,
 } from "../providers/claude/settings";
 import {
   acquireManagedCLIProxyAPILease,
@@ -149,6 +150,15 @@ export async function runAliasSession(
       process.exit(1);
     }
     settingsNeutralizer = await getClaudeEnvNeutralizer();
+  }
+
+  if (isolatedClaudeApi && claudeProfileName && profile?.type === "api-key") {
+    // settings.json env outranks the child environment, so the profile's own
+    // routing has to be written into a private settings file of its own.
+    localSettingsFile = await prepareApiProfileClaudeSettings(
+      claudeProfileName,
+      profile,
+    );
   }
 
   if (isolatedLocalCLIProxyAPI && profile?.type === "local-cliproxyapi") {

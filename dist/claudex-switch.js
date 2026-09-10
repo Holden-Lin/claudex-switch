@@ -3489,6 +3489,9 @@ function claudeProfileDataFile(name) {
 function claudeProfileAccountFile(name) {
   return join(claudeProfileDir(name), "account.json");
 }
+function claudeProfileClaudeSettingsFile(name) {
+  return join(claudeProfileDir(name), "claude-settings.json");
+}
 function cliProxyAPIProfileDir(profileId) {
   return join(CLI_PROXY_API_DIR, profileId);
 }
@@ -3960,6 +3963,33 @@ async function applyLocalCLIProxyAPIConfig(config) {
   settings.env = env2;
   setTopLevelModel(settings, config.model);
   await write(settings);
+}
+async function prepareApiProfileClaudeSettings(name, config) {
+  const env2 = {};
+  for (const key of CLAUDE_ENV_KEYS) {
+    env2[key] = "";
+  }
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    env2[key] = "";
+  }
+  env2.ANTHROPIC_API_KEY = config.apiKey;
+  env2.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
+  env2.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
+  env2.ANTHROPIC_MODEL = config.model ?? "";
+  env2.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
+  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel ?? "";
+  env2.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
+  const settings = { env: env2 };
+  if (config.model) {
+    settings.model = config.model;
+  }
+  const file = claudeProfileClaudeSettingsFile(name);
+  await mkdir2(claudeProfileDir(name), { recursive: true });
+  await writeJsonSecure(file, settings);
+  try {
+    await chmod(file, 384);
+  } catch {}
+  return file;
 }
 async function clearApiConfig() {
   await applyOAuthConfig();
@@ -7460,6 +7490,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     }
     settingsNeutralizer = await getClaudeEnvNeutralizer();
   }
+  if (isolatedClaudeApi && claudeProfileName && profile?.type === "api-key") {
+    localSettingsFile = await prepareApiProfileClaudeSettings(claudeProfileName, profile);
+  }
   if (isolatedLocalCLIProxyAPI && profile?.type === "local-cliproxyapi") {
     try {
       const context = await prepareIsolatedLocalCLIProxyAPIRun(claudeProfileName);
@@ -8714,7 +8747,7 @@ import { spawnSync as spawnSync4 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.7.0",
+  version: "1.7.1",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {

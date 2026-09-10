@@ -57,6 +57,15 @@ export function claudeProfileAccountFile(name: string): string {
   return join(claudeProfileDir(name), "account.json");
 }
 
+// A private, higher-precedence settings file for an isolated API-key `-run`.
+// Claude Code lets `~/.claude/settings.json` env override a spawned process's
+// env, so an API profile's routing has to be injected here rather than only
+// through the child environment. It holds a secret, so it is never passed as
+// inline `--settings` JSON (visible in `ps`).
+export function claudeProfileClaudeSettingsFile(name: string): string {
+  return join(claudeProfileDir(name), "claude-settings.json");
+}
+
 // CLIProxyAPI data is keyed by an opaque profile id rather than the user-facing
 // alias. Renaming an alias must never move, replace, or disconnect its login.
 export function cliProxyAPIProfileDir(profileId: string): string {

@@ -1,6 +1,10 @@
 import { chmod, mkdir } from "fs/promises";
 import { dirname } from "path";
-import { SETTINGS_FILE } from "../../lib/paths";
+import {
+  SETTINGS_FILE,
+  claudeProfileClaudeSettingsFile,
+  claudeProfileDir,
+} from "../../lib/paths";
 import { readJson, writeJsonSecure } from "../../lib/fs";
 import type { ClaudeApiProfileConfig } from "../../types";
 
@@ -198,6 +202,51 @@ export async function applyLocalCLIProxyAPIConfig(
   settings.env = env;
   setTopLevelModel(settings, config.model);
   await write(settings);
+}
+
+// Claude Code applies `~/.claude/settings.json` env *over* the environment its
+// process was spawned with, so an isolated API-key `-run` cannot rely on child
+// env alone: whatever routing the globally active profile left in settings.json
+// would silently win and send the session to the wrong provider. Write the
+// profile's own routing into a private higher-precedence settings file instead,
+// blanking every managed key this profile does not own. `--bare` does not skip
+// settings files, and inline `--settings` JSON would expose the key in `ps`.
+export async function prepareApiProfileClaudeSettings(
+  name: string,
+  config: ClaudeApiProfileConfig,
+): Promise<string> {
+  const env: Record<string, string> = {};
+  for (const key of CLAUDE_ENV_KEYS) {
+    env[key] = "";
+  }
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    env[key] = "";
+  }
+
+  env.ANTHROPIC_API_KEY = config.apiKey;
+  env.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
+  env.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
+  env.ANTHROPIC_MODEL = config.model ?? "";
+  env.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel ?? "";
+  env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
+
+  const settings: Settings = { env };
+  // Only override the picker's model when the profile names one; otherwise the
+  // user's own global choice stays in effect.
+  if (config.model) {
+    settings.model = config.model;
+  }
+
+  const file = claudeProfileClaudeSettingsFile(name);
+  await mkdir(claudeProfileDir(name), { recursive: true });
+  await writeJsonSecure(file, settings);
+  try {
+    await chmod(file, 0o600);
+  } catch {
+    // Windows ACLs remain authoritative where POSIX chmod is unavailable.
+  }
+  return file;
 }
 
 export async function clearApiConfig(): Promise<void> {
