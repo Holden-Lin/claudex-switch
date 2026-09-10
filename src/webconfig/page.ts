@@ -691,6 +691,9 @@ const PAGE = `<!doctype html>
 
   function submitRename(account) {
     var alias = account.alias;
+    // Re-entrancy guard: Enter held down would otherwise fire a second rename
+    // against the alias the first one is already moving.
+    if (busy[alias] === true) return;
     var next = (renaming[alias] || "").trim();
 
     if (!next || next === alias) {
@@ -724,6 +727,7 @@ const PAGE = `<!doctype html>
 
   function submitDelete(account) {
     var alias = account.alias;
+    if (busy[alias] === true) return;
     busy[alias] = true;
     rerenderCard(alias);
 

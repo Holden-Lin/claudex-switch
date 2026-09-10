@@ -8994,7 +8994,7 @@ import { spawnSync as spawnSync5 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.9.0",
+  version: "1.9.1",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -9999,6 +9999,9 @@ var PAGE = `<!doctype html>
 
   function submitRename(account) {
     var alias = account.alias;
+    // Re-entrancy guard: Enter held down would otherwise fire a second rename
+    // against the alias the first one is already moving.
+    if (busy[alias] === true) return;
     var next = (renaming[alias] || "").trim();
 
     if (!next || next === alias) {
@@ -10032,6 +10035,7 @@ var PAGE = `<!doctype html>
 
   function submitDelete(account) {
     var alias = account.alias;
+    if (busy[alias] === true) return;
     busy[alias] = true;
     rerenderCard(alias);
 
