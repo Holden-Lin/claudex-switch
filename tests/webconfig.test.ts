@@ -466,6 +466,61 @@ describe("webconfig snapshot", () => {
     });
   });
 
+  test("clears every custom env row on a local CLIProxyAPI profile", async () => {
+    await writeClaudeProfile("proxy", {
+      type: "local-cliproxyapi",
+      profileId: "pid-1",
+      binaryPath: "/usr/local/bin/cli-proxy-api",
+      defaultModel: "gpt-6",
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
+    });
+    await setActiveClaudeProfile(null);
+    await seedAliases([
+      {
+        alias: "proxy",
+        target: { provider: "claude", profileName: "proxy" },
+        createdAt: 1,
+      },
+    ]);
+
+    const results = await applyChanges([
+      {
+        provider: "claude",
+        alias: "proxy",
+        fields: { defaultModel: "gpt-6" },
+        env: {},
+      },
+    ]);
+
+    expect(results[0].ok).toBe(true);
+    expect(await getProfileData("proxy")).toEqual({
+      type: "local-cliproxyapi",
+      profileId: "pid-1",
+      binaryPath: "/usr/local/bin/cli-proxy-api",
+      defaultModel: "gpt-6",
+    });
+  });
+
+  test("refuses to blank a relay account's base URL", async () => {
+    await seedCodexAccount("cx");
+    await seedAliases([
+      {
+        alias: "cx",
+        target: { provider: "codex", accountKey: CODEX_ACCOUNT_KEY },
+        createdAt: 1,
+      },
+    ]);
+
+    const results = await applyChanges([
+      { provider: "codex", alias: "cx", fields: { baseUrl: "  " } },
+    ]);
+
+    expect(results[0].ok).toBe(false);
+    // The registry must be untouched, not left half-written.
+    const codex = findAccount(await buildSnapshot(), "cx");
+    expect(codex.fields.baseUrl).toBe("https://old.example.com/v1");
+  });
+
   test("writes codex edits to the registry, auth file and config.toml", async () => {
     await seedCodexAccount("cx");
     await seedAliases([

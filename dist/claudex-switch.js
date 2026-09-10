@@ -5309,9 +5309,8 @@ async function updateClaudeProfileConfig(name, patch) {
     if (!defaultModel) {
       throw new Error("Default model cannot be empty");
     }
-    next = { ...current, defaultModel, ...withCustomEnv(env2) };
-    if (!next.env)
-      delete next.env;
+    const { env: _previousEnv, ...rest } = current;
+    next = { ...rest, defaultModel, ...withCustomEnv(env2) };
   } else {
     next = normalizeOAuthProfileData({
       defaultModel: pick("defaultModel", current.defaultModel),
@@ -8954,7 +8953,7 @@ import { spawnSync as spawnSync5 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.8.0",
+  version: "1.8.1",
   description: "Switch between Claude Code and Codex accounts with ease",
   type: "module",
   bin: {
@@ -10069,6 +10068,10 @@ async function applyCodexChange(accountKey, alias, fields) {
   if (fields.baseUrl !== undefined)
     validateUrl(fields.baseUrl);
   const registry = await loadRegistry();
+  const existing = findAccountByKey(registry, accountKey);
+  if (existing?.api_provider?.type === "custom" && fields.baseUrl !== undefined && !fields.baseUrl.trim()) {
+    throw new Error("中转站账号的请求地址不能为空");
+  }
   const account = updateAccountConfig(registry, accountKey, {
     defaultModel: fields.defaultModel,
     baseUrl: fields.baseUrl,

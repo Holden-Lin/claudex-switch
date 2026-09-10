@@ -245,6 +245,17 @@ async function applyCodexChange(
   if (fields.baseUrl !== undefined) validateUrl(fields.baseUrl);
 
   const registry = await loadRegistry();
+  // Validate before the registry write: activateCodexCustomProvider rejects a
+  // provider without a base URL, and it runs after saveRegistry.
+  const existing = findAccountByKey(registry, accountKey);
+  if (
+    existing?.api_provider?.type === "custom" &&
+    fields.baseUrl !== undefined &&
+    !fields.baseUrl.trim()
+  ) {
+    throw new Error("中转站账号的请求地址不能为空");
+  }
+
   const account = updateAccountConfig(registry, accountKey, {
     defaultModel: fields.defaultModel,
     baseUrl: fields.baseUrl,

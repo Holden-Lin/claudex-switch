@@ -241,8 +241,11 @@ export async function updateClaudeProfileConfig(
     if (!defaultModel) {
       throw new Error("Default model cannot be empty");
     }
-    next = { ...current, defaultModel, ...withCustomEnv(env) };
-    if (!next.env) delete next.env;
+    // Drop the existing env before merging: spreading an empty result cannot
+    // remove a key that is already on `current`, so clearing every row in the
+    // UI would silently keep the old values.
+    const { env: _previousEnv, ...rest } = current;
+    next = { ...rest, defaultModel, ...withCustomEnv(env) };
   } else {
     next = normalizeOAuthProfileData({
       defaultModel: pick("defaultModel", current.defaultModel),
