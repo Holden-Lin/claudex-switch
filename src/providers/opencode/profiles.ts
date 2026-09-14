@@ -92,13 +92,41 @@ export async function updateOpenCodeProfileDefaultModel(
   return next;
 }
 
-export function openCodeRunEnvironment(profileId: string): NodeJS.ProcessEnv {
+/**
+ * Environment used only while connecting or refreshing an account. The TUI
+ * writes auth.json into this private XDG root, so /connect cannot modify the
+ * user's normal OpenCode credential file.
+ */
+export function openCodeSetupEnvironment(profileId: string): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  // The auth-content variable wins over the XDG auth file in OpenCode. Never
-  // inherit it, otherwise an outer shell could silently route this account to
-  // a different subscription.
+  // A parent auth-content value wins over auth.json. It must not leak into a
+  // fresh /connect session for this profile.
   delete env.OPENCODE_AUTH_CONTENT;
   env.XDG_DATA_HOME = openCodeProfileDataHome(profileId);
+  return env;
+}
+
+/**
+ * Keep OpenCode's normal XDG data directory intact so every Go account sees
+ * the same sessions in /resume. Authentication alone is selected per launch
+ * through OpenCode's documented higher-precedence auth-content environment.
+ */
+export async function openCodeRunEnvironment(
+  profileId: string,
+): Promise<NodeJS.ProcessEnv> {
+  const auth = await readJson<OpenCodeAuthFile>(
+    openCodeProfileAuthFile(profileId),
+    {},
+  );
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  if (!isOpenCodeAuthInfo(credential)) {
+    throw new Error("OpenCode Go credential is missing from this profile.");
+  }
+
+  const env = { ...process.env };
+  env.OPENCODE_AUTH_CONTENT = JSON.stringify({
+    [OPENCODE_GO_PROVIDER_ID]: credential,
+  });
   return env;
 }
 

@@ -219,7 +219,7 @@ async function addOpenCodeGo(alias: string): Promise<void> {
       `${chalk.bold(alias)} created  ${chalk.dim("OpenCode Go subscription")}`,
     );
     hint(
-      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account.`,
+      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account; /resume history is shared.`,
     );
     blank();
   } catch (err) {

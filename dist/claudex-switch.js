@@ -6310,10 +6310,22 @@ async function updateOpenCodeProfileDefaultModel(profileId, defaultModel) {
   await writeJsonSecure(openCodeProfileDataFile(profileId), next);
   return next;
 }
-function openCodeRunEnvironment(profileId) {
+function openCodeSetupEnvironment(profileId) {
   const env2 = { ...process.env };
   delete env2.OPENCODE_AUTH_CONTENT;
   env2.XDG_DATA_HOME = openCodeProfileDataHome(profileId);
+  return env2;
+}
+async function openCodeRunEnvironment(profileId) {
+  const auth = await readJson(openCodeProfileAuthFile(profileId), {});
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  if (!isOpenCodeAuthInfo(credential)) {
+    throw new Error("OpenCode Go credential is missing from this profile.");
+  }
+  const env2 = { ...process.env };
+  env2.OPENCODE_AUTH_CONTENT = JSON.stringify({
+    [OPENCODE_GO_PROVIDER_ID]: credential
+  });
   return env2;
 }
 async function hasOpenCodeGoCredential(profileId) {
@@ -6805,7 +6817,7 @@ function hasOpenCodeTui() {
 async function runOpenCodeTui(profileId, spawnCommand = spawn3) {
   const proc = spawnCommand("opencode", [], {
     stdio: "inherit",
-    env: openCodeRunEnvironment(profileId)
+    env: openCodeSetupEnvironment(profileId)
   });
   return new Promise((resolve2) => {
     proc.once("error", () => resolve2(127));
@@ -6930,7 +6942,7 @@ async function addOpenCodeGo(alias) {
     await setActiveOpenCodeProfile(profileId);
     blank();
     success(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
-    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account.`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account; /resume history is shared.`);
     blank();
   } catch (err) {
     if (profileCreated) {
@@ -7728,7 +7740,7 @@ async function switchOpenCode(alias, profileId) {
   await getOpenCodeProfileData(profileId);
   await setActiveOpenCodeProfile(profileId);
   success(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
-  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open the private OpenCode TUI session.`);
+  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; /resume history is shared.`);
   blank();
 }
 async function switchClaude(alias, profileName) {
@@ -8105,7 +8117,7 @@ async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir
     return applyClaudeAttributionHeader(buildClaudeOAuthEnvironment(secureStorageDir, configDir, profile?.env), headerEnabled);
   }
   if (entry.target.provider === "opencode") {
-    return openCodeRunEnvironment(entry.target.profileId);
+    return await openCodeRunEnvironment(entry.target.profileId);
   }
   const auth = await readAccountAuth(entry.target.accountKey);
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
@@ -8678,7 +8690,7 @@ async function getOpenCodeAccountInfo(entry, activeProfile) {
     email: null,
     plan: "Go",
     authMode: "subscription",
-    apiProvider: "private TUI profile",
+    apiProvider: "private credential · shared history",
     defaultModel: null,
     isActive: activeProfile === profileId,
     usage: null,
@@ -9375,7 +9387,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.11.0",
+  version: "1.11.1",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {

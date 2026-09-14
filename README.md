@@ -18,7 +18,7 @@
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
-- OpenCode Go 支持订阅凭据与会话数据按别名隔离；`-run` 直接打开本机 OpenCode TUI，不覆盖全局 `~/.local/share/opencode/auth.json`
+- OpenCode Go 支持订阅凭据按别名隔离、会话历史全局共享；`-run` 直接打开本机 OpenCode TUI，不覆盖全局 `~/.local/share/opencode/auth.json`
 - macOS Keychain 凭证兼容
 
 ## 安装
@@ -173,7 +173,7 @@ claudex-switch model go-work opencode-go/deepseek-v4-flash
 claudex-switch refresh go-work # 在专属 TUI 内重新 /connect
 ```
 
-每个别名使用私有 XDG 数据目录，凭据、会话和 TUI 选择互不串号；全局 `opencode` 的认证文件和其他供应商凭据均不会被覆盖。OpenCode Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；实际 TUI 始终通过 `<alias> -run` 打开。
+每个别名的 Go 凭据私有保存；启动时通过 `OPENCODE_AUTH_CONTENT` 注入对应凭据，而保留 OpenCode 正常的 XDG 会话目录。因此所有 Go 别名都能在 `/resume` 看见并继续同一份历史；全局 `opencode` 的认证文件和其他供应商凭据均不会被覆盖。首次登录和 `refresh` 才使用私有 XDG 目录，保证 `/connect` 不改全局凭据。OpenCode Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；实际 TUI 始终通过 `<alias> -run` 打开。
 
 自定义供应商示例配置：
 

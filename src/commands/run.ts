@@ -141,8 +141,8 @@ export async function runAliasSession(
   // profiles get their config via env vars, OAuth profiles get a per-profile
   // credential store. Neither touches (or is touched by) the active account,
   // so switching accounts can never flip a running session. Codex switches
-  // globally, while OpenCode records the selected private profile and is
-  // launched with its private XDG data directory below.
+  // globally; OpenCode keeps its selected credential private but deliberately
+  // shares its normal XDG session store so any account can /resume history.
   if (entry.target.provider === "codex") {
     await use(aliasOrName);
     try {
@@ -356,7 +356,7 @@ async function getRunEnvironment(
   }
 
   if (entry.target.provider === "opencode") {
-    return openCodeRunEnvironment(entry.target.profileId);
+    return await openCodeRunEnvironment(entry.target.profileId);
   }
 
   const auth = await readAccountAuth(entry.target.accountKey);

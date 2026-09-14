@@ -120,9 +120,9 @@ export function cliProxyAPIStartupLock(profileId: string): string {
   return join(CLI_PROXY_API_DIR, "locks", `${profileId}.lock`);
 }
 
-// Each Go account receives a private XDG data root. Passing this root to
-// OpenCode isolates its auth file and session data without replacing any
-// global OpenCode credentials or configuration.
+// Each Go account owns a private XDG data root only for /connect and refresh.
+// Normal runs retain OpenCode's shared XDG data directory, letting all Go
+// accounts use the same /resume history while auth is injected separately.
 export function openCodeProfileDir(profileId: string): string {
   return join(OPENCODE_PROFILES_DIR, profileId);
 }

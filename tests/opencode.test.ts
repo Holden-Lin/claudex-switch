@@ -18,6 +18,7 @@ import {
   hasOpenCodeGoCredential,
   normalizeOpenCodeGoModel,
   openCodeRunEnvironment,
+  openCodeSetupEnvironment,
   readOpenCodeState,
 } from "../src/providers/opencode/profiles";
 
@@ -61,7 +62,7 @@ describe("OpenCode Go profiles", () => {
     expect(fileMode((await stat(openCodeProfileAuthFile(PROFILE_ID))).mode)).toBe(0o600);
   });
 
-  test("runs the native TUI with the selected private XDG data directory", async () => {
+  test("runs the native TUI with private auth and the shared session store", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, CREDENTIAL);
     await saveAliases({
       version: 1,
@@ -75,7 +76,9 @@ describe("OpenCode Go profiles", () => {
     });
 
     const previous = process.env.OPENCODE_AUTH_CONTENT;
+    const previousDataHome = process.env.XDG_DATA_HOME;
     process.env.OPENCODE_AUTH_CONTENT = '{"opencode-go":{"type":"api","key":"wrong"}}';
+    process.env.XDG_DATA_HOME = "/tmp/opencode-shared-sessions";
     try {
       const calls: SpawnCall[] = [];
       const exitCode = await runAliasSession(
@@ -92,8 +95,12 @@ describe("OpenCode Go profiles", () => {
         "opencode-go/kimi-k3",
         "--continue",
       ]);
-      expect(calls[0]?.env?.XDG_DATA_HOME).toContain(PROFILE_ID);
-      expect(calls[0]?.env?.OPENCODE_AUTH_CONTENT).toBeUndefined();
+      expect(calls[0]?.env?.XDG_DATA_HOME).toBe(
+        "/tmp/opencode-shared-sessions",
+      );
+      expect(JSON.parse(calls[0]?.env?.OPENCODE_AUTH_CONTENT ?? "{}")).toEqual({
+        "opencode-go": CREDENTIAL,
+      });
       expect(await getOpenCodeProfileData(PROFILE_ID)).toEqual({
         type: "go",
         defaultModel: "opencode-go/kimi-k3",
@@ -102,17 +109,25 @@ describe("OpenCode Go profiles", () => {
     } finally {
       if (previous === undefined) delete process.env.OPENCODE_AUTH_CONTENT;
       else process.env.OPENCODE_AUTH_CONTENT = previous;
+      if (previousDataHome === undefined) delete process.env.XDG_DATA_HOME;
+      else process.env.XDG_DATA_HOME = previousDataHome;
     }
   });
 
-  test("validates Go model ids and builds a private XDG environment", () => {
+  test("validates Go model ids and reserves private XDG data for setup only", async () => {
     expect(normalizeOpenCodeGoModel("opencode-go/glm-5.3")).toBe(
       "opencode-go/glm-5.3",
     );
     expect(() => normalizeOpenCodeGoModel("glm-5.3")).toThrow(
       "OpenCode Go models must use the form",
     );
-    expect(() => openCodeRunEnvironment(PROFILE_ID)).not.toThrow();
+    await createOpenCodeGoProfile(PROFILE_ID, CREDENTIAL);
+    expect(await openCodeRunEnvironment(PROFILE_ID)).toHaveProperty(
+      "OPENCODE_AUTH_CONTENT",
+    );
+    expect(openCodeSetupEnvironment(PROFILE_ID).XDG_DATA_HOME).toContain(
+      PROFILE_ID,
+    );
     expect(OPENCODE_STATE_FILE).toContain(".claudex-switch/opencode/state.json");
   });
 });

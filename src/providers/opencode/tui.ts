@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "child_process";
-import { openCodeRunEnvironment } from "./profiles";
+import { openCodeSetupEnvironment } from "./profiles";
 
 type SpawnCommand = (
   command: string,
@@ -12,14 +12,14 @@ export function hasOpenCodeTui(): boolean {
   return result.status === 0;
 }
 
-/** Launch OpenCode's native no-argument TUI with one private Go profile. */
+/** Launch the native TUI only for private /connect or refresh operations. */
 export async function runOpenCodeTui(
   profileId: string,
   spawnCommand: SpawnCommand = spawn,
 ): Promise<number> {
   const proc = spawnCommand("opencode", [], {
     stdio: "inherit",
-    env: openCodeRunEnvironment(profileId),
+    env: openCodeSetupEnvironment(profileId),
   });
 
   return new Promise((resolve) => {

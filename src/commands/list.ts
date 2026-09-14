@@ -164,7 +164,7 @@ async function getOpenCodeAccountInfo(
     email: null,
     plan: "Go",
     authMode: "subscription",
-    apiProvider: "private TUI profile",
+    apiProvider: "private credential · shared history",
     defaultModel: null,
     isActive: activeProfile === profileId,
     usage: null,
