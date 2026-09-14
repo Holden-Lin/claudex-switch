@@ -290,7 +290,7 @@ describe("list", () => {
     expect(output()).toContain("one@example.com");
   });
 
-  test("shows an active OpenCode Go profile without a quota request", async () => {
+  test("shows OpenCode Go server quota without exposing credential metadata", async () => {
     const profileId = "go-00000000-0000-4000-8000-000000000003";
     await createOpenCodeGoProfile(profileId, { type: "api", key: "go-secret" });
     await setActiveOpenCodeProfile(profileId);
@@ -304,15 +304,72 @@ describe("list", () => {
         },
       ],
     });
-    const calls = mockFetch(() => null);
+    const calls = mockFetch((url) =>
+      url === "https://opencode.ai/zen/go/v1/usage"
+        ? new Response(
+            JSON.stringify({
+              usage: {
+                rolling: {
+                  status: "ok",
+                  percent: 25,
+                  resetsAt: "2026-09-14T10:00:00Z",
+                },
+                weekly: {
+                  status: "ok",
+                  percent: 40,
+                  resetsAt: "2026-09-15T00:00:00Z",
+                },
+                monthly: {
+                  status: "ok",
+                  percent: 55,
+                  resetsAt: "2026-10-01T00:00:00Z",
+                },
+              },
+            }),
+            { status: 200 },
+          )
+        : null,
+    );
 
     await list();
 
-    expect(calls).toEqual([]);
+    expect(calls).toEqual([
+      expect.objectContaining({
+        url: "https://opencode.ai/zen/go/v1/usage",
+        headers: { Authorization: "Bearer go-secret" },
+      }),
+    ]);
     expect(output()).toContain("OpenCode");
     expect(output()).toContain("go-work");
     expect(output()).toContain("Go");
-    expect(output()).toContain("quota unavailable");
+    expect(output()).not.toContain("private credential · shared history");
+    expect(output()).toContain("5h 75%");
+    expect(output()).toContain("wk 60%");
+    expect(output()).toContain("mo 45%");
+  });
+
+  test("does not call OpenCode Go quota endpoint with --no-usage", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000003";
+    await createOpenCodeGoProfile(profileId, {
+      type: "api",
+      key: "go-secret",
+    });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-work",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+    const calls = mockFetch(() => null);
+
+    await list({ usage: false });
+
+    expect(calls).toEqual([]);
+    expect(output()).not.toContain("quota unavailable");
   });
 
   test("respects the registry api.usage=false kill switch for Codex", async () => {

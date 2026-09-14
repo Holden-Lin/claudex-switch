@@ -16,12 +16,13 @@ import type { OpenCodeGoProfileData, OpenCodeProfileState } from "../../types";
 export const OPENCODE_GO_PROVIDER_ID = "opencode-go";
 
 type OpenCodeAuthFile = Record<string, unknown>;
+type OpenCodeAuthInfo = { type: "api"; key: string } & Record<string, unknown>;
 
 function emptyState(): OpenCodeProfileState {
   return { active: null };
 }
 
-function isOpenCodeAuthInfo(value: unknown): value is Record<string, unknown> {
+function isOpenCodeAuthInfo(value: unknown): value is OpenCodeAuthInfo {
   if (!value || typeof value !== "object") return false;
   const info = value as Record<string, unknown>;
   // This is the public OpenCode auth schema for API keys. Requiring the shape
@@ -131,8 +132,16 @@ export async function openCodeRunEnvironment(
 }
 
 export async function hasOpenCodeGoCredential(profileId: string): Promise<boolean> {
+  return (await readOpenCodeGoApiKey(profileId)) !== null;
+}
+
+/** Read one private Go key for an authenticated provider request. */
+export async function readOpenCodeGoApiKey(
+  profileId: string,
+): Promise<string | null> {
   const auth = await readJson<OpenCodeAuthFile>(openCodeProfileAuthFile(profileId), {});
-  return isOpenCodeAuthInfo(auth[OPENCODE_GO_PROVIDER_ID]);
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  return isOpenCodeAuthInfo(credential) ? credential.key : null;
 }
 
 export async function createOpenCodeGoProfile(

@@ -25,6 +25,7 @@ import {
   hasOpenCodeGoCredential,
   readOpenCodeState,
 } from "../providers/opencode/profiles";
+import { fetchOpenCodeUsage } from "../providers/opencode/usage";
 import {
   blank,
   header,
@@ -48,6 +49,7 @@ import type {
 export interface ListOptions {
   usage?: boolean;
   codexUsageFetcher?: typeof fetchCodexUsage;
+  openCodeUsageFetcher?: typeof fetchOpenCodeUsage;
 }
 
 export async function list(options: ListOptions = {}): Promise<void> {
@@ -111,7 +113,12 @@ export async function list(options: ListOptions = {}): Promise<void> {
     ),
     Promise.all(
       openCodeAliases.map((entry) =>
-        getOpenCodeAccountInfo(entry, openCodeState.active),
+        getOpenCodeAccountInfo(
+          entry,
+          openCodeState.active,
+          withUsage,
+          options.openCodeUsageFetcher ?? fetchOpenCodeUsage,
+        ),
       ),
     ),
   ]);
@@ -143,7 +150,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
   );
   if (anyUsage) {
     blank();
-    hint("5h/wk = remaining quota in the 5-hour / weekly window");
+    hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
   }
 
   blank();
@@ -152,6 +159,8 @@ export async function list(options: ListOptions = {}): Promise<void> {
 async function getOpenCodeAccountInfo(
   entry: AliasEntry,
   activeProfile: string | null,
+  withUsage: boolean,
+  usageFetcher: typeof fetchOpenCodeUsage,
 ): Promise<AccountInfo> {
   if (entry.target.provider !== "opencode") {
     throw new Error("Not an OpenCode alias");
@@ -164,11 +173,11 @@ async function getOpenCodeAccountInfo(
     email: null,
     plan: "Go",
     authMode: "subscription",
-    apiProvider: "private credential · shared history",
+    apiProvider: null,
     defaultModel: null,
     isActive: activeProfile === profileId,
     usage: null,
-    usageNote: "quota unavailable",
+    usageNote: null,
     balance: null,
   };
 
@@ -178,6 +187,10 @@ async function getOpenCodeAccountInfo(
     if (!(await hasOpenCodeGoCredential(profileId))) {
       info.authMode = "missing credential";
       info.usageNote = "reconnect required";
+    } else if (withUsage) {
+      const result = await usageFetcher(profileId);
+      info.usage = result.usage;
+      info.usageNote = result.note;
     }
   } catch {
     info.authMode = "missing profile";

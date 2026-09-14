@@ -18,7 +18,7 @@ A unified CLI tool for managing Claude Code, Codex, and OpenCode Go accounts. Su
 - `claudex-switch webconfig` opens a local web page for viewing and editing every account's base URL, key and model configuration in one place, including pasting a whole `export ANTHROPIC_*` block (see "Web Config" below)
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs, Fable / Sonnet / Opus / Haiku model mapping, a subagent model, and arbitrary custom environment variables
 - Codex: ChatGPT OAuth + OpenAI API keys
-- OpenCode Go: subscription credentials isolated by alias with a shared session history; `-run` opens the local OpenCode TUI without overwriting global `~/.local/share/opencode/auth.json`
+- OpenCode Go: subscription credentials isolated by alias with a shared session history, plus server-reported 5-hour / weekly / monthly quota in `list`; `-run` opens the local OpenCode TUI without overwriting global `~/.local/share/opencode/auth.json`
 - macOS Keychain credential support
 
 ## Install
@@ -170,7 +170,7 @@ claudex-switch model go-work opencode-go/deepseek-v4-flash
 claudex-switch refresh go-work
 ```
 
-Each alias keeps its Go credential private. At launch, `OPENCODE_AUTH_CONTENT` injects the selected credential while OpenCode retains its normal XDG session directory, so every Go alias can see and continue the same history in `/resume`. The global `opencode` auth file and other provider credentials remain untouched. Only initial login and `refresh` use a private XDG directory, keeping `/connect` from changing global credentials. Go models must use `opencode-go/<model>` and do not accept Claude/Codex effort tiers. `claudex-switch <alias>` records the selected account; always use `<alias> -run` to open its TUI.
+Each alias keeps its Go credential private. At launch, `OPENCODE_AUTH_CONTENT` injects the selected credential while OpenCode retains its normal XDG session directory, so every Go alias can see and continue the same history in `/resume`. The global `opencode` auth file and other provider credentials remain untouched. Only initial login and `refresh` use a private XDG directory, keeping `/connect` from changing global credentials. `claudex-switch list` uses that alias's private Go key to obtain server-side remaining quota for the 5-hour, weekly, and monthly windows; `--no-usage` makes no such request. Go models must use `opencode-go/<model>` and do not accept Claude/Codex effort tiers. `claudex-switch <alias>` records the selected account; always use `<alias> -run` to open its TUI.
 
 Example custom provider config:
 

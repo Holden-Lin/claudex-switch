@@ -109,6 +109,14 @@ export function formatUsage(
         `${chalk.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`,
       );
     }
+    if (
+      usage.monthlyUsedPercent !== null &&
+      usage.monthlyUsedPercent !== undefined
+    ) {
+      parts.push(
+        `${chalk.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`,
+      );
+    }
     if (parts.length > 0) return parts.join(chalk.dim(" · "));
   }
   return note ? chalk.dim(note) : "";

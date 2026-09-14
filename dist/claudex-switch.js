@@ -5235,6 +5235,9 @@ function formatUsage(usage, note) {
     if (usage.weeklyUsedPercent !== null) {
       parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`);
     }
+    if (usage.monthlyUsedPercent !== null && usage.monthlyUsedPercent !== undefined) {
+      parts.push(`${source_default.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`);
+    }
     if (parts.length > 0)
       return parts.join(source_default.dim(" · "));
   }
@@ -6329,8 +6332,12 @@ async function openCodeRunEnvironment(profileId) {
   return env2;
 }
 async function hasOpenCodeGoCredential(profileId) {
+  return await readOpenCodeGoApiKey(profileId) !== null;
+}
+async function readOpenCodeGoApiKey(profileId) {
   const auth = await readJson(openCodeProfileAuthFile(profileId), {});
-  return isOpenCodeAuthInfo(auth[OPENCODE_GO_PROVIDER_ID]);
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  return isOpenCodeAuthInfo(credential) ? credential.key : null;
 }
 async function createOpenCodeGoProfile(profileId, credential) {
   await ensureProfileDir(profileId);
@@ -8625,6 +8632,69 @@ function parseSnapshot(snapshot) {
   return any ? info2 : null;
 }
 
+// src/providers/opencode/usage.ts
+var OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
+var FETCH_TIMEOUT_MS3 = 5000;
+async function fetchOpenCodeUsage(profileId) {
+  const apiKey = await readOpenCodeGoApiKey(profileId);
+  if (!apiKey)
+    return { usage: null, note: "reconnect required" };
+  try {
+    const response = await fetch(OPENCODE_GO_USAGE_URL, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
+    });
+    if (response.status === 401) {
+      return { usage: null, note: "reconnect required" };
+    }
+    if (response.status === 403) {
+      return { usage: null, note: "Go subscription required" };
+    }
+    if (!response.ok)
+      return { usage: null, note: "quota unavailable" };
+    const usage = parseOpenCodeUsageResponse(await response.json());
+    return usage ? { usage, note: null } : { usage: null, note: "quota unavailable" };
+  } catch {
+    return { usage: null, note: "quota unavailable" };
+  }
+}
+function parseOpenCodeUsageResponse(data) {
+  if (!data || typeof data !== "object")
+    return null;
+  const usage = data.usage;
+  if (!usage || typeof usage !== "object")
+    return null;
+  const windows = usage;
+  const rolling = parseWindow(windows.rolling);
+  const weekly = parseWindow(windows.weekly);
+  const monthly = parseWindow(windows.monthly);
+  if (!rolling && !weekly && !monthly)
+    return null;
+  return {
+    fiveHourUsedPercent: rolling?.usedPercent ?? null,
+    fiveHourResetsAt: rolling?.resetsAt ?? null,
+    weeklyUsedPercent: weekly?.usedPercent ?? null,
+    weeklyResetsAt: weekly?.resetsAt ?? null,
+    monthlyUsedPercent: monthly?.usedPercent ?? null,
+    monthlyResetsAt: monthly?.resetsAt ?? null
+  };
+}
+function parseWindow(value) {
+  if (!value || typeof value !== "object")
+    return null;
+  const window = value;
+  const rateLimited = window.status === "rate-limited";
+  if (!rateLimited && (typeof window.percent !== "number" || !Number.isFinite(window.percent))) {
+    return null;
+  }
+  const usedPercent = rateLimited ? 100 : Math.min(100, Math.max(0, window.percent));
+  const parsedReset = typeof window.resetsAt === "string" ? Date.parse(window.resetsAt) : NaN;
+  return {
+    usedPercent,
+    resetsAt: Number.isFinite(parsedReset) ? parsedReset : null
+  };
+}
+
 // src/commands/list.ts
 async function list(options = {}) {
   const withUsage = options.usage !== false;
@@ -8652,7 +8722,7 @@ async function list(options = {}) {
   const [claudeInfos, codexInfos, openCodeInfos] = await Promise.all([
     Promise.all(claudeAliases.map((entry) => getClaudeAccountInfo(entry, claudeState.active, withUsage))),
     Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage, options.codexUsageFetcher ?? fetchCodexUsage))),
-    Promise.all(openCodeAliases.map((entry) => getOpenCodeAccountInfo(entry, openCodeState.active)))
+    Promise.all(openCodeAliases.map((entry) => getOpenCodeAccountInfo(entry, openCodeState.active, withUsage, options.openCodeUsageFetcher ?? fetchOpenCodeUsage)))
   ]);
   await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
   blank();
@@ -8675,11 +8745,11 @@ async function list(options = {}) {
   const anyUsage = [...claudeInfos, ...codexInfos, ...openCodeInfos].some((info2) => info2.usage);
   if (anyUsage) {
     blank();
-    hint("5h/wk = remaining quota in the 5-hour / weekly window");
+    hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
   }
   blank();
 }
-async function getOpenCodeAccountInfo(entry, activeProfile) {
+async function getOpenCodeAccountInfo(entry, activeProfile, withUsage, usageFetcher) {
   if (entry.target.provider !== "opencode") {
     throw new Error("Not an OpenCode alias");
   }
@@ -8690,11 +8760,11 @@ async function getOpenCodeAccountInfo(entry, activeProfile) {
     email: null,
     plan: "Go",
     authMode: "subscription",
-    apiProvider: "private credential · shared history",
+    apiProvider: null,
     defaultModel: null,
     isActive: activeProfile === profileId,
     usage: null,
-    usageNote: "quota unavailable",
+    usageNote: null,
     balance: null
   };
   try {
@@ -8703,6 +8773,10 @@ async function getOpenCodeAccountInfo(entry, activeProfile) {
     if (!await hasOpenCodeGoCredential(profileId)) {
       info2.authMode = "missing credential";
       info2.usageNote = "reconnect required";
+    } else if (withUsage) {
+      const result = await usageFetcher(profileId);
+      info2.usage = result.usage;
+      info2.usageNote = result.note;
     }
   } catch {
     info2.authMode = "missing profile";
@@ -9387,7 +9461,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.11.1",
+  version: "1.12.0",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {

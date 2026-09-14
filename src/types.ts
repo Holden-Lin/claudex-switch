@@ -258,6 +258,10 @@ export interface UsageInfo {
   fiveHourResetsAt: number | null;
   weeklyUsedPercent: number | null;
   weeklyResetsAt: number | null;
+  // OpenCode Go also publishes a monthly subscription window. Optional keeps
+  // existing providers on their native two-window quota contract.
+  monthlyUsedPercent?: number | null;
+  monthlyResetsAt?: number | null;
 }
 
 export interface UsageFetchResult {
