@@ -1,5 +1,5 @@
 // -- Provider types --
-export type Provider = "claude" | "codex";
+export type Provider = "claude" | "codex" | "opencode";
 
 // -- Alias types --
 export interface ClaudeTarget {
@@ -12,7 +12,16 @@ export interface CodexTarget {
   accountKey: string;
 }
 
-export type AliasTarget = ClaudeTarget | CodexTarget;
+export interface OpenCodeTarget {
+  provider: "opencode";
+  /**
+   * Opaque storage id. It deliberately outlives a user-facing alias, so
+   * renaming or reusing an alias can never replace another Go credential.
+   */
+  profileId: string;
+}
+
+export type AliasTarget = ClaudeTarget | CodexTarget | OpenCodeTarget;
 
 export interface AliasEntry {
   alias: string;
@@ -122,6 +131,19 @@ export interface ProfileInfo {
   type: ProfileType;
   label: string | null;
   isActive: boolean;
+}
+
+// -- OpenCode Go types --
+// Only the OpenCode Go credential is copied into each profile. OpenCode keeps
+// its own auth schema, so this project intentionally treats the credential as
+// opaque and never exposes or serializes its key in an alias registry.
+export interface OpenCodeGoProfileData {
+  type: "go";
+  defaultModel?: string;
+}
+
+export interface OpenCodeProfileState {
+  active: string | null;
 }
 
 // -- Codex types --

@@ -9,6 +9,7 @@ import {
 import * as prompts from "@inquirer/prompts";
 import { loadAliases, saveAliases } from "../src/alias/store";
 import { codexAccountAuthFile } from "../src/lib/paths";
+import { openCodeProfileDataFile } from "../src/lib/paths";
 import { fileExists } from "../src/lib/fs";
 import { saveAccountAuth } from "../src/providers/codex/auth";
 import {
@@ -17,6 +18,11 @@ import {
 } from "../src/providers/codex/registry";
 import type { AliasRegistry, CodexAuthFile, CodexRegistry } from "../src/types";
 import { resetTestHome } from "./helpers";
+import {
+  createOpenCodeGoProfile,
+  readOpenCodeState,
+  setActiveOpenCodeProfile,
+} from "../src/providers/opencode/profiles";
 
 let purge: typeof import("../src/commands/purge").purge;
 
@@ -110,5 +116,27 @@ describe("purge", () => {
     expect(logSpy.mock.calls.length).toBeGreaterThan(0);
 
     logSpy.mockRestore();
+  });
+
+  test("removes a private OpenCode Go profile and clears its active state", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000002";
+    await createOpenCodeGoProfile(profileId, { type: "api", key: "go-secret" });
+    await setActiveOpenCodeProfile(profileId);
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-main",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    await purge("go-main");
+
+    expect((await loadAliases()).aliases).toHaveLength(0);
+    expect(await fileExists(openCodeProfileDataFile(profileId))).toBe(false);
+    expect(await readOpenCodeState()).toEqual({ active: null });
   });
 });

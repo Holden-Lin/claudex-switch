@@ -2,11 +2,11 @@
 
 **语言 / Languages:** [中文](./README.md) | [English](./README.en.md)
 
-一个统一管理 Claude Code 和 Codex 账号的 CLI 工具。支持别名切换、额度查看，适合在多个订阅账号、团队账号、API Key 之间频繁切换。
+一个统一管理 Claude Code、Codex 和 OpenCode Go 账号的 CLI 工具。支持别名切换、额度查看，适合在多个订阅账号、团队账号、API Key 之间频繁切换。
 
 ## 特点
 
-- 统一管理 Claude Code 和 Codex 两套账号体系
+- 统一管理 Claude Code、Codex 和 OpenCode Go 三套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
 - `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`
 - `claudex-switch <alias> -run --model <model> [effort]` 会使用指定模型启动，并把它保存为该账号下次运行的默认模型；Claude 裸数字仍指 Opus，另支持 `sonnet5`、`fable5.1` 等系列名；Codex 支持 `sol` / `terra` / `luna`（对应三个 GPT-5.6 模型）和 `6`（对应 `gpt-6-astra`）。模型后可紧跟 effort 档位（如 `--model 5 max`），effort 只作用于本次运行；Codex 也支持 `ultra`（会启用更主动的多代理行为，额度消耗更快）
@@ -18,6 +18,7 @@
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
+- OpenCode Go 支持订阅凭据与会话数据按别名隔离；`-run` 直接打开本机 OpenCode TUI，不覆盖全局 `~/.local/share/opencode/auth.json`
 - macOS Keychain 凭证兼容
 
 ## 安装
@@ -113,6 +114,7 @@ claudex-switch holden -run --attribution-header false
 # 添加新账号
 claudex-switch add my-claude
 claudex-switch add my-codex
+claudex-switch add my-go
 
 # 刷新已保存的登录态
 claudex-switch refresh holden
@@ -145,6 +147,7 @@ claudex-switch add work
 - **Claude Code · ChatGPT（本机 CLIProxyAPI）** — 在 Claude Code 中使用独立的 ChatGPT 登录；本项目管理本机代理、模型映射和启动
 - **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等），可为该账号保存默认模型
 - **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商，并为该账号保存默认模型
+- **OpenCode Go** — 使用 OpenCode Go 订阅；可直接导入当前 OpenCode Go 凭据，或在专属 OpenCode TUI 里用 `/connect` 登录
 
 选择 Codex API Key 后会继续选择接口来源：
 
@@ -156,6 +159,21 @@ claudex-switch add work
 - Claude OAuth / API Key 会同步到 Claude Code 的 `settings.model`
 - Codex ChatGPT / API Key 会同步到 `~/.codex/config.toml` 的 `model`
 - 旧的 Codex 本地账号会在首次加载时自动补上 `default_model`
+
+### 在 OpenCode TUI 中使用 Go 订阅
+
+```bash
+claudex-switch add go-work
+# 若询问是否导入当前 OpenCode Go 凭据，可直接确认；否则会打开专属 TUI
+# 在 TUI 内运行 /connect，选择 OpenCode Go，粘贴订阅 API key 后退出
+
+claudex-switch go-work -run
+claudex-switch go-work -run --model opencode-go/kimi-k3
+claudex-switch model go-work opencode-go/deepseek-v4-flash
+claudex-switch refresh go-work # 在专属 TUI 内重新 /connect
+```
+
+每个别名使用私有 XDG 数据目录，凭据、会话和 TUI 选择互不串号；全局 `opencode` 的认证文件和其他供应商凭据均不会被覆盖。OpenCode Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；实际 TUI 始终通过 `<alias> -run` 打开。
 
 自定义供应商示例配置：
 
@@ -206,8 +224,8 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 |---|---|
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
-| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话；Claude Code 默认使用 `--permission-mode auto` |
-| `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5` / `sonnet5` / `fable5.1`，Codex `sol` / `terra` / `luna` / `6`） |
+| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话或 OpenCode TUI；Claude Code 默认使用 `--permission-mode auto` |
+| `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5` / `sonnet5` / `fable5.1`，Codex `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
@@ -243,7 +261,7 @@ claudex-switch webconfig
 | Claude | Claude API Key（含请求地址、Auth Token、各模型映射、自定义环境变量，支持贴 export 块导入） |
 | Codex | Codex API Key（OpenAI 官方，或自定义中转：Provider 名称 / base URL / 模型 / env key） |
 
-Claude OAuth、Codex ChatGPT 登录、本机 CLIProxyAPI 这三种需要浏览器授权的类型暂未放进网页，仍走 CLI 的 `claudex-switch add <alias>`。
+Claude OAuth、Codex ChatGPT 登录、本机 CLIProxyAPI、OpenCode Go 这四种需交互登录的类型暂未放进网页，仍走 CLI 的 `claudex-switch add <alias>`。OpenCode Go 的凭据仅在 OpenCode TUI 的 `/connect` 中管理。
 
 每个账号行右侧有两个按钮：铅笔图标可以**原位改别名**（回车保存、Esc 取消），`删除` 则是**彻底删除账号**。点开卡片就能改配置，底部一次性保存所有改动的账号：
 

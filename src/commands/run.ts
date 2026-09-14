@@ -38,6 +38,11 @@ import {
 } from "../providers/codex/auth";
 import { repairCodexStringifiedArrays } from "../providers/codex/config";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
+import {
+  getOpenCodeProfileData,
+  normalizeOpenCodeGoModel,
+  openCodeRunEnvironment,
+} from "../providers/opencode/profiles";
 import type {
   AliasEntry,
   ClaudeApiProfileConfig,
@@ -79,15 +84,21 @@ export async function runAliasSession(
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
-  // The two CLIs support different effort tiers, so validate once the
+  // The CLIs support different effort tiers, so validate once the
   // provider is known.
   if (runOptions.effortOverride) {
     const valid = providerEffortLevels(entry.target.provider);
     if (!valid.has(runOptions.effortOverride)) {
+      const providerName =
+        entry.target.provider === "claude"
+          ? "Claude"
+          : entry.target.provider === "codex"
+            ? "Codex"
+            : "OpenCode";
       error(
-        `${entry.target.provider === "claude" ? "Claude" : "Codex"} doesn't support effort "${runOptions.effortOverride}".`,
+        `${providerName} doesn't support effort "${runOptions.effortOverride}".`,
       );
-      hint(`Valid tiers: ${[...valid].join(", ")}`);
+      if (valid.size > 0) hint(`Valid tiers: ${[...valid].join(", ")}`);
       blank();
       process.exit(1);
     }
@@ -95,18 +106,26 @@ export async function runAliasSession(
   const claudeProfileName =
     entry.target.provider === "claude" ? entry.target.profileName : null;
   const isClaude = claudeProfileName !== null;
+  const openCodeProfileId =
+    entry.target.provider === "opencode" ? entry.target.profileId : null;
+  const isOpenCode = openCodeProfileId !== null;
   let profile = claudeProfileName
     ? await getProfileData(claudeProfileName)
+    : null;
+  const openCodeProfile = openCodeProfileId
+    ? await getOpenCodeProfileData(openCodeProfileId)
     : null;
   const resolvedModel = runOptions.modelOverride
     ? profile?.type === "local-cliproxyapi"
       ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
-      : resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
+      : isOpenCode
+        ? normalizeOpenCodeGoModel(runOptions.modelOverride)
+        : resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
     : profile?.type === "oauth" || profile?.type === "local-cliproxyapi"
       ? profile.type === "local-cliproxyapi"
         ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
         : profile.defaultModel
-      : undefined;
+      : openCodeProfile?.defaultModel;
   if (runOptions.modelOverride && resolvedModel) {
     await updateDefaultModel(entry, resolvedModel);
     if (claudeProfileName) {
@@ -121,9 +140,10 @@ export async function runAliasSession(
   // Claude sessions run isolated from the global account state: API-key
   // profiles get their config via env vars, OAuth profiles get a per-profile
   // credential store. Neither touches (or is touched by) the active account,
-  // so switching accounts can never flip a running session. Codex still
-  // switches globally.
-  if (!isClaude) {
+  // so switching accounts can never flip a running session. Codex switches
+  // globally, while OpenCode records the selected private profile and is
+  // launched with its private XDG data directory below.
+  if (entry.target.provider === "codex") {
     await use(aliasOrName);
     try {
       if (await repairCodexStringifiedArrays()) {
@@ -132,6 +152,8 @@ export async function runAliasSession(
     } catch {
       // Best effort; codex will surface config errors itself.
     }
+  } else if (isOpenCode) {
+    await use(aliasOrName);
   }
 
   let secureStorageDir: string | undefined;
@@ -214,14 +236,18 @@ export async function runAliasSession(
     }
   }
 
-  const command = isClaude ? "claude" : "codex";
+  const command = isClaude ? "claude" : isOpenCode ? "opencode" : "codex";
   const defaultPermissionArgs = isClaude
     ? ["--permission-mode", "auto"]
-    : ["--dangerously-bypass-approvals-and-sandbox"];
+    : isOpenCode
+      ? []
+      : ["--dangerously-bypass-approvals-and-sandbox"];
   const effortArgs = runOptions.effortOverride
     ? isClaude
       ? ["--effort", runOptions.effortOverride]
-      : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`]
+      : isOpenCode
+        ? []
+        : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`]
     : [];
   const args = [
     ...(isolatedClaudeApi ? ["--bare"] : []),
@@ -286,7 +312,7 @@ export async function runAliasSession(
           } catch {
             // Best effort; the isolated store remains authoritative.
           }
-        } else if (!isClaude) {
+        } else if (entry.target.provider === "codex") {
           try {
             await syncActiveAuthSnapshot(await loadRegistry());
           } catch {
@@ -327,6 +353,10 @@ async function getRunEnvironment(
       buildClaudeOAuthEnvironment(secureStorageDir, configDir, profile?.env),
       headerEnabled,
     );
+  }
+
+  if (entry.target.provider === "opencode") {
+    return openCodeRunEnvironment(entry.target.profileId);
   }
 
   const auth = await readAccountAuth(entry.target.accountKey);

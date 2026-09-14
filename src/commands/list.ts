@@ -21,6 +21,11 @@ import { fetchCodexUsage } from "../providers/codex/usage";
 import { fetchRelayBalance } from "../lib/oneapi";
 import { inspectManagedCLIProxyAPI } from "../providers/cliproxyapi/managed";
 import {
+  getOpenCodeProfileData,
+  hasOpenCodeGoCredential,
+  readOpenCodeState,
+} from "../providers/opencode/profiles";
+import {
   blank,
   header,
   hint,
@@ -70,9 +75,13 @@ export async function list(options: ListOptions = {}): Promise<void> {
   const codexAliases = aliasReg.aliases.filter(
     (a) => a.target.provider === "codex",
   );
+  const openCodeAliases = aliasReg.aliases.filter(
+    (a) => a.target.provider === "opencode",
+  );
 
   // Load provider states
   const claudeState = await readState();
+  const openCodeState = await readOpenCodeState();
   let codexReg = null;
   try {
     codexReg = await loadRegistry();
@@ -84,7 +93,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
 
   // All account lookups (and their usage requests) run in parallel so the
   // list renders after the slowest single account, not the sum of all.
-  const [claudeInfos, codexInfos] = await Promise.all([
+  const [claudeInfos, codexInfos, openCodeInfos] = await Promise.all([
     Promise.all(
       claudeAliases.map((entry) =>
         getClaudeAccountInfo(entry, claudeState.active, withUsage),
@@ -98,6 +107,11 @@ export async function list(options: ListOptions = {}): Promise<void> {
           codexUsage,
           options.codexUsageFetcher ?? fetchCodexUsage,
         ),
+      ),
+    ),
+    Promise.all(
+      openCodeAliases.map((entry) =>
+        getOpenCodeAccountInfo(entry, openCodeState.active),
       ),
     ),
   ]);
@@ -118,13 +132,59 @@ export async function list(options: ListOptions = {}): Promise<void> {
     renderSection(codexInfos);
   }
 
-  const anyUsage = [...claudeInfos, ...codexInfos].some((info) => info.usage);
+  if (openCodeInfos.length > 0) {
+    blank();
+    sectionHeader("OpenCode");
+    renderSection(openCodeInfos);
+  }
+
+  const anyUsage = [...claudeInfos, ...codexInfos, ...openCodeInfos].some(
+    (info) => info.usage,
+  );
   if (anyUsage) {
     blank();
     hint("5h/wk = remaining quota in the 5-hour / weekly window");
   }
 
   blank();
+}
+
+async function getOpenCodeAccountInfo(
+  entry: AliasEntry,
+  activeProfile: string | null,
+): Promise<AccountInfo> {
+  if (entry.target.provider !== "opencode") {
+    throw new Error("Not an OpenCode alias");
+  }
+
+  const profileId = entry.target.profileId;
+  const info: AccountInfo = {
+    alias: entry.alias,
+    provider: "opencode",
+    email: null,
+    plan: "Go",
+    authMode: "subscription",
+    apiProvider: "private TUI profile",
+    defaultModel: null,
+    isActive: activeProfile === profileId,
+    usage: null,
+    usageNote: "quota unavailable",
+    balance: null,
+  };
+
+  try {
+    const profile = await getOpenCodeProfileData(profileId);
+    info.defaultModel = profile.defaultModel ?? null;
+    if (!(await hasOpenCodeGoCredential(profileId))) {
+      info.authMode = "missing credential";
+      info.usageNote = "reconnect required";
+    }
+  } catch {
+    info.authMode = "missing profile";
+    info.usageNote = "reconnect required";
+  }
+
+  return info;
 }
 
 function renderSection(infos: AccountInfo[]): void {

@@ -37,7 +37,7 @@ LINUX_X64_SHA="$(asset_sha claudex-switch-linux-x64.tar.gz)"
 
 cat <<EOF
 class ClaudexSwitch < Formula
-  desc "Switch between Claude Code and Codex accounts with ease"
+  desc "Switch between Claude Code, Codex, and OpenCode accounts with ease"
   homepage "https://github.com/${REPO}"
   version "${VERSION_NO_PREFIX}"
   license "MIT"

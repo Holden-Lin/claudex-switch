@@ -10,6 +10,10 @@ import {
 } from "../src/lib/paths";
 import { writeCredentials } from "../src/providers/claude/credentials";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
+import {
+  createOpenCodeGoProfile,
+  setActiveOpenCodeProfile,
+} from "../src/providers/opencode/profiles";
 import { makeJwt, resetTestHome, TEST_HOME } from "./helpers";
 import type {
   AliasRegistry,
@@ -284,6 +288,31 @@ describe("list", () => {
 
     expect(calls).toEqual([]);
     expect(output()).toContain("one@example.com");
+  });
+
+  test("shows an active OpenCode Go profile without a quota request", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000003";
+    await createOpenCodeGoProfile(profileId, { type: "api", key: "go-secret" });
+    await setActiveOpenCodeProfile(profileId);
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-work",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+    const calls = mockFetch(() => null);
+
+    await list();
+
+    expect(calls).toEqual([]);
+    expect(output()).toContain("OpenCode");
+    expect(output()).toContain("go-work");
+    expect(output()).toContain("Go");
+    expect(output()).toContain("quota unavailable");
   });
 
   test("respects the registry api.usage=false kill switch for Codex", async () => {

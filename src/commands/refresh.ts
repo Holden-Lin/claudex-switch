@@ -30,6 +30,12 @@ import {
   saveRegistry,
   setActiveAccount,
 } from "../providers/codex/registry";
+import {
+  hasOpenCodeGoCredential,
+  openCodeProfileExists,
+  setActiveOpenCodeProfile,
+} from "../providers/opencode/profiles";
+import { hasOpenCodeTui, runOpenCodeTui } from "../providers/opencode/tui";
 import type { OAuthAccount } from "../types";
 
 export async function refresh(aliasOrName: string): Promise<void> {
@@ -49,9 +55,41 @@ export async function refresh(aliasOrName: string): Promise<void> {
 
   if (entry.target.provider === "claude") {
     await refreshClaude(entry.alias, entry.target.profileName);
-  } else {
+  } else if (entry.target.provider === "codex") {
     await refreshCodex(entry.alias, entry.target.accountKey);
+  } else {
+    await refreshOpenCode(entry.alias, entry.target.profileId);
   }
+}
+
+async function refreshOpenCode(alias: string, profileId: string): Promise<void> {
+  if (!(await openCodeProfileExists(profileId))) {
+    error("OpenCode Go profile no longer exists.");
+    hint("The underlying profile may have been purged.");
+    blank();
+    process.exit(1);
+  }
+  if (!hasOpenCodeTui()) {
+    error("OpenCode TUI was not found on PATH.");
+    hint("Install OpenCode first, then retry.");
+    blank();
+    process.exit(1);
+  }
+
+  info(`Opening OpenCode TUI for ${chalk.bold(alias)}...`);
+  hint("Use /connect → OpenCode Go to replace or repair this account's credential, then exit the TUI.");
+  blank();
+
+  const exitCode = await runOpenCodeTui(profileId);
+  if (exitCode !== 0 || !(await hasOpenCodeGoCredential(profileId))) {
+    error("OpenCode Go login failed, was cancelled, or did not save a credential.");
+    blank();
+    process.exit(1);
+  }
+
+  await setActiveOpenCodeProfile(profileId);
+  success(`${chalk.bold(alias)} OpenCode Go credential refreshed`);
+  blank();
 }
 
 async function refreshClaude(

@@ -19,6 +19,12 @@ import {
 import { applyCodexApiProvider } from "../providers/codex/config";
 import { syncCodexSessionProviders } from "../providers/codex/sessions";
 import {
+  getOpenCodeProfileData,
+  hasOpenCodeGoCredential,
+  openCodeProfileExists,
+  setActiveOpenCodeProfile,
+} from "../providers/opencode/profiles";
+import {
   blank,
   success,
   error,
@@ -46,13 +52,44 @@ export async function use(aliasOrName: string): Promise<AliasEntry> {
     process.exit(1);
   }
 
-  if (entry.target.provider === "claude") {
-    await switchClaude(entry.alias, entry.target.profileName);
-  } else {
-    await switchCodex(entry.alias, entry.target.accountKey);
+  switch (entry.target.provider) {
+    case "claude":
+      await switchClaude(entry.alias, entry.target.profileName);
+      break;
+    case "codex":
+      await switchCodex(entry.alias, entry.target.accountKey);
+      break;
+    case "opencode":
+      await switchOpenCode(entry.alias, entry.target.profileId);
+      break;
   }
 
   return entry;
+}
+
+async function switchOpenCode(alias: string, profileId: string): Promise<void> {
+  if (!(await openCodeProfileExists(profileId))) {
+    error("OpenCode Go profile no longer exists.");
+    hint("The underlying profile may have been purged.");
+    blank();
+    process.exit(1);
+  }
+  if (!(await hasOpenCodeGoCredential(profileId))) {
+    error("OpenCode Go credential is missing from this profile.");
+    hint(`Run ${chalk.cyan(`claudex-switch refresh ${alias}`)} to reconnect it.`);
+    blank();
+    process.exit(1);
+  }
+
+  await getOpenCodeProfileData(profileId);
+  await setActiveOpenCodeProfile(profileId);
+  success(
+    `Selected ${chalk.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`,
+  );
+  hint(
+    `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to open the private OpenCode TUI session.`,
+  );
+  blank();
 }
 
 async function switchClaude(

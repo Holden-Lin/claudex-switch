@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { loadAliases } from "../alias/store";
 import { readState } from "../providers/claude/profiles";
 import { loadRegistry } from "../providers/codex/registry";
+import { readOpenCodeState } from "../providers/opencode/profiles";
 import { blank, hint, formatProvider } from "../lib/ui";
 
 export async function current(): Promise<void> {
@@ -14,6 +15,7 @@ export async function current(): Promise<void> {
   } catch {
     // No codex registry
   }
+  const openCodeState = await readOpenCodeState();
 
   blank();
 
@@ -48,6 +50,19 @@ export async function current(): Promise<void> {
       : account?.email ?? codexReg.active_account_key;
     console.log(
       `  ${formatProvider("codex")}:   ${chalk.green.bold(displayName)}`,
+    );
+    found = true;
+  }
+
+  if (openCodeState.active) {
+    const alias = aliasReg.aliases.find(
+      (a) =>
+        a.target.provider === "opencode" &&
+        a.target.profileId === openCodeState.active,
+    );
+    const displayName = alias ? alias.alias : openCodeState.active;
+    console.log(
+      `  ${formatProvider("opencode")}: ${chalk.green.bold(displayName)}`,
     );
     found = true;
   }

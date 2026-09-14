@@ -9,7 +9,7 @@ import {
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
-import { join } from "path";
+import { dirname, join } from "path";
 import * as prompts from "@inquirer/prompts";
 
 type SpawnHandler = (
@@ -45,7 +45,13 @@ const nativeSpawnSync = childProcess.spawnSync;
 let spawnDelegate: typeof childProcess.spawn | null = null;
 let add: typeof import("../src/commands/add").add;
 const { loadAliases } = await import("../src/alias/store");
-const { CLI_PROXY_API_DIR, CODEX_CONFIG_FILE, SETTINGS_FILE } = await import(
+const {
+  CLI_PROXY_API_DIR,
+  CODEX_CONFIG_FILE,
+  OPENCODE_GLOBAL_AUTH_FILE,
+  SETTINGS_FILE,
+  openCodeProfileAuthFile,
+} = await import(
   "../src/lib/paths"
 );
 const { readActiveAuth, readAccountAuth } = await import(
@@ -361,6 +367,40 @@ describe("add", () => {
 
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("custom-claude created");
+
+    logSpy.mockRestore();
+  });
+
+  test("imports the current OpenCode Go credential into a private TUI profile", async () => {
+    selectHandler = async () => "opencode-go";
+    spawnSyncHandler = (command, args) => {
+      expect(command).toBe("opencode");
+      expect(args).toEqual(["--version"]);
+      return { status: 0, stdout: "1.18.30", stderr: "" };
+    };
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
+    await writeFile(
+      OPENCODE_GLOBAL_AUTH_FILE,
+      JSON.stringify({
+        "opencode-go": { type: "api", key: "go-secret" },
+        anthropic: { type: "api", key: "must-not-copy" },
+      }),
+    );
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    await add("go-subscription");
+
+    const aliases = await loadAliases();
+    expect(aliases.aliases).toHaveLength(1);
+    const target = aliases.aliases[0]?.target;
+    expect(target?.provider).toBe("opencode");
+    if (!target || target.provider !== "opencode") {
+      throw new Error("Expected an OpenCode target");
+    }
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "go-secret" },
+    });
+    expect(logSpy.mock.calls.flat().join("\n")).toContain("go-subscription created");
 
     logSpy.mockRestore();
   });

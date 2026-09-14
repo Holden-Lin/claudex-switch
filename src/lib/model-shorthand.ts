@@ -1,4 +1,4 @@
-export type ModelProvider = "claude" | "codex";
+export type ModelProvider = "claude" | "codex" | "opencode";
 
 const CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
 const CODEX_SHORTHAND = /^(?:gpt-?)?(\d+(?:\.\d+)*)$/i;
@@ -46,7 +46,9 @@ export function isModelEffort(value: string | undefined): value is string {
 }
 
 export function providerEffortLevels(provider: ModelProvider): Set<string> {
-  return provider === "claude" ? CLAUDE_EFFORT_LEVELS : CODEX_EFFORT_LEVELS;
+  if (provider === "claude") return CLAUDE_EFFORT_LEVELS;
+  if (provider === "codex") return CODEX_EFFORT_LEVELS;
+  return new Set();
 }
 
 export interface ModelWithEffort {
@@ -82,6 +84,11 @@ export function resolveModelShorthand(
     }
     return trimmed;
   }
+
+  // OpenCode accepts the provider/model string directly (for Go, normally
+  // opencode-go/<model>). Do not invent aliases that could accidentally point
+  // a subscription at another provider.
+  if (provider === "opencode") return trimmed;
 
   const namedAlias = CODEX_NAMED_ALIASES[trimmed.toLowerCase()];
   if (namedAlias) return namedAlias;

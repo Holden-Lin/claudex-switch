@@ -72,6 +72,15 @@ import {
   installCLIProxyAPIWithHomebrew,
   runManagedCLIProxyAPICodexLogin,
 } from "../providers/cliproxyapi/managed";
+import {
+  createOpenCodeGoProfile,
+  createOpenCodeProfileId,
+  hasOpenCodeGoCredential,
+  readGlobalOpenCodeGoCredential,
+  removeOpenCodeProfile,
+  setActiveOpenCodeProfile,
+} from "../providers/opencode/profiles";
+import { hasOpenCodeTui, runOpenCodeTui } from "../providers/opencode/tui";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -135,6 +144,10 @@ export async function add(alias: string): Promise<void> {
         name: "Codex API Key — OpenAI API key",
         value: "codex-apikey" as const,
       },
+      {
+        name: "OpenCode Go — OpenCode Go subscription（本机 TUI）",
+        value: "opencode-go" as const,
+      },
     ],
   });
 
@@ -154,6 +167,74 @@ export async function add(alias: string): Promise<void> {
     case "codex-apikey":
       await addCodexApiKey(alias);
       break;
+    case "opencode-go":
+      await addOpenCodeGo(alias);
+      break;
+  }
+}
+
+async function addOpenCodeGo(alias: string): Promise<void> {
+  if (!hasOpenCodeTui()) {
+    error("OpenCode TUI was not found on PATH.");
+    hint("Install OpenCode first, then rerun this command.");
+    blank();
+    process.exit(1);
+  }
+
+  const profileId = createOpenCodeProfileId();
+  const currentCredential = await readGlobalOpenCodeGoCredential();
+  let profileCreated = false;
+
+  try {
+    if (currentCredential) {
+      info("Found an existing OpenCode Go credential.");
+      const importCurrent = await confirm({
+        message: "Save a private copy as the new account?",
+        default: true,
+      });
+      if (importCurrent) {
+        await createOpenCodeGoProfile(profileId, currentCredential);
+        profileCreated = true;
+      }
+    }
+
+    if (!profileCreated) {
+      await createOpenCodeGoProfile(profileId);
+      profileCreated = true;
+      info("Opening OpenCode TUI for this private account...");
+      hint("Run /connect, choose OpenCode Go, add its API key, then exit the TUI.");
+      blank();
+
+      const exitCode = await runOpenCodeTui(profileId);
+      if (exitCode !== 0 || !(await hasOpenCodeGoCredential(profileId))) {
+        throw new Error("OpenCode Go setup was cancelled or no Go credential was saved.");
+      }
+    }
+
+    await addAlias(alias, { provider: "opencode", profileId });
+    await setActiveOpenCodeProfile(profileId);
+
+    blank();
+    success(
+      `${chalk.bold(alias)} created  ${chalk.dim("OpenCode Go subscription")}`,
+    );
+    hint(
+      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account.`,
+    );
+    blank();
+  } catch (err) {
+    if (profileCreated) {
+      try {
+        await removeOpenCodeProfile(profileId);
+      } catch {
+        // Preserve the setup error. The profile is private and no alias points
+        // to it, so a manual retry cannot affect another account.
+      }
+    }
+    blank();
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
   }
 }
 

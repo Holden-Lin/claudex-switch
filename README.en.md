@@ -2,11 +2,11 @@
 
 **Languages:** [中文](./README.md) | [English](./README.en.md)
 
-A unified CLI tool for managing both Claude Code and Codex accounts. Supports alias-based switching and quota display — ideal for frequently switching between personal, team, and API key accounts.
+A unified CLI tool for managing Claude Code, Codex, and OpenCode Go accounts. Supports alias-based switching and quota display — ideal for frequently switching between personal, team, and API key accounts.
 
 ## Features
 
-- Manage Claude Code and Codex accounts in one place
+- Manage Claude Code, Codex, and OpenCode Go accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
 - `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus, with series forms such as `sonnet5` and `fable5.1`; Codex supports `sol` / `terra` / `luna` for the three GPT-5.6 models and `6` for `gpt-6-astra`. A trailing effort tier applies only to the current run; Codex also supports `ultra` (proactive multi-agent behavior with faster quota consumption)
@@ -18,6 +18,7 @@ A unified CLI tool for managing both Claude Code and Codex accounts. Supports al
 - `claudex-switch webconfig` opens a local web page for viewing and editing every account's base URL, key and model configuration in one place, including pasting a whole `export ANTHROPIC_*` block (see "Web Config" below)
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs, Fable / Sonnet / Opus / Haiku model mapping, a subagent model, and arbitrary custom environment variables
 - Codex: ChatGPT OAuth + OpenAI API keys
+- OpenCode Go: subscription credentials and TUI session data isolated by alias; `-run` opens the local OpenCode TUI without overwriting global `~/.local/share/opencode/auth.json`
 - macOS Keychain credential support
 
 ## Install
@@ -113,6 +114,7 @@ claudex-switch holden -run --attribution-header false
 # Add a new account
 claudex-switch add my-claude
 claudex-switch add my-codex
+claudex-switch add my-go
 
 # Refresh a saved login
 claudex-switch refresh holden
@@ -144,6 +146,7 @@ Then choose an account type:
 - **Claude API Key** — Anthropic API key, with optional Base URL, auth token, default model, and Sonnet / Opus / Haiku model mapping
 - **Codex ChatGPT** — ChatGPT login (Plus, Pro, Team, etc.), with a saved default model per account
 - **Codex API Key** — OpenAI API key, with either the official API or a custom OpenAI-compatible provider, plus a saved default model per account
+- **OpenCode Go** — OpenCode Go subscription; import the current Go credential or use `/connect` in a private OpenCode TUI
 
 After choosing Codex API Key, choose the API source:
 
@@ -155,6 +158,19 @@ When switching accounts, `claudex-switch` also syncs the saved default model for
 - Claude OAuth / API Key accounts write to Claude Code `settings.model`
 - Codex ChatGPT / API Key accounts write to `~/.codex/config.toml` `model`
 - Existing local Codex accounts get `default_model` backfilled on first load
+
+### Use an OpenCode Go subscription in the TUI
+
+```bash
+claudex-switch add go-work
+# Confirm importing the current OpenCode Go credential, or use /connect in the private TUI
+claudex-switch go-work -run
+claudex-switch go-work -run --model opencode-go/kimi-k3
+claudex-switch model go-work opencode-go/deepseek-v4-flash
+claudex-switch refresh go-work
+```
+
+Each alias uses a private XDG data directory, so credentials, sessions, and TUI choices cannot cross accounts. The global `opencode` auth file and other provider credentials remain untouched. Go models must use `opencode-go/<model>` and do not accept Claude/Codex effort tiers. `claudex-switch <alias>` records the selected account; always use `<alias> -run` to open its TUI.
 
 Example custom provider config:
 
@@ -175,8 +191,8 @@ requires_openai_auth = false
 |---|---|
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
-| `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session; Claude Code defaults to `--permission-mode auto` |
-| `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5` / `sonnet5` / `fable5.1`, Codex `sol` / `terra` / `luna` / `6` |
+| `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session or OpenCode TUI; Claude Code defaults to `--permission-mode auto` |
+| `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5` / `sonnet5` / `fable5.1`, Codex `sol` / `terra` / `luna` / `6`; OpenCode Go uses `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
@@ -211,7 +227,7 @@ The `+` beside each section heading (`CLAUDE` / `CODEX`) creates an account, wit
 | Claude | Claude API key (base URL, auth token, model mappings, custom env, plus paste-an-export-block import) |
 | Codex | Codex API key (OpenAI official, or a custom relay: provider name / base URL / model / env key) |
 
-The three types that need a browser authorization flow — Claude OAuth, Codex ChatGPT login, and local CLIProxyAPI — are not in the page yet; use `claudex-switch add <alias>` for those.
+The four interactive-login types — Claude OAuth, Codex ChatGPT login, local CLIProxyAPI, and OpenCode Go — are not in the page yet; use `claudex-switch add <alias>` for those. Manage OpenCode Go credentials only through `/connect` in its TUI.
 
 Each account row carries two actions: a pencil icon that renames the alias in place (Enter saves, Esc cancels), and `删除` / delete, which destroys the account. Expanding a card edits its configuration, and every changed account saves at once:
 

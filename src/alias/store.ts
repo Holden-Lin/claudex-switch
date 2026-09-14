@@ -71,6 +71,9 @@ export function targetsEqual(
   if (left.provider === "codex" && right.provider === "codex") {
     return left.accountKey === right.accountKey;
   }
+  if (left.provider === "opencode" && right.provider === "opencode") {
+    return left.profileId === right.profileId;
+  }
   return false;
 }
 

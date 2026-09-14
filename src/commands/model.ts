@@ -25,6 +25,10 @@ import {
   splitModelEffort,
 } from "../lib/model-shorthand";
 import { resolveManagedLocalCLIProxyAPIModel } from "../providers/cliproxyapi/managed";
+import {
+  normalizeOpenCodeGoModel,
+  updateOpenCodeProfileDefaultModel,
+} from "../providers/opencode/profiles";
 import type { AliasEntry } from "../types";
 
 export async function updateDefaultModel(
@@ -37,6 +41,14 @@ export async function updateDefaultModel(
       normalizedModel,
     );
     return profile.type;
+  }
+
+  if (entry.target.provider === "opencode") {
+    await updateOpenCodeProfileDefaultModel(
+      entry.target.profileId,
+      normalizeOpenCodeGoModel(normalizedModel),
+    );
+    return "subscription";
   }
 
   const reg = await loadRegistry();

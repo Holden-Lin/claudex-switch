@@ -28,6 +28,20 @@ export const RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
 export const MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 export const CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
+export const OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");
+export const OPENCODE_STATE_FILE = join(CLAUDEX_DIR, "opencode", "state.json");
+
+// OpenCode uses the XDG data directory for auth.json. Its default on macOS and
+// Linux is ~/.local/share, but honoring XDG_DATA_HOME keeps this aligned with a
+// user's own OpenCode installation.
+export const OPENCODE_GLOBAL_DATA_DIR = join(
+  process.env.XDG_DATA_HOME ?? join(HOME, ".local", "share"),
+  "opencode",
+);
+export const OPENCODE_GLOBAL_AUTH_FILE = join(
+  OPENCODE_GLOBAL_DATA_DIR,
+  "auth.json",
+);
 
 // Claude profile helpers
 export function claudeProfileDir(name: string): string {
@@ -104,6 +118,25 @@ export function cliProxyAPIStartupLock(profileId: string): string {
   // Locks live outside removable per-account data. A purge can then delete an
   // exact profile directory without deleting a lock still owned by its caller.
   return join(CLI_PROXY_API_DIR, "locks", `${profileId}.lock`);
+}
+
+// Each Go account receives a private XDG data root. Passing this root to
+// OpenCode isolates its auth file and session data without replacing any
+// global OpenCode credentials or configuration.
+export function openCodeProfileDir(profileId: string): string {
+  return join(OPENCODE_PROFILES_DIR, profileId);
+}
+
+export function openCodeProfileDataHome(profileId: string): string {
+  return join(openCodeProfileDir(profileId), "data");
+}
+
+export function openCodeProfileAuthFile(profileId: string): string {
+  return join(openCodeProfileDataHome(profileId), "opencode", "auth.json");
+}
+
+export function openCodeProfileDataFile(profileId: string): string {
+  return join(openCodeProfileDir(profileId), "profile.json");
 }
 
 // Codex account helpers - matches codex-auth's file naming convention

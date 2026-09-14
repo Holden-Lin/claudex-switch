@@ -77,9 +77,14 @@ export function formatPlan(plan: string | null): string {
 }
 
 export function formatProvider(provider: Provider): string {
-  return provider === "claude"
-    ? chalk.magenta("Claude")
-    : chalk.green("Codex");
+  switch (provider) {
+    case "claude":
+      return chalk.magenta("Claude");
+    case "codex":
+      return chalk.green("Codex");
+    case "opencode":
+      return chalk.cyan("OpenCode");
+  }
 }
 
 export function maskKey(key: string): string {

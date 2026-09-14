@@ -7,6 +7,7 @@ import { basename, dirname, join, resolve } from "path";
 import { loadAliases, findAlias } from "./alias/store";
 import { readState } from "./providers/claude/profiles";
 import { loadRegistry } from "./providers/codex/registry";
+import { readOpenCodeState } from "./providers/opencode/profiles";
 import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { isRunFlag, runAliasSession } from "./commands/run";
@@ -26,7 +27,7 @@ import { blank, error, formatProvider, hint } from "./lib/ui";
 import { runAutoUpdateIfNeeded } from "./lib/update";
 
 const HELP = `
-  ${chalk.bold("claudex-switch")} — Manage Claude Code and Codex accounts
+  ${chalk.bold("claudex-switch")} — Manage Claude Code, Codex, and OpenCode accounts
 
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
@@ -36,7 +37,7 @@ const HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5, sonnet5, fable5.1; Codex: sol, terra, luna, 6)
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5, sonnet5, fable5.1; Codex: sol, terra, luna, 6; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
@@ -144,6 +145,7 @@ async function interactivePicker(): Promise<void> {
   } catch {
     // No codex registry
   }
+  const openCodeState = await readOpenCodeState();
 
   const choices = aliasReg.aliases.map((entry) => {
     const provider = formatProvider(entry.target.provider);
@@ -153,6 +155,8 @@ async function interactivePicker(): Promise<void> {
       isActive = claudeState.active === entry.target.profileName;
     } else if (entry.target.provider === "codex" && codexReg) {
       isActive = codexReg.active_account_key === entry.target.accountKey;
+    } else if (entry.target.provider === "opencode") {
+      isActive = openCodeState.active === entry.target.profileId;
     }
 
     const active = isActive ? chalk.dim(" (active)") : "";

@@ -1,7 +1,7 @@
 {
   "name": "claudex-switch",
-  "version": "1.10.1",
-  "description": "Switch between Claude Code and Codex accounts with ease",
+  "version": "1.11.0",
+  "description": "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   "type": "module",
   "bin": {
     "claudex-switch": "./dist/claudex-switch.js"

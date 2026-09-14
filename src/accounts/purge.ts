@@ -8,6 +8,7 @@ import {
 import { fileExists } from "../lib/fs";
 import { codexAccountAuthFile } from "../lib/paths";
 import { profileExists, removeProfile } from "../providers/claude/profiles";
+import { removeOpenCodeProfile } from "../providers/opencode/profiles";
 import {
   loadRegistry,
   removeAccountFromRegistry,
@@ -56,6 +57,8 @@ export async function purgeAccount(aliasName: string): Promise<PurgePlan> {
     if (await profileExists(entry.target.profileName)) {
       await removeProfile(entry.target.profileName);
     }
+  } else if (entry.target.provider === "opencode") {
+    await removeOpenCodeProfile(entry.target.profileId);
   } else {
     try {
       const codexReg = await loadRegistry();

@@ -306,6 +306,12 @@ async function applyChange(
     return { alias: entry.alias, ok: true, reapplied };
   }
 
+  // OpenCode Go credentials are intentionally managed in OpenCode's native
+  // TUI (/connect). The web UI never receives or renders those credentials.
+  if (entry.target.provider === "opencode") {
+    throw new Error("OpenCode Go 请使用 claudex-switch refresh <alias> 后在 TUI 中管理");
+  }
+
   return applyCodexChange(entry.target.accountKey, entry.alias, fields);
 }
 
@@ -381,5 +387,4 @@ function validateClaudeFields(fields: Record<string, string>): void {
     throw new Error("API Key 不能为空");
   }
 }
-
 

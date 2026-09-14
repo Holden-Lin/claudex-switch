@@ -2,7 +2,7 @@
 
 ## Now
 
-本需求暂无待实施代码项。发布流程与产物见 [v1.10.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.10.0)。
+本需求暂无待实施代码项。发布流程与产物见 [v1.11.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.11.0)。
 
 ## Next
 
@@ -12,6 +12,7 @@
 
 ## Done
 
+- [x] 2026-09-14：新增 OpenCode Go 订阅账号：可私有导入现有凭据或在原生 TUI `/connect` 登录，`-run` 以每账号独立 XDG 数据目录启动 TUI；205 项测试 0 失败，真实本机 `opencode` 1.18.30 隔离数据目录验证通过。
 - [x] 2026-09-10：`webconfig` 分区标题加 `+` 新增账号（Claude / Codex API Key），抽 `src/accounts/create.ts` 供 CLI add 与网页共用。199 项测试 0 失败，浏览器实测两条创建路径 + 校验失败路径。余下三种需浏览器授权的类型（Claude OAuth / Codex ChatGPT / 本机 CLIProxyAPI）待做。
 - [x] 2026-09-10：`webconfig` 账号行加铅笔改别名 + 删除（purge 语义，二次确认列出代价）；抽 `src/accounts/purge.ts` 供 CLI 与网页共用，别名校验收敛为一处。190 项测试 0 失败，浏览器实测改/删/取消/拒绝四条路径。
 - [x] 2026-09-10：新增 `claudex-switch webconfig` 本机网页，批量查看/修改账号配置；Claude 账号支持自定义 env 与子代理/Fable 模型字段。181 项测试 0 失败，浏览器实测两类账号保存均落盘。
