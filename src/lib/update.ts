@@ -5,6 +5,7 @@ import { hint, info } from "./ui";
 
 const REPO = "Holden-Lin/claudex-switch";
 const LATEST_RELEASE_URL = `https://github.com/${REPO}/releases/latest`;
+const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const BUN_INSTALL_SPEC = `git+https://github.com/${REPO}.git`;
 const HOMEBREW_FORMULA_URL = `https://raw.githubusercontent.com/${REPO}/main/Formula/claudex-switch.rb`;
 const SKIP_AUTO_UPDATE_ENV = "CLAUDEX_SKIP_AUTO_UPDATE";
@@ -96,25 +97,50 @@ export function compareVersions(a: string, b: string): number {
 }
 
 export function extractVersionFromReleaseUrl(url: string): string | null {
-  const match = url.match(/\/tag\/(v?[^/?#]+)$/);
+  const match = url.match(/\/tag\/(v?[^/?#]+)\/?$/);
   return match ? normalizeVersion(match[1]) : null;
+}
+
+function extractVersionFromReleaseApiPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const tagName = (payload as { tag_name?: unknown }).tag_name;
+  return typeof tagName === "string" && tagName.length > 0
+    ? normalizeVersion(tagName)
+    : null;
 }
 
 export async function fetchLatestReleaseVersion(
   fetchImpl: typeof fetch = fetch,
 ): Promise<string | null> {
+  const headers = { "user-agent": "claudex-switch" };
+
   try {
     const response = await fetchImpl(LATEST_RELEASE_URL, {
-      headers: { "user-agent": "claudex-switch" },
+      headers,
       redirect: "follow",
       signal: AbortSignal.timeout(2500),
     });
 
-    if (!response.ok) {
-      return null;
+    if (response.ok) {
+      const version = extractVersionFromReleaseUrl(response.url);
+      if (version) return version;
     }
+  } catch {
+    // The HTML endpoint is only a convenience redirect. Try the structured
+    // endpoint below when a proxy, DNS issue, or changed GitHub page breaks it.
+  }
 
-    return extractVersionFromReleaseUrl(response.url);
+  try {
+    const response = await fetchImpl(LATEST_RELEASE_API_URL, {
+      headers: {
+        ...headers,
+        accept: "application/vnd.github+json",
+      },
+      signal: AbortSignal.timeout(2500),
+    });
+
+    if (!response.ok) return null;
+    return extractVersionFromReleaseApiPayload(await response.json());
   } catch {
     return null;
   }

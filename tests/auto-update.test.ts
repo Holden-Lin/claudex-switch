@@ -5,6 +5,7 @@ import {
   compareVersions,
   detectInstallMethod,
   extractVersionFromReleaseUrl,
+  fetchLatestReleaseVersion,
   getVersionCheck,
   installLatestUpdate,
   runAutoUpdateIfNeeded,
@@ -28,6 +29,32 @@ describe("auto update", () => {
         "https://github.com/Holden-Lin/claudex-switch/releases/latest",
       ),
     ).toBeNull();
+    expect(
+      extractVersionFromReleaseUrl(
+        "https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.2.3/",
+      ),
+    ).toBe("1.2.3");
+  });
+
+  test("falls back to the GitHub Releases API when the redirect is unavailable", async () => {
+    const requests: string[] = [];
+    const latestVersion = await fetchLatestReleaseVersion(async (input) => {
+      const url = String(input);
+      requests.push(url);
+      if (url.startsWith("https://github.com/")) {
+        throw new Error("redirect endpoint unavailable");
+      }
+      return {
+        ok: true,
+        json: async () => ({ tag_name: "v1.12.2" }),
+      } as Response;
+    });
+
+    expect(latestVersion).toBe("1.12.2");
+    expect(requests).toEqual([
+      "https://github.com/Holden-Lin/claudex-switch/releases/latest",
+      "https://api.github.com/repos/Holden-Lin/claudex-switch/releases/latest",
+    ]);
   });
 
   test("reports when the installed version is already the latest", async () => {

@@ -9461,7 +9461,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.12.1",
+  version: "1.12.2",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {
@@ -9505,6 +9505,7 @@ var package_default = {
 // src/lib/update.ts
 var REPO = "Holden-Lin/claudex-switch";
 var LATEST_RELEASE_URL = `https://github.com/${REPO}/releases/latest`;
+var LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 var BUN_INSTALL_SPEC = `git+https://github.com/${REPO}.git`;
 var HOMEBREW_FORMULA_URL = `https://raw.githubusercontent.com/${REPO}/main/Formula/claudex-switch.rb`;
 var SKIP_AUTO_UPDATE_ENV = "CLAUDEX_SKIP_AUTO_UPDATE";
@@ -9528,20 +9529,40 @@ function compareVersions(a, b) {
   return 0;
 }
 function extractVersionFromReleaseUrl(url) {
-  const match = url.match(/\/tag\/(v?[^/?#]+)$/);
+  const match = url.match(/\/tag\/(v?[^/?#]+)\/?$/);
   return match ? normalizeVersion(match[1]) : null;
 }
+function extractVersionFromReleaseApiPayload(payload) {
+  if (!payload || typeof payload !== "object")
+    return null;
+  const tagName = payload.tag_name;
+  return typeof tagName === "string" && tagName.length > 0 ? normalizeVersion(tagName) : null;
+}
 async function fetchLatestReleaseVersion(fetchImpl = fetch) {
+  const headers = { "user-agent": "claudex-switch" };
   try {
     const response = await fetchImpl(LATEST_RELEASE_URL, {
-      headers: { "user-agent": "claudex-switch" },
+      headers,
       redirect: "follow",
       signal: AbortSignal.timeout(2500)
     });
-    if (!response.ok) {
-      return null;
+    if (response.ok) {
+      const version = extractVersionFromReleaseUrl(response.url);
+      if (version)
+        return version;
     }
-    return extractVersionFromReleaseUrl(response.url);
+  } catch {}
+  try {
+    const response = await fetchImpl(LATEST_RELEASE_API_URL, {
+      headers: {
+        ...headers,
+        accept: "application/vnd.github+json"
+      },
+      signal: AbortSignal.timeout(2500)
+    });
+    if (!response.ok)
+      return null;
+    return extractVersionFromReleaseApiPayload(await response.json());
   } catch {
     return null;
   }
