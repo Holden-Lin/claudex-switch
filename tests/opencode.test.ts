@@ -91,6 +91,7 @@ describe("OpenCode Go profiles", () => {
       expect(calls).toHaveLength(1);
       expect(calls[0]?.command).toBe("opencode");
       expect(calls[0]?.args).toEqual([
+        "--auto",
         "--model",
         "opencode-go/kimi-k3",
         "--continue",

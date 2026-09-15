@@ -8,7 +8,7 @@ A unified CLI tool for managing Claude Code, Codex, and OpenCode Go accounts. Su
 
 - Manage Claude Code, Codex, and OpenCode Go accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
-- `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`
+- `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`, while OpenCode defaults to `--auto`
 - `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus, with series forms such as `sonnet5` and `fable5.1`; Codex supports `sol` / `terra` / `luna` for the three GPT-5.6 models and `6` for `gpt-6-astra`. A trailing effort tier applies only to the current run; Codex also supports `ultra` (proactive multi-agent behavior with faster quota consumption)
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
@@ -91,7 +91,7 @@ claudex-switch list
 # Switch by alias
 claudex-switch holden
 
-# Switch and start a session; Claude Code defaults to auto permission mode
+# Switch and start a session; Claude Code defaults to auto permission mode, while OpenCode uses --auto
 claudex-switch holden -run
 
 # Select the model and save it as this account's default for the next run
@@ -191,7 +191,7 @@ requires_openai_auth = false
 |---|---|
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
-| `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session or OpenCode TUI; Claude Code defaults to `--permission-mode auto` |
+| `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session or OpenCode TUI; Claude Code defaults to `--permission-mode auto`, while OpenCode defaults to `--auto` |
 | `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5` / `sonnet5` / `fable5.1`, Codex `sol` / `terra` / `luna` / `6`; OpenCode Go uses `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch add <alias>` | Add a new account |

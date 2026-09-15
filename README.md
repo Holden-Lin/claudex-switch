@@ -8,7 +8,7 @@
 
 - 统一管理 Claude Code、Codex 和 OpenCode Go 三套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
-- `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`
+- `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`，OpenCode 默认使用 `--auto`
 - `claudex-switch <alias> -run --model <model> [effort]` 会使用指定模型启动，并把它保存为该账号下次运行的默认模型；Claude 裸数字仍指 Opus，另支持 `sonnet5`、`fable5.1` 等系列名；Codex 支持 `sol` / `terra` / `luna`（对应三个 GPT-5.6 模型）和 `6`（对应 `gpt-6-astra`）。模型后可紧跟 effort 档位（如 `--model 5 max`），effort 只作用于本次运行；Codex 也支持 `ultra`（会启用更主动的多代理行为，额度消耗更快）
 - 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
@@ -91,7 +91,7 @@ claudex-switch list
 # 切换到指定别名
 claudex-switch holden
 
-# 切换账号并直接启动会话；Claude Code 默认使用 auto 权限模式
+# 切换账号并直接启动会话；Claude Code 默认使用 auto 权限模式，OpenCode 默认使用 --auto
 claudex-switch holden -run
 
 # 指定本次模型，并保存为该账号下次运行的默认模型
@@ -224,7 +224,7 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 |---|---|
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
-| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话或 OpenCode TUI；Claude Code 默认使用 `--permission-mode auto` |
+| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话或 OpenCode TUI；Claude Code 默认使用 `--permission-mode auto`，OpenCode 默认使用 `--auto` |
 | `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5` / `sonnet5` / `fable5.1`，Codex `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch add <alias>` | 添加新账号 |

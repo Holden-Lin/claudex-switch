@@ -8059,7 +8059,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     }
   }
   const command = isClaude ? "claude" : isOpenCode ? "opencode" : "codex";
-  const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : isOpenCode ? [] : ["--dangerously-bypass-approvals-and-sandbox"];
+  const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : isOpenCode ? ["--auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
   const effortArgs = runOptions.effortOverride ? isClaude ? ["--effort", runOptions.effortOverride] : isOpenCode ? [] : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`] : [];
   const args = [
     ...isolatedClaudeApi ? ["--bare"] : [],
@@ -9461,7 +9461,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.12.0",
+  version: "1.12.1",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {
