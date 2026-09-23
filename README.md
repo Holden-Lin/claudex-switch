@@ -202,10 +202,10 @@ macOS 已安装 Homebrew 时，缺少 CLIProxyAPI 会询问是否自动安装；
 |---|---|
 | 默认主模型 / `fable` | `gpt-6-astra` |
 | `opus` | `gpt-5.6-terra` |
-| `haiku` | `gpt-5.6-luna` |
+| `haiku` | `gpt-6-luna` |
 | 子代理 | `gpt-5.6-terra`，`reasoning.effort=max` |
 
-`sonnet` 兼容映射为 Terra。子代理使用私有别名 `claudex-terra-max`，因此不会把主对话的 Terra 请求也强制成 max。`--run` 与 `-run` 等价；该新类型不使用 `--bare`，保留正常的 skills、MCP、hooks 和 CLAUDE.md 配置发现，同时隔离 Claude 登录态。
+`sonnet` 兼容映射为 Terra。`gpt-6-luna` 需 CLIProxyAPI 7.3 及以上（`brew upgrade cliproxyapi` 后 `claudex-switch doctor <alias> --restart`）；旧账号私有 `.env` 中的 `gpt-5.6-luna` 会自动按新默认处理，改成其它值则保留。子代理使用私有别名 `claudex-terra-max`，因此不会把主对话的 Terra 请求也强制成 max。`--run` 与 `-run` 等价；该新类型不使用 `--bare`，保留正常的 skills、MCP、hooks 和 CLAUDE.md 配置发现，同时隔离 Claude 登录态。
 
 ```bash
 claudex-switch doctor chatgpt           # 本地诊断，不发模型请求

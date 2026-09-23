@@ -125,7 +125,9 @@ describe("managed local CLIProxyAPI", () => {
 
     expect(reused).toEqual(runtime);
     expect(runtime.baseUrl).toStartWith("http://127.0.0.1:");
-    expect(await verifyManagedCLIProxyAPILive(runtime)).toBe(true);
+    expect(
+      await verifyManagedCLIProxyAPILive(runtime, CLI_PROXY_API_DEFAULTS.haikuModel),
+    ).toBe(true);
 
     const rawConfig = await readFile(
       cliProxyAPIConfigFile(profile.profileId),
@@ -399,7 +401,7 @@ describe("managed local CLIProxyAPI", () => {
   test("resolves local mapping without changing existing Claude shorthand", () => {
     expect(resolveLocalCLIProxyAPIModel("fable")).toBe("gpt-6-astra");
     expect(resolveLocalCLIProxyAPIModel("opus")).toBe("gpt-5.6-terra");
-    expect(resolveLocalCLIProxyAPIModel("haiku")).toBe("gpt-5.6-luna");
+    expect(resolveLocalCLIProxyAPIModel("haiku")).toBe("gpt-6-luna");
     expect(resolveLocalCLIProxyAPIModel("custom-model")).toBe("custom-model");
   });
 
@@ -433,5 +435,35 @@ describe("managed local CLIProxyAPI", () => {
     );
     await updateModel("custom-models", "opus");
     expect((await getProfileData(name)).defaultModel).toBe("custom-terra");
+  });
+
+  test("upgrades the legacy Luna default written into older .env files", async () => {
+    const profile = makeProfile();
+    await initializeManagedCLIProxyAPI(profile.profileId);
+    const envFile = cliProxyAPIEnvFile(profile.profileId);
+    const env = await readFile(envFile, "utf-8");
+    expect(env).toContain("CLAUDEX_CLIPROXYAPI_HAIKU_MODEL=gpt-6-luna");
+
+    await writeFile(
+      envFile,
+      env.replace(
+        "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL=gpt-6-luna",
+        "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL=gpt-5.6-luna",
+      ),
+    );
+    expect(await resolveManagedLocalCLIProxyAPIModel(profile, "haiku")).toBe(
+      "gpt-6-luna",
+    );
+
+    await writeFile(
+      envFile,
+      env.replace(
+        "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL=gpt-6-luna",
+        "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL=custom-luna",
+      ),
+    );
+    expect(await resolveManagedLocalCLIProxyAPIModel(profile, "haiku")).toBe(
+      "custom-luna",
+    );
   });
 });

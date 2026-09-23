@@ -8,6 +8,7 @@ import {
 import {
   ensureManagedCLIProxyAPI,
   inspectManagedCLIProxyAPI,
+  resolveManagedLocalCLIProxyAPIModel,
   restartManagedCLIProxyAPI,
   verifyManagedCLIProxyAPILive,
 } from "../providers/cliproxyapi/managed";
@@ -119,11 +120,12 @@ export async function doctor(
 
   if (options.live) {
     const liveRuntime = runtime ?? await ensureManagedCLIProxyAPI(managedProfile);
-    if (!(await verifyManagedCLIProxyAPILive(liveRuntime))) {
-      fail("Luna (gpt-5.6-luna) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request.");
+    const lunaModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
+    if (!(await verifyManagedCLIProxyAPILive(liveRuntime, lunaModel))) {
+      fail(`Luna (${lunaModel}) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
       return;
     }
-    success(`${chalk.bold(entry.alias)} Luna (gpt-5.6-luna) live verification passed`);
+    success(`${chalk.bold(entry.alias)} Luna (${lunaModel}) live verification passed`);
     blank();
     return;
   }

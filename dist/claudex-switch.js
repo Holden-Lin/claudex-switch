@@ -4275,7 +4275,7 @@ var CLI_PROXY_API_DEFAULTS = {
   fableModel: "gpt-6-astra",
   sonnetModel: "gpt-5.6-terra",
   opusModel: "gpt-5.6-terra",
-  haikuModel: "gpt-5.6-luna",
+  haikuModel: "gpt-6-luna",
   subagentModel: "claudex-terra-max"
 };
 var ENV_CLIENT_KEY = "CLAUDEX_CLIPROXYAPI_CLIENT_API_KEY";
@@ -4283,6 +4283,7 @@ var ENV_FABLE_MODEL = "CLAUDEX_CLIPROXYAPI_FABLE_MODEL";
 var ENV_SONNET_MODEL = "CLAUDEX_CLIPROXYAPI_SONNET_MODEL";
 var ENV_OPUS_MODEL = "CLAUDEX_CLIPROXYAPI_OPUS_MODEL";
 var ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
+var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 var STARTUP_TIMEOUT_MS = 12000;
 var LOCK_TIMEOUT_MS = 20000;
 var ORPHAN_LOCK_GRACE_MS = 60000;
@@ -4361,8 +4362,15 @@ function parseManagedEnv(content) {
     fableModel: values[ENV_FABLE_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.sonnetModel,
     opusModel: values[ENV_OPUS_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.opusModel,
-    haikuModel: values[ENV_HAIKU_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.haikuModel
+    haikuModel: currentHaikuModel(values[ENV_HAIKU_MODEL])
   };
+}
+function currentHaikuModel(value) {
+  const model = value?.trim();
+  if (!model || model === LEGACY_HAIKU_DEFAULT) {
+    return CLI_PROXY_API_DEFAULTS.haikuModel;
+  }
+  return model;
 }
 function renderManagedEnv(apiKey) {
   return [
@@ -4547,7 +4555,7 @@ async function probeProxy(port, apiKey) {
     clearTimeout(timeout);
   }
 }
-async function verifyManagedCLIProxyAPILive(runtime) {
+async function verifyManagedCLIProxyAPILive(runtime, model) {
   const controller = new AbortController;
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
@@ -4559,7 +4567,7 @@ async function verifyManagedCLIProxyAPILive(runtime) {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: CLI_PROXY_API_DEFAULTS.haikuModel,
+        model,
         max_tokens: 1,
         messages: [{ role: "user", content: "Reply with OK." }]
       }),
@@ -9463,7 +9471,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.12.3",
+  version: "1.12.4",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {
@@ -11733,11 +11741,12 @@ async function doctor(aliasOrName, options = {}) {
   }
   if (options.live) {
     const liveRuntime = runtime ?? await ensureManagedCLIProxyAPI(managedProfile);
-    if (!await verifyManagedCLIProxyAPILive(liveRuntime)) {
-      fail("Luna (gpt-5.6-luna) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request.");
+    const lunaModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
+    if (!await verifyManagedCLIProxyAPILive(liveRuntime, lunaModel)) {
+      fail(`Luna (${lunaModel}) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
       return;
     }
-    success(`${source_default.bold(entry.alias)} Luna (gpt-5.6-luna) live verification passed`);
+    success(`${source_default.bold(entry.alias)} Luna (${lunaModel}) live verification passed`);
     blank();
     return;
   }

@@ -6,13 +6,13 @@
 
 ## Next
 
-- [ ] 可选：本机 CLIProxyAPI 的 haiku 默认映射是否由 `gpt-5.6-luna` 升到 `gpt-6-luna`（需先确认 CLIProxyAPI 已支持，并决定是否改写既有账号 .env）。
 - [ ] 在真实 HOME 上跑一次 `claudex-switch webconfig`，确认自己的账号列表和密钥显示无误（本次仅在隔离测试 HOME 中验证）。
 - [ ] 用户返回后，在日常项目中运行 `claudex-switch chatgpt --run` 试用交互体验；无需为了测试主动重新登录。
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
 
+- [x] 2026-09-23：本机 CLIProxyAPI 的 haiku 默认映射升为 `gpt-6-luna`，旧账号自动沿用；CLIProxyAPI 升至 7.3.15，真实 `doctor --live` 通过；版本升至 `1.12.4`。
 - [x] 2026-09-23：新增 Opus 5.5 / GPT-6 Sol、Luna 模型别名（`sol`/`luna` 改指 GPT-6，新增 `astra`，裸 `fable` 指 Fable 5.1）；版本升至 `1.12.3`，213 项测试 0 失败。
 - [x] 2026-09-15：更新检查增加 GitHub Releases API 备用查询，兼容 release URL 尾斜杠；版本升至 `1.12.2`；210 项测试 0 失败。
 - [x] 2026-09-15：OpenCode `-run` 默认以 `--auto` 启动；版本升至 `1.12.1`，209 项测试 0 失败。

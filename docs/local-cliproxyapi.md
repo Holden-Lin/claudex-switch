@@ -32,7 +32,7 @@ $ claudex-switch chatgpt --run
 |---|---|---|
 | 默认 / Fable | `gpt-6-astra` | 正常继承 Claude 当前设置 |
 | Opus / Sonnet | `gpt-5.6-terra` | 正常继承 Claude 当前设置 |
-| Haiku | `gpt-5.6-luna` | 正常继承 Claude 当前设置 |
+| Haiku | `gpt-6-luna` | 正常继承 Claude 当前设置 |
 | 普通子代理 | `claudex-terra-max` → `gpt-5.6-terra` | 仅该私有别名强制 `max` |
 
 `CLAUDE_CODE_SUBAGENT_MODEL` 设置子代理模型；`CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` 要求 Claude Code 强制使用它，包括通常自行指定模型的 Explore、Plan 等。FORCE 自身不设置推理强度，因此代理还对私有别名添加精确的 `reasoning.effort=max` 覆盖。主对话直接调用 Terra 时不匹配这条覆盖规则。

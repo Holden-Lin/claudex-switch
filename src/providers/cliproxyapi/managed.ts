@@ -42,7 +42,7 @@ export const CLI_PROXY_API_DEFAULTS = {
   fableModel: "gpt-6-astra",
   sonnetModel: "gpt-5.6-terra",
   opusModel: "gpt-5.6-terra",
-  haikuModel: "gpt-5.6-luna",
+  haikuModel: "gpt-6-luna",
   subagentModel: "claudex-terra-max",
 } as const;
 
@@ -51,6 +51,9 @@ const ENV_FABLE_MODEL = "CLAUDEX_CLIPROXYAPI_FABLE_MODEL";
 const ENV_SONNET_MODEL = "CLAUDEX_CLIPROXYAPI_SONNET_MODEL";
 const ENV_OPUS_MODEL = "CLAUDEX_CLIPROXYAPI_OPUS_MODEL";
 const ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
+// Older accounts had the then-default Luna written into their .env. That
+// value was never a user choice, so read it as "use the current default".
+const LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 const STARTUP_TIMEOUT_MS = 12_000;
 const LOCK_TIMEOUT_MS = 20_000;
 const ORPHAN_LOCK_GRACE_MS = 60_000;
@@ -223,8 +226,16 @@ function parseManagedEnv(content: string): ManagedEnv {
     fableModel: values[ENV_FABLE_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.sonnetModel,
     opusModel: values[ENV_OPUS_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.opusModel,
-    haikuModel: values[ENV_HAIKU_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.haikuModel,
+    haikuModel: currentHaikuModel(values[ENV_HAIKU_MODEL]),
   };
+}
+
+function currentHaikuModel(value: string | undefined): string {
+  const model = value?.trim();
+  if (!model || model === LEGACY_HAIKU_DEFAULT) {
+    return CLI_PROXY_API_DEFAULTS.haikuModel;
+  }
+  return model;
 }
 
 function renderManagedEnv(apiKey: string): string {
@@ -490,6 +501,7 @@ async function probeProxy(port: number, apiKey: string): Promise<boolean> {
 
 export async function verifyManagedCLIProxyAPILive(
   runtime: ManagedCLIProxyAPIRuntime,
+  model: string,
 ): Promise<boolean> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
@@ -505,7 +517,7 @@ export async function verifyManagedCLIProxyAPILive(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: CLI_PROXY_API_DEFAULTS.haikuModel,
+        model,
         max_tokens: 1,
         messages: [{ role: "user", content: "Reply with OK." }],
       }),
