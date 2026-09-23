@@ -36,8 +36,18 @@ describe("resolveModelShorthand", () => {
     expect(resolveModelShorthand("claude", "5.1")).toBe("claude-opus-5-1");
   });
 
-  test("maps fable aliases to claude-fable-5", () => {
-    expect(resolveModelShorthand("claude", "fable")).toBe("claude-fable-5");
+  test("expands opus 5.5", () => {
+    expect(resolveModelShorthand("claude", "5.5")).toBe("claude-opus-5-5");
+    expect(resolveModelShorthand("claude", "opus5.5")).toBe("claude-opus-5-5");
+    expect(resolveModelShorthand("claude", "opus-5.5")).toBe("claude-opus-5-5");
+  });
+
+  test("maps a bare fable alias to the latest fable", () => {
+    expect(resolveModelShorthand("claude", "fable")).toBe("claude-fable-5-1");
+    expect(resolveModelShorthand("claude", "FABLE")).toBe("claude-fable-5-1");
+  });
+
+  test("keeps versioned fable aliases pinned", () => {
     expect(resolveModelShorthand("claude", "fable5")).toBe("claude-fable-5");
     expect(resolveModelShorthand("claude", "fable-5")).toBe("claude-fable-5");
     expect(resolveModelShorthand("claude", "opus-5")).toBe("claude-opus-5");
@@ -51,11 +61,19 @@ describe("resolveModelShorthand", () => {
 
   test("maps aliased codex versions to their full model id", () => {
     expect(resolveModelShorthand("codex", "5.6")).toBe("gpt-5.6-sol");
-    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-5.6-sol");
-    expect(resolveModelShorthand("codex", "terra")).toBe("gpt-5.6-terra");
-    expect(resolveModelShorthand("codex", "luna")).toBe("gpt-5.6-luna");
     expect(resolveModelShorthand("codex", "6")).toBe("gpt-6-astra");
     expect(resolveModelShorthand("codex", "gpt-5.6-sol")).toBe("gpt-5.6-sol");
+    expect(resolveModelShorthand("codex", "gpt-5.6-luna")).toBe("gpt-5.6-luna");
+  });
+
+  test("named codex aliases track the newest generation of each tier", () => {
+    expect(resolveModelShorthand("codex", "astra")).toBe("gpt-6-astra");
+    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6-sol");
+    expect(resolveModelShorthand("codex", "Sol")).toBe("gpt-6-sol");
+    expect(resolveModelShorthand("codex", "luna")).toBe("gpt-6-luna");
+    // GPT-6 shipped without a Terra tier.
+    expect(resolveModelShorthand("codex", "terra")).toBe("gpt-5.6-terra");
+    expect(resolveModelShorthand("codex", "gpt-6-sol")).toBe("gpt-6-sol");
   });
 
   test("honors an explicitly typed gpt id verbatim", () => {

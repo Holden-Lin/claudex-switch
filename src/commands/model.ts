@@ -110,7 +110,7 @@ export async function model(
     process.exit(1);
   }
 
-  // Claude's ordinary `fable` shorthand expands to Claude Fable 5. A local
+  // Claude's ordinary `fable` shorthand expands to the latest Claude Fable. A local
   // CLIProxyAPI account deliberately has a different mapping, so resolve it
   // only after reading the selected persisted profile. Existing Claude API and
   // OAuth shorthand behavior remains unchanged.

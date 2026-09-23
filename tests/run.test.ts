@@ -731,7 +731,7 @@ describe("run alias session", () => {
     ]);
   });
 
-  test("maps a bare fable alias to Claude fable 5", async () => {
+  test("maps a bare fable alias to the latest Claude fable", async () => {
     await addApiKeyProfile("api", {
       apiKey: "sk-ant-profile",
       model: "claude-opus-4-6",
@@ -760,7 +760,7 @@ describe("run alias session", () => {
       "--permission-mode",
       "auto",
       "--model",
-      "claude-fable-5",
+      "claude-fable-5-1",
       "--effort",
       "max",
       ...apiSettingsArgs("api"),

@@ -9,7 +9,7 @@
 - 统一管理 Claude Code、Codex 和 OpenCode Go 三套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
 - `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`，OpenCode 默认使用 `--auto`
-- `claudex-switch <alias> -run --model <model> [effort]` 会使用指定模型启动，并把它保存为该账号下次运行的默认模型；Claude 裸数字仍指 Opus，另支持 `sonnet5`、`fable5.1` 等系列名；Codex 支持 `sol` / `terra` / `luna`（对应三个 GPT-5.6 模型）和 `6`（对应 `gpt-6-astra`）。模型后可紧跟 effort 档位（如 `--model 5 max`），effort 只作用于本次运行；Codex 也支持 `ultra`（会启用更主动的多代理行为，额度消耗更快）
+- `claudex-switch <alias> -run --model <model> [effort]` 会使用指定模型启动，并把它保存为该账号下次运行的默认模型；Claude 裸数字仍指 Opus（如 `5.5` → `claude-opus-5-5`），另支持 `sonnet5`、`fable5.1` 等系列名，裸 `fable` 指最新 Fable（`claude-fable-5-1`）；Codex 支持 `astra` / `sol` / `luna`（对应 GPT-6 三个模型）、`terra`（GPT-6 无 Terra，仍指 `gpt-5.6-terra`）和 `6`（对应 `gpt-6-astra`），旧版 GPT-5.6 可写全名如 `gpt-5.6-sol`。模型后可紧跟 effort 档位（如 `--model 5 max`），effort 只作用于本次运行；Codex 也支持 `ultra`（会启用更主动的多代理行为，额度消耗更快）
 - 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
 - `claudex-switch list` 并行拉取并显示所有账号的剩余额度，同时以服务端额度响应更新 Codex 订阅等级、以最新匹配凭据更新 Claude 等级：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。加 `--no-usage` 可跳过网络请求，但仍会从本地凭据更新等级
@@ -95,18 +95,18 @@ claudex-switch holden
 claudex-switch holden -run
 
 # 指定本次模型，并保存为该账号下次运行的默认模型
-# Claude：裸数字走 Opus；sonnet5 / fable5.1 可显式选择系列
-# Codex：sol / terra / luna → GPT-5.6 三个模型；6 → gpt-6-astra
-claudex-switch holden -run --model 5
+# Claude：裸数字走 Opus（5.5 → claude-opus-5-5）；sonnet5 / fable5.1 可显式选择系列；fable → 最新 Fable
+# Codex：astra / sol / luna → GPT-6 三个模型；terra → gpt-5.6-terra；6 → gpt-6-astra
+claudex-switch holden -run --model 5.5
 claudex-switch holden -run --model fable5.1
 claudex-switch cx -run --model terra
 
 # 模型后可紧跟 effort 档位
 # Claude: low/medium/high/xhigh/max；Codex: minimal/low/medium/high/xhigh/max/ultra
 # Claude 映射为 --effort，Codex 映射为 -c model_reasoning_effort=...；具体档位仍取决于所选模型
-claudex-switch holden -run --model 5 max
-claudex-switch cx -run --model 5.6 xhigh
-claudex-switch cx -run --model 5.6 ultra # 更主动的多代理模式，消耗额度更快
+claudex-switch holden -run --model 5.5 max
+claudex-switch cx -run --model sol xhigh
+claudex-switch cx -run --model sol ultra # 更主动的多代理模式，消耗额度更快
 
 # 只对这次 Claude 运行临时关闭 attribution header
 claudex-switch holden -run --attribution-header false
@@ -225,7 +225,7 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
 | `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话或 OpenCode TUI；Claude Code 默认使用 `--permission-mode auto`，OpenCode 默认使用 `--auto` |
-| `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5` / `sonnet5` / `fable5.1`，Codex `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
+| `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5.5` / `sonnet5` / `fable` / `fable5.1`，Codex `astra` / `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
@@ -393,7 +393,7 @@ claudex-switch 采用「薄别名层」架构：
 - 这是非官方工具，依赖 Claude Code 和 Codex 当前的本地认证存储方式
 - 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
 - Codex 切换后需要重启客户端才能生效
-- `-run --model <model>`（同 `-model`）会持久化写回账号默认模型；Claude 裸数字默认是 Opus 系列，`sonnet5`、`fable5.1` 等系列名会展开为完整模型名；Codex 的 `sol` / `terra` / `luna` 指 GPT-5.6 对应模型，`6` 指 `gpt-6-astra`
+- `-run --model <model>`（同 `-model`）会持久化写回账号默认模型；Claude 裸数字默认是 Opus 系列，`sonnet5`、`fable5.1` 等系列名会展开为完整模型名；Codex 的 `astra` / `sol` / `luna` 指 GPT-6 对应模型，`terra` 指 `gpt-5.6-terra`，`6` 指 `gpt-6-astra`
 - `-run --attribution-header false` 只影响这次 Claude 启动，不会修改你的 shell 配置；`true` 表示显式移除这个环境变量
 - 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
 - Codex 多账号切换使用文件凭据存储；`add/refresh` 在临时 `CODEX_HOME` 登录，校验成功后才替换账号快照

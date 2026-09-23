@@ -7850,10 +7850,12 @@ var CODEX_MODEL_ALIASES = {
   "gpt-6": "gpt-6-astra"
 };
 var CODEX_NAMED_ALIASES = {
-  sol: "gpt-5.6-sol",
+  astra: "gpt-6-astra",
+  sol: "gpt-6-sol",
   terra: "gpt-5.6-terra",
-  luna: "gpt-5.6-luna"
+  luna: "gpt-6-luna"
 };
+var CLAUDE_LATEST_FABLE = "claude-fable-5-1";
 function isModelEffort(value) {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
 }
@@ -7877,7 +7879,7 @@ function resolveModelShorthand(provider, input) {
     return trimmed;
   if (provider === "claude") {
     if (/^fable$/i.test(trimmed)) {
-      return "claude-fable-5";
+      return CLAUDE_LATEST_FABLE;
     }
     const match2 = trimmed.match(CLAUDE_SHORTHAND);
     if (match2) {
@@ -9461,7 +9463,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.12.2",
+  version: "1.12.3",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {
@@ -11765,7 +11767,7 @@ var HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5, sonnet5, fable5.1; Codex: sol, terra, luna, 6; OpenCode: provider/model)
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login

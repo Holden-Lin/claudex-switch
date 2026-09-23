@@ -35,11 +35,17 @@ const CODEX_MODEL_ALIASES: Record<string, string> = {
   "gpt-6": "gpt-6-astra",
 };
 
+// Named aliases track the newest generation of each tier. GPT-6 shipped no
+// Terra, so terra stays on 5.6; older ids remain reachable verbatim.
 const CODEX_NAMED_ALIASES: Record<string, string> = {
-  sol: "gpt-5.6-sol",
+  astra: "gpt-6-astra",
+  sol: "gpt-6-sol",
   terra: "gpt-5.6-terra",
-  luna: "gpt-5.6-luna",
+  luna: "gpt-6-luna",
 };
+
+// A bare `fable` follows the latest Fable release.
+const CLAUDE_LATEST_FABLE = "claude-fable-5-1";
 
 export function isModelEffort(value: string | undefined): value is string {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
@@ -73,7 +79,7 @@ export function resolveModelShorthand(
 
   if (provider === "claude") {
     if (/^fable$/i.test(trimmed)) {
-      return "claude-fable-5";
+      return CLAUDE_LATEST_FABLE;
     }
 
     const match = trimmed.match(CLAUDE_SHORTHAND);
