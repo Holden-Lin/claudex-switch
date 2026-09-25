@@ -12,6 +12,7 @@
 
 ## Done
 
+- [x] 2026-09-25：Codex `-run` 增 `--autoreview on/off`，仅控制本次子进程；版本升至 `1.13.0`。221 项测试、类型检查、构建、发布守卫及临时 HOME / 假 Codex / Stop hook 联测通过。
 - [x] 2026-09-23：本机 CLIProxyAPI 的 haiku 默认映射升为 `gpt-6-luna`，旧账号自动沿用；CLIProxyAPI 升至 7.3.15，真实 `doctor --live` 通过；版本升至 `1.12.4`。
 - [x] 2026-09-23：新增 Opus 5.5 / GPT-6 Sol、Luna 模型别名（`sol`/`luna` 改指 GPT-6，新增 `astra`，裸 `fable` 指 Fable 5.1）；版本升至 `1.12.3`，213 项测试 0 失败。
 - [x] 2026-09-15：更新检查增加 GitHub Releases API 备用查询，兼容 release URL 尾斜杠；版本升至 `1.12.2`；210 项测试 0 失败。

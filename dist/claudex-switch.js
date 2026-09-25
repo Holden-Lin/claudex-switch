@@ -5,15 +5,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2034,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2179,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -7976,12 +7989,18 @@ var RUN_FLAGS = new Set(["-run", "--run"]);
 var HEADER_FLAGS = new Set(["--attribution-header"]);
 var MODEL_FLAGS = new Set(["-model", "--model"]);
 var CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
+var CODEX_COMPLETION_REVIEW_DISABLED_ENV = "CODEX_COMPLETION_REVIEW_DISABLED";
 function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
 }
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn5) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
+  if (runOptions.autoreviewOverride !== undefined && entry.target.provider !== "codex") {
+    error("--autoreview is only supported for Codex sessions.");
+    blank();
+    process.exit(1);
+  }
   if (runOptions.effortOverride) {
     const valid = providerEffortLevels(entry.target.provider);
     if (!valid.has(runOptions.effortOverride)) {
@@ -8080,8 +8099,14 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
     ...runOptions.forwardedArgs
   ];
-  const env2 = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir, configDir);
+  const baseEnv = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir, configDir);
+  const env2 = applyCodexAutoreview(baseEnv, runOptions.autoreviewOverride);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
+  if (entry.target.provider === "codex") {
+    const inheritedState = process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
+    const state = runOptions.autoreviewOverride === undefined ? `${inheritedState} (inherited)` : `${runOptions.autoreviewOverride ? "on" : "off"} (this session)`;
+    info(`Autoreview: ${state}`);
+  }
   return new Promise((resolve2) => {
     let settled = false;
     const finish = async (code) => {
@@ -8164,6 +8189,7 @@ function parseRunArgumentOptions(args) {
   let modelOverride;
   let effortOverride;
   let headerEnabled;
+  let autoreviewOverride;
   for (let index = 0;index < args.length; index += 1) {
     const arg = args[index];
     if (MODEL_FLAGS.has(arg)) {
@@ -8197,9 +8223,38 @@ function parseRunArgumentOptions(args) {
       index += 1;
       continue;
     }
+    if (arg === "--autoreview") {
+      const nextValue = args[index + 1]?.trim().toLowerCase();
+      if (nextValue !== "on" && nextValue !== "off") {
+        error("Expected 'on' or 'off' after --autoreview.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
+        blank();
+        process.exit(1);
+      }
+      autoreviewOverride = nextValue === "on";
+      index += 1;
+      continue;
+    }
     forwardedArgs.push(arg);
   }
-  return { forwardedArgs, modelOverride, effortOverride, headerEnabled };
+  return {
+    forwardedArgs,
+    modelOverride,
+    effortOverride,
+    headerEnabled,
+    autoreviewOverride
+  };
+}
+function applyCodexAutoreview(baseEnv, override) {
+  if (override === undefined)
+    return baseEnv;
+  const env2 = { ...baseEnv ?? process.env };
+  if (override) {
+    delete env2[CODEX_COMPLETION_REVIEW_DISABLED_ENV];
+  } else {
+    env2[CODEX_COMPLETION_REVIEW_DISABLED_ENV] = "1";
+  }
+  return env2;
 }
 function buildClaudeOAuthEnvironment(secureStorageDir, configDir, extraEnv) {
   if (!secureStorageDir && !configDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key]) && Object.keys(normalizeCustomEnv(extraEnv)).length === 0) {
@@ -9471,7 +9526,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.12.4",
+  version: "1.13.0",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {
@@ -11771,7 +11826,7 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch, save the selected model, and run
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
@@ -11791,7 +11846,7 @@ var HELP = `
   ${source_default.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
-    claudex-switch use <alias> -run    Same as '<alias> -run'
+    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run'
     claudex-switch -V                  Same as '--version'
 `;
 function isVersionCommand(command) {
@@ -11884,6 +11939,15 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   try {
     enforceRepoLocalHomeSafety(command);
+    if (args.includes("--autoreview")) {
+      const runFlag = command === "use" ? args[1] : args[0];
+      if (!isRunFlag(runFlag)) {
+        error("--autoreview can only be used with -run or --run.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
+        blank();
+        process.exit(1);
+      }
+    }
     if (isVersionCommand(command)) {
       const autoUpdate = await runAutoUpdateIfNeeded();
       if (autoUpdate.action === "restart") {
@@ -11905,7 +11969,7 @@ async function main() {
       case "use":
         if (!args[0]) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [args...]]
+  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]]
 `));
           process.exit(1);
         }

@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import packageJson from "../package.json";
+import { saveAliases } from "../src/alias/store";
+import { resetTestHome } from "./helpers";
 
 function runCli(args: string[]) {
   return spawnSync(process.execPath, ["src/index.ts", ...args], {
@@ -79,5 +81,63 @@ describe("cli version flags", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe(packageJson.version);
+  });
+
+  test.each([
+    ["alias shortcut", ["cx", "--autoreview", "off"]],
+    ["use command", ["use", "cx", "--autoreview", "off"]],
+  ])("requires -run for autoreview via %s", (_syntax, args) => {
+    const result = runCli(args);
+    const output = `${result.stderr}${result.stdout}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("--autoreview can only be used with -run or --run.");
+  });
+
+  test.each([
+    ["missing", ["cx", "-run", "--autoreview"]],
+    ["invalid", ["cx", "-run", "--autoreview", "sometimes"]],
+  ])("rejects a %s autoreview value before provider validation", async (_case, args) => {
+    await resetTestHome();
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "claude", profileName: "fake-profile" },
+          createdAt: 1,
+        },
+      ],
+    });
+    const result = runCli(args);
+    const output = `${result.stderr}${result.stdout}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("Expected 'on' or 'off' after --autoreview.");
+    expect(output).not.toContain("--autoreview is only supported for Codex sessions.");
+  });
+
+  test("accepts autoreview through both alias and use session syntaxes", async () => {
+    await resetTestHome();
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "claude", profileName: "fake-profile" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    for (const args of [
+      ["cx", "-run", "--autoreview", "on"],
+      ["use", "cx", "-run", "--autoreview", "off"],
+    ]) {
+      const result = runCli(args);
+      const output = `${result.stderr}${result.stdout}`;
+      expect(result.status).toBe(1);
+      expect(output).toContain("--autoreview is only supported for Codex sessions.");
+    }
   });
 });

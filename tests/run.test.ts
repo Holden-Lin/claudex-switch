@@ -116,6 +116,7 @@ function createSpawn(
 describe("run alias session", () => {
   afterEach(() => {
     console.log.mockRestore?.();
+    process.exit.mockRestore?.();
   });
 
   beforeEach(async () => {
@@ -660,6 +661,112 @@ describe("run alias session", () => {
       "--continue",
     ]);
     expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-5.5");
+  });
+
+  test("overrides Codex autoreview only in the launched session", async () => {
+    const accountKey = "user-1::acct-1";
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "codex", accountKey },
+          createdAt: 1,
+        },
+      ],
+    });
+    await saveRegistry(createRegistry(accountKey));
+    await saveAccountAuth(accountKey, {
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: makeJwt({ sub: "user-1" }),
+        access_token: makeJwt({ sub: "user-1" }),
+        refresh_token: "refresh-token",
+        account_id: "acct-1",
+      },
+      last_refresh: "2026-04-28T00:00:00.000Z",
+    });
+
+    const envName = "CODEX_COMPLETION_REVIEW_DISABLED";
+    const originalEnvValue = process.env[envName];
+    process.env[envName] = "1";
+    const calls: SpawnCall[] = [];
+
+    try {
+      await runAliasSession(
+        "cx",
+        ["--autoreview", "on", "--continue"],
+        createSpawn(calls),
+      );
+      expect(process.env[envName]).toBe("1");
+
+      delete process.env[envName];
+      await runAliasSession(
+        "cx",
+        ["--autoreview", "off", "--continue"],
+        createSpawn(calls),
+      );
+      expect(process.env[envName]).toBeUndefined();
+
+      process.env[envName] = "1";
+      await runAliasSession("cx", ["--continue"], createSpawn(calls));
+
+      expect(calls).toHaveLength(3);
+      expect(calls[0]?.args).toEqual([
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--continue",
+      ]);
+      expect(calls[0]?.env?.[envName]).toBeUndefined();
+      expect(calls[1]?.env?.[envName]).toBe("1");
+      // With no override, spawn inherits the caller environment as before.
+      expect(calls[2]?.env).toBeUndefined();
+      expect(process.env[envName]).toBe("1");
+    } finally {
+      if (originalEnvValue === undefined) delete process.env[envName];
+      else process.env[envName] = originalEnvValue;
+    }
+  });
+
+  test("rejects autoreview for Claude before saving the model or switching", async () => {
+    await addApiKeyProfile("current", {
+      apiKey: "sk-test-current",
+      model: "claude-sonnet-4-5",
+    });
+    await addApiKeyProfile("target", {
+      apiKey: "sk-test-target",
+      model: "claude-opus-4-6",
+    });
+    await switchProfile("current");
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "target",
+          target: { provider: "claude", profileName: "target" },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("process.exit");
+    }) as typeof process.exit);
+
+    await expect(
+      runAliasSession(
+        "target",
+        ["--autoreview", "off", "--model", "5"],
+        createSpawn(calls),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    expect((await getProfileData("target")).model).toBe(
+      "claude-opus-4-6",
+    );
+    expect((await readState()).active).toBe("current");
+    expect(calls).toHaveLength(0);
   });
 
   test("maps an effort tier after the Claude model to --effort", async () => {

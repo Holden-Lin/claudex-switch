@@ -54,6 +54,8 @@ const RUN_FLAGS = new Set(["-run", "--run"]);
 const HEADER_FLAGS = new Set(["--attribution-header"]);
 const MODEL_FLAGS = new Set(["-model", "--model"]);
 const CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
+const CODEX_COMPLETION_REVIEW_DISABLED_ENV =
+  "CODEX_COMPLETION_REVIEW_DISABLED";
 
 type SpawnOptions = {
   stdio: "inherit";
@@ -71,6 +73,7 @@ type RunArgumentOptions = {
   modelOverride?: string;
   effortOverride?: string;
   headerEnabled?: boolean;
+  autoreviewOverride?: boolean;
 };
 
 export function isRunFlag(value?: string): boolean {
@@ -84,6 +87,14 @@ export async function runAliasSession(
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
+  if (
+    runOptions.autoreviewOverride !== undefined &&
+    entry.target.provider !== "codex"
+  ) {
+    error("--autoreview is only supported for Codex sessions.");
+    blank();
+    process.exit(1);
+  }
   // The CLIs support different effort tiers, so validate once the
   // provider is known.
   if (runOptions.effortOverride) {
@@ -258,15 +269,25 @@ export async function runAliasSession(
     ...(settingsNeutralizer ? ["--settings", settingsNeutralizer] : []),
     ...runOptions.forwardedArgs,
   ];
-  const env = await getRunEnvironment(
+  const baseEnv = await getRunEnvironment(
     entry,
     profile,
     runOptions.headerEnabled,
     secureStorageDir,
     configDir,
   );
+  const env = applyCodexAutoreview(baseEnv, runOptions.autoreviewOverride);
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
+  if (entry.target.provider === "codex") {
+    const inheritedState =
+      process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
+    const state =
+      runOptions.autoreviewOverride === undefined
+        ? `${inheritedState} (inherited)`
+        : `${runOptions.autoreviewOverride ? "on" : "off"} (this session)`;
+    info(`Autoreview: ${state}`);
+  }
 
   return new Promise((resolve) => {
     let settled = false;
@@ -393,6 +414,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
   let modelOverride: string | undefined;
   let effortOverride: string | undefined;
   let headerEnabled: boolean | undefined;
+  let autoreviewOverride: boolean | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -441,10 +463,47 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
       continue;
     }
 
+    if (arg === "--autoreview") {
+      const nextValue = args[index + 1]?.trim().toLowerCase();
+      if (nextValue !== "on" && nextValue !== "off") {
+        error("Expected 'on' or 'off' after --autoreview.");
+        hint(
+          `Example: ${chalk.cyan("claudex-switch cx -run --autoreview off")}`,
+        );
+        blank();
+        process.exit(1);
+      }
+
+      autoreviewOverride = nextValue === "on";
+      index += 1;
+      continue;
+    }
+
     forwardedArgs.push(arg);
   }
 
-  return { forwardedArgs, modelOverride, effortOverride, headerEnabled };
+  return {
+    forwardedArgs,
+    modelOverride,
+    effortOverride,
+    headerEnabled,
+    autoreviewOverride,
+  };
+}
+
+function applyCodexAutoreview(
+  baseEnv: NodeJS.ProcessEnv | undefined,
+  override?: boolean,
+): NodeJS.ProcessEnv | undefined {
+  if (override === undefined) return baseEnv;
+
+  const env = { ...(baseEnv ?? process.env) };
+  if (override) {
+    delete env[CODEX_COMPLETION_REVIEW_DISABLED_ENV];
+  } else {
+    env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] = "1";
+  }
+  return env;
 }
 
 function buildClaudeOAuthEnvironment(

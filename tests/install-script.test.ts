@@ -97,6 +97,7 @@ function runInstallScript(env: Record<string, string | undefined>) {
 }
 
 describe("install.sh", () => {
+  // The shell installer spans several subprocesses and can exceed Bun's 5s default on slower hosts.
   test("installs the latest release by default when one exists", async () => {
     const fakeEnv = await createFakeInstallerEnv();
 
@@ -125,7 +126,7 @@ describe("install.sh", () => {
     } finally {
       await rm(fakeEnv.rootDir, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   test("removes the existing global install before reinstalling a pinned version", async () => {
     const fakeEnv = await createFakeInstallerEnv();
@@ -157,5 +158,5 @@ describe("install.sh", () => {
     } finally {
       await rm(fakeEnv.rootDir, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 });

@@ -32,7 +32,7 @@ const HELP = `
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [args...]  Switch, save the selected model, and run
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
@@ -52,7 +52,7 @@ const HELP = `
   ${chalk.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
-    claudex-switch use <alias> -run    Same as '<alias> -run'
+    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run'
     claudex-switch -V                  Same as '--version'
 `;
 
@@ -181,6 +181,18 @@ async function main(): Promise<void> {
   try {
     enforceRepoLocalHomeSafety(command);
 
+    if (args.includes("--autoreview")) {
+      const runFlag = command === "use" ? args[1] : args[0];
+      if (!isRunFlag(runFlag)) {
+        error("--autoreview can only be used with -run or --run.");
+        hint(
+          `Example: ${chalk.cyan("claudex-switch cx -run --autoreview off")}`,
+        );
+        blank();
+        process.exit(1);
+      }
+    }
+
     if (isVersionCommand(command)) {
       const autoUpdate = await runAutoUpdateIfNeeded();
       if (autoUpdate.action === "restart") {
@@ -206,7 +218,7 @@ async function main(): Promise<void> {
         if (!args[0]) {
           console.error(
             chalk.red(
-              "\n  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [args...]]\n",
+              "\n  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]]\n",
             ),
           );
           process.exit(1);
