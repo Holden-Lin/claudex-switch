@@ -655,7 +655,7 @@ describe("run alias session", () => {
     );
 
     expect(calls[0]?.args).toEqual([
-      "--dangerously-bypass-approvals-and-sandbox",
+      "--approve-for-me",
       "--model",
       "gpt-5.5",
       "--continue",
@@ -714,7 +714,7 @@ describe("run alias session", () => {
 
       expect(calls).toHaveLength(3);
       expect(calls[0]?.args).toEqual([
-        "--dangerously-bypass-approvals-and-sandbox",
+        "--approve-for-me",
         "--continue",
       ]);
       expect(calls[0]?.env?.[envName]).toBeUndefined();
@@ -948,7 +948,7 @@ describe("run alias session", () => {
 
     expect(calls.map((call) => call.args)).toEqual([
       [
-        "--dangerously-bypass-approvals-and-sandbox",
+        "--approve-for-me",
         "--model",
         "gpt-5.6-sol",
         "-c",
@@ -956,7 +956,7 @@ describe("run alias session", () => {
         "--continue",
       ],
       [
-        "--dangerously-bypass-approvals-and-sandbox",
+        "--approve-for-me",
         "--model",
         "gpt-5.6-sol",
         "-c",
@@ -1064,7 +1064,7 @@ describe("run alias session", () => {
     ).toEqual(oauthCreds);
   });
 
-  test("runs Codex with bypass approvals and sandbox after switching", async () => {
+  test("runs Codex with Approve for me after switching", async () => {
     const accountKey = "user-1::acct-1";
     const aliases: AliasRegistry = {
       version: 1,
@@ -1104,7 +1104,7 @@ describe("run alias session", () => {
       {
         command: "codex",
         args: [
-          "--dangerously-bypass-approvals-and-sandbox",
+          "--approve-for-me",
           "--model",
           "gpt-5",
         ],
@@ -1202,7 +1202,7 @@ describe("run alias session", () => {
     );
 
     expect(calls[0]?.args).toEqual([
-      "--dangerously-bypass-approvals-and-sandbox",
+      "--approve-for-me",
       "--model",
       "gpt-5-mini",
       "--continue",

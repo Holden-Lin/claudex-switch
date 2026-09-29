@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2048,6 +2034,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2192,7 +2179,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -8088,7 +8075,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     }
   }
   const command = isClaude ? "claude" : isOpenCode ? "opencode" : "codex";
-  const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : isOpenCode ? ["--auto"] : ["--dangerously-bypass-approvals-and-sandbox"];
+  const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : isOpenCode ? ["--auto"] : ["--approve-for-me"];
   const effortArgs = runOptions.effortOverride ? isClaude ? ["--effort", runOptions.effortOverride] : isOpenCode ? [] : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`] : [];
   const args = [
     ...isolatedClaudeApi ? ["--bare"] : [],
@@ -9526,7 +9513,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.13.0",
+  version: "1.13.1",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {
@@ -11826,7 +11813,7 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
@@ -11846,7 +11833,7 @@ var HELP = `
   ${source_default.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
-    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run'
+    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run' (Codex defaults to --approve-for-me)
     claudex-switch -V                  Same as '--version'
 `;
 function isVersionCommand(command) {

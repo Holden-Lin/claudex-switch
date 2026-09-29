@@ -32,7 +32,7 @@ const HELP = `
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run
+    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--no-usage]   List all accounts with remaining quota
@@ -52,7 +52,7 @@ const HELP = `
   ${chalk.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
-    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run'
+    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run' (Codex defaults to --approve-for-me)
     claudex-switch -V                  Same as '--version'
 `;
 

@@ -252,7 +252,7 @@ export async function runAliasSession(
     ? ["--permission-mode", "auto"]
     : isOpenCode
       ? ["--auto"]
-      : ["--dangerously-bypass-approvals-and-sandbox"];
+      : ["--approve-for-me"];
   const effortArgs = runOptions.effortOverride
     ? isClaude
       ? ["--effort", runOptions.effortOverride]
