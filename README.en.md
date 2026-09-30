@@ -2,7 +2,28 @@
 
 **Languages:** [中文](./README.md) | [English](./README.en.md)
 
-A unified CLI tool for managing Claude Code, Codex, and OpenCode Go accounts. Supports alias-based switching and quota display — ideal for frequently switching between personal, team, and API key accounts.
+claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It selects provider-specific local profiles and credentials by alias, then can launch the corresponding CLI; it does not create provider accounts or bypass quota limits.
+
+```bash
+# JSON inventory requires claudex-switch v1.14.0 or later; v1.13.2 does not support it
+if claudex-switch help 2>&1 | grep -q -- '--json'; then
+  claudex-switch list --json --no-usage
+else
+  printf '%s\n' 'This installed version does not support list --json' >&2
+fi
+# Replace work with an existing alias; selecting an account updates local provider state
+claudex-switch work
+# Launch the corresponding CLI; isolation differs by provider
+claudex-switch work -run
+```
+
+See the [JSON output reference](./docs/list-json.md), [use cases](./docs/use-cases.md), [FAQ](./docs/faq.md), and [local Codex skill guide](./skills/claudex-switch/SKILL.md). The skill file is repository guidance only; committing it does not install or make it discoverable to consumer agents. Users must opt in by installing it into a skill directory supported by their agent.
+
+## Is claudex-switch a fit?
+
+- **Use it when** you manage multiple authorized Claude Code, Codex, or OpenCode Go accounts on one machine and want aliases, provider-reported quota visibility, or account-specific CLI launches
+- **Choose another approach when** you need fully separate workspaces, settings, and histories for each identity, centralized team credential management, or a way around provider login, terms, or usage limits
+- **Know the differences**: Claude `-run` isolates that session's account credentials, while settings, hooks, and history remain shared; Codex `-run` first changes the global Codex auth/config; OpenCode Go selects a credential per launch but shares `/resume` history across accounts
 
 ## Features
 
@@ -14,7 +35,7 @@ A unified CLI tool for managing Claude Code, Codex, and OpenCode Go accounts. Su
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
 - Codex `-run` defaults to `--approve-for-me` (Auto permission mode); `--autoreview on|off` independently controls the Codex Stop multi-agent review hook without changing the permission mode
 - `claudex-switch list` fetches remaining quota for all accounts in parallel, updates the Codex tier from the live rate-limit response, and updates the Claude tier from the freshest matching credentials. Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip network requests while still refreshing tiers from local credentials
-- Thin alias layer — does not touch native storage (`~/.claude-profiles/`, `~/.codex/accounts/`)
+- Thin alias layer over provider-owned account profiles; switching synchronizes active provider auth/config and may update session-visibility metadata — see the caveats below
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
 - `claudex-switch webconfig` opens a local web page for viewing and editing every account's base URL, key and model configuration in one place, including pasting a whole `export ANTHROPIC_*` block (see "Web Config" below)
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs, Fable / Sonnet / Opus / Haiku model mapping, a subagent model, and arbitrary custom environment variables
@@ -44,10 +65,10 @@ You can also pin a version or ref:
 
 ```bash
 # Install a specific tag
-VERSION=1.0.0 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | VERSION=1.0.0 bash
 
 # Install a specific branch / commit / tag
-INSTALL_REF=main curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | INSTALL_REF=main bash
 ```
 
 ### Bun Global Install
@@ -328,7 +349,7 @@ claudex-switch uses a thin alias layer on top of native storage:
   (Claude native)        (Codex native)
 ```
 
-Day-to-day switching and alias management only operate on this mapping layer. Underlying account data is only deleted when you explicitly run `claudex-switch purge <alias>`.
+Alias creation, renaming, and removal operate on this mapping layer. Switching also writes provider-specific active authentication/configuration as described below; Codex switches can update session-provider visibility metadata. `remove` drops an alias, while `purge` deletes the linked account profile and its aliases.
 
 ### Claude Account Switching
 
@@ -348,7 +369,7 @@ Day-to-day switching and alias management only operate on this mapping layer. Un
 ### Codex Account Switching
 
 - Copies the corresponding `<key>.auth.json` to `~/.codex/auth.json`
-- Codex API key accounts update `~/.codex/config.toml` based on the saved API source; custom providers write the active account bearer token so raw `codex` commands work after switching
+- Codex API key accounts update `~/.codex/config.toml` based on the saved API source; custom providers store the active bearer token as `experimental_bearer_token` (file mode `0600`) so raw `codex` commands work after switching. Treat the config as sensitive credential material; don't share or commit it
 - Updates `active_account_key` in `registry.json`
 
 ## Compatibility

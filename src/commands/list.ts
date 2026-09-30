@@ -43,20 +43,86 @@ import type {
   OAuthAccount,
   AccountInfo,
   CodexRegistryAccount,
+  CodexAuthFile,
   ProfileData,
 } from "../types";
 
 export interface ListOptions {
   usage?: boolean;
+  json?: boolean;
   codexUsageFetcher?: typeof fetchCodexUsage;
   openCodeUsageFetcher?: typeof fetchOpenCodeUsage;
 }
 
+type ListAccountStatus =
+  | "configured"
+  | "missing-profile"
+  | "missing-credential"
+  | "login-required";
+
+interface ListAccountInfo extends AccountInfo {
+  status: ListAccountStatus;
+}
+
+export interface JsonListAccount {
+  alias: string;
+  provider: "claude" | "codex" | "opencode";
+  authMode:
+    | "oauth"
+    | "api-key"
+    | "local-cliproxyapi"
+    | "chatgpt"
+    | "apikey"
+    | "subscription"
+    | "missing-credential"
+    | "missing-profile"
+    | "unknown";
+  plan: string | null;
+  defaultModel: string | null;
+  isActive: boolean;
+  status: ListAccountStatus;
+  usage: {
+    fiveHourUsedPercent: number | null;
+    fiveHourResetsAt: number | null;
+    weeklyUsedPercent: number | null;
+    weeklyResetsAt: number | null;
+    monthlyUsedPercent: number | null;
+    monthlyResetsAt: number | null;
+  } | null;
+  balance: {
+    key: {
+      remainingUsd: number | null;
+      usedUsd: number | null;
+      unlimited: boolean;
+    } | null;
+    account: {
+      remainingUsd: number | null;
+      usedUsd: number | null;
+      unlimited: boolean;
+    } | null;
+  } | null;
+}
+
+export interface JsonListResult {
+  schemaVersion: 1;
+  accounts: JsonListAccount[];
+}
+
 export async function list(options: ListOptions = {}): Promise<void> {
   const withUsage = options.usage !== false;
+  const offlineJson = options.json === true && !withUsage;
   const aliasReg = await loadAliases();
+  // Preserve the human command's historic tolerance of older registry entries.
+  // Machine output validates path-bearing targets before using them.
+  const validAliases = options.json
+    ? aliasReg.aliases.filter(isWellFormedJsonAlias)
+    : aliasReg.aliases;
 
-  if (aliasReg.aliases.length === 0) {
+  if (validAliases.length === 0) {
+    if (options.json) {
+      console.log(JSON.stringify({ schemaVersion: 1, accounts: [] }));
+      return;
+    }
     blank();
     console.log(header("  No accounts yet"));
     blank();
@@ -71,13 +137,13 @@ export async function list(options: ListOptions = {}): Promise<void> {
   }
 
   // Separate by provider
-  const claudeAliases = aliasReg.aliases.filter(
+  const claudeAliases = validAliases.filter(
     (a) => a.target.provider === "claude",
   );
-  const codexAliases = aliasReg.aliases.filter(
+  const codexAliases = validAliases.filter(
     (a) => a.target.provider === "codex",
   );
-  const openCodeAliases = aliasReg.aliases.filter(
+  const openCodeAliases = validAliases.filter(
     (a) => a.target.provider === "opencode",
   );
 
@@ -86,8 +152,8 @@ export async function list(options: ListOptions = {}): Promise<void> {
   const openCodeState = await readOpenCodeState();
   let codexReg = null;
   try {
-    codexReg = await loadRegistry();
-    await syncActiveAuthSnapshot(codexReg);
+    codexReg = await loadRegistry({ persistNormalization: !offlineJson });
+    if (!offlineJson) await syncActiveAuthSnapshot(codexReg);
   } catch {
     // No codex registry
   }
@@ -108,6 +174,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
           codexReg,
           codexUsage,
           options.codexUsageFetcher ?? fetchCodexUsage,
+          options.json === true,
         ),
       ),
     ),
@@ -122,7 +189,20 @@ export async function list(options: ListOptions = {}): Promise<void> {
       ),
     ),
   ]);
-  await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
+  if (!offlineJson) {
+    await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
+  }
+
+  if (options.json) {
+    const result: JsonListResult = {
+      schemaVersion: 1,
+      accounts: [...claudeInfos, ...codexInfos, ...openCodeInfos]
+        .map(toJsonListAccount)
+        .sort(compareJsonAccounts),
+    };
+    console.log(JSON.stringify(result));
+    return;
+  }
 
   blank();
   console.log(header("  Accounts"));
@@ -161,13 +241,13 @@ async function getOpenCodeAccountInfo(
   activeProfile: string | null,
   withUsage: boolean,
   usageFetcher: typeof fetchOpenCodeUsage,
-): Promise<AccountInfo> {
+): Promise<ListAccountInfo> {
   if (entry.target.provider !== "opencode") {
     throw new Error("Not an OpenCode alias");
   }
 
   const profileId = entry.target.profileId;
-  const info: AccountInfo = {
+  const info: ListAccountInfo = {
     alias: entry.alias,
     provider: "opencode",
     email: null,
@@ -179,6 +259,7 @@ async function getOpenCodeAccountInfo(
     usage: null,
     usageNote: null,
     balance: null,
+    status: "configured",
   };
 
   try {
@@ -187,6 +268,7 @@ async function getOpenCodeAccountInfo(
     if (!(await hasOpenCodeGoCredential(profileId))) {
       info.authMode = "missing credential";
       info.usageNote = "reconnect required";
+      info.status = "missing-credential";
     } else if (withUsage) {
       const result = await usageFetcher(profileId);
       info.usage = result.usage;
@@ -195,6 +277,7 @@ async function getOpenCodeAccountInfo(
   } catch {
     info.authMode = "missing profile";
     info.usageNote = "reconnect required";
+    info.status = "missing-profile";
   }
 
   return info;
@@ -234,12 +317,12 @@ async function getClaudeAccountInfo(
   entry: AliasEntry,
   activeProfile: string | null,
   withUsage: boolean,
-): Promise<AccountInfo> {
+): Promise<ListAccountInfo> {
   if (entry.target.provider !== "claude") throw new Error("Not a claude alias");
   const profileName = entry.target.profileName;
   const isActive = activeProfile === profileName;
 
-  const info: AccountInfo = {
+  const info: ListAccountInfo = {
     alias: entry.alias,
     provider: "claude",
     email: null,
@@ -251,6 +334,7 @@ async function getClaudeAccountInfo(
     usage: null,
     usageNote: null,
     balance: null,
+    status: "configured",
   };
 
   try {
@@ -279,6 +363,7 @@ async function getClaudeAccountInfo(
           : "CLIProxyAPI · stopped"
         : "CLIProxyAPI · login required";
       info.usageNote = "quota unavailable";
+      if (!status.loggedIn) info.status = "login-required";
     } else if (profileData.type === "api-key" && profileData.apiKey) {
       info.plan = maskKey(profileData.apiKey);
       if (withUsage && profileData.baseUrl) {
@@ -287,6 +372,8 @@ async function getClaudeAccountInfo(
           profileData.apiKey,
         );
       }
+    } else if (profileData.type === "api-key") {
+      info.status = "missing-credential";
     } else {
       const account = await readJson<OAuthAccount | null>(
         claudeProfileAccountFile(profileName),
@@ -302,9 +389,11 @@ async function getClaudeAccountInfo(
 
       const creds = await readFreshestOAuthCredentials(profileName, isActive);
       info.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
+      if (!creds?.claudeAiOauth) info.status = "missing-credential";
     }
   } catch {
     // Profile may not exist anymore
+    info.status = "missing-profile";
   }
 
   return info;
@@ -315,7 +404,8 @@ async function getCodexAccountInfo(
   codexReg: Awaited<ReturnType<typeof loadRegistry>> | null,
   withUsage: boolean,
   codexUsageFetcher: typeof fetchCodexUsage,
-): Promise<AccountInfo> {
+  inspectCredentials: boolean,
+): Promise<ListAccountInfo> {
   if (entry.target.provider !== "codex") throw new Error("Not a codex alias");
 
   const accountKey = entry.target.accountKey;
@@ -338,10 +428,11 @@ async function getCodexAccountInfo(
       usage: null,
       usageNote: null,
       balance: null,
+      status: "missing-profile",
     };
   }
 
-  const info: AccountInfo = {
+  const info: ListAccountInfo = {
     alias: entry.alias,
     provider: "codex",
     email: account.email || null,
@@ -361,14 +452,16 @@ async function getCodexAccountInfo(
     usage: null,
     usageNote: null,
     balance: null,
+    status: "configured",
   };
   let serverPlan: string | null = null;
 
+  let auth: CodexAuthFile | null = null;
   if (withUsage) {
     if (account.auth_mode === "apikey") {
       const baseUrl = account.api_provider?.base_url;
       if (baseUrl) {
-        const auth = await readAccountAuth(accountKey);
+        auth = await readAccountAuth(accountKey);
         if (auth?.OPENAI_API_KEY) {
           info.balance = await fetchRelayBalance(baseUrl, auth.OPENAI_API_KEY);
         }
@@ -383,15 +476,178 @@ async function getCodexAccountInfo(
     }
   }
 
-  if (account.auth_mode !== "apikey") {
+  if (account.auth_mode !== "apikey" || inspectCredentials) {
     info.plan = serverPlan ?? info.plan;
-    const auth = await readAccountAuth(accountKey);
+    auth ??= await readAccountAuth(accountKey);
     if (auth?.auth_mode === "chatgpt") {
       info.plan = serverPlan ?? decodeCodexPlan(auth.tokens) ?? info.plan;
     }
   }
 
+  if (inspectCredentials) {
+    const hasCredential =
+      auth?.auth_mode === "apikey"
+        ? Boolean(auth.OPENAI_API_KEY)
+        : auth?.auth_mode === "chatgpt" && Boolean(auth.tokens?.access_token);
+    if (!hasCredential) info.status = "missing-credential";
+  }
+
   return info;
+}
+
+function isWellFormedJsonAlias(value: unknown): value is AliasEntry {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Partial<AliasEntry>;
+  if (
+    typeof entry.alias !== "string" ||
+    entry.alias.length === 0 ||
+    /[\u0000-\u001f\u007f]/.test(entry.alias)
+  ) {
+    return false;
+  }
+  if (!entry.target || typeof entry.target !== "object") return false;
+
+  const target = entry.target as unknown as Record<string, unknown>;
+  if (target.provider === "claude") {
+    return isSafePathSegment(target.profileName);
+  }
+  if (target.provider === "codex") {
+    return (
+      typeof target.accountKey === "string" &&
+      target.accountKey.length > 0 &&
+      target.accountKey.length <= 1024
+    );
+  }
+  if (target.provider === "opencode") {
+    return (
+      typeof target.profileId === "string" &&
+      /^go-[0-9a-f-]{36}$/i.test(target.profileId)
+    );
+  }
+  return false;
+}
+
+function isSafePathSegment(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value !== "." &&
+    value !== ".." &&
+    !/[\\/:\u0000]/.test(value)
+  );
+}
+
+const SAFE_PLANS = new Set([
+  "max",
+  "pro",
+  "plus",
+  "team",
+  "business",
+  "enterprise",
+  "edu",
+  "free",
+  "go",
+]);
+
+function safePlan(plan: string | null, authMode: string): string | null {
+  if (authMode === "api-key" || authMode === "apikey") return null;
+  if (typeof plan !== "string") return null;
+  const normalized = plan.trim().toLowerCase();
+  return SAFE_PLANS.has(normalized) ? normalized : null;
+}
+
+function safeDefaultModel(model: string | null): string | null {
+  if (
+    typeof model !== "string" ||
+    model.length > 128 ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:/+-]*$/.test(model) ||
+    /api[-_]?key|secret|token|credential|bearer|^(?:sk|gh[pousr]|xox[baprs])[-_]/i.test(
+      model,
+    )
+  ) {
+    return null;
+  }
+  return model;
+}
+
+function safeAuthMode(provider: string, authMode: string): JsonListAccount["authMode"] {
+  const allowed: Record<string, JsonListAccount["authMode"][]> = {
+    claude: ["oauth", "api-key", "local-cliproxyapi"],
+    codex: ["chatgpt", "apikey"],
+    opencode: ["subscription"],
+  };
+  if (allowed[provider]?.includes(authMode as JsonListAccount["authMode"])) {
+    return authMode as JsonListAccount["authMode"];
+  }
+  if (authMode === "missing credential") return "missing-credential";
+  if (authMode === "missing profile") return "missing-profile";
+  return "unknown";
+}
+
+function safePercent(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100
+    ? value
+    : null;
+}
+
+function safeTimestamp(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
+
+function safeMoney(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= 1_000_000_000
+    ? value
+    : null;
+}
+
+function toJsonListAccount(info: ListAccountInfo): JsonListAccount {
+  return {
+    alias: info.alias,
+    provider: info.provider,
+    authMode: safeAuthMode(info.provider, info.authMode),
+    plan: safePlan(info.plan, info.authMode),
+    defaultModel: safeDefaultModel(info.defaultModel),
+    isActive: info.isActive,
+    status: info.status,
+    usage: info.usage
+      ? {
+          fiveHourUsedPercent: safePercent(info.usage.fiveHourUsedPercent),
+          fiveHourResetsAt: safeTimestamp(info.usage.fiveHourResetsAt),
+          weeklyUsedPercent: safePercent(info.usage.weeklyUsedPercent),
+          weeklyResetsAt: safeTimestamp(info.usage.weeklyResetsAt),
+          monthlyUsedPercent: safePercent(info.usage.monthlyUsedPercent),
+          monthlyResetsAt: safeTimestamp(info.usage.monthlyResetsAt),
+        }
+      : null,
+    balance: info.balance
+      ? {
+          key: info.balance.key
+            ? {
+                remainingUsd: safeMoney(info.balance.key.remainingUsd),
+                usedUsd: safeMoney(info.balance.key.usedUsd),
+                unlimited: info.balance.key.unlimited === true,
+              }
+            : null,
+          account: info.balance.account
+            ? {
+                remainingUsd: safeMoney(info.balance.account.remainingUsd),
+                usedUsd: safeMoney(info.balance.account.usedUsd),
+                unlimited: info.balance.account.unlimited === true,
+              }
+            : null,
+        }
+      : null,
+  };
+}
+
+function compareJsonAccounts(left: JsonListAccount, right: JsonListAccount): number {
+  if (left.provider !== right.provider) {
+    return left.provider < right.provider ? -1 : 1;
+  }
+  if (left.alias === right.alias) return 0;
+  return left.alias < right.alias ? -1 : 1;
 }
 
 async function persistDisplayedCodexPlans(

@@ -21,7 +21,9 @@ async function ensureAccountsDir(): Promise<void> {
   await mkdir(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 
-export async function loadRegistry(): Promise<CodexRegistry> {
+export async function loadRegistry(
+  options: { persistNormalization?: boolean } = {},
+): Promise<CodexRegistry> {
   if (!(await fileExists(CODEX_REGISTRY_FILE))) {
     return JSON.parse(JSON.stringify(DEFAULT_REGISTRY)) as CodexRegistry;
   }
@@ -44,7 +46,7 @@ export async function loadRegistry(): Promise<CodexRegistry> {
       changed = true;
     }
   }
-  if (changed) {
+  if (changed && options.persistNormalization !== false) {
     await saveRegistry(reg);
   }
   return reg;

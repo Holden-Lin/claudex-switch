@@ -6163,7 +6163,7 @@ var DEFAULT_REGISTRY = {
 async function ensureAccountsDir() {
   await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
-async function loadRegistry() {
+async function loadRegistry(options = {}) {
   if (!await fileExists(CODEX_REGISTRY_FILE)) {
     return JSON.parse(JSON.stringify(DEFAULT_REGISTRY));
   }
@@ -6179,7 +6179,7 @@ async function loadRegistry() {
       changed = true;
     }
   }
-  if (changed) {
+  if (changed && options.persistNormalization !== false) {
     await saveRegistry(reg);
   }
   return reg;
@@ -8750,8 +8750,14 @@ function parseWindow(value) {
 // src/commands/list.ts
 async function list(options = {}) {
   const withUsage = options.usage !== false;
+  const offlineJson = options.json === true && !withUsage;
   const aliasReg = await loadAliases();
-  if (aliasReg.aliases.length === 0) {
+  const validAliases = options.json ? aliasReg.aliases.filter(isWellFormedJsonAlias) : aliasReg.aliases;
+  if (validAliases.length === 0) {
+    if (options.json) {
+      console.log(JSON.stringify({ schemaVersion: 1, accounts: [] }));
+      return;
+    }
     blank();
     console.log(header("  No accounts yet"));
     blank();
@@ -8760,23 +8766,34 @@ async function list(options = {}) {
     blank();
     return;
   }
-  const claudeAliases = aliasReg.aliases.filter((a) => a.target.provider === "claude");
-  const codexAliases = aliasReg.aliases.filter((a) => a.target.provider === "codex");
-  const openCodeAliases = aliasReg.aliases.filter((a) => a.target.provider === "opencode");
+  const claudeAliases = validAliases.filter((a) => a.target.provider === "claude");
+  const codexAliases = validAliases.filter((a) => a.target.provider === "codex");
+  const openCodeAliases = validAliases.filter((a) => a.target.provider === "opencode");
   const claudeState = await readState2();
   const openCodeState = await readOpenCodeState();
   let codexReg = null;
   try {
-    codexReg = await loadRegistry();
-    await syncActiveAuthSnapshot(codexReg);
+    codexReg = await loadRegistry({ persistNormalization: !offlineJson });
+    if (!offlineJson)
+      await syncActiveAuthSnapshot(codexReg);
   } catch {}
   const codexUsage = withUsage && codexReg?.api?.usage !== false;
   const [claudeInfos, codexInfos, openCodeInfos] = await Promise.all([
     Promise.all(claudeAliases.map((entry) => getClaudeAccountInfo(entry, claudeState.active, withUsage))),
-    Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage, options.codexUsageFetcher ?? fetchCodexUsage))),
+    Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage, options.codexUsageFetcher ?? fetchCodexUsage, options.json === true))),
     Promise.all(openCodeAliases.map((entry) => getOpenCodeAccountInfo(entry, openCodeState.active, withUsage, options.openCodeUsageFetcher ?? fetchOpenCodeUsage)))
   ]);
-  await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
+  if (!offlineJson) {
+    await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
+  }
+  if (options.json) {
+    const result = {
+      schemaVersion: 1,
+      accounts: [...claudeInfos, ...codexInfos, ...openCodeInfos].map(toJsonListAccount).sort(compareJsonAccounts)
+    };
+    console.log(JSON.stringify(result));
+    return;
+  }
   blank();
   console.log(header("  Accounts"));
   if (claudeInfos.length > 0) {
@@ -8817,7 +8834,8 @@ async function getOpenCodeAccountInfo(entry, activeProfile, withUsage, usageFetc
     isActive: activeProfile === profileId,
     usage: null,
     usageNote: null,
-    balance: null
+    balance: null,
+    status: "configured"
   };
   try {
     const profile = await getOpenCodeProfileData(profileId);
@@ -8825,6 +8843,7 @@ async function getOpenCodeAccountInfo(entry, activeProfile, withUsage, usageFetc
     if (!await hasOpenCodeGoCredential(profileId)) {
       info2.authMode = "missing credential";
       info2.usageNote = "reconnect required";
+      info2.status = "missing-credential";
     } else if (withUsage) {
       const result = await usageFetcher(profileId);
       info2.usage = result.usage;
@@ -8833,6 +8852,7 @@ async function getOpenCodeAccountInfo(entry, activeProfile, withUsage, usageFetc
   } catch {
     info2.authMode = "missing profile";
     info2.usageNote = "reconnect required";
+    info2.status = "missing-profile";
   }
   return info2;
 }
@@ -8870,7 +8890,8 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
     isActive,
     usage: null,
     usageNote: null,
-    balance: null
+    balance: null,
+    status: "configured"
   };
   try {
     const profileData = await readJson(claudeProfileDataFile(profileName), { type: "oauth" });
@@ -8883,11 +8904,15 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
       });
       info2.apiProvider = status.loggedIn ? !status.environmentValid ? "CLIProxyAPI · invalid private env" : !status.configured ? "CLIProxyAPI · invalid config" : status.running ? "CLIProxyAPI · running" : "CLIProxyAPI · stopped" : "CLIProxyAPI · login required";
       info2.usageNote = "quota unavailable";
+      if (!status.loggedIn)
+        info2.status = "login-required";
     } else if (profileData.type === "api-key" && profileData.apiKey) {
       info2.plan = maskKey(profileData.apiKey);
       if (withUsage && profileData.baseUrl) {
         info2.balance = await fetchRelayBalance(profileData.baseUrl, profileData.apiKey);
       }
+    } else if (profileData.type === "api-key") {
+      info2.status = "missing-credential";
     } else {
       const account = await readJson(claudeProfileAccountFile(profileName), null);
       info2.email = account?.emailAddress ?? null;
@@ -8898,11 +8923,15 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
       }
       const creds = await readFreshestOAuthCredentials(profileName, isActive);
       info2.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
+      if (!creds?.claudeAiOauth)
+        info2.status = "missing-credential";
     }
-  } catch {}
+  } catch {
+    info2.status = "missing-profile";
+  }
   return info2;
 }
-async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher) {
+async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher, inspectCredentials) {
   if (entry.target.provider !== "codex")
     throw new Error("Not a codex alias");
   const accountKey = entry.target.accountKey;
@@ -8920,7 +8949,8 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
       isActive,
       usage: null,
       usageNote: null,
-      balance: null
+      balance: null,
+      status: "missing-profile"
     };
   }
   const info2 = {
@@ -8934,14 +8964,16 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
     isActive,
     usage: null,
     usageNote: null,
-    balance: null
+    balance: null,
+    status: "configured"
   };
   let serverPlan = null;
+  let auth = null;
   if (withUsage) {
     if (account.auth_mode === "apikey") {
       const baseUrl2 = account.api_provider?.base_url;
       if (baseUrl2) {
-        const auth = await readAccountAuth(accountKey);
+        auth = await readAccountAuth(accountKey);
         if (auth?.OPENAI_API_KEY) {
           info2.balance = await fetchRelayBalance(baseUrl2, auth.OPENAI_API_KEY);
         }
@@ -8953,14 +8985,131 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
       serverPlan = result.plan ?? null;
     }
   }
-  if (account.auth_mode !== "apikey") {
+  if (account.auth_mode !== "apikey" || inspectCredentials) {
     info2.plan = serverPlan ?? info2.plan;
-    const auth = await readAccountAuth(accountKey);
+    auth ??= await readAccountAuth(accountKey);
     if (auth?.auth_mode === "chatgpt") {
       info2.plan = serverPlan ?? decodeCodexPlan(auth.tokens) ?? info2.plan;
     }
   }
+  if (inspectCredentials) {
+    const hasCredential = auth?.auth_mode === "apikey" ? Boolean(auth.OPENAI_API_KEY) : auth?.auth_mode === "chatgpt" && Boolean(auth.tokens?.access_token);
+    if (!hasCredential)
+      info2.status = "missing-credential";
+  }
   return info2;
+}
+function isWellFormedJsonAlias(value) {
+  if (!value || typeof value !== "object")
+    return false;
+  const entry = value;
+  if (typeof entry.alias !== "string" || entry.alias.length === 0 || /[\u0000-\u001f\u007f]/.test(entry.alias)) {
+    return false;
+  }
+  if (!entry.target || typeof entry.target !== "object")
+    return false;
+  const target = entry.target;
+  if (target.provider === "claude") {
+    return isSafePathSegment(target.profileName);
+  }
+  if (target.provider === "codex") {
+    return typeof target.accountKey === "string" && target.accountKey.length > 0 && target.accountKey.length <= 1024;
+  }
+  if (target.provider === "opencode") {
+    return typeof target.profileId === "string" && /^go-[0-9a-f-]{36}$/i.test(target.profileId);
+  }
+  return false;
+}
+function isSafePathSegment(value) {
+  return typeof value === "string" && value.length > 0 && value !== "." && value !== ".." && !/[\\/:\u0000]/.test(value);
+}
+var SAFE_PLANS = new Set([
+  "max",
+  "pro",
+  "plus",
+  "team",
+  "business",
+  "enterprise",
+  "edu",
+  "free",
+  "go"
+]);
+function safePlan(plan, authMode) {
+  if (authMode === "api-key" || authMode === "apikey")
+    return null;
+  if (typeof plan !== "string")
+    return null;
+  const normalized = plan.trim().toLowerCase();
+  return SAFE_PLANS.has(normalized) ? normalized : null;
+}
+function safeDefaultModel(model2) {
+  if (typeof model2 !== "string" || model2.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:/+-]*$/.test(model2) || /api[-_]?key|secret|token|credential|bearer|^(?:sk|gh[pousr]|xox[baprs])[-_]/i.test(model2)) {
+    return null;
+  }
+  return model2;
+}
+function safeAuthMode(provider, authMode) {
+  const allowed = {
+    claude: ["oauth", "api-key", "local-cliproxyapi"],
+    codex: ["chatgpt", "apikey"],
+    opencode: ["subscription"]
+  };
+  if (allowed[provider]?.includes(authMode)) {
+    return authMode;
+  }
+  if (authMode === "missing credential")
+    return "missing-credential";
+  if (authMode === "missing profile")
+    return "missing-profile";
+  return "unknown";
+}
+function safePercent(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
+}
+function safeTimestamp(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+function safeMoney(value) {
+  return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= 1e9 ? value : null;
+}
+function toJsonListAccount(info2) {
+  return {
+    alias: info2.alias,
+    provider: info2.provider,
+    authMode: safeAuthMode(info2.provider, info2.authMode),
+    plan: safePlan(info2.plan, info2.authMode),
+    defaultModel: safeDefaultModel(info2.defaultModel),
+    isActive: info2.isActive,
+    status: info2.status,
+    usage: info2.usage ? {
+      fiveHourUsedPercent: safePercent(info2.usage.fiveHourUsedPercent),
+      fiveHourResetsAt: safeTimestamp(info2.usage.fiveHourResetsAt),
+      weeklyUsedPercent: safePercent(info2.usage.weeklyUsedPercent),
+      weeklyResetsAt: safeTimestamp(info2.usage.weeklyResetsAt),
+      monthlyUsedPercent: safePercent(info2.usage.monthlyUsedPercent),
+      monthlyResetsAt: safeTimestamp(info2.usage.monthlyResetsAt)
+    } : null,
+    balance: info2.balance ? {
+      key: info2.balance.key ? {
+        remainingUsd: safeMoney(info2.balance.key.remainingUsd),
+        usedUsd: safeMoney(info2.balance.key.usedUsd),
+        unlimited: info2.balance.key.unlimited === true
+      } : null,
+      account: info2.balance.account ? {
+        remainingUsd: safeMoney(info2.balance.account.remainingUsd),
+        usedUsd: safeMoney(info2.balance.account.usedUsd),
+        unlimited: info2.balance.account.unlimited === true
+      } : null
+    } : null
+  };
+}
+function compareJsonAccounts(left, right) {
+  if (left.provider !== right.provider) {
+    return left.provider < right.provider ? -1 : 1;
+  }
+  if (left.alias === right.alias)
+    return 0;
+  return left.alias < right.alias ? -1 : 1;
 }
 async function persistDisplayedCodexPlans(entries, infos, registry) {
   if (!registry)
@@ -9513,8 +9662,8 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.13.2",
-  description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
+  version: "1.14.0",
+  description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
     "claudex-switch": "./dist/claudex-switch.js"
@@ -9527,7 +9676,8 @@ var package_default = {
     dev: "bun run src/index.ts",
     preinstall: "node ./scripts/guard-package-manager.js",
     test: "bun test",
-    verify: "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
+    "docs:check": "node ./scripts/validate-docs.mjs",
+    verify: "bun run docs:check && bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
     prepublishOnly: "bun run verify"
   },
@@ -9539,7 +9689,7 @@ var package_default = {
   bugs: {
     url: "https://github.com/Holden-Lin/claudex-switch/issues"
   },
-  keywords: ["claude", "codex", "account-switcher", "cli", "bun"],
+  keywords: ["claude-code", "codex-cli", "opencode-go", "account-switcher", "quota-viewer", "cli", "bun", "typescript"],
   license: "MIT",
   engines: {
     bun: ">=1.3.5"
@@ -11816,7 +11966,7 @@ var HELP = `
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
-    claudex-switch list [--no-usage]   List all accounts with remaining quota
+    claudex-switch list [--json] [--no-usage]  List accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
     claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
@@ -11866,7 +12016,7 @@ function isRepoLocalEntrypoint(scriptPath) {
     return false;
   }
 }
-function enforceRepoLocalHomeSafety(command) {
+function enforceRepoLocalHomeSafety(command, machineReadable = false) {
   if (process.env.CLAUDEX_TEST_HOME)
     return;
   if (process.env.CLAUDEX_ALLOW_REAL_HOME === "1")
@@ -11875,12 +12025,32 @@ function enforceRepoLocalHomeSafety(command) {
     return;
   if (isVersionCommand(command) || isHelpCommand(command))
     return;
-  blank();
-  error("Refusing to run repo-local claudex-switch against your real HOME.");
-  hint(`Use ${source_default.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`);
-  hint(`Set ${source_default.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`);
-  blank();
+  if (machineReadable) {
+    console.error("Refusing to run repo-local claudex-switch against your real HOME. Set CLAUDEX_TEST_HOME for an isolated inventory.");
+  } else {
+    blank();
+    error("Refusing to run repo-local claudex-switch against your real HOME.");
+    hint(`Use ${source_default.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`);
+    hint(`Set ${source_default.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`);
+    blank();
+  }
   process.exit(1);
+}
+function parseListOptions(args) {
+  let json = false;
+  let usage = true;
+  for (const arg of args) {
+    if (arg === "--json") {
+      json = true;
+    } else if (arg === "--no-usage") {
+      usage = false;
+    } else {
+      console.error("Unsupported list option. Supported options are --json and --no-usage.");
+      process.exitCode = 2;
+      return null;
+    }
+  }
+  return { json, usage };
 }
 async function interactivePicker() {
   const aliasReg = await loadAliases();
@@ -11925,8 +12095,9 @@ async function interactivePicker() {
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   try {
-    enforceRepoLocalHomeSafety(command);
-    if (args.includes("--autoreview")) {
+    const jsonListCommand = (command === "list" || command === "ls") && args.includes("--json");
+    enforceRepoLocalHomeSafety(command, jsonListCommand);
+    if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
         error("--autoreview can only be used with -run or --run.");
@@ -11968,7 +12139,19 @@ async function main() {
         break;
       case "list":
       case "ls":
-        await list({ usage: !args.includes("--no-usage") });
+        {
+          const options = parseListOptions(args);
+          if (!options)
+            break;
+          try {
+            await list(options);
+          } catch (err) {
+            if (!options.json)
+              throw err;
+            console.error("Unable to produce the requested JSON account inventory.");
+            process.exitCode = 1;
+          }
+        }
         break;
       case "remove":
       case "rm":
