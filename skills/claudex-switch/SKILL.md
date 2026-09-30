@@ -9,7 +9,7 @@ Use this skill for account inventory, switching, quota viewing, or setup guidanc
 
 ## Inspect before choosing
 
-- The JSON command is planned for unreleased 1.14.0; released v1.13.2 builds do not support it. Before using JSON, check `claudex-switch help` for `list --json`; do not use `--version` as a capability check because it can auto-update. Once supported, start existing-account inspection with `claudex-switch list --json --no-usage`. This is the offline inventory path: it reads local profile metadata without fetching quota, refreshing credentials, switching accounts, or syncing the active Codex auth snapshot. See the [JSON output reference](../../docs/list-json.md)
+- The JSON command requires claudex-switch v1.14.0 or later; v1.13.2 does not support it. Before using JSON, check `claudex-switch help` for `list --json`; do not use `--version` as a capability check because it can auto-update. Start existing-account inspection with `claudex-switch list --json --no-usage`. This is the offline inventory path: it reads local profile metadata without fetching quota, refreshing credentials, switching accounts, or syncing the active Codex auth snapshot. See the [JSON output reference](../../docs/list-json.md)
 - Check `schemaVersion` and the controlled account `status` before making a recommendation. `status` is a local profile / credential signal, not quota health; `usage: null` means unavailable or not requested, not zero quota
 - The JSON is allowlisted and omits credential fields and raw endpoints, but aliases are user-chosen and may still identify a person or account
 - Do not read, print, paste, or include raw auth files, API keys, OAuth tokens, relay console tokens, or other credential values in chat, logs, commands, or deliverables

@@ -18,4 +18,4 @@ Unlike Claude's profile-backed `-run`, Codex `-run` calls the regular account sw
 
 The default launch uses `--approve-for-me` (Codex Auto permission mode with the workspace-write sandbox). `--autoreview on|off` separately toggles the Codex Stop multi-agent completion-review hook for that run; neither flag changes account authorization or makes a run fully isolated.
 
-Codex ChatGPT quota may be fetched from the supported Codex rate-limit boundary when `list` is run with usage enabled. `list --no-usage` skips quota requests but the human-readable path may still synchronize the active auth snapshot; the no-write JSON inventory is planned for 1.14.0 and described in the [JSON reference](../list-json.md).
+Codex ChatGPT quota may be fetched from the supported Codex rate-limit boundary when `list` is run with usage enabled. `list --no-usage` skips quota requests but the human-readable path may still synchronize the active auth snapshot; the no-write JSON inventory requires claudex-switch v1.14.0 or later; v1.13.2 does not support `--json`. See the [JSON reference](../list-json.md).

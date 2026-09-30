@@ -15,7 +15,7 @@ claudex-switch is a local CLI account switcher and quota viewer for authorized C
 
 ## Before acting
 
-The offline JSON inventory command `claudex-switch list --json --no-usage` is planned for the unreleased 1.14.0 change; released v1.13.2 builds do not support `--json`. When available, it reads local profiles but does not switch accounts, fetch quota, refresh credentials, or sync the active Codex auth snapshot. Its allowlisted output omits email fields, credentials, raw endpoints, and provider error text; alias values are user-chosen and may identify an account. See the [JSON output reference](./list-json.md) before building automation around it.
+`claudex-switch list --json --no-usage` requires claudex-switch v1.14.0 or later; v1.13.2 does not support `--json`. This mode reads local profiles but does not switch accounts, fetch quota, refresh credentials, or sync the active Codex auth snapshot. Its allowlisted output omits email fields, credentials, raw endpoints, and provider error text; alias values are user-chosen and may identify an account. See the [JSON output reference](./list-json.md) before building automation around it.
 
 The ordinary `claudex-switch list` requests provider usage where available. It can refresh OAuth credentials and persist account data. `list --no-usage` skips quota requests, but a human-readable Codex listing may still synchronize an active auth snapshot; use JSON `--no-usage` when you specifically need the no-network, no-write inventory path after installing a version that supports it.
 

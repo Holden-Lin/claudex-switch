@@ -1,6 +1,6 @@
 # claudex-switch discoverability and launch plan
 
-**Status: planning draft only.** This branch contains changes planned for unreleased 1.14.0; the released v1.13.2 CLI does not support the JSON inventory yet. This file does not publish or change GitHub metadata, post to communities, create a website, or assert that a search system has indexed or cited the project. Check each site's current posting / promotion rules before any external post. No AEO results or initial observations have been collected; all measures below are unknown until tested.
+**Status: release-preparation draft.** This branch contains the v1.14.0 implementation; JSON inventory requires claudex-switch v1.14.0 or later, while v1.13.2 does not support it. This file does not publish or change GitHub metadata, post to communities, create a website, or assert that a search system has indexed or cited the project. Check each site's current posting / promotion rules before any external post. A limited seven-query web-tool retrieval baseline was collected on 2026-09-30 at 10:14 UTC: the project surfaced in 3 of 6 non-brand queries, and the branded control also found it. This is retrieval evidence only, not a rank or recommendation measure; consumer-assistant recommendation evaluation is unmeasured, and other surfaces remain untested. The detailed record is private and is not linked from this public plan.
 
 中文摘要：本计划是草案，不代表已修改 GitHub 元数据、提交社区帖子或完成搜索 / AI 答案可见性测试。目标是准确描述功能，再用可重复的查询和日志衡量发现效果；不承诺进入模型训练数据、被引用或成为默认推荐。
 
@@ -40,9 +40,10 @@ These are discovery labels to review, not claims about endorsement or support be
 
 ### Days 15–21: selective launch, only where allowed
 
-- Candidate venues are the GitHub release / repository, Show HN, relevant Claude Code / Codex / OpenCode communities, and developer-written tutorial channels
+- Candidate venues are the GitHub release / repository, Hacker News, relevant Claude Code / Codex / OpenCode communities, and developer-written tutorial channels
 - For every venue, check the current rules, account age / disclosure expectations, self-promotion limits, and whether a standalone tool post is welcome on posting day
 - Prefer one transparent launch post with a clear project link and provider caveats; do not solicit votes, fake usage, or have agents impersonate users
+- Hacker News requires the project owner to write and submit any HN post personally. Its current guidelines prohibit generated post text, automated posting, and generated or AI-edited comments; this plan includes no HN copy. Follow the [Hacker News guidelines](https://news.ycombinator.com/newsguidelines.html)
 - If no appropriate venue exists, publish only through the project-owned README / release channels and record the reason
 
 ### Days 22–30: review evidence and choose a next step
@@ -71,14 +72,6 @@ These drafts are for review and should not be posted until 1.14.0's JSON command
 ### GitHub release / repository blurb
 
 > claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It uses aliases for local provider profiles and can launch the corresponding CLI. Claude `-run` isolates profile credentials while sharing settings/hooks/history; Codex switches global auth/config; OpenCode Go credentials are selected per launch while `/resume` history is shared. It does not bypass provider login or quota. See the guides and offline `list --json --no-usage` inventory in the README.
-
-### Show HN draft
-
-**Title:** Show HN: claudex-switch – local account aliases for Claude Code, Codex, and OpenCode Go
-
-**Body:** I built claudex-switch to make switching among authorized local Claude Code, Codex, and OpenCode Go profiles less error-prone. It has aliases, provider-reported quota visibility, and an offline JSON account inventory. The isolation details differ: Claude `-run` separates profile auth but shares settings and history, Codex switches global auth/config, and OpenCode Go accounts share `/resume` history. It is unofficial and does not bypass provider limits. I’d value feedback on whether the tradeoffs and setup are clear.
-
-Before submitting to Hacker News, re-read the [Show HN guidelines](https://news.ycombinator.com/showhn.html); the draft is not a request for votes and should be posted only if the current guidelines fit.
 
 ### 中文开发者社区草稿
 
@@ -148,7 +141,7 @@ Do not combine brand mention, citation, fit accuracy, skill activation, and CLI 
 - [Google's generative AI Search guidance](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide) treats foundational SEO and helpful content as relevant, rejects `llms.txt` as a Google Search visibility tactic, and recommends measuring through Search Console.
 - [Google Search Generative AI performance report announcement](https://developers.google.com/search/blog/2026/06/gen-ai-performance-reports) describes a Search Console report for eligible sites; use it only if the owner controls a verified Search Console property and the report is available.
 - [GitHub repository traffic](https://docs.github.com/en/repositories/viewing-activity-and-data-for-your-repository/viewing-traffic-to-a-repository) gives maintainers with push access visitors, full clones, referrers, and popular content over the past 14 days; its short window is not a long-term baseline.
-- [Show HN guidelines](https://news.ycombinator.com/showhn.html) should be checked before submission. No solicited votes or manufactured engagement.
+- [Hacker News guidelines](https://news.ycombinator.com/newsguidelines.html) require the submitter to write HN post text themselves, prohibit generated text and automated posting, and prohibit generated or AI-edited comments. No HN copy is drafted here.
 
 ## Local content QA
 

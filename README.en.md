@@ -5,11 +5,11 @@
 claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It selects provider-specific local profiles and credentials by alias, then can launch the corresponding CLI; it does not create provider accounts or bypass quota limits.
 
 ```bash
-# Offline JSON inventory is planned for 1.14.0; run only if help shows --json
+# JSON inventory requires claudex-switch v1.14.0 or later; v1.13.2 does not support it
 if claudex-switch help 2>&1 | grep -q -- '--json'; then
   claudex-switch list --json --no-usage
 else
-  printf '%s\n' 'This installed version does not support list --json yet' >&2
+  printf '%s\n' 'This installed version does not support list --json' >&2
 fi
 # Replace work with an existing alias; selecting an account updates local provider state
 claudex-switch work

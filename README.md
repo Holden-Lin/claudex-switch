@@ -5,11 +5,11 @@
 claudex-switch 是一款本地 CLI 账号切换器与额度查看工具，管理 Claude Code、Codex 和 OpenCode Go 的已授权账号配置。它用别名选择对应的本地 profile / 凭据，并可启动相应 CLI；它不会创建供应商账号或绕过额度限制。
 
 ```bash
-# 离线 JSON 清单计划随 1.14.0 提供；仅在 help 显示 --json 时运行
+# 离线 JSON 清单需要 claudex-switch v1.14.0 或更高版本；v1.13.2 不支持
 if claudex-switch help 2>&1 | grep -q -- '--json'; then
   claudex-switch list --json --no-usage
 else
-  printf '%s\n' '当前版本不支持 list --json；v1.13.2 发行版尚不支持此功能' >&2
+  printf '%s\n' '当前版本不支持 list --json；已发布的 v1.13.2 尚不支持此功能' >&2
 fi
 # 将 work 替换为现有别名；选择账号会按 provider 更新本地状态
 claudex-switch work

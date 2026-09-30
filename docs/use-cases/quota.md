@@ -1,6 +1,6 @@
 # Check provider quota and relay balances
 
-中文摘要：`list` 展示服务端支持的额度或中转站余额；人类可读的 `--no-usage` 跳过网络请求，但可能同步本地 Codex 快照。计划于 1.14.0 提供的 JSON `--no-usage` 才是无额度网络请求且不写本地账号状态的清单模式。额度仍由服务商决定。
+中文摘要：`list` 展示服务端支持的额度或中转站余额；人类可读的 `--no-usage` 跳过网络请求，但可能同步本地 Codex 快照。JSON `--no-usage` 清单需要 claudex-switch v1.14.0 或更高版本；v1.13.2 不支持 `--json`。额度仍由服务商决定。
 
 `claudex-switch list` is an account inventory plus optional live usage check. What it can display depends on account type and provider response:
 
@@ -10,7 +10,7 @@
 - Claude / Codex API keys: supported relay billing endpoints can show key-level balance; configured one-api / new-api-family consoles can additionally show account-wallet balance. This billing support is separate from inference API compatibility: Claude endpoints must speak Anthropic-compatible API, while custom Codex providers speak OpenAI-compatible API
 - Managed local CLIProxyAPI: local process/config status only; no account quota is inferred from a running proxy
 
-For local automation inventory without usage requests, the new JSON mode is planned for 1.14.0; the released v1.13.2 CLI does not support `--json` yet. After installing a version that includes it, use:
+For local automation inventory without usage requests, use the JSON mode in claudex-switch v1.14.0 or later; v1.13.2 does not support `--json`:
 
 ```sh
 claudex-switch list --json --no-usage

@@ -1,6 +1,6 @@
 # `claudex-switch list --json` reference
 
-**Release status:** the JSON output is planned for 1.14.0 and is not available in the released v1.13.2 CLI. Check `claudex-switch help` for `list --json` support before relying on this interface; `claudex-switch --version` may trigger an automatic update.
+**Version requirement:** use claudex-switch v1.14.0 or later for this JSON output; v1.13.2 does not support `--json`. Check `claudex-switch help` for `list --json` support before relying on this interface; `claudex-switch --version` may trigger an automatic update.
 
 Use JSON output when a script needs structured account inventory. For an offline local read with no quota requests or local account writes, use:
 

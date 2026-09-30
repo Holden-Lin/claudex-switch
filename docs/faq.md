@@ -32,7 +32,7 @@ When switching between providers managed by claudex-switch, it can update the Co
 
 The human-readable `claudex-switch list` fetches provider usage where supported: Claude OAuth and Codex ChatGPT windows, OpenCode Go rolling / weekly / monthly windows, and supported relay key / account balances. Requests can fail or return unavailable data; `null` or an unavailable note is not a zero quota. Some usage checks can refresh and persist OAuth credentials or provider account metadata.
 
-The versioned offline inventory command `claudex-switch list --json --no-usage` is planned for 1.14.0; the released v1.13.2 CLI does not yet accept `--json`. Once available, it returns allowlisted metadata without quota requests, credential refresh, account switching, or Codex active-snapshot synchronization. Credential fields and raw endpoints are omitted, but alias strings are user-chosen and may identify an account. Local account files (and relevant Keychain-backed profile metadata) may still be read. See the [JSON output reference](./list-json.md); do not parse human-readable terminal formatting as an API.
+The versioned offline inventory command `claudex-switch list --json --no-usage` requires v1.14.0 or later; v1.13.2 does not accept `--json`. It returns allowlisted metadata without quota requests, credential refresh, account switching, or Codex active-snapshot synchronization. Credential fields and raw endpoints are omitted, but alias strings are user-chosen and may identify an account. Local account files (and relevant Keychain-backed profile metadata) may still be read. See the [JSON output reference](./list-json.md); do not parse human-readable terminal formatting as an API.
 
 ## Can I use an OpenAI-compatible relay?
 
