@@ -7859,7 +7859,7 @@ var CODEX_MODEL_ALIASES = {
 };
 var CODEX_NAMED_ALIASES = {
   astra: "gpt-6-astra",
-  sol: "gpt-6-sol",
+  sol: "gpt-6.1-sol",
   terra: "gpt-5.6-terra",
   luna: "gpt-6-luna"
 };
@@ -9513,7 +9513,7 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.13.1",
+  version: "1.13.2",
   description: "Switch between Claude Code, Codex, and OpenCode accounts with ease",
   type: "module",
   bin: {

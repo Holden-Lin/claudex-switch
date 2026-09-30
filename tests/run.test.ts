@@ -622,7 +622,7 @@ describe("run alias session", () => {
     ]);
   });
 
-  test("expands a Codex --model shorthand into a gpt model id", async () => {
+  test("expands Codex sol and persists it for the next run", async () => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -650,17 +650,23 @@ describe("run alias session", () => {
     const calls: SpawnCall[] = [];
     await runAliasSession(
       "cx",
-      ["--model", "5.5", "--continue"],
+      ["--model", "sol", "--continue"],
       createSpawn(calls),
     );
 
     expect(calls[0]?.args).toEqual([
       "--approve-for-me",
       "--model",
-      "gpt-5.5",
+      "gpt-6.1-sol",
       "--continue",
     ]);
-    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-5.5");
+    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-6.1-sol");
+
+    await runAliasSession("cx", [], createSpawn(calls));
+    expect(calls[1]?.args).toEqual(["--approve-for-me"]);
+    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toContain(
+      'model = "gpt-6.1-sol"',
+    );
   });
 
   test("overrides Codex autoreview only in the launched session", async () => {

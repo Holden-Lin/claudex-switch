@@ -130,7 +130,7 @@ describe("model command", () => {
     });
   });
 
-  test("updates an active Codex API key account default model", async () => {
+  test("updates an active Codex API key account default model using sol", async () => {
     const accountKey = "apikey::custom";
     const aliases: AliasRegistry = {
       version: 1,
@@ -186,14 +186,14 @@ describe("model command", () => {
       OPENAI_API_KEY: "sk-test",
     });
 
-    await model("custom-cx", "gpt-4.1");
+    await model("custom-cx", "sol");
 
     const savedRegistry = await loadRegistry();
-    expect(savedRegistry.accounts[0]?.default_model).toBe("gpt-4.1");
+    expect(savedRegistry.accounts[0]?.default_model).toBe("gpt-6.1-sol");
 
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(config).toContain('model_provider = "admin"');
-    expect(config).toContain('model = "gpt-4.1"');
+    expect(config).toContain('model = "gpt-6.1-sol"');
     expect(config).toContain('experimental_bearer_token = "sk-test"');
   });
 });

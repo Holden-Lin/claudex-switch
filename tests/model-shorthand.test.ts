@@ -68,12 +68,13 @@ describe("resolveModelShorthand", () => {
 
   test("named codex aliases track the newest generation of each tier", () => {
     expect(resolveModelShorthand("codex", "astra")).toBe("gpt-6-astra");
-    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6-sol");
-    expect(resolveModelShorthand("codex", "Sol")).toBe("gpt-6-sol");
+    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6.1-sol");
+    expect(resolveModelShorthand("codex", "Sol")).toBe("gpt-6.1-sol");
     expect(resolveModelShorthand("codex", "luna")).toBe("gpt-6-luna");
     // GPT-6 shipped without a Terra tier.
     expect(resolveModelShorthand("codex", "terra")).toBe("gpt-5.6-terra");
     expect(resolveModelShorthand("codex", "gpt-6-sol")).toBe("gpt-6-sol");
+    expect(resolveModelShorthand("codex", "gpt-6.1-sol")).toBe("gpt-6.1-sol");
   });
 
   test("honors an explicitly typed gpt id verbatim", () => {

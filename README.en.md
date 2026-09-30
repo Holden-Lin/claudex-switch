@@ -9,7 +9,7 @@ A unified CLI tool for managing Claude Code, Codex, and OpenCode Go accounts. Su
 - Manage Claude Code, Codex, and OpenCode Go accounts in one place
 - Custom aliases for every account — `claudex-switch <alias>` to switch instantly
 - `claudex-switch <alias> -run` switches accounts and starts a session; Claude Code defaults to `--permission-mode auto`, Codex defaults to `--approve-for-me` (Auto-review with the workspace-write sandbox), and OpenCode defaults to `--auto`
-- `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus (e.g. `5.5` → `claude-opus-5-5`), with series forms such as `sonnet5` and `fable5.1`, and a bare `fable` means the latest Fable (`claude-fable-5-1`); Codex supports `astra` / `sol` / `luna` for the three GPT-6 models, `terra` for `gpt-5.6-terra` (GPT-6 has no Terra), and `6` for `gpt-6-astra`; older GPT-5.6 models stay reachable by full id such as `gpt-5.6-sol`. A trailing effort tier applies only to the current run; Codex also supports `ultra` (proactive multi-agent behavior with faster quota consumption)
+- `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus (e.g. `5.5` → `claude-opus-5-5`), with series forms such as `sonnet5` and `fable5.1`, and a bare `fable` means the latest Fable (`claude-fable-5-1`); Codex supports `astra` / `sol` / `luna` for `gpt-6-astra` / `gpt-6.1-sol` / `gpt-6-luna` respectively, `terra` for `gpt-5.6-terra` (GPT-6 has no Terra), and `6` for `gpt-6-astra`; older GPT-5.6 models stay reachable by full id such as `gpt-5.6-sol`. A trailing effort tier applies only to the current run; Codex also supports `ultra` (proactive multi-agent behavior with faster quota consumption)
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
 - Codex `-run` defaults to `--approve-for-me` (Auto permission mode); `--autoreview on|off` independently controls the Codex Stop multi-agent review hook without changing the permission mode
@@ -97,7 +97,7 @@ claudex-switch holden -run
 
 # Select the model and save it as this account's default for the next run
 # Claude: bare versions → Opus (5.5 → claude-opus-5-5); series forms include sonnet5 and fable5.1; fable → latest Fable
-# Codex: astra / sol / luna → the three GPT-6 models; terra → gpt-5.6-terra; 6 → gpt-6-astra
+# Codex: astra → gpt-6-astra; sol → gpt-6.1-sol; luna → gpt-6-luna; terra → gpt-5.6-terra; 6 → gpt-6-astra
 claudex-switch holden -run --model 5.5
 claudex-switch holden -run --model fable5.1
 claudex-switch cx -run --model terra

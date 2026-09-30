@@ -39,7 +39,7 @@ const CODEX_MODEL_ALIASES: Record<string, string> = {
 // Terra, so terra stays on 5.6; older ids remain reachable verbatim.
 const CODEX_NAMED_ALIASES: Record<string, string> = {
   astra: "gpt-6-astra",
-  sol: "gpt-6-sol",
+  sol: "gpt-6.1-sol",
   terra: "gpt-5.6-terra",
   luna: "gpt-6-luna",
 };

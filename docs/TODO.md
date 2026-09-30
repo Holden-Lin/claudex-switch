@@ -12,6 +12,7 @@
 
 ## Done
 
+- [x] 2026-09-30：Codex `sol` 默认指向 `gpt-6.1-sol`；版本升至 `1.13.2`。221 项测试、类型检查、构建及隔离 HOME 下打包 CLI 的模型保存、启动和下次默认读取验证通过。
 - [x] 2026-09-29：Codex `-run` 默认使用 `--approve-for-me`（workspace-write sandbox + Auto-review），不再默认 Full Access；`--autoreview` hook 仍独立；版本升至 `1.13.1`。221 项测试、786 断言、类型检查、构建与 CLI 帮助验证通过。
 - [x] 2026-09-25：Codex `-run` 增 `--autoreview on/off`，仅控制本次子进程；版本升至 `1.13.0`。221 项测试、类型检查、构建、发布守卫及临时 HOME / 假 Codex / Stop hook 联测通过。
 - [x] 2026-09-23：本机 CLIProxyAPI 的 haiku 默认映射升为 `gpt-6-luna`，旧账号自动沿用；CLIProxyAPI 升至 7.3.15，真实 `doctor --live` 通过；版本升至 `1.12.4`。
