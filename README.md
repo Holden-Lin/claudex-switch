@@ -2,7 +2,28 @@
 
 **语言 / Languages:** [中文](./README.md) | [English](./README.en.md)
 
-一个统一管理 Claude Code、Codex 和 OpenCode Go 账号的 CLI 工具。支持别名切换、额度查看，适合在多个订阅账号、团队账号、API Key 之间频繁切换。
+claudex-switch 是一款本地 CLI 账号切换器与额度查看工具，管理 Claude Code、Codex 和 OpenCode Go 的已授权账号配置。它用别名选择对应的本地 profile / 凭据，并可启动相应 CLI；它不会创建供应商账号或绕过额度限制。
+
+```bash
+# 离线 JSON 清单计划随 1.14.0 提供；仅在 help 显示 --json 时运行
+if claudex-switch help 2>&1 | grep -q -- '--json'; then
+  claudex-switch list --json --no-usage
+else
+  printf '%s\n' '当前版本不支持 list --json；v1.13.2 发行版尚不支持此功能' >&2
+fi
+# 将 work 替换为现有别名；选择账号会按 provider 更新本地状态
+claudex-switch work
+# 启动对应 CLI；隔离边界因 provider 而异
+claudex-switch work -run
+```
+
+见[JSON 输出参考](./docs/list-json.md)、[使用场景](./docs/use-cases.md)、[常见问题](./docs/faq.md)与[本地 Codex skill 指南](./skills/claudex-switch/SKILL.md)。该 skill 文件只是仓库内的指南，不会因提交仓库而自动安装或被使用者的 agent 自动发现；需由使用者选择性安装到其 agent 支持的本地 skill 目录。
+
+## 适合谁使用
+
+- **适合**：你在本机维护多个自己有权使用的 Claude Code、Codex 或 OpenCode Go 账号，希望用别名切换、查看服务端剩余额度，或按账号启动 CLI
+- **不适合**：你需要跨账号完全隔离的工作区 / 设置 / 历史记录、集中管理团队凭据，或想绕过服务商的登录、使用条款或额度限制
+- **重要区别**：Claude `-run` 为该次会话隔离账号凭据，但设置、hooks 和历史仍共享；Codex `-run` 会先切换全局 Codex 认证 / 配置；OpenCode Go 按启动选择凭据，但不同账号共用 `/resume` 历史
 
 ## 特点
 
@@ -14,7 +35,7 @@
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
 - Codex `-run` 默认使用 `--approve-for-me`（Auto 权限模式）；`--autoreview on|off` 独立控制 Codex Stop 多代理评审 hook，不改 permission mode
 - `claudex-switch list` 并行拉取并显示所有账号的剩余额度，同时以服务端额度响应更新 Codex 订阅等级、以最新匹配凭据更新 Claude 等级：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。加 `--no-usage` 可跳过网络请求，但仍会从本地凭据更新等级
-- 薄别名层架构，不破坏原有工具数据（`~/.claude-profiles/` 和 `~/.codex/accounts/`）
+- 用薄别名层引用 provider 专属账号档案；切换会按 provider 同步当前认证 / 配置，历史会话可见性元数据也可能更新，详见下文注意事项
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
@@ -44,10 +65,10 @@ claudex-switch update
 
 ```bash
 # 安装指定版本 tag
-VERSION=1.0.0 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | VERSION=1.0.0 bash
 
 # 安装指定分支 / commit / tag
-INSTALL_REF=main curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | INSTALL_REF=main bash
 ```
 
 ### 方式二：Bun 全局安装
@@ -362,7 +383,7 @@ claudex-switch 采用「薄别名层」架构：
   (Claude 原生存储)      (Codex 原生存储)
 ```
 
-日常切换和别名管理只操作这层映射关系，不复制或转换底层账号数据。只有显式执行 `claudex-switch purge <alias>` 时，才会删除底层账号数据。
+创建、重命名和移除别名只操作这层映射关系。账号切换会按下文说明写入 provider 的当前认证 / 配置；Codex 切换也可能更新会话 provider 可见性元数据。`remove` 只移除别名；`purge` 会删除关联账号档案及其别名。
 
 ### Claude 账号切换
 
@@ -382,7 +403,7 @@ claudex-switch 采用「薄别名层」架构：
 ### Codex 账号切换
 
 - 将对应的 `<key>.auth.json` 复制到 `~/.codex/auth.json`
-- Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`；自定义供应商会写入当前账号的 bearer token，确保切换后直接运行 `codex` 也能使用该账号
+- Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`；自定义供应商会把当前 bearer token 写入 `experimental_bearer_token`（文件权限设为 `0600`），确保切换后直接运行 `codex` 也能使用该账号。请将配置文件视为敏感凭据，不要分享或提交
 - 更新 `registry.json` 中的 `active_account_key`
 
 ## 兼容性

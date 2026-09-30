@@ -1,7 +1,7 @@
 {
   "name": "claudex-switch",
-  "version": "1.13.2",
-  "description": "Switch between Claude Code, Codex, and OpenCode accounts with ease",
+  "version": "1.14.0",
+  "description": "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   "type": "module",
   "bin": {
     "claudex-switch": "./dist/claudex-switch.js"
@@ -14,7 +14,8 @@
     "dev": "bun run src/index.ts",
     "preinstall": "node ./scripts/guard-package-manager.js",
     "test": "bun test",
-    "verify": "bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
+    "docs:check": "node ./scripts/validate-docs.mjs",
+    "verify": "bun run docs:check && bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
     "prepublishOnly": "bun run verify"
   },
@@ -26,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/Holden-Lin/claudex-switch/issues"
   },
-  "keywords": ["claude", "codex", "account-switcher", "cli", "bun"],
+  "keywords": ["claude-code", "codex-cli", "opencode-go", "account-switcher", "quota-viewer", "cli", "bun", "typescript"],
   "license": "MIT",
   "engines": {
     "bun": ">=1.3.5"

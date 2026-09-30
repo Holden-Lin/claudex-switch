@@ -11,7 +11,7 @@ import { readOpenCodeState } from "./providers/opencode/profiles";
 import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { isRunFlag, runAliasSession } from "./commands/run";
-import { list } from "./commands/list";
+import { list, type ListOptions } from "./commands/list";
 import { remove } from "./commands/remove";
 import { rename } from "./commands/rename";
 import { purge } from "./commands/purge";
@@ -35,7 +35,7 @@ const HELP = `
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
-    claudex-switch list [--no-usage]   List all accounts with remaining quota
+    claudex-switch list [--json] [--no-usage]  List accounts with remaining quota
     claudex-switch rename <from> <to>  Rename an alias
     claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
@@ -96,22 +96,50 @@ function isRepoLocalEntrypoint(scriptPath?: string): boolean {
   }
 }
 
-function enforceRepoLocalHomeSafety(command?: string): void {
+function enforceRepoLocalHomeSafety(
+  command?: string,
+  machineReadable = false,
+): void {
   if (process.env.CLAUDEX_TEST_HOME) return;
   if (process.env.CLAUDEX_ALLOW_REAL_HOME === "1") return;
   if (!isRepoLocalEntrypoint(process.argv[1])) return;
   if (isVersionCommand(command) || isHelpCommand(command)) return;
 
-  blank();
-  error("Refusing to run repo-local claudex-switch against your real HOME.");
-  hint(
-    `Use ${chalk.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`,
-  );
-  hint(
-    `Set ${chalk.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`,
-  );
-  blank();
+  if (machineReadable) {
+    console.error(
+      "Refusing to run repo-local claudex-switch against your real HOME. Set CLAUDEX_TEST_HOME for an isolated inventory.",
+    );
+  } else {
+    blank();
+    error("Refusing to run repo-local claudex-switch against your real HOME.");
+    hint(
+      `Use ${chalk.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`,
+    );
+    hint(
+      `Set ${chalk.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`,
+    );
+    blank();
+  }
   process.exit(1);
+}
+
+function parseListOptions(args: string[]): ListOptions | null {
+  let json = false;
+  let usage = true;
+  for (const arg of args) {
+    if (arg === "--json") {
+      json = true;
+    } else if (arg === "--no-usage") {
+      usage = false;
+    } else {
+      console.error(
+        "Unsupported list option. Supported options are --json and --no-usage.",
+      );
+      process.exitCode = 2;
+      return null;
+    }
+  }
+  return { json, usage };
 }
 
 async function interactivePicker(): Promise<void> {
@@ -179,9 +207,11 @@ async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
 
   try {
-    enforceRepoLocalHomeSafety(command);
+    const jsonListCommand =
+      (command === "list" || command === "ls") && args.includes("--json");
+    enforceRepoLocalHomeSafety(command, jsonListCommand);
 
-    if (args.includes("--autoreview")) {
+    if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
         error("--autoreview can only be used with -run or --run.");
@@ -232,7 +262,17 @@ async function main(): Promise<void> {
 
       case "list":
       case "ls":
-        await list({ usage: !args.includes("--no-usage") });
+        {
+          const options = parseListOptions(args);
+          if (!options) break;
+          try {
+            await list(options);
+          } catch (err) {
+            if (!options.json) throw err;
+            console.error("Unable to produce the requested JSON account inventory.");
+            process.exitCode = 1;
+          }
+        }
         break;
 
       case "remove":
