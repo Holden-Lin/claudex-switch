@@ -2,7 +2,7 @@
 
 ## Now
 
-本需求暂无待实施代码项。发布流程与产物见 [v1.12.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.12.0)。
+本需求暂无待实施代码项。本次发布目标为 [v1.14.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.14.0)。
 
 ## Next
 
@@ -12,6 +12,7 @@
 
 ## Done
 
+- [x] 2026-09-30：完成 v1.14.0 发布前验证：230 项测试、855 断言、类型检查、文档检查、构建及隔离 HOME 下打包 CLI 的离线 JSON 输出通过；通过 tag workflow 发布四个平台安装包及 Homebrew 配方。
 - [x] 2026-09-30：Codex `sol` 默认指向 `gpt-6.1-sol`；版本升至 `1.13.2`。221 项测试、类型检查、构建及隔离 HOME 下打包 CLI 的模型保存、启动和下次默认读取验证通过。
 - [x] 2026-09-29：Codex `-run` 默认使用 `--approve-for-me`（workspace-write sandbox + Auto-review），不再默认 Full Access；`--autoreview` hook 仍独立；版本升至 `1.13.1`。221 项测试、786 断言、类型检查、构建与 CLI 帮助验证通过。
 - [x] 2026-09-25：Codex `-run` 增 `--autoreview on/off`，仅控制本次子进程；版本升至 `1.13.0`。221 项测试、类型检查、构建、发布守卫及临时 HOME / 假 Codex / Stop hook 联测通过。
