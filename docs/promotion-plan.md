@@ -1,6 +1,6 @@
 # claudex-switch discoverability and launch plan
 
-**Status: release-preparation draft.** This branch contains the v1.14.0 implementation; JSON inventory requires claudex-switch v1.14.0 or later, while v1.13.2 does not support it. This file does not publish or change GitHub metadata, post to communities, create a website, or assert that a search system has indexed or cited the project. Check each site's current posting / promotion rules before any external post. A limited seven-query web-tool retrieval baseline was collected on 2026-09-30 at 10:14 UTC: the project surfaced in 3 of 6 non-brand queries, and the branded control also found it. This is retrieval evidence only, not a rank or recommendation measure; consumer-assistant recommendation evaluation is unmeasured, and other surfaces remain untested. The detailed record is private and is not linked from this public plan.
+**Status: proposed v1.15.0 release-preparation draft.** This local draft carries the v1.14.0 feature set and proposes the licensing transition described below; it is not yet a published release. JSON inventory requires claudex-switch v1.14.0 or later, while v1.13.2 does not support it. This file does not publish or change GitHub metadata, post to communities, create a website, or assert that a search system has indexed or cited the project. Check each site's current posting / promotion rules before any external post. A limited seven-query web-tool retrieval baseline was collected on 2026-09-30 at 10:14 UTC: the project surfaced in 3 of 6 non-brand queries, and the branded control also found it. This is retrieval evidence only, not a rank or recommendation measure; consumer-assistant recommendation evaluation is unmeasured, and other surfaces remain untested. The detailed record is private and is not linked from this public plan.
 
 中文摘要：本计划是草案，不代表已修改 GitHub 元数据、提交社区帖子或完成搜索 / AI 答案可见性测试。目标是准确描述功能，再用可重复的查询和日志衡量发现效果；不承诺进入模型训练数据、被引用或成为默认推荐。
 
@@ -14,12 +14,18 @@
 
 Avoid positioning as a universal identity manager, complete sandbox, quota optimizer, or official Anthropic / OpenAI / OpenCode integration. Describe quota as provider-reported visibility only.
 
+## License positioning
+
+Describe the project as source-available under the MIT License subject to the Commons Clause License Condition v1.0, not as OSI open source. Company/internal use and ordinary freelance work using the tool to produce or perform something else are permitted subject to the license. Do not describe the restriction as a ban on all commercial integration: separate written permission is required before offering a third-party product or service for a fee or other consideration when its value derives entirely or substantially from claudex-switch functionality, including related hosting or consulting/support. A larger product with genuinely independent value may remain permitted under the exact clause. Link to [`LICENSE`](../LICENSE) and [`COMMERCIAL-LICENSING.md`](../COMMERCIAL-LICENSING.md); the combined license text controls. The plan does not itself grant permission.
+
+The transition is prospective. Public v1.14.0 keeps its prior MIT declaration and historical metadata; this change cannot retroactively revoke any rights that release may have granted, including to future recipients of that old release. Do not rewrite or retag past releases. Preserve third-party notices and separate rights.
+
 ## Proposed GitHub About fields — draft, not applied
 
 - **Description:** `Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go`
 - **Topics:** `claude-code`, `codex-cli`, `opencode-go`, `account-switcher`, `cli`, `bun`, `typescript`, `quota-viewer`
 
-These are discovery labels to review, not claims about endorsement or support beyond the README. Don't change the repository's license without owner verification; this plan makes no license change.
+These are discovery labels to review, not claims about endorsement or support beyond the README. The current licensing preparation is separately owner-authorized; it makes the project source-available under MIT subject to Commons Clause v1.0, not OSI open source. Do not present the plan as an authorization to commercialize the tool; see the root `LICENSE` and `COMMERCIAL-LICENSING.md`.
 
 ## Staged 30-day plan
 
@@ -67,15 +73,15 @@ No `llms.txt` is proposed as a ranking tactic. Google's current Search guidance 
 
 ## Draft launch copy — not posted
 
-These drafts are for review and should not be posted until 1.14.0's JSON command is actually released.
+These drafts are for review and should not be posted until the proposed v1.15.0 licensing transition is approved for publication and its new release is actually published.
 
 ### GitHub release / repository blurb
 
-> claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It uses aliases for local provider profiles and can launch the corresponding CLI. Claude `-run` isolates profile credentials while sharing settings/hooks/history; Codex switches global auth/config; OpenCode Go credentials are selected per launch while `/resume` history is shared. It does not bypass provider login or quota. See the guides and offline `list --json --no-usage` inventory in the README.
+> claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It uses aliases for local provider profiles and can launch the corresponding CLI. Claude `-run` isolates profile credentials while sharing settings/hooks/history; Codex switches global auth/config; OpenCode Go credentials are selected per launch while `/resume` history is shared. It does not bypass provider login or quota. The project is source-available under MIT subject to Commons Clause v1.0 (not OSI open source): ordinary work use is permitted, but providing a paid third-party product or service whose value derives entirely or substantially from the tool requires separate written permission, including related hosting or consulting/support. Genuinely value-added products may remain permitted under the exact clause. See `LICENSE` and `COMMERCIAL-LICENSING.md`.
 
 ### 中文开发者社区草稿
 
-> 我做了 claudex-switch：在本机用别名管理已授权的 Claude Code、Codex 和 OpenCode Go 账号，可查看服务端额度，并提供离线 JSON 账号清单。各工具隔离边界不同：Claude `-run` 隔离 profile 凭据但共享设置 / hooks / 历史；Codex 会更新全局 auth/config；OpenCode Go 按启动选凭据但共享 `/resume` 历史。它不是官方产品，也不绕过登录或额度限制。欢迎指出文档中不清楚或不准确的地方。
+> 我做了 claudex-switch：在本机用别名管理已授权的 Claude Code、Codex 和 OpenCode Go 账号，可查看服务端额度，并提供离线 JSON 账号清单。各工具隔离边界不同：Claude `-run` 隔离 profile 凭据但共享设置 / hooks / 历史；Codex 会更新全局 auth/config；OpenCode Go 按启动选凭据但共享 `/resume` 历史。它不是官方产品，也不绕过登录或额度限制。项目采用 source-available 许可：MIT 附加 Commons Clause v1.0（非 OSI 开源）；可按条款用于公司内部和普通接单工作。未经单独书面许可，不得向第三方收费提供价值全部或实质上来自该工具功能的产品或服务，包括相关托管或咨询 / 支持；这不等于禁止所有商业集成，具有独立增值的大型产品仍可能允许。详见 `LICENSE` 和 `COMMERCIAL-LICENSING.md`。
 
 Post this only in a venue whose current rules allow relevant project announcements; include affiliation disclosure if required.
 

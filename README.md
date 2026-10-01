@@ -40,7 +40,7 @@ claudex-switch work -run
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
-- OpenCode Go 支持订阅凭据按别名隔离、会话历史全局共享，`list` 显示服务端 5 小时 / 周 / 月额度；`-run` 直接打开本机 OpenCode TUI，不覆盖全局 `~/.local/share/opencode/auth.json`
+- OpenCode Go 支持按别名选择订阅凭据、共享会话历史；`list` 显示服务端 5 小时 / 周 / 月额度，`-run` 打开本机 OpenCode TUI
 - macOS Keychain 凭证兼容
 
 ## 安装
@@ -188,6 +188,8 @@ claudex-switch add work
 
 ### 在 OpenCode TUI 中使用 Go 订阅
 
+OpenCode 默认以 `--auto` 启动，会自动批准未被明确拒绝的权限；运行前请检查权限规则。
+
 ```bash
 claudex-switch add go-work
 # 若询问是否导入当前 OpenCode Go 凭据，可直接确认；否则会打开专属 TUI
@@ -199,7 +201,7 @@ claudex-switch model go-work opencode-go/deepseek-v4-flash
 claudex-switch refresh go-work # 在专属 TUI 内重新 /connect
 ```
 
-每个别名的 Go 凭据私有保存；启动时通过 `OPENCODE_AUTH_CONTENT` 注入对应凭据，而保留 OpenCode 正常的 XDG 会话目录。因此所有 Go 别名都能在 `/resume` 看见并继续同一份历史；全局 `opencode` 的认证文件和其他供应商凭据均不会被覆盖。首次登录和 `refresh` 才使用私有 XDG 目录，保证 `/connect` 不改全局凭据。`claudex-switch list` 会以该别名的私有 Go Key 查询服务端额度，显示 5 小时 / 周 / 月窗口的剩余百分比与模型；`--no-usage` 不发出此请求。OpenCode Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；实际 TUI 始终通过 `<alias> -run` 打开。
+每个别名的 Go 凭据私有保存；正常启动时，`claudex-switch <alias> -run` 通过 `OPENCODE_AUTH_CONTENT` 注入所选 Go 凭据，并保留 OpenCode 常规 XDG 数据目录，因此 Go 别名共享同一份 `/resume` 历史。这个启动步骤本身不会改写全局 `auth.json`；但在共享 TUI 中用 `/connect` 保存认证时，OpenCode 可能重写该文件，且只存在于磁盘中的其他 provider 凭据未必保留。更改 Go 凭据请使用 `claudex-switch add` 或 `refresh` 的专属登录流程。`claudex-switch list` 会以该别名的私有 Go Key 查询服务端额度，显示 5 小时 / 周 / 月窗口的剩余百分比与模型；`--no-usage` 不发出此请求。OpenCode Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；实际 TUI 始终通过 `<alias> -run` 打开。
 
 自定义供应商示例配置：
 
@@ -452,4 +454,4 @@ claudex-switch update
 
 ## License
 
-MIT
+本项目采用 source-available（源码可见）许可：MIT License 附加 Commons Clause License Condition v1.0，不属于 OSI 开源。公司内部使用，以及用本工具完成普通工作或自由职业项目，均可在遵守许可条款的前提下进行。未经单独书面许可，不得向第三方收费或收取其他对价，提供价值全部或实质上来源于本工具功能的产品或服务，包括相关托管、咨询或支持。这并非禁止所有商业集成；具有真正独立增值的大型产品仍可能符合条款。可通过[项目 issue](https://github.com/Holden-Lin/claudex-switch/issues)申请单独书面许可；提交 issue 不等于获得授权。详见 [LICENSE](./LICENSE) 与[商业许可说明](./COMMERCIAL-LICENSING.md)。

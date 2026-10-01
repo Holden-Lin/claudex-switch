@@ -9662,13 +9662,13 @@ import { spawnSync as spawnSync6 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.14.0",
+  version: "1.15.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
     "claudex-switch": "./dist/claudex-switch.js"
   },
-  files: ["dist", "scripts/guard-package-manager.js"],
+  files: ["dist", "scripts/guard-package-manager.js", "LICENSE", "COMMERCIAL-LICENSING.md"],
   scripts: {
     build: "bun build ./src/index.ts --target node --outfile ./dist/claudex-switch.js",
     "build:binary": "bun build ./src/index.ts --compile --outfile ./dist/claudex-switch",
@@ -9690,7 +9690,7 @@ var package_default = {
     url: "https://github.com/Holden-Lin/claudex-switch/issues"
   },
   keywords: ["claude-code", "codex-cli", "opencode-go", "account-switcher", "quota-viewer", "cli", "bun", "typescript"],
-  license: "MIT",
+  license: "SEE LICENSE IN LICENSE",
   engines: {
     bun: ">=1.3.5"
   },

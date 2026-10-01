@@ -35,6 +35,14 @@ describe("render-formula.sh", () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('class ClaudexSwitch < Formula');
       expect(result.stdout).toContain('version "1.2.3"');
+      expect(result.stdout).toContain('license :cannot_represent');
+      expect(result.stdout).toContain(
+        'The MIT + Commons Clause combination has no SPDX identifier; see LICENSE.',
+      );
+      expect(result.stdout).toContain(
+        '(share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md"',
+      );
+      expect(result.stdout).not.toContain('license "MIT"');
       expect(result.stdout).toContain(
         "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.2.3/claudex-switch-darwin-arm64.tar.gz",
       );

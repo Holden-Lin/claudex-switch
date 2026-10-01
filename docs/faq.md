@@ -20,7 +20,7 @@ No. `-run` is provider-specific:
 
 - Claude OAuth / API-key profiles use profile-specific auth for the launched Claude session. Claude settings, hooks, and history remain shared; it is not a separate project/workspace or operating-system user
 - Codex switches global active authentication and provider config before launching, with `--approve-for-me` by default; restart an already-running Codex client after a switch
-- OpenCode Go injects the chosen credential at launch but keeps OpenCode's normal XDG data directory, so Go accounts share `/resume` history
+- OpenCode Go injects the chosen credential at launch but keeps OpenCode's normal XDG data directory, so Go accounts share `/resume` history. See the [OpenCode Go guide](./use-cases/opencode-go.md) for the limits of what `/connect` preserves in the global auth file.
 
 Read the [Claude](./use-cases/claude-parallel.md), [Codex](./use-cases/codex-accounts.md), and [OpenCode Go](./use-cases/opencode-go.md) guides before running multiple identities in parallel.
 
