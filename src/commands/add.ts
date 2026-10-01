@@ -246,8 +246,12 @@ async function addOpenCodeGo(alias: string): Promise<void> {
     success(
       `${chalk.bold(alias)} created  ${chalk.dim("OpenCode Go subscription")}`,
     );
+    const historyHint =
+      openCodeVersion.major === 2
+        ? "OpenCode V2 keeps /resume history private to this alias."
+        : "OpenCode V1 Go aliases share /resume history.";
     hint(
-      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account; /resume history is shared.`,
+      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`,
     );
     blank();
   } catch (err) {

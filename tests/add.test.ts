@@ -400,7 +400,9 @@ describe("add", () => {
     expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
       "opencode-go": { type: "api", key: "go-secret" },
     });
-    expect(logSpy.mock.calls.flat().join("\n")).toContain("go-subscription created");
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("go-subscription created");
+    expect(output).toContain("OpenCode V1 Go aliases share /resume history.");
 
     logSpy.mockRestore();
   });
@@ -437,6 +439,8 @@ describe("add", () => {
     expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE, "utf-8")).toBe(originalGlobalAuth);
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("go-v2 created");
+    expect(output).toContain("OpenCode V2 keeps /resume history private to this alias.");
+    expect(output).not.toContain("history is shared");
     expect(output).not.toContain("fake-v2-go-key");
     expect(prompts.password).toHaveBeenCalledTimes(1);
 

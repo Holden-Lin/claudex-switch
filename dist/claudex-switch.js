@@ -7030,7 +7030,8 @@ async function addOpenCodeGo(alias) {
     await setActiveOpenCodeProfile(profileId);
     blank();
     success(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
-    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account; /resume history is shared.`);
+    const historyHint = openCodeVersion.major === 2 ? "OpenCode V2 keeps /resume history private to this alias." : "OpenCode V1 Go aliases share /resume history.";
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`);
     blank();
   } catch (err) {
     if (profileCreated) {
@@ -7828,7 +7829,7 @@ async function switchOpenCode(alias, profileId) {
   await getOpenCodeProfileData(profileId);
   await setActiveOpenCodeProfile(profileId);
   success(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
-  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; /resume history is shared.`);
+  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
   blank();
 }
 async function switchClaude(alias, profileName) {

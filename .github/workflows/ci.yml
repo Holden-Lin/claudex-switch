@@ -50,6 +50,19 @@ jobs:
         with:
           persist-credentials: false
 
+      # This job has a separate workspace from `verify`; rebuild the bundle
+      # here so the network-disabled runtime container tests current sources.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Install dependencies for the bundle build
+        run: bun install --frozen-lockfile
+
+      - name: Build the product CLI bundle
+        run: bun run build
+
       # Pull immutable images before the test container is created. The
       # network-isolated container performs no dependency or package downloads.
       - name: Pull pinned runtime images
@@ -63,7 +76,7 @@ jobs:
             --file scripts/opencode-v2-runtime.Dockerfile \
             --tag claudex-opencode-v2-runtime:ci .
 
-      - name: Run OpenCode v2.0.6 private-store API fixture (not full TUI) offline
+      - name: Run OpenCode v2.0.6 adapter launch contract offline (not interactive TUI)
         run: |
           log_file="$RUNNER_TEMP/opencode-v2-runtime.log"
           set +e
@@ -86,7 +99,15 @@ jobs:
           if grep -q -F -e 'fake-only-opencode-v2-default-store-key' \
                     -e 'fake-only-opencode-v2-alias-a-key' \
                     -e 'fake-only-opencode-v2-alias-a-refreshed-key' \
-                    -e 'fake-only-opencode-v2-alias-b-key' "$log_file"; then
+                    -e 'fake-only-opencode-v2-alias-b-key' \
+                    -e 'fake-only-opencode-v2-product-alias-a-key' \
+                    -e 'fake-only-opencode-v2-product-alias-a-refreshed-key' \
+                    -e 'fake-only-opencode-v2-product-alias-b-key' \
+                    -e 'fake-only-opencode-v2-product-manual-connect-key' \
+                    -e 'fake-only-global-opencode-auth-key' \
+                    -e 'fake-only-global-opencode-env-key' \
+                    -e 'fake-only-global-opencode-password' \
+                    -e 'fake-only-opencode-v2-product-bad-model-key' "$log_file"; then
             echo '::error::The OpenCode V2 fixture log contains a fake credential.'
             exit 1
           fi
