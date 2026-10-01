@@ -526,6 +526,7 @@ async function createProductLaunchFixture(base) {
   const globalAuthFile = join(globalOpenCodeDir, "auth.json");
   const globalDatabase = join(globalOpenCodeDir, "opencode.db");
   const serverPidFile = join(productRoot, "private-server-pids.txt");
+  const eventFile = join(productRoot, "opencode-wrapper-events.txt");
   const captureScript = join(
     dirname(fileURLToPath(import.meta.url)),
     "..",
@@ -592,6 +593,7 @@ async function createProductLaunchFixture(base) {
 set -eu
 case "\${1-}" in
   --version)
+    printf '%s\\n' 'version' >> "$CLAUDEX_TEST_EVENT_FILE"
     exec "$OPENCODE_BIN" "$@"
     ;;
   serve)
@@ -599,13 +601,16 @@ case "\${1-}" in
       echo 'Unexpected OpenCode server arguments in the offline launch fixture' >&2
       exit 73
     fi
+    printf '%s\\n' 'serve' >> "$CLAUDEX_TEST_EVENT_FILE"
     printf '%s\\n' "$$" >> "$CLAUDEX_TEST_SERVER_PID_FILE"
     exec "$OPENCODE_BIN" "$@"
     ;;
   --standalone)
+    printf '%s\\n' 'tui' >> "$CLAUDEX_TEST_EVENT_FILE"
     exec node "$CLAUDEX_TEST_CAPTURE_SCRIPT" "$@"
     ;;
   *)
+    printf '%s\\n' 'unexpected' >> "$CLAUDEX_TEST_EVENT_FILE"
     echo 'Unexpected OpenCode command in the offline launch fixture' >&2
     exit 74
     ;;
@@ -619,6 +624,7 @@ esac
     CLAUDEX_TEST_HOME: home,
     CLAUDEX_TEST_CAPTURE_SCRIPT: captureScript,
     CLAUDEX_TEST_SERVER_PID_FILE: serverPidFile,
+    CLAUDEX_TEST_EVENT_FILE: eventFile,
     OPENCODE_BIN: OPENCODE,
     OPENCODE_CONFIG_CONTENT: "{}",
     OPENCODE_DB: globalDatabase,
@@ -644,6 +650,7 @@ esac
     globalAuthFile,
     globalDatabase,
     serverPidFile,
+    eventFile,
     projectDir,
     cliPath,
     productEnv,
@@ -670,6 +677,10 @@ esac
 async function runProductLaunch(fixture, alias, captureName, overrides = {}) {
   const capturePath = join(fixture.productRoot, `${captureName}.json`);
   const pidsBefore = await readPidFile(fixture.serverPidFile);
+  let eventsBefore = [];
+  try {
+    eventsBefore = (await readFile(fixture.eventFile, "utf8")).split(/\r?\n/).filter(Boolean);
+  } catch {}
   const env = { ...fixture.productEnv, ...overrides, CLAUDEX_TEST_CAPTURE_FILE: capturePath };
   const result = spawnSync(process.execPath, [fixture.cliPath, alias, "-run"], {
     cwd: fixture.projectDir,
@@ -688,6 +699,8 @@ async function runProductLaunch(fixture, alias, captureName, overrides = {}) {
   const pidsAfter = await readPidFile(fixture.serverPidFile);
   const startedPids = pidsAfter.slice(pidsBefore.length);
   await assertProcessesStopped(startedPids);
+  const eventsAfter = await readFile(fixture.eventFile, "utf8").catch(() => "");
+  const startedEvents = eventsAfter.split(/\r?\n/).filter(Boolean).slice(eventsBefore.length);
   let capture = null;
   try {
     capture = JSON.parse(await readFile(capturePath, "utf8"));
@@ -697,7 +710,7 @@ async function runProductLaunch(fixture, alias, captureName, overrides = {}) {
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
   }
-  return { status: result.status, output, capture, startedPids };
+  return { status: result.status, output, capture, startedPids, startedEvents };
 }
 
 function assertProductLaunchSucceeded(result, alias) {
@@ -707,8 +720,14 @@ function assertProductLaunchSucceeded(result, alias) {
   safeOutput = safeOutput.replace(/[A-Za-z0-9_+\/=.-]{40,}/g, "[LONG-VALUE-REDACTED]");
   safeOutput = safeOutput.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL-REDACTED]");
   fail(
-    `The built claudex-switch CLI failed for ${alias} (status ${result.status}): ${safeOutput.trim().slice(-1400)}`,
+    `The built claudex-switch CLI failed for ${alias} (status ${result.status}; OpenCode shim events: ${result.startedEvents.join(",") || "none"}): ${safeOutput.trim().slice(-1400)}`,
   );
+}
+
+function assertRealServerAndInterceptedTui(result, alias) {
+  assert(result.startedEvents.includes("version"), `${alias} did not detect the pinned OpenCode binary through PATH.`);
+  assert(result.startedEvents.includes("serve"), `${alias} did not start the real private OpenCode server through PATH.`);
+  assert(result.startedEvents.includes("tui"), `${alias} did not reach the intercepted final TUI invocation.`);
 }
 
 function assertProductCapture(fixture, profileId, capture) {
@@ -821,6 +840,7 @@ async function verifyProductLaunchContract(base) {
 
   const firstA = await runProductLaunch(fixture, "product-a", "product-a-first");
   assertProductLaunchSucceeded(firstA, "alias A");
+  assertRealServerAndInterceptedTui(firstA, "alias A");
   assertProductCapture(fixture, fixture.profileA, firstA.capture);
   const aFirstConnections = await readProductConnections(fixture, fixture.profileA, "product-a-first");
   const aFirstActive = aFirstConnections[0];
@@ -838,6 +858,7 @@ async function verifyProductLaunchContract(base) {
 
   const firstB = await runProductLaunch(fixture, "product-b", "product-b-first");
   assertProductLaunchSucceeded(firstB, "alias B");
+  assertRealServerAndInterceptedTui(firstB, "alias B");
   assertProductCapture(fixture, fixture.profileB, firstB.capture);
   const bFirstConnections = await readProductConnections(fixture, fixture.profileB, "product-b-first");
   const bFirstActive = bFirstConnections[0];
@@ -872,6 +893,7 @@ async function verifyProductLaunchContract(base) {
 
   const resetA = await runProductLaunch(fixture, "product-a", "product-a-reset");
   assertProductLaunchSucceeded(resetA, "alias A after manual /connect");
+  assertRealServerAndInterceptedTui(resetA, "alias A after manual /connect");
   assertProductCapture(fixture, fixture.profileA, resetA.capture);
   const resetConnections = await readProductConnections(fixture, fixture.profileA, "product-a-reset-active");
   assert(
@@ -905,6 +927,7 @@ async function verifyProductLaunchContract(base) {
   );
   const refreshedA = await runProductLaunch(fixture, "product-a", "product-a-refreshed");
   assertProductLaunchSucceeded(refreshedA, "alias A after sidecar refresh");
+  assertRealServerAndInterceptedTui(refreshedA, "alias A after sidecar refresh");
   assertProductCapture(fixture, fixture.profileA, refreshedA.capture);
   const refreshedConnections = await readProductConnections(fixture, fixture.profileA, "product-a-refreshed-active");
   assert(
@@ -956,12 +979,24 @@ async function verifyProductLaunchContract(base) {
     deniedPolicy.output.includes("denies claudex-switch's managed Go provider"),
     "The deny-policy fixture did not report the expected fail-closed reason.",
   );
+  assert(
+    deniedPolicy.startedEvents.includes("version") &&
+      !deniedPolicy.startedEvents.includes("serve") &&
+      !deniedPolicy.startedEvents.includes("tui"),
+    "The deny-policy fixture spawned a private server or TUI before rejecting launch.",
+  );
 
   const deniedModel = await runProductLaunch(fixture, "product-bad-model", "product-denied-model");
   assert(deniedModel.status !== 0 && deniedModel.capture === null, "A non-Go model unexpectedly launched the V2 TUI.");
   assert(
     deniedModel.output.includes("only bind credentials for OpenCode Go models"),
     "The non-Go model fixture did not report the expected fail-closed reason.",
+  );
+  assert(
+    deniedModel.startedEvents.includes("version") &&
+      !deniedModel.startedEvents.includes("serve") &&
+      !deniedModel.startedEvents.includes("tui"),
+    "The non-Go model fixture spawned a private server or TUI before rejecting launch.",
   );
   assert(
     (await readPidFile(fixture.serverPidFile)).length === pidsBeforeFailures.length,
