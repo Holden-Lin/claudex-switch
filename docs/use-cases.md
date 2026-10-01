@@ -9,7 +9,7 @@ claudex-switch is a local CLI account switcher and quota viewer for authorized C
 - [Manage several CLI accounts with aliases](./use-cases/multi-account-cli.md) — import or name existing local profiles and choose an account intentionally
 - [Run Claude Code with a profile credential](./use-cases/claude-parallel.md) — use `-run` for profile-specific auth, with explicit shared-state limits
 - [Switch Codex accounts and keep `/resume` visibility](./use-cases/codex-accounts.md) — understand global auth/config changes and provider metadata syncing
-- [Use OpenCode Go accounts with shared history](./use-cases/opencode-go.md) — choose private Go credentials while retaining the normal shared TUI session store
+- [Use OpenCode Go accounts on V1 and V2](./use-cases/opencode-go.md) — choose private Go credentials and compare V1 shared history with V2 per-alias history
 - [Check provider quota and relay balances](./use-cases/quota.md) — distinguish local inventory from live usage requests
 - [Configure API keys and compatible relays](./use-cases/api-relays.md) — set provider endpoints and understand the optional relay wallet lookup
 

@@ -23,7 +23,7 @@ claudex-switch work -run
 
 - **适合**：你在本机维护多个自己有权使用的 Claude Code、Codex 或 OpenCode Go 账号，希望用别名切换、查看服务端剩余额度，或按账号启动 CLI
 - **不适合**：你需要跨账号完全隔离的工作区 / 设置 / 历史记录、集中管理团队凭据，或想绕过服务商的登录、使用条款或额度限制
-- **重要区别**：Claude `-run` 为该次会话隔离账号凭据，但设置、hooks 和历史仍共享；Codex `-run` 会先切换全局 Codex 认证 / 配置；OpenCode Go 按启动选择凭据，但不同账号共用 `/resume` 历史
+- **重要区别**：Claude `-run` 为该次会话隔离账号凭据，但设置、hooks 和历史仍共享；Codex `-run` 会先切换全局 Codex 认证 / 配置；OpenCode Go 的 V1 / V2 运行和历史边界不同，详见下文指南
 
 ## 特点
 
@@ -40,7 +40,7 @@ claudex-switch work -run
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
-- OpenCode Go 支持按别名选择订阅凭据、共享会话历史；`list` 显示服务端 5 小时 / 周 / 月额度，`-run` 打开本机 OpenCode TUI
+- OpenCode Go 支持按别名选择订阅凭据；V1 共享常规 `/resume` 历史，V2 每个别名使用独立 SQLite 凭据库和历史，不会自动导入原生或其他别名历史；`list` 显示服务端 5 小时 / 周 / 月额度
 - macOS Keychain 凭证兼容
 
 ## 安装
@@ -105,10 +105,10 @@ claudex-switch import
 # 查看所有账号（含剩余额度；5h/wk 为 5 小时 / 每周窗口的剩余百分比）
 claudex-switch list
 #   ── Claude ──
-#   ▸ work    oauth  Max   work@example.com   5h 96% · wk 65%
-#     relay   api-key  sk-xPXb••••eTmP  $47.34 left
+#   ▸ work    oauth  Max   profile@example.invalid   5h 96% · wk 65%
+#     relay   api-key  YOUR_API_KEY  $47.34 left
 #   ── Codex ──
-#     cx      chatgpt  Plus  cx@example.com  gpt-5.4  5h 85% · wk 75%
+#     cx      chatgpt  Plus  profile@example.invalid  gpt-5.4  5h 85% · wk 75%
 
 # 切换到指定别名
 claudex-switch holden
@@ -186,22 +186,24 @@ claudex-switch add work
 - Codex ChatGPT / API Key 会同步到 `~/.codex/config.toml` 的 `model`
 - 旧的 Codex 本地账号会在首次加载时自动补上 `default_model`
 
-### 在 OpenCode TUI 中使用 Go 订阅
+### 在 OpenCode V1 / V2 中使用 Go 订阅
 
 OpenCode 默认以 `--auto` 启动，会自动批准未被明确拒绝的权限；运行前请检查权限规则。
 
 ```bash
 claudex-switch add go-work
-# 若询问是否导入当前 OpenCode Go 凭据，可直接确认；否则会打开专属 TUI
-# 在 TUI 内运行 /connect，选择 OpenCode Go，粘贴订阅 API key 后退出
+# OpenCode V1：可导入磁盘上的当前凭据，或在专属 TUI 里运行 /connect
+# OpenCode V2：会提示输入 API key；不会从 OpenCode SQLite 数据库导出密钥
 
 claudex-switch go-work -run
 claudex-switch go-work -run --model opencode-go/kimi-k3
 claudex-switch model go-work opencode-go/deepseek-v4-flash
-claudex-switch refresh go-work # 在专属 TUI 内重新 /connect
+claudex-switch refresh go-work # V1 使用专属 TUI；V2 提示输入新 key
 ```
 
-每个别名的 Go 凭据私有保存；正常启动时，`claudex-switch <alias> -run` 通过 `OPENCODE_AUTH_CONTENT` 注入所选 Go 凭据，并保留 OpenCode 常规 XDG 数据目录，因此 Go 别名共享同一份 `/resume` 历史。这个启动步骤本身不会改写全局 `auth.json`；但在共享 TUI 中用 `/connect` 保存认证时，OpenCode 可能重写该文件，且只存在于磁盘中的其他 provider 凭据未必保留。更改 Go 凭据请使用 `claudex-switch add` 或 `refresh` 的专属登录流程。`claudex-switch list` 会以该别名的私有 Go Key 查询服务端额度，显示 5 小时 / 周 / 月窗口的剩余百分比与模型；`--no-usage` 不发出此请求。OpenCode Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；实际 TUI 始终通过 `<alias> -run` 打开。
+V1 正常启动会通过 `OPENCODE_AUTH_CONTENT` 注入别名凭据并保留 OpenCode 常规数据目录，因此 Go 别名共享 `/resume` 历史。V2 使用 `--standalone` 私有服务，为每个别名设置独立的 XDG 数据、状态、缓存和 SQLite 数据库，并覆盖继承的 `OPENCODE_DB`；历史不会跨别名共享，也不会自动导入常规 OpenCode 历史。V2 的 key 经 OpenCode 支持的本地集成 API 同步进该别名的私有 SQLite 凭据库，启动前同步失败则拒绝打开 TUI。启动前会检查当前目录的有效 Go 模型、默认 agent 和模型库存；发现其他 provider 模型或不兼容的默认 agent 时会拒绝启动。它不会改写当前 agent 的 permission/system 设置。使用 TUI 内 `/connect` 可临时更改该别名私有数据库中的活动凭据；它不会更改 claudex 保存的 key，下次用 claudex 启动时会重新同步。OpenCode 的其他环境变量 / 配置仍可能按其正常行为继承。网络隔离 CI fixture 使用固定版本的 OpenCode v2.0.6 二进制和独立假数据库，检查私有凭据 API 等底层原语；它不会调用 claudex 生产适配器或 `add` / `refresh`，也不会启动完整 TUI。完整适配器到 TUI 流程、会话导航 / 恢复和真实模型请求仍未验收。
+
+V2 新增 / 刷新不会向 OpenCode Go 发出验证请求；无效 key 可能要到首次实际调用时才报错。key 不会通过 argv 或子进程环境传入；它会写入 claudex 的私有 profile，并在启动前通过仅绑定本机回环地址的 API 写入对应别名的 SQLite 凭据库。TUI 内 `/connect` 明确切换的是当前别名的私有 OpenCode 凭据，不会更新 claudex key；下次 claudex 启动会重新同步该 key。只在可信工作区运行，并留意默认 `--auto` 会自动批准未明确拒绝的权限。`claudex-switch list` 用保存的 claudex Go key 查询服务端额度；手动 `/connect` 不会改变显示的额度身份。Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；始终用 `<alias> -run` 启动。
 
 自定义供应商示例配置：
 
@@ -360,12 +362,12 @@ claudex-switch refresh <alias>
   Accounts
 
   ── Claude ──
-    holden   oauth  Pro  holden@example.com
-  ▸ satoshi  oauth  Pro  satoshi@example.com
+    holden   oauth  Pro  profile@example.invalid
+  ▸ satoshi  oauth  Pro  profile@example.invalid
 
   ── Codex ──
-  ▸ cx-main    chatgpt  Plus  alice@gmail.com
-    cx-team    chatgpt  Team  bob@company.com
+  ▸ cx-main    chatgpt  Plus  profile@example.invalid
+    cx-team    chatgpt  Team  profile@example.invalid
 ```
 
 - `▸` 表示当前活跃账号

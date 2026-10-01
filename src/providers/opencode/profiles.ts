@@ -1,4 +1,4 @@
-import { chmod, mkdir, rm } from "fs/promises";
+import { chmod, mkdir, rename, rm, writeFile } from "fs/promises";
 import { randomUUID } from "crypto";
 import { dirname } from "path";
 import {
@@ -14,6 +14,10 @@ import { fileExists, readJson, writeJsonSecure } from "../../lib/fs";
 import type { OpenCodeGoProfileData, OpenCodeProfileState } from "../../types";
 
 export const OPENCODE_GO_PROVIDER_ID = "opencode-go";
+// V2 accounts use a separate, stable provider ID rather than the native
+// opencode-go integration. This keeps its SQLite credentials from winning
+// over the account selected by claudex-switch for this standalone process.
+export const OPENCODE_V2_MANAGED_PROVIDER_ID = "claudex-switch-opencode-go";
 
 type OpenCodeAuthFile = Record<string, unknown>;
 type OpenCodeAuthInfo = { type: "api"; key: string } & Record<string, unknown>;
@@ -152,19 +156,38 @@ export async function createOpenCodeGoProfile(
   await writeJsonSecure(openCodeProfileDataFile(profileId), { type: "go" });
 
   if (credential !== undefined) {
-    if (!isOpenCodeAuthInfo(credential)) {
-      throw new Error("The saved OpenCode Go credential is invalid.");
-    }
-    const authFile = openCodeProfileAuthFile(profileId);
-    await mkdir(openCodeProfileDataHome(profileId), {
-      recursive: true,
-      mode: 0o700,
-    });
-    await mkdir(dirname(authFile), {
-      recursive: true,
-      mode: 0o700,
-    });
-    await writeJsonSecure(authFile, { [OPENCODE_GO_PROVIDER_ID]: credential });
+    await saveOpenCodeGoCredential(profileId, credential);
+  }
+}
+
+/** Save only the selected Go API credential in claudex-switch's private profile. */
+export async function saveOpenCodeGoCredential(
+  profileId: string,
+  credential: unknown,
+): Promise<void> {
+  if (!isOpenCodeAuthInfo(credential)) {
+    throw new Error("The saved OpenCode Go credential is invalid.");
+  }
+  const authFile = openCodeProfileAuthFile(profileId);
+  await mkdir(openCodeProfileDataHome(profileId), {
+    recursive: true,
+    mode: 0o700,
+  });
+  await mkdir(dirname(authFile), {
+    recursive: true,
+    mode: 0o700,
+  });
+  const temporaryFile = `${authFile}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(
+      temporaryFile,
+      JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2),
+      { mode: 0o600, flag: "wx" },
+    );
+    await chmod(temporaryFile, 0o600);
+    await rename(temporaryFile, authFile);
+  } finally {
+    await rm(temporaryFile, { force: true });
   }
 }
 

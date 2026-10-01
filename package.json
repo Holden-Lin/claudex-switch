@@ -14,6 +14,7 @@
     "dev": "bun run src/index.ts",
     "preinstall": "node ./scripts/guard-package-manager.js",
     "test": "bun test",
+    "test:opencode-v2-private": "node scripts/verify-opencode-v2-private-store.mjs",
     "docs:check": "node ./scripts/validate-docs.mjs",
     "verify": "bun run docs:check && bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",
