@@ -1,31 +1,33 @@
 class ClaudexSwitch < Formula
   desc "Switch between Claude Code, Codex, and OpenCode accounts with ease"
   homepage "https://github.com/Holden-Lin/claudex-switch"
-  version "1.14.0"
-  license "MIT"
+  version "1.15.0"
+  # The MIT + Commons Clause combination has no SPDX identifier; see LICENSE.
+  license :cannot_represent
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.14.0/claudex-switch-darwin-arm64.tar.gz"
-      sha256 "581cbe9276877e5984adeaef0a8ea258ceb24bbb271305f4a4e3313a9e13df97"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.15.0/claudex-switch-darwin-arm64.tar.gz"
+      sha256 "9f1292af7a33c58a42e9ba00c9dc7cbbd9639dac28fe28527cf99652c803ea65"
     else
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.14.0/claudex-switch-darwin-x64.tar.gz"
-      sha256 "1ec19fc626703fdf9eb97a3c67b2be43fc4cc441bead539ec7dadb51b57e3b26"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.15.0/claudex-switch-darwin-x64.tar.gz"
+      sha256 "a8c751dd1d0a63d930b5e480473f313ea00c331cf220e4cbb95bc4dd697e2720"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.14.0/claudex-switch-linux-arm64.tar.gz"
-      sha256 "e6a9141a9c90cab3ea4e2567399c84366ca1b816b0c3e3d88d3b930ce6b8086a"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.15.0/claudex-switch-linux-arm64.tar.gz"
+      sha256 "5d301dc301c9570b6a4edd1ccd941abd961236f1cd5878a5982b5cd9a9dc9203"
     else
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.14.0/claudex-switch-linux-x64.tar.gz"
-      sha256 "dd20a7483696e709ca6f1b0eb1cafb77b1a50bc995b0e3a94908b56ec7fbc812"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.15.0/claudex-switch-linux-x64.tar.gz"
+      sha256 "30e36acfe294558a6764cc08904e7fb94247aa0c95a5e865a0688750ecc5583a"
     end
   end
 
   def install
     bin.install "claudex-switch"
+    (share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md"
   end
 
   test do
