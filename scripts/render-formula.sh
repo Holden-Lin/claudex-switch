@@ -40,7 +40,8 @@ class ClaudexSwitch < Formula
   desc "Switch between Claude Code, Codex, and OpenCode accounts with ease"
   homepage "https://github.com/${REPO}"
   version "${VERSION_NO_PREFIX}"
-  license "MIT"
+  # The MIT + Commons Clause combination has no SPDX identifier; see LICENSE.
+  license :cannot_represent
 
   on_macos do
     if Hardware::CPU.arm?
@@ -64,6 +65,7 @@ class ClaudexSwitch < Formula
 
   def install
     bin.install "claudex-switch"
+    (share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md"
   end
 
   test do
