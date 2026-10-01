@@ -700,6 +700,17 @@ async function runProductLaunch(fixture, alias, captureName, overrides = {}) {
   return { status: result.status, output, capture, startedPids };
 }
 
+function assertProductLaunchSucceeded(result, alias) {
+  if (result.status === 0) return;
+  let safeOutput = result.output;
+  safeOutput = safeOutput.replace(/fake-only-[A-Za-z0-9_-]+/g, "[REDACTED]");
+  safeOutput = safeOutput.replace(/[A-Za-z0-9_+\/=.-]{40,}/g, "[LONG-VALUE-REDACTED]");
+  safeOutput = safeOutput.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL-REDACTED]");
+  fail(
+    `The built claudex-switch CLI failed for ${alias} (status ${result.status}): ${safeOutput.trim().slice(-1400)}`,
+  );
+}
+
 function assertProductCapture(fixture, profileId, capture) {
   const expected = productProfilePaths(fixture.home, profileId);
   assert(capture !== null, "The claudex-switch launch did not reach the deterministic TUI capture.");
@@ -809,7 +820,7 @@ async function verifyProductLaunchContract(base) {
   const databaseHashBefore = fixture.globalHashes.database;
 
   const firstA = await runProductLaunch(fixture, "product-a", "product-a-first");
-  assert(firstA.status === 0, "The built claudex-switch CLI could not launch OpenCode V2 for alias A.");
+  assertProductLaunchSucceeded(firstA, "alias A");
   assertProductCapture(fixture, fixture.profileA, firstA.capture);
   const aFirstConnections = await readProductConnections(fixture, fixture.profileA, "product-a-first");
   const aFirstActive = aFirstConnections[0];
@@ -826,7 +837,7 @@ async function verifyProductLaunchContract(base) {
   const aFirstOwnedLabel = aFirstActive.label;
 
   const firstB = await runProductLaunch(fixture, "product-b", "product-b-first");
-  assert(firstB.status === 0, "The built claudex-switch CLI could not launch OpenCode V2 for alias B.");
+  assertProductLaunchSucceeded(firstB, "alias B");
   assertProductCapture(fixture, fixture.profileB, firstB.capture);
   const bFirstConnections = await readProductConnections(fixture, fixture.profileB, "product-b-first");
   const bFirstActive = bFirstConnections[0];
@@ -860,7 +871,7 @@ async function verifyProductLaunchContract(base) {
   );
 
   const resetA = await runProductLaunch(fixture, "product-a", "product-a-reset");
-  assert(resetA.status === 0, "A claudex launch could not restore the saved alias A credential.");
+  assertProductLaunchSucceeded(resetA, "alias A after manual /connect");
   assertProductCapture(fixture, fixture.profileA, resetA.capture);
   const resetConnections = await readProductConnections(fixture, fixture.profileA, "product-a-reset-active");
   assert(
@@ -893,7 +904,7 @@ async function verifyProductLaunchContract(base) {
     { mode: 0o600 },
   );
   const refreshedA = await runProductLaunch(fixture, "product-a", "product-a-refreshed");
-  assert(refreshedA.status === 0, "The product could not sync the refreshed alias A sidecar on the next launch.");
+  assertProductLaunchSucceeded(refreshedA, "alias A after sidecar refresh");
   assertProductCapture(fixture, fixture.profileA, refreshedA.capture);
   const refreshedConnections = await readProductConnections(fixture, fixture.profileA, "product-a-refreshed-active");
   assert(
