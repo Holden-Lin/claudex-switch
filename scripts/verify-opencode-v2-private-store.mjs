@@ -607,7 +607,7 @@ case "\${1-}" in
     ;;
   --standalone)
     printf '%s\\n' 'tui' >> "$CLAUDEX_TEST_EVENT_FILE"
-    exec node "$CLAUDEX_TEST_CAPTURE_SCRIPT" "$@"
+    exec "$CLAUDEX_TEST_NODE_BIN" "$CLAUDEX_TEST_CAPTURE_SCRIPT" "$@"
     ;;
   *)
     printf '%s\\n' 'unexpected' >> "$CLAUDEX_TEST_EVENT_FILE"
@@ -619,12 +619,16 @@ esac
   await writeFile(wrapperPath, shim, { mode: 0o700, flag: "wx" });
 
   const productEnv = {
-    PATH: `${wrapperDir}:/usr/local/bin:/usr/bin:/bin`,
+    // Exclude the real OpenCode binary from PATH: if the shim cannot execute,
+    // version detection must fail closed rather than accidentally opening the
+    // interactive TUI. Server/version delegation uses this absolute path.
+    PATH: `${wrapperDir}:/usr/bin:/bin`,
     HOME: home,
     CLAUDEX_TEST_HOME: home,
     CLAUDEX_TEST_CAPTURE_SCRIPT: captureScript,
     CLAUDEX_TEST_SERVER_PID_FILE: serverPidFile,
     CLAUDEX_TEST_EVENT_FILE: eventFile,
+    CLAUDEX_TEST_NODE_BIN: process.execPath,
     OPENCODE_BIN: OPENCODE,
     OPENCODE_CONFIG_CONTENT: "{}",
     OPENCODE_DB: globalDatabase,
@@ -643,6 +647,16 @@ esac
     XDG_STATE_HOME: stateHome,
     XDG_CACHE_HOME: cacheHome,
   };
+
+  const resolvedOpenCode = spawnSync("/bin/sh", ["-c", "command -v opencode"], {
+    env: productEnv,
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+  assert(
+    resolvedOpenCode.status === 0 && resolvedOpenCode.stdout.trim() === wrapperPath,
+    "The isolated product PATH did not resolve OpenCode to the deterministic fixture shim.",
+  );
 
   return {
     productRoot,

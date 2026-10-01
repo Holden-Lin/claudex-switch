@@ -83,7 +83,7 @@ jobs:
           docker run --pull=never --rm --platform linux/amd64 \
             --network none \
             --read-only \
-            --tmpfs /tmp:rw,nosuid,nodev,size=256m,mode=1777 \
+            --tmpfs /tmp:rw,exec,nosuid,nodev,size=256m,mode=1777 \
             --cap-drop ALL \
             --security-opt no-new-privileges \
             --pids-limit 128 \
