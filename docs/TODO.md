@@ -2,17 +2,19 @@
 
 ## Now
 
-本需求暂无待实施代码项。本次发布目标为 [v1.14.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.14.0)。
+OpenCode V2 隔离适配（PR #6）已合入 main，版本已升至 `1.16.0`；发布前待完成本机真实账号交互验收。最近一次正式发布为 [v1.15.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.15.0)。
 
 ## Next
 
-- [ ] 发布 v1.15.0：PR #5 已合入 main；核对许可文件和平台产物后按 tag workflow 发布。当前 latest 仍是 v1.14.0，合并操作尚未发布新安装包。
+- [ ] 完成真机验收后发布 `v1.16.0`：在隔离 HOME 中用 `add` 遮蔽输入 A / B 各自 key，`-run` 发短请求，重启后在 `/sessions` 确认 A 的历史仍在且不混入 B；通过后推 `v1.16.0` tag 走 release workflow。
 - [ ] 在真实 HOME 上跑一次 `claudex-switch webconfig`，确认自己的账号列表和密钥显示无误（本次仅在隔离测试 HOME 中验证）。
 - [ ] 用户返回后，在日常项目中运行 `claudex-switch chatgpt --run` 试用交互体验；无需为了测试主动重新登录。
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
 
+- [x] 2026-10-02：按隔离验收包核对并合并 [PR #6](https://github.com/Holden-Lin/claudex-switch/pull/6)：候选补丁 SHA-256 相符、应用后 git tree 与 head `433359c` 逐字节一致，本机 254 项测试 1,044 断言、类型检查、文档检查、142 模块构建与 CLI help 通过，CI run #120 双 job 成功；合并提交 `688c3e2`，main 已同步，版本升至 `1.16.0`（暂不发布）。
+- [x] 2026-10-01：v1.15.0 已发布并设为 latest，四平台安装包和 Homebrew 配方齐备，release workflow 与 main CI 通过；macOS arm64 下载校验和、许可文件、版本及隔离 HOME 离线 JSON 验证通过。本次验证下载该安装包 1 次，曝光统计应排除。
 - [x] 2026-10-01：审核并合并 [PR #5](https://github.com/Holden-Lin/claudex-switch/pull/5)，本地 main 已同步；审核验证为 232 项测试、895 断言、类型检查及打包许可文件核对通过。
 - [x] 2026-09-30：完成 v1.14.0 发布前验证：230 项测试、855 断言、类型检查、文档检查、构建及隔离 HOME 下打包 CLI 的离线 JSON 输出通过；通过 tag workflow 发布四个平台安装包及 Homebrew 配方。
 - [x] 2026-09-30：Codex `sol` 默认指向 `gpt-6.1-sol`；版本升至 `1.13.2`。221 项测试、类型检查、构建及隔离 HOME 下打包 CLI 的模型保存、启动和下次默认读取验证通过。
