@@ -400,7 +400,49 @@ describe("add", () => {
     expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
       "opencode-go": { type: "api", key: "go-secret" },
     });
-    expect(logSpy.mock.calls.flat().join("\n")).toContain("go-subscription created");
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("go-subscription created");
+    expect(output).toContain("OpenCode V1 Go aliases share /resume history.");
+
+    logSpy.mockRestore();
+  });
+
+  test("adds an OpenCode V2 account from a masked key prompt without importing global auth", async () => {
+    selectHandler = async () => "opencode-go";
+    spawnSyncHandler = (command, args) => {
+      expect(command).toBe("opencode");
+      expect(args).toEqual(["--version"]);
+      return { status: 0, stdout: "opencode v2.0.6", stderr: "" };
+    };
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
+    const originalGlobalAuth = JSON.stringify({
+      "opencode-go": { type: "api", key: "fake-global-v1-key" },
+    });
+    await writeFile(OPENCODE_GLOBAL_AUTH_FILE, originalGlobalAuth);
+    passwordHandler = async () => " fake-v2-go-key ";
+    spawnHandler = async (command) => {
+      throw new Error(`V2 key setup should not launch OpenCode TUI: ${command}`);
+    };
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    await add("go-v2");
+
+    const aliases = await loadAliases();
+    const target = aliases.aliases[0]?.target;
+    expect(target?.provider).toBe("opencode");
+    if (!target || target.provider !== "opencode") {
+      throw new Error("Expected an OpenCode target");
+    }
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "fake-v2-go-key" },
+    });
+    expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE, "utf-8")).toBe(originalGlobalAuth);
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("go-v2 created");
+    expect(output).toContain("OpenCode V2 keeps /resume history private to this alias.");
+    expect(output).not.toContain("history is shared");
+    expect(output).not.toContain("fake-v2-go-key");
+    expect(prompts.password).toHaveBeenCalledTimes(1);
 
     logSpy.mockRestore();
   });

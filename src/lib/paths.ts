@@ -42,7 +42,6 @@ export const OPENCODE_GLOBAL_AUTH_FILE = join(
   OPENCODE_GLOBAL_DATA_DIR,
   "auth.json",
 );
-
 // Claude profile helpers
 export function claudeProfileDir(name: string): string {
   return join(CLAUDE_PROFILES_DIR, name);
@@ -129,6 +128,29 @@ export function openCodeProfileDir(profileId: string): string {
 
 export function openCodeProfileDataHome(profileId: string): string {
   return join(openCodeProfileDir(profileId), "data");
+}
+
+// OpenCode V2 gives each Go profile its own XDG roots and SQLite session/
+// credential database. Keep this separate from V1's private auth.json setup
+// directory so V2 never migrates that credential into a shared database.
+export function openCodeProfileV2RuntimeDir(profileId: string): string {
+  return join(openCodeProfileDir(profileId), "v2-runtime");
+}
+
+export function openCodeProfileV2DataHome(profileId: string): string {
+  return join(openCodeProfileV2RuntimeDir(profileId), "data");
+}
+
+export function openCodeProfileV2DatabaseFile(profileId: string): string {
+  return join(openCodeProfileV2DataHome(profileId), "opencode", "opencode.db");
+}
+
+export function openCodeProfileV2ModelInventoryFile(profileId: string): string {
+  return join(openCodeProfileV2RuntimeDir(profileId), "models.json");
+}
+
+export function openCodeProfileV2CredentialStateFile(profileId: string): string {
+  return join(openCodeProfileV2RuntimeDir(profileId), "credentials.json");
 }
 
 export function openCodeProfileAuthFile(profileId: string): string {

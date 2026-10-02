@@ -23,7 +23,7 @@ See the [JSON output reference](./docs/list-json.md), [use cases](./docs/use-cas
 
 - **Use it when** you manage multiple authorized Claude Code, Codex, or OpenCode Go accounts on one machine and want aliases, provider-reported quota visibility, or account-specific CLI launches
 - **Choose another approach when** you need fully separate workspaces, settings, and histories for each identity, centralized team credential management, or a way around provider login, terms, or usage limits
-- **Know the differences**: Claude `-run` isolates that session's account credentials, while settings, hooks, and history remain shared; Codex `-run` first changes the global Codex auth/config; OpenCode Go selects a credential per launch but shares `/resume` history across accounts
+- **Know the differences**: Claude `-run` isolates that session's account credentials, while settings, hooks, and history remain shared; Codex `-run` first changes the global Codex auth/config; OpenCode Go V1 and V2 use different credential and history paths, described below
 
 ## Features
 
@@ -40,7 +40,7 @@ See the [JSON output reference](./docs/list-json.md), [use cases](./docs/use-cas
 - `claudex-switch webconfig` opens a local web page for viewing and editing every account's base URL, key and model configuration in one place, including pasting a whole `export ANTHROPIC_*` block (see "Web Config" below)
 - Claude: OAuth subscriptions + Anthropic API keys, including custom base URLs, Fable / Sonnet / Opus / Haiku model mapping, a subagent model, and arbitrary custom environment variables
 - Codex: ChatGPT OAuth + OpenAI API keys
-- OpenCode Go: select subscription credentials by alias while sharing session history; `list` shows server-reported 5-hour / weekly / monthly usage, and `-run` opens the local OpenCode TUI
+- OpenCode Go: select subscription credentials by alias; V1 shares normal `/resume` history, while V2 keeps a separate SQLite credential store and history for each alias and does not automatically import native or other-alias history; `list` shows server-reported 5-hour / weekly / monthly usage
 - macOS Keychain credential support
 
 ## Install
@@ -105,10 +105,10 @@ claudex-switch import
 # List all accounts (with remaining quota; 5h/wk = remaining % of the 5-hour / weekly window)
 claudex-switch list
 #   ── Claude ──
-#   ▸ work    oauth  Max   work@example.com   5h 96% · wk 65%
-#     relay   api-key  sk-xPXb••••eTmP  $47.34 left
+#   ▸ work    oauth  Max   profile@example.invalid   5h 96% · wk 65%
+#     relay   api-key  YOUR_API_KEY  $47.34 left
 #   ── Codex ──
-#     cx      chatgpt  Plus  cx@example.com  gpt-5.4  5h 85% · wk 75%
+#     cx      chatgpt  Plus  profile@example.invalid  gpt-5.4  5h 85% · wk 75%
 
 # Switch by alias
 claudex-switch holden
@@ -185,20 +185,23 @@ When switching accounts, `claudex-switch` also syncs the saved default model for
 - Codex ChatGPT / API Key accounts write to `~/.codex/config.toml` `model`
 - Existing local Codex accounts get `default_model` backfilled on first load
 
-### Use an OpenCode Go subscription in the TUI
+### Use an OpenCode Go subscription with V1 or V2
 
 OpenCode launches with `--auto` by default, which automatically approves permissions not explicitly denied; review the permission rules before using the commands below.
 
 ```bash
 claudex-switch add go-work
-# Confirm importing the current OpenCode Go credential, or use /connect in the private TUI
+# OpenCode V1 may offer to import the current disk credential or open a private TUI for /connect
+# OpenCode V2 prompts for the API key; it does not export credentials from OpenCode's SQLite database
 claudex-switch go-work -run
 claudex-switch go-work -run --model opencode-go/kimi-k3
 claudex-switch model go-work opencode-go/deepseek-v4-flash
-claudex-switch refresh go-work
+claudex-switch refresh go-work # V1 uses the private TUI; V2 prompts for a replacement key
 ```
 
-Each alias keeps its Go credential private. On a normal launch, `claudex-switch <alias> -run` injects the selected Go credential through `OPENCODE_AUTH_CONTENT` and keeps OpenCode's standard XDG data directory, so Go aliases share `/resume` history. The launch step itself does not rewrite the global `auth.json`; however, saving auth with `/connect` in this shared TUI may rewrite that file, and provider credentials present only on disk may not be retained. Use the dedicated `claudex-switch add` or `refresh` login flow to change a Go credential. `claudex-switch list` uses that alias's private Go key to obtain server-side remaining quota for the 5-hour, weekly, and monthly windows; `--no-usage` makes no such request. Go models must use `opencode-go/<model>` and do not accept Claude/Codex effort tiers. `claudex-switch <alias>` records the selected account; always use `<alias> -run` to open its TUI.
+V1 launches inject the selected Go credential through `OPENCODE_AUTH_CONTENT` and retain OpenCode's normal XDG data directory, so Go aliases share `/resume` history. V2 launches use `--standalone`, profile-private XDG roots, and an alias-specific SQLite database; inherited `OPENCODE_DB` is overridden. V2 history stays within each alias and is not automatically imported from normal OpenCode history or another alias. The masked key is stored in claudex-switch's private profile, then synced into that alias's OpenCode credential database through the supported local integration API before the TUI starts; a sync failure prevents launch. A preflight checks the current location's effective Go model, default agent, and model inventory; it refuses incompatible agent models or inventories that expose another provider. It does not rewrite the current agent's permission/system settings. The TUI's `/connect` can change the active credential in that alias's private database for the current session. It does not update the claudex sidecar, and the next claudex launch syncs the sidecar again. Other OpenCode configuration/environment variables may still be inherited under OpenCode's normal behavior. A network-disabled CI fixture launches the pinned v2.0.6 binary and the built claudex-switch CLI against its private server. It checks actual launch config, credential sync/cleanup, alias separation, manual `/connect` reset, refreshed-sidecar use on the next launch, fail-closed policy/model handling, and key-log absence. A PATH shim delegates version and server commands to OpenCode but intercepts only the final `--standalone` TUI invocation. Interactive TUI behavior, the interactive add/refresh prompt flow, session navigation/resume, and live model execution remain unverified.
+
+OpenCode V2 add/refresh does not call OpenCode Go to validate the key; an invalid key may fail only on its first provider request. The key is not passed in argv or the OpenCode child environment; the temporary sync API binds only to loopback. Use only in trusted workspaces, and remember that `--auto` approves permissions not explicitly denied. `claudex-switch list` uses the saved claudex Go key for server-side 5-hour, weekly, and monthly usage; a manual `/connect` change in the TUI does not change which key `list` uses. `--no-usage` skips the request. Go models must use `opencode-go/<model>` and do not accept Claude/Codex effort tiers. `claudex-switch <alias>` records the selected account; use `<alias> -run` to launch.
 
 Example custom provider config:
 
@@ -326,12 +329,12 @@ On macOS, `claudex-switch` opens Codex's device auth page in a private/incognito
   Accounts
 
   ── Claude ──
-    holden   oauth  Pro  holden@example.com
-  ▸ satoshi  oauth  Pro  satoshi@example.com
+    holden   oauth  Pro  profile@example.invalid
+  ▸ satoshi  oauth  Pro  profile@example.invalid
 
   ── Codex ──
-  ▸ cx-main    chatgpt  Plus  alice@gmail.com
-    cx-team    chatgpt  Team  bob@company.com
+  ▸ cx-main    chatgpt  Plus  profile@example.invalid
+    cx-team    chatgpt  Team  profile@example.invalid
 ```
 
 - `▸` marks the currently active account

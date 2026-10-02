@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { password } from "@inquirer/prompts";
 import chalk from "chalk";
 import { findAlias, loadAliases, updateAlias } from "../alias/store";
 import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
@@ -31,11 +32,16 @@ import {
   setActiveAccount,
 } from "../providers/codex/registry";
 import {
-  hasOpenCodeGoCredential,
   openCodeProfileExists,
+  readOpenCodeGoApiKey,
+  saveOpenCodeGoCredential,
   setActiveOpenCodeProfile,
 } from "../providers/opencode/profiles";
-import { hasOpenCodeTui, runOpenCodeTui } from "../providers/opencode/tui";
+import { runOpenCodeTui } from "../providers/opencode/tui";
+import {
+  detectOpenCodeVersion,
+  isSupportedOpenCodeVersion,
+} from "../providers/opencode/version";
 import type { OAuthAccount } from "../types";
 
 export async function refresh(aliasOrName: string): Promise<void> {
@@ -69,22 +75,86 @@ async function refreshOpenCode(alias: string, profileId: string): Promise<void> 
     blank();
     process.exit(1);
   }
-  if (!hasOpenCodeTui()) {
-    error("OpenCode TUI was not found on PATH.");
-    hint("Install OpenCode first, then retry.");
+  const openCodeVersion = detectOpenCodeVersion();
+  if (!openCodeVersion) {
+    error("Could not detect a supported OpenCode version on PATH.");
+    hint("Install OpenCode 1.x or 2.x, then retry.");
     blank();
     process.exit(1);
+    return;
+  }
+  if (!isSupportedOpenCodeVersion(openCodeVersion)) {
+    error(`OpenCode ${openCodeVersion.raw} is not supported by this version of claudex-switch.`);
+    hint("Supported OpenCode major versions are 1.x and 2.x.");
+    blank();
+    process.exit(1);
+    return;
+  }
+
+  if (openCodeVersion.major === 2) {
+    const previousKey = await readOpenCodeGoApiKey(profileId);
+    if (!previousKey) {
+      error("This profile has no saved OpenCode Go API key to replace.");
+      hint("Add the account again with OpenCode V2 before trying to refresh it.");
+      blank();
+      process.exit(1);
+      return;
+    }
+
+    info(`Replace the OpenCode Go API key for ${chalk.bold(alias)}.`);
+    hint("The key stays in claudex-switch's private profile. OpenCode terminal tools may inherit process environment variables.");
+    blank();
+    const key = await password({
+      message: "New OpenCode Go API key",
+      validate: (value) =>
+        value.trim().length > 0 || "Enter a non-empty OpenCode Go API key.",
+    });
+    const trimmedKey = key.trim();
+    if (!trimmedKey) {
+      error("No OpenCode Go API key was entered; the existing key was left unchanged.");
+      blank();
+      process.exit(1);
+      return;
+    }
+    if (trimmedKey === previousKey) {
+      error("The entered OpenCode Go API key is unchanged; the profile was not refreshed.");
+      blank();
+      process.exit(1);
+      return;
+    }
+
+    try {
+      await saveOpenCodeGoCredential(profileId, { type: "api", key: trimmedKey });
+    } catch (err) {
+      error(`Could not save the replacement OpenCode Go key: ${err instanceof Error ? err.message : String(err)}`);
+      blank();
+      process.exit(1);
+      return;
+    }
+
+    await setActiveOpenCodeProfile(profileId);
+    success(`${chalk.bold(alias)} OpenCode Go key replaced`);
+    hint("No provider request was made to validate the key.");
+    blank();
+    return;
   }
 
   info(`Opening OpenCode TUI for ${chalk.bold(alias)}...`);
   hint("Use /connect → OpenCode Go to replace or repair this account's credential, then exit the TUI.");
   blank();
 
+  const previousKey = await readOpenCodeGoApiKey(profileId);
   const exitCode = await runOpenCodeTui(profileId);
-  if (exitCode !== 0 || !(await hasOpenCodeGoCredential(profileId))) {
-    error("OpenCode Go login failed, was cancelled, or did not save a credential.");
+  const refreshedKey = await readOpenCodeGoApiKey(profileId);
+  if (exitCode !== 0 || !refreshedKey || refreshedKey === previousKey) {
+    error(
+      refreshedKey === previousKey
+        ? "OpenCode Go setup finished without changing the saved key; the profile was not refreshed."
+        : "OpenCode Go login failed, was cancelled, or did not save a new credential.",
+    );
     blank();
     process.exit(1);
+    return;
   }
 
   await setActiveOpenCodeProfile(profileId);

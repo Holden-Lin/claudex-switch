@@ -43,6 +43,15 @@ import {
   normalizeOpenCodeGoModel,
   openCodeRunEnvironment,
 } from "../providers/opencode/profiles";
+import {
+  prepareOpenCodeV2RunEnvironment,
+  type OpenCodeV2CredentialSync,
+} from "../providers/opencode/runtime";
+import {
+  detectOpenCodeVersion,
+  isSupportedOpenCodeVersion,
+  type OpenCodeVersion,
+} from "../providers/opencode/version";
 import type {
   AliasEntry,
   ClaudeApiProfileConfig,
@@ -80,10 +89,56 @@ export function isRunFlag(value?: string): boolean {
   return value !== undefined && RUN_FLAGS.has(value);
 }
 
+function requestsRemoteOpenCodeServer(args: string[]): boolean {
+  return args.some(
+    (arg) => arg === "--server" || arg === "-server" || arg.startsWith("--server="),
+  );
+}
+
+function requestsUnsafeOpenCodeV2Override(args: string[]): boolean {
+  return args.some((arg) =>
+    ["--attach", "-attach", "--config", "-config", "--model", "-model", "--standalone", "-standalone"].some(
+      (flag) => arg === flag || arg.startsWith(`${flag}=`),
+    ),
+  );
+}
+
+function requestsUnsafeOpenCodeV2Target(args: string[]): boolean {
+  const safeBooleanFlags = new Set([
+    "--auto",
+    "--yolo",
+    "--dangerously-skip-permissions",
+    "--print-logs",
+  ]);
+  const resumeFlags = new Set(["--continue", "-c", "--session", "-s"]);
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (resumeFlags.has(arg) || arg.startsWith("--session=") || /^-s.+/.test(arg)) {
+      return true;
+    }
+    if (arg === "--prompt") {
+      // The root command's prompt value is not a directory/session selector.
+      // Let OpenCode validate a missing value itself.
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--prompt=")) continue;
+    if (safeBooleanFlags.has(arg)) continue;
+
+    // The V2 root command's optional positional argument is a directory. Any
+    // other forwarded argument is unknown to this adapter, so fail closed.
+    return true;
+  }
+  return false;
+}
+
 export async function runAliasSession(
   aliasOrName: string,
   forwardedArgs: string[] = [],
   spawnCommand: SpawnCommand = spawn,
+  openCodeVersionDetector: () => OpenCodeVersion | null = detectOpenCodeVersion,
+  openCodeCredentialSync?: OpenCodeV2CredentialSync,
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
@@ -120,6 +175,49 @@ export async function runAliasSession(
   const openCodeProfileId =
     entry.target.provider === "opencode" ? entry.target.profileId : null;
   const isOpenCode = openCodeProfileId !== null;
+  const openCodeVersion = isOpenCode ? openCodeVersionDetector() : null;
+  if (isOpenCode && !openCodeVersion) {
+    error("Could not detect a supported OpenCode version on PATH.");
+    hint("Install OpenCode 1.x or 2.x, then retry.");
+    blank();
+    return 1;
+  }
+  if (isOpenCode && !isSupportedOpenCodeVersion(openCodeVersion)) {
+    error(`OpenCode ${openCodeVersion?.raw ?? "unknown"} is not supported by this version of claudex-switch.`);
+    hint("Supported OpenCode major versions are 1.x and 2.x.");
+    blank();
+    return 1;
+  }
+  if (
+    isOpenCode &&
+    openCodeVersion?.major === 2 &&
+    requestsRemoteOpenCodeServer(runOptions.forwardedArgs)
+  ) {
+    error("OpenCode V2 account aliases cannot connect to a remote server.");
+    hint("Remove --server so the selected key stays with the private standalone OpenCode process.");
+    blank();
+    return 1;
+  }
+  if (
+    isOpenCode &&
+    openCodeVersion?.major === 2 &&
+    requestsUnsafeOpenCodeV2Override(runOptions.forwardedArgs)
+  ) {
+    error("OpenCode V2 aliases control the standalone server, config, and model selection.");
+    hint("Remove --attach, --config, --standalone, or --model=<value>; use -run --model opencode-go/<model> to select a Go model.");
+    blank();
+    return 1;
+  }
+  if (
+    isOpenCode &&
+    openCodeVersion?.major === 2 &&
+    requestsUnsafeOpenCodeV2Target(runOptions.forwardedArgs)
+  ) {
+    error("OpenCode V2 aliases cannot target another directory or resume a session through CLI arguments.");
+    hint("Run claudex-switch from the intended project directory and start a fresh alias session. Use /sessions only with the same managed alias; in-app project switching isn't preflighted.");
+    blank();
+    return 1;
+  }
   let profile = claudeProfileName
     ? await getProfileData(claudeProfileName)
     : null;
@@ -152,8 +250,11 @@ export async function runAliasSession(
   // profiles get their config via env vars, OAuth profiles get a per-profile
   // credential store. Neither touches (or is touched by) the active account,
   // so switching accounts can never flip a running session. Codex switches
-  // globally; OpenCode keeps its selected credential private but deliberately
-  // shares its normal XDG session store so any account can /resume history.
+  // globally. OpenCode V1 injects the selected key per process. OpenCode V2
+  // uses a private standalone server and a managed provider ID while retaining
+  // an alias-private SQLite session database. V2 preflights the launch
+  // directory and rejects CLI directory/session overrides; in-app navigation
+  // can still select sessions created in another project under this alias.
   if (entry.target.provider === "codex") {
     await use(aliasOrName);
     try {
@@ -253,6 +354,7 @@ export async function runAliasSession(
     : isOpenCode
       ? ["--auto"]
       : ["--approve-for-me"];
+  const isOpenCodeV2 = isOpenCode && openCodeVersion?.major === 2;
   const effortArgs = runOptions.effortOverride
     ? isClaude
       ? ["--effort", runOptions.effortOverride]
@@ -261,21 +363,38 @@ export async function runAliasSession(
         : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`]
     : [];
   const args = [
+    ...(isOpenCodeV2 ? ["--standalone"] : []),
     ...(isolatedClaudeApi ? ["--bare"] : []),
     ...defaultPermissionArgs,
-    ...(resolvedModel ? ["--model", resolvedModel] : []),
+    ...(!isOpenCodeV2 && resolvedModel ? ["--model", resolvedModel] : []),
     ...effortArgs,
     ...(localSettingsFile ? ["--settings", localSettingsFile] : []),
     ...(settingsNeutralizer ? ["--settings", settingsNeutralizer] : []),
     ...runOptions.forwardedArgs,
   ];
-  const baseEnv = await getRunEnvironment(
-    entry,
-    profile,
-    runOptions.headerEnabled,
-    secureStorageDir,
-    configDir,
-  );
+  let baseEnv: NodeJS.ProcessEnv | undefined;
+  try {
+    if (isOpenCodeV2 && openCodeProfileId) {
+      const prepared = await prepareOpenCodeV2RunEnvironment(
+        openCodeProfileId,
+        resolvedModel,
+        openCodeCredentialSync,
+      );
+      baseEnv = prepared.env;
+    } else {
+      baseEnv = await getRunEnvironment(
+        entry,
+        profile,
+        runOptions.headerEnabled,
+        secureStorageDir,
+        configDir,
+      );
+    }
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    return 1;
+  }
   const env = applyCodexAutoreview(baseEnv, runOptions.autoreviewOverride);
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);

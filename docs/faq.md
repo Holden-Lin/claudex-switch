@@ -20,7 +20,9 @@ No. `-run` is provider-specific:
 
 - Claude OAuth / API-key profiles use profile-specific auth for the launched Claude session. Claude settings, hooks, and history remain shared; it is not a separate project/workspace or operating-system user
 - Codex switches global active authentication and provider config before launching, with `--approve-for-me` by default; restart an already-running Codex client after a switch
-- OpenCode Go injects the chosen credential at launch but keeps OpenCode's normal XDG data directory, so Go accounts share `/resume` history. See the [OpenCode Go guide](./use-cases/opencode-go.md) for the limits of what `/connect` preserves in the global auth file.
+- OpenCode V1 injects the chosen credential and shares the normal `/resume` history. OpenCode V2 uses a separate SQLite database per alias and syncs the masked claudex key through OpenCode's supported local integration API before launch. V2 history is not automatically shared with other aliases or imported from normal OpenCode history. See the [OpenCode Go guide](./use-cases/opencode-go.md).
+
+OpenCode V2 aliases reject CLI directory and resume/session overrides so the launch preflight uses the intended working directory. The TUI can still navigate to sessions from other projects already stored in that alias's private database; that in-app destination is not re-preflighted.
 
 Read the [Claude](./use-cases/claude-parallel.md), [Codex](./use-cases/codex-accounts.md), and [OpenCode Go](./use-cases/opencode-go.md) guides before running multiple identities in parallel.
 
@@ -45,6 +47,6 @@ Yes, with different protocol requirements: a Claude API-key profile may use a Ba
 ## 中文速览
 
 - **是否官方工具？** 不是。它管理你已获授权的本地账号配置，不创建账号、不绕过认证，也不修改服务商额度
-- **`-run` 是否完全隔离？** 否。Claude 只隔离会话凭据，设置 / hooks / 历史共享；Codex 切换全局认证 / 配置；OpenCode Go 每次注入凭据但共享 `/resume` 历史
+- **`-run` 是否完全隔离？** 否。Claude 只隔离会话凭据，设置 / hooks / 历史共享；Codex 切换全局认证 / 配置；OpenCode V1 共享正常 `/resume` 历史，V2 使用每个别名独立的 SQLite 数据库，不会自动共享或导入其他历史
 - **能否离线检查？** `claudex-switch list --json --no-usage` 不请求额度、不刷新凭据、不切换账号；仍可能读取本地 profile / Keychain 元数据
 - **`remove` 和 `purge` 有何区别？** `remove` 只删别名，`purge` 会删除关联账号档案及指向它的所有别名

@@ -7,6 +7,7 @@ import {
   test,
 } from "bun:test";
 import * as childProcess from "child_process";
+import * as prompts from "@inquirer/prompts";
 import { EventEmitter } from "events";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join } from "path";
@@ -46,6 +47,10 @@ const {
   claudeProfileCredentials,
 } = await import("../src/lib/paths");
 const { readJson } = await import("../src/lib/fs");
+const {
+  OPENCODE_GLOBAL_AUTH_FILE,
+  openCodeProfileAuthFile,
+} = await import("../src/lib/paths");
 const { addOAuthProfile, readState } = await import(
   "../src/providers/claude/profiles"
 );
@@ -58,6 +63,9 @@ const {
   loadRegistry,
   saveRegistry,
 } = await import("../src/providers/codex/registry");
+const {
+  createOpenCodeGoProfile,
+} = await import("../src/providers/opencode/profiles");
 const { makeJwt, resetTestHome } = await import("./helpers");
 import type {
   AliasRegistry,
@@ -86,6 +94,7 @@ describe("refresh", () => {
   afterEach(() => {
     childProcess.spawn.mockRestore?.();
     childProcess.spawnSync.mockRestore?.();
+    prompts.password.mockRestore?.();
     process.exit.mockRestore?.();
   });
 
@@ -126,6 +135,7 @@ describe("refresh", () => {
         (args ?? []).map((value) => String(value)),
       ) as ReturnType<typeof childProcess.spawnSync>,
     );
+    spyOn(prompts, "password").mockResolvedValue("unused");
   });
 
   test("refreshes a codex alias by resaving the refreshed auth snapshot", async () => {
@@ -148,7 +158,7 @@ describe("refresh", () => {
       account_key: accountKey,
       chatgpt_account_id: "acct-1",
       chatgpt_user_id: "user-1",
-      email: "satoshi.lamm@gmail.com",
+      email: "fixture-user@example.invalid",
       alias: "satoshix",
       account_name: null,
       plan: "plus",
@@ -166,7 +176,7 @@ describe("refresh", () => {
       OPENAI_API_KEY: null,
       tokens: {
         id_token: makeJwt({
-          email: "satoshi.lamm@gmail.com",
+          email: "fixture-user@example.invalid",
           "https://api.openai.com/auth": {
             user_id: "user-1",
             account_id: "acct-1",
@@ -188,7 +198,7 @@ describe("refresh", () => {
       OPENAI_API_KEY: null,
       tokens: {
         id_token: makeJwt({
-          email: "satoshi.lamm@gmail.com",
+          email: "fixture-user@example.invalid",
           "https://api.openai.com/auth": {
             user_id: "user-1",
             account_id: "acct-1",
@@ -229,7 +239,7 @@ describe("refresh", () => {
 
     const savedRegistry = await loadRegistry();
     expect(savedRegistry.active_account_key).toBe(accountKey);
-    expect(savedRegistry.accounts[0]?.email).toBe("satoshi.lamm@gmail.com");
+    expect(savedRegistry.accounts[0]?.email).toBe("fixture-user@example.invalid");
     expect(savedRegistry.accounts[0]?.plan).toBe("plus");
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("Refreshed satoshix");
@@ -255,7 +265,7 @@ describe("refresh", () => {
       account_key: accountKey,
       chatgpt_account_id: "acct-1",
       chatgpt_user_id: "user-1",
-      email: "satoshi.lamm@gmail.com",
+      email: "fixture-user@example.invalid",
       alias: "satoshix",
       account_name: null,
       plan: "plus",
@@ -272,7 +282,7 @@ describe("refresh", () => {
       OPENAI_API_KEY: null,
       tokens: {
         id_token: makeJwt({
-          email: "satoshi.lamm@gmail.com",
+          email: "fixture-user@example.invalid",
           "https://api.openai.com/auth": {
             chatgpt_user_id: "user-1",
             chatgpt_account_id: "acct-1",
@@ -404,6 +414,133 @@ describe("refresh", () => {
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("Refreshed holden");
 
+    logSpy.mockRestore();
+  });
+
+  test("replaces an OpenCode V2 key without launching the TUI or touching global auth.json", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000002";
+    await createOpenCodeGoProfile(profileId, {
+      type: "api",
+      key: "fake-v2-old-key",
+    });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-v2-refresh",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
+    const originalGlobalAuth = JSON.stringify({
+      "opencode-go": { type: "api", key: "fake-native-key" },
+    });
+    await writeFile(OPENCODE_GLOBAL_AUTH_FILE, originalGlobalAuth);
+    spawnSyncHandler = (command, args) => {
+      expect(command).toBe("opencode");
+      expect(args).toEqual(["--version"]);
+      return { status: 0, stdout: "opencode v2.0.6", stderr: "" };
+    };
+    spawnHandler = async (command) => {
+      throw new Error(`V2 key refresh should not launch OpenCode TUI: ${command}`);
+    };
+    prompts.password.mockResolvedValue(" fake-v2-new-key ");
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await refresh("go-v2-refresh");
+
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "fake-v2-new-key" },
+    });
+    expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE, "utf-8")).toBe(originalGlobalAuth);
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("OpenCode Go key replaced");
+    expect(output).not.toContain("fake-v2-new-key");
+    expect(prompts.password).toHaveBeenCalledTimes(1);
+
+    logSpy.mockRestore();
+  });
+
+  test("rejects an unchanged OpenCode V1 TUI capture instead of reporting refresh success", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000004";
+    await createOpenCodeGoProfile(profileId, {
+      type: "api",
+      key: "fake-v1-unchanged-key",
+    });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-v1-unchanged",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+    spawnSyncHandler = () => ({
+      status: 0,
+      stdout: "OpenCode 1.18.30",
+      stderr: "",
+    });
+    spawnHandler = async (command, args, options) => {
+      expect(command).toBe("opencode");
+      expect(args).toEqual([]);
+      expect(options.env?.XDG_DATA_HOME).toContain(profileId);
+      return 0;
+    };
+    spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as typeof process.exit);
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(refresh("go-v1-unchanged")).rejects.toThrow("exit");
+
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "fake-v1-unchanged-key" },
+    });
+    expect(errorSpy.mock.calls.flat().join("\n")).toContain("without changing the saved key");
+    errorSpy.mockRestore();
+    logSpy.mockRestore();
+  });
+
+  test("rejects an unchanged OpenCode V2 key instead of reporting a refresh", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000003";
+    await createOpenCodeGoProfile(profileId, {
+      type: "api",
+      key: "fake-v2-unchanged-key",
+    });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-v2-unchanged",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+    spawnSyncHandler = () => ({
+      status: 0,
+      stdout: "opencode v2.0.6",
+      stderr: "",
+    });
+    prompts.password.mockResolvedValue("fake-v2-unchanged-key");
+    spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as typeof process.exit);
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(refresh("go-v2-unchanged")).rejects.toThrow("exit");
+
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "fake-v2-unchanged-key" },
+    });
+    expect(errorSpy.mock.calls.flat().join("\n")).toContain("key is unchanged");
+    errorSpy.mockRestore();
     logSpy.mockRestore();
   });
 });

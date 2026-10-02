@@ -80,7 +80,11 @@ import {
   removeOpenCodeProfile,
   setActiveOpenCodeProfile,
 } from "../providers/opencode/profiles";
-import { hasOpenCodeTui, runOpenCodeTui } from "../providers/opencode/tui";
+import { runOpenCodeTui } from "../providers/opencode/tui";
+import {
+  detectOpenCodeVersion,
+  isSupportedOpenCodeVersion,
+} from "../providers/opencode/version";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -174,40 +178,64 @@ export async function add(alias: string): Promise<void> {
 }
 
 async function addOpenCodeGo(alias: string): Promise<void> {
-  if (!hasOpenCodeTui()) {
-    error("OpenCode TUI was not found on PATH.");
-    hint("Install OpenCode first, then rerun this command.");
+  const openCodeVersion = detectOpenCodeVersion();
+  if (!openCodeVersion) {
+    error("Could not detect a supported OpenCode version on PATH.");
+    hint("Install OpenCode 1.x or 2.x, then rerun this command.");
     blank();
     process.exit(1);
+    return;
+  }
+  if (!isSupportedOpenCodeVersion(openCodeVersion)) {
+    error(`OpenCode ${openCodeVersion.raw} is not supported by this version of claudex-switch.`);
+    hint("Supported OpenCode major versions are 1.x and 2.x.");
+    blank();
+    process.exit(1);
+    return;
   }
 
   const profileId = createOpenCodeProfileId();
-  const currentCredential = await readGlobalOpenCodeGoCredential();
   let profileCreated = false;
 
   try {
-    if (currentCredential) {
-      info("Found an existing OpenCode Go credential.");
-      const importCurrent = await confirm({
-        message: "Save a private copy as the new account?",
-        default: true,
-      });
-      if (importCurrent) {
-        await createOpenCodeGoProfile(profileId, currentCredential);
-        profileCreated = true;
-      }
-    }
-
-    if (!profileCreated) {
-      await createOpenCodeGoProfile(profileId);
-      profileCreated = true;
-      info("Opening OpenCode TUI for this private account...");
-      hint("Run /connect, choose OpenCode Go, add its API key, then exit the TUI.");
+    if (openCodeVersion.major === 2) {
+      info("OpenCode V2 uses a private key prompt instead of the TUI connect flow.");
+      hint("OpenCode terminal tools may inherit process environment variables; use this account only in trusted workspaces.");
       blank();
+      const key = await password({
+        message: "OpenCode Go API key",
+        validate: (value) =>
+          value.trim().length > 0 || "Enter a non-empty OpenCode Go API key.",
+      });
+      const trimmedKey = key.trim();
+      if (!trimmedKey) throw new Error("No OpenCode Go API key was entered.");
+      await createOpenCodeGoProfile(profileId, { type: "api", key: trimmedKey });
+      profileCreated = true;
+    } else {
+      const currentCredential = await readGlobalOpenCodeGoCredential();
+      if (currentCredential) {
+        info("Found an existing OpenCode Go credential.");
+        const importCurrent = await confirm({
+          message: "Save a private copy as the new account?",
+          default: true,
+        });
+        if (importCurrent) {
+          await createOpenCodeGoProfile(profileId, currentCredential);
+          profileCreated = true;
+        }
+      }
 
-      const exitCode = await runOpenCodeTui(profileId);
-      if (exitCode !== 0 || !(await hasOpenCodeGoCredential(profileId))) {
-        throw new Error("OpenCode Go setup was cancelled or no Go credential was saved.");
+      if (!profileCreated) {
+        await createOpenCodeGoProfile(profileId);
+        profileCreated = true;
+        info("Opening OpenCode TUI for this private account...");
+        hint("Run /connect, choose OpenCode Go, add its API key, then exit the TUI.");
+        blank();
+
+        const exitCode = await runOpenCodeTui(profileId);
+        if (exitCode !== 0 || !(await hasOpenCodeGoCredential(profileId))) {
+          throw new Error("OpenCode Go setup was cancelled or no Go credential was saved.");
+        }
       }
     }
 
@@ -218,8 +246,12 @@ async function addOpenCodeGo(alias: string): Promise<void> {
     success(
       `${chalk.bold(alias)} created  ${chalk.dim("OpenCode Go subscription")}`,
     );
+    const historyHint =
+      openCodeVersion.major === 2
+        ? "OpenCode V2 keeps /resume history private to this alias."
+        : "OpenCode V1 Go aliases share /resume history.";
     hint(
-      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account; /resume history is shared.`,
+      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`,
     );
     blank();
   } catch (err) {
