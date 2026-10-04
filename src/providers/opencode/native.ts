@@ -53,18 +53,6 @@ export async function queryRows(
   }
 
   try {
-    const mod = await import(["node", "sqlite"].join(":"));
-    const db = new mod.DatabaseSync(dbPath, { readOnly: true });
-    try {
-      return db.prepare(sql).all() as JsonRecord[];
-    } finally {
-      db.close();
-    }
-  } catch {
-    // Node < 22.5 or the read-only open failed.
-  }
-
-  try {
     const { stdout } = await execFileAsync("sqlite3", [
       "-readonly",
       "-json",
@@ -74,8 +62,30 @@ export async function queryRows(
     const parsed: unknown = JSON.parse(stdout.trim() || "[]");
     return Array.isArray(parsed) ? (parsed as JsonRecord[]) : null;
   } catch {
-    return null;
+    // sqlite3 is not installed, or the read-only query failed.
   }
+
+  if (!process.versions.bun) {
+    try {
+      // Keep Node's experimental SQLite import outside the interactive CLI.
+      // Only this SQLite-only reader suppresses its experimental warning;
+      // other warnings in the CLI remain visible. argv carries paths/SQL,
+      // never credential values, and credentials are returned over stdout.
+      const { stdout } = await execFileAsync(process.execPath, [
+        "--disable-warning=ExperimentalWarning", "--input-type=module", "-e",
+        `import { DatabaseSync } from "node:sqlite";
+const db = new DatabaseSync(process.argv[1], { readOnly: true });
+try { process.stdout.write(JSON.stringify(db.prepare(process.argv[2]).all())); }
+finally { db.close(); }`,
+        dbPath, sql,
+      ]);
+      const parsed: unknown = JSON.parse(stdout.trim() || "[]");
+      return Array.isArray(parsed) ? parsed as JsonRecord[] : null;
+    } catch {
+      // Node < 22.5 or the read-only open failed.
+    }
+  }
+  return null;
 }
 
 export interface OpenCodeConsoleCredential {

@@ -1,5 +1,4 @@
-#!/usr/bin/env bun
-// @bun
+#!/usr/bin/env node
 import { createRequire } from "node:module";
 var __create = Object.create;
 var __getProtoOf = Object.getPrototypeOf;
@@ -3114,6 +3113,183 @@ class Separator {
     return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
   }
 }
+// node_modules/@inquirer/confirm/dist/esm/index.js
+function getBooleanValue(value, defaultValue) {
+  let answer = defaultValue !== false;
+  if (/^(y|yes)/i.test(value))
+    answer = true;
+  else if (/^(n|no)/i.test(value))
+    answer = false;
+  return answer;
+}
+function boolToString(value) {
+  return value ? "Yes" : "No";
+}
+var esm_default2 = createPrompt((config, done) => {
+  const { transformer = boolToString } = config;
+  const [status, setStatus] = useState("idle");
+  const [value, setValue] = useState("");
+  const theme = makeTheme(config.theme);
+  const prefix = usePrefix({ status, theme });
+  useKeypress((key, rl) => {
+    if (status !== "idle")
+      return;
+    if (isEnterKey(key)) {
+      const answer = getBooleanValue(value, config.default);
+      setValue(transformer(answer));
+      setStatus("done");
+      done(answer);
+    } else if (isTabKey(key)) {
+      const answer = boolToString(!getBooleanValue(value, config.default));
+      rl.clearLine(0);
+      rl.write(answer);
+      setValue(answer);
+    } else {
+      setValue(rl.line);
+    }
+  });
+  let formattedValue = value;
+  let defaultValue = "";
+  if (status === "done") {
+    formattedValue = theme.style.answer(value);
+  } else {
+    defaultValue = ` ${theme.style.defaultAnswer(config.default === false ? "y/N" : "Y/n")}`;
+  }
+  const message = theme.style.message(config.message, status);
+  return `${prefix} ${message}${defaultValue} ${formattedValue}`;
+});
+// node_modules/@inquirer/input/dist/esm/index.js
+var inputTheme = {
+  validationFailureMode: "keep"
+};
+var esm_default3 = createPrompt((config, done) => {
+  const { prefill = "tab" } = config;
+  const theme = makeTheme(inputTheme, config.theme);
+  const [status, setStatus] = useState("idle");
+  const [defaultValue = "", setDefaultValue] = useState(config.default);
+  const [errorMsg, setError] = useState();
+  const [value, setValue] = useState("");
+  const prefix = usePrefix({ status, theme });
+  async function validate(value2) {
+    const { required, pattern, patternError = "Invalid input" } = config;
+    if (required && !value2) {
+      return "You must provide a value";
+    }
+    if (pattern && !pattern.test(value2)) {
+      return patternError;
+    }
+    if (typeof config.validate === "function") {
+      return await config.validate(value2) || "You must provide a valid value";
+    }
+    return true;
+  }
+  useKeypress(async (key, rl) => {
+    if (status !== "idle") {
+      return;
+    }
+    if (isEnterKey(key)) {
+      const answer = value || defaultValue;
+      setStatus("loading");
+      const isValid = await validate(answer);
+      if (isValid === true) {
+        setValue(answer);
+        setStatus("done");
+        done(answer);
+      } else {
+        if (theme.validationFailureMode === "clear") {
+          setValue("");
+        } else {
+          rl.write(value);
+        }
+        setError(isValid);
+        setStatus("idle");
+      }
+    } else if (isBackspaceKey(key) && !value) {
+      setDefaultValue(undefined);
+    } else if (isTabKey(key) && !value) {
+      setDefaultValue(undefined);
+      rl.clearLine(0);
+      rl.write(defaultValue);
+      setValue(defaultValue);
+    } else {
+      setValue(rl.line);
+      setError(undefined);
+    }
+  });
+  useEffect((rl) => {
+    if (prefill === "editable" && defaultValue) {
+      rl.write(defaultValue);
+      setValue(defaultValue);
+    }
+  }, []);
+  const message = theme.style.message(config.message, status);
+  let formattedValue = value;
+  if (typeof config.transformer === "function") {
+    formattedValue = config.transformer(value, { isFinal: status === "done" });
+  } else if (status === "done") {
+    formattedValue = theme.style.answer(value);
+  }
+  let defaultStr;
+  if (defaultValue && status !== "done" && !value) {
+    defaultStr = theme.style.defaultAnswer(defaultValue);
+  }
+  let error = "";
+  if (errorMsg) {
+    error = theme.style.error(errorMsg);
+  }
+  return [
+    [prefix, message, defaultStr, formattedValue].filter((v) => v !== undefined).join(" "),
+    error
+  ];
+});
+// node_modules/@inquirer/password/dist/esm/index.js
+var esm_default4 = createPrompt((config, done) => {
+  const { validate = () => true } = config;
+  const theme = makeTheme(config.theme);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setError] = useState();
+  const [value, setValue] = useState("");
+  const prefix = usePrefix({ status, theme });
+  useKeypress(async (key, rl) => {
+    if (status !== "idle") {
+      return;
+    }
+    if (isEnterKey(key)) {
+      const answer = value;
+      setStatus("loading");
+      const isValid = await validate(answer);
+      if (isValid === true) {
+        setValue(answer);
+        setStatus("done");
+        done(answer);
+      } else {
+        rl.write(value);
+        setError(isValid || "You must provide a valid value");
+        setStatus("idle");
+      }
+    } else {
+      setValue(rl.line);
+      setError(undefined);
+    }
+  });
+  const message = theme.style.message(config.message, status);
+  let formattedValue = "";
+  let helpTip;
+  if (config.mask) {
+    const maskChar = typeof config.mask === "string" ? config.mask : "*";
+    formattedValue = maskChar.repeat(value.length);
+  } else if (status !== "done") {
+    helpTip = `${theme.style.help("[input is masked]")}${cursorHide}`;
+  }
+  if (status === "done") {
+    formattedValue = theme.style.answer(formattedValue);
+  }
+  let error = "";
+  if (errorMsg) {
+    error = theme.style.error(errorMsg);
+  }
+  return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
+});
 // node_modules/@inquirer/select/dist/esm/index.js
 var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
 var selectTheme = {
@@ -3155,7 +3331,7 @@ function normalizeChoices(choices) {
     return normalizedChoice;
   });
 }
-var esm_default2 = createPrompt((config, done) => {
+var esm_default5 = createPrompt((config, done) => {
   const { loop = true, pageSize = 7 } = config;
   const theme = makeTheme(selectTheme, config.theme);
   const { keybindings } = theme;
@@ -3281,6 +3457,9 @@ var esm_default2 = createPrompt((config, done) => {
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
 import { basename as basename2, dirname as dirname7, join as join11, resolve as resolve2 } from "path";
+
+// src/alias/store.ts
+import { mkdir } from "fs/promises";
 
 // src/lib/paths.ts
 import { homedir } from "os";
@@ -3444,6 +3623,9 @@ var RESERVED = new Set([
   "--version",
   "-v"
 ]);
+async function ensureDir() {
+  await mkdir(CLAUDEX_DIR, { recursive: true });
+}
 async function loadAliases() {
   const reg = await readJson(ALIAS_REGISTRY_FILE, emptyRegistry());
   if (!Array.isArray(reg.aliases)) {
@@ -3451,10 +3633,146 @@ async function loadAliases() {
   }
   return reg;
 }
+async function saveAliases(reg) {
+  await ensureDir();
+  await writeJsonSecure(ALIAS_REGISTRY_FILE, reg);
+}
 function findAlias(reg, alias) {
   const lower = alias.toLowerCase();
   return reg.aliases.find((a) => a.alias.toLowerCase() === lower);
 }
+function targetsEqual(left, right) {
+  if (left.provider !== right.provider)
+    return false;
+  if (left.provider === "claude" && right.provider === "claude") {
+    return left.profileName === right.profileName;
+  }
+  if (left.provider === "codex" && right.provider === "codex") {
+    return left.accountKey === right.accountKey;
+  }
+  if (left.provider === "opencode" && right.provider === "opencode") {
+    return left.profileId === right.profileId;
+  }
+  return false;
+}
+function findAliasByTarget(reg, target) {
+  return reg.aliases.find((entry) => targetsEqual(entry.target, target));
+}
+function findAliasesByTarget(reg, target) {
+  return reg.aliases.filter((entry) => targetsEqual(entry.target, target));
+}
+function aliasExists(reg, alias) {
+  return findAlias(reg, alias) !== undefined;
+}
+function isReservedAlias(alias) {
+  return RESERVED.has(alias.toLowerCase());
+}
+function isValidAlias(alias) {
+  if (!alias)
+    return false;
+  if (isReservedAlias(alias))
+    return false;
+  if (/[/\\:*?"<>|.\s]/.test(alias))
+    return false;
+  return true;
+}
+function checkAlias(reg, alias, options = {}) {
+  if (!alias)
+    return "empty";
+  if (isReservedAlias(alias))
+    return "reserved";
+  if (!isValidAlias(alias))
+    return "charset";
+  if (options.ignoreAlias !== undefined && options.ignoreAlias.toLowerCase() === alias.toLowerCase()) {
+    return null;
+  }
+  if (aliasExists(reg, alias))
+    return "taken";
+  return null;
+}
+function describeAliasRejection(rejection, alias) {
+  switch (rejection) {
+    case "empty":
+      return "Alias cannot be empty";
+    case "reserved":
+      return `"${alias}" is a reserved command name`;
+    case "charset":
+      return "Invalid alias. Use letters, numbers, hyphens, or underscores.";
+    case "taken":
+      return `Alias "${alias}" already exists`;
+  }
+}
+async function addAlias(alias, target) {
+  const reg = await loadAliases();
+  if (aliasExists(reg, alias)) {
+    throw new Error(`Alias "${alias}" already exists`);
+  }
+  const existingTarget = findAliasByTarget(reg, target);
+  if (existingTarget) {
+    throw new Error(`Account already imported as alias "${existingTarget.alias}"`);
+  }
+  reg.aliases.push({
+    alias,
+    target,
+    createdAt: Date.now()
+  });
+  await saveAliases(reg);
+}
+async function removeAlias(alias) {
+  const reg = await loadAliases();
+  const idx = reg.aliases.findIndex((a) => a.alias.toLowerCase() === alias.toLowerCase());
+  if (idx < 0)
+    return false;
+  reg.aliases.splice(idx, 1);
+  await saveAliases(reg);
+  return true;
+}
+async function removeAliasesByTarget(target) {
+  const reg = await loadAliases();
+  const before = reg.aliases.length;
+  reg.aliases = reg.aliases.filter((entry) => !targetsEqual(entry.target, target));
+  const removed = before - reg.aliases.length;
+  if (removed > 0) {
+    await saveAliases(reg);
+  }
+  return removed;
+}
+async function updateAlias(alias, target) {
+  const reg = await loadAliases();
+  const entry = findAlias(reg, alias);
+  if (!entry) {
+    throw new Error(`Alias "${alias}" not found`);
+  }
+  entry.target = target;
+  await saveAliases(reg);
+}
+async function renameAlias(currentAlias, nextAlias) {
+  const reg = await loadAliases();
+  const entry = findAlias(reg, currentAlias);
+  if (!entry) {
+    throw new Error(`Alias "${currentAlias}" not found`);
+  }
+  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
+  if (rejection) {
+    throw new Error(describeAliasRejection(rejection, nextAlias));
+  }
+  entry.alias = nextAlias;
+  await saveAliases(reg);
+}
+
+// src/providers/claude/profiles.ts
+import {
+  chmod as chmod3,
+  copyFile,
+  lstat,
+  mkdir as mkdir4,
+  readdir as readdir2,
+  readlink,
+  rm as rm3,
+  symlink,
+  unlink
+} from "fs/promises";
+import { join as join5 } from "path";
 
 // src/providers/claude/credentials.ts
 import { platform } from "os";
@@ -3606,7 +3924,7 @@ async function writeOAuthAccount(account) {
 }
 
 // src/providers/claude/settings.ts
-import { chmod, mkdir } from "fs/promises";
+import { chmod, mkdir as mkdir2 } from "fs/promises";
 import { dirname } from "path";
 var CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
@@ -3630,7 +3948,7 @@ async function read() {
   return readJson(SETTINGS_FILE, {});
 }
 async function write(settings) {
-  await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+  await mkdir2(dirname(SETTINGS_FILE), { recursive: true });
   await writeJsonSecure(SETTINGS_FILE, settings);
   try {
     await chmod(SETTINGS_FILE, 384);
@@ -3679,7 +3997,7 @@ async function readManagedExtraEnvKeys() {
   return record.keys.filter((key) => typeof key === "string");
 }
 async function writeManagedExtraEnvKeys(keys) {
-  await mkdir(dirname(MANAGED_ENV_FILE), { recursive: true });
+  await mkdir2(dirname(MANAGED_ENV_FILE), { recursive: true });
   await writeJson(MANAGED_ENV_FILE, { keys });
 }
 function isReservedClaudeEnvKey(key) {
@@ -3805,7 +4123,7 @@ async function prepareOAuthProfileClaudeSettings(name, profile) {
 }
 async function writePrivateRunSettings(name, settings) {
   const file = claudeProfileClaudeSettingsFile(name);
-  await mkdir(claudeProfileDir(name), { recursive: true });
+  await mkdir2(claudeProfileDir(name), { recursive: true });
   await writeJsonSecure(file, settings);
   try {
     await chmod(file, 384);
@@ -3867,7 +4185,7 @@ async function getApiConfig() {
 import { spawn, spawnSync as spawnSync3 } from "child_process";
 import {
   chmod as chmod2,
-  mkdir as mkdir2,
+  mkdir as mkdir3,
   readFile as readFile2,
   readdir,
   rename,
@@ -4024,7 +4342,7 @@ function profilePaths(profileId) {
   };
 }
 async function mkdirPrivate(path) {
-  await mkdir2(path, { recursive: true, mode: 448 });
+  await mkdir3(path, { recursive: true, mode: 448 });
   try {
     await chmod2(path, 448);
   } catch {}
@@ -4394,7 +4712,7 @@ async function withLock(lock, action) {
   await mkdirPrivate(dirname2(lock));
   for (;; ) {
     try {
-      await mkdir2(lock, { mode: 448 });
+      await mkdir3(lock, { mode: 448 });
       createdAt = Date.now();
       try {
         await writePrivateJson(join4(lock, "owner.json"), {
@@ -4872,222 +5190,75 @@ async function installCLIProxyAPIWithHomebrew(spawnCommand = spawn) {
   return exitCode === 0;
 }
 
-// node_modules/chalk/source/index.js
-var { stdout: stdoutColor2, stderr: stderrColor2 } = supports_color_default;
-var GENERATOR2 = Symbol("GENERATOR");
-var STYLER2 = Symbol("STYLER");
-var IS_EMPTY2 = Symbol("IS_EMPTY");
-var levelMapping2 = [
-  "ansi",
-  "ansi",
-  "ansi256",
-  "ansi16m"
-];
-var styles3 = Object.create(null);
-var applyOptions2 = (object, options = {}) => {
-  if (options.level && !(Number.isInteger(options.level) && options.level >= 0 && options.level <= 3)) {
-    throw new Error("The `level` option should be an integer from 0 to 3");
-  }
-  const colorLevel = stdoutColor2 ? stdoutColor2.level : 0;
-  object.level = options.level === undefined ? colorLevel : options.level;
-};
-var chalkFactory2 = (options) => {
-  const chalk2 = (...strings) => strings.join(" ");
-  applyOptions2(chalk2, options);
-  Object.setPrototypeOf(chalk2, createChalk2.prototype);
-  return chalk2;
-};
-function createChalk2(options) {
-  return chalkFactory2(options);
-}
-Object.setPrototypeOf(createChalk2.prototype, Function.prototype);
-for (const [styleName, style] of Object.entries(ansi_styles_default)) {
-  styles3[styleName] = {
-    get() {
-      const builder = createBuilder2(this, createStyler2(style.open, style.close, this[STYLER2]), this[IS_EMPTY2]);
-      Object.defineProperty(this, styleName, { value: builder });
-      return builder;
-    }
-  };
-}
-styles3.visible = {
-  get() {
-    const builder = createBuilder2(this, this[STYLER2], true);
-    Object.defineProperty(this, "visible", { value: builder });
-    return builder;
-  }
-};
-var getModelAnsi2 = (model, level, type, ...arguments_) => {
-  if (model === "rgb") {
-    if (level === "ansi16m") {
-      return ansi_styles_default[type].ansi16m(...arguments_);
-    }
-    if (level === "ansi256") {
-      return ansi_styles_default[type].ansi256(ansi_styles_default.rgbToAnsi256(...arguments_));
-    }
-    return ansi_styles_default[type].ansi(ansi_styles_default.rgbToAnsi(...arguments_));
-  }
-  if (model === "hex") {
-    return getModelAnsi2("rgb", level, type, ...ansi_styles_default.hexToRgb(...arguments_));
-  }
-  return ansi_styles_default[type][model](...arguments_);
-};
-var usedModels2 = ["rgb", "hex", "ansi256"];
-for (const model of usedModels2) {
-  styles3[model] = {
-    get() {
-      const { level } = this;
-      return function(...arguments_) {
-        const styler = createStyler2(getModelAnsi2(model, levelMapping2[level], "color", ...arguments_), ansi_styles_default.color.close, this[STYLER2]);
-        return createBuilder2(this, styler, this[IS_EMPTY2]);
-      };
-    }
-  };
-  const bgModel = "bg" + model[0].toUpperCase() + model.slice(1);
-  styles3[bgModel] = {
-    get() {
-      const { level } = this;
-      return function(...arguments_) {
-        const styler = createStyler2(getModelAnsi2(model, levelMapping2[level], "bgColor", ...arguments_), ansi_styles_default.bgColor.close, this[STYLER2]);
-        return createBuilder2(this, styler, this[IS_EMPTY2]);
-      };
-    }
-  };
-}
-var proto2 = Object.defineProperties(() => {}, {
-  ...styles3,
-  level: {
-    enumerable: true,
-    get() {
-      return this[GENERATOR2].level;
-    },
-    set(level) {
-      this[GENERATOR2].level = level;
-    }
-  }
-});
-var createStyler2 = (open, close, parent) => {
-  let openAll;
-  let closeAll;
-  if (parent === undefined) {
-    openAll = open;
-    closeAll = close;
-  } else {
-    openAll = parent.openAll + open;
-    closeAll = close + parent.closeAll;
-  }
-  return {
-    open,
-    close,
-    openAll,
-    closeAll,
-    parent
-  };
-};
-var createBuilder2 = (self, _styler, _isEmpty) => {
-  const builder = (...arguments_) => applyStyle2(builder, arguments_.length === 1 ? "" + arguments_[0] : arguments_.join(" "));
-  Object.setPrototypeOf(builder, proto2);
-  builder[GENERATOR2] = self;
-  builder[STYLER2] = _styler;
-  builder[IS_EMPTY2] = _isEmpty;
-  return builder;
-};
-var applyStyle2 = (self, string) => {
-  if (self.level <= 0 || !string) {
-    return self[IS_EMPTY2] ? "" : string;
-  }
-  let styler = self[STYLER2];
-  if (styler === undefined) {
-    return string;
-  }
-  const { openAll, closeAll } = styler;
-  if (string.includes("\x1B")) {
-    while (styler !== undefined) {
-      string = stringReplaceAll(string, styler.close, styler.open);
-      styler = styler.parent;
-    }
-  }
-  const lfIndex = string.indexOf(`
-`);
-  if (lfIndex !== -1) {
-    string = stringEncaseCRLFWithFirstIndex(string, closeAll, openAll, lfIndex);
-  }
-  return openAll + string + closeAll;
-};
-Object.defineProperties(createChalk2.prototype, styles3);
-var chalk2 = createChalk2();
-var chalkStderr2 = createChalk2({ level: stderrColor2 ? stderrColor2.level : 0 });
-var source_default2 = chalk2;
-
 // src/lib/ui.ts
 var icons = {
-  active: source_default2.green("▸"),
-  inactive: source_default2.dim(" "),
-  success: source_default2.green("✓"),
-  error: source_default2.red("✗"),
-  arrow: source_default2.cyan("→"),
-  info: source_default2.blue("●")
+  active: source_default.green("▸"),
+  inactive: source_default.dim(" "),
+  success: source_default.green("✓"),
+  error: source_default.red("✗"),
+  arrow: source_default.cyan("→"),
+  info: source_default.blue("●")
 };
 function header(text) {
-  return source_default2.bold(text);
+  return source_default.bold(text);
 }
 function success(text) {
   console.log(`  ${icons.success} ${text}`);
 }
 function error(text) {
-  console.error(`  ${icons.error} ${source_default2.red(text)}`);
+  console.error(`  ${icons.error} ${source_default.red(text)}`);
 }
 function info(text) {
   console.log(`  ${icons.info} ${text}`);
 }
 function hint(text) {
-  console.log(source_default2.dim(`  ${text}`));
+  console.log(source_default.dim(`  ${text}`));
 }
 function blank() {
   console.log();
 }
 function sectionHeader(text) {
-  console.log(`  ${source_default2.dim("──")} ${source_default2.bold(text)} ${source_default2.dim("──")}`);
+  console.log(`  ${source_default.dim("──")} ${source_default.bold(text)} ${source_default.dim("──")}`);
 }
 function formatType(type) {
   switch (type) {
     case "oauth":
-      return source_default2.blue("oauth");
+      return source_default.blue("oauth");
     case "api-key":
-      return source_default2.yellow("api-key");
+      return source_default.yellow("api-key");
     case "local-cliproxyapi":
-      return source_default2.green("local CLIProxyAPI");
+      return source_default.green("local CLIProxyAPI");
     case "chatgpt":
-      return source_default2.green("chatgpt");
+      return source_default.green("chatgpt");
     case "apikey":
-      return source_default2.yellow("apikey");
+      return source_default.yellow("apikey");
     default:
-      return source_default2.dim(type);
+      return source_default.dim(type);
   }
 }
 function formatPlan(plan) {
   if (!plan)
-    return source_default2.dim("unknown");
+    return source_default.dim("unknown");
   const map = {
-    max: source_default2.magenta("Max"),
-    pro: source_default2.cyan("Pro"),
-    free: source_default2.dim("Free"),
-    plus: source_default2.green("Plus"),
-    team: source_default2.blue("Team"),
-    business: source_default2.blue("Business"),
-    enterprise: source_default2.yellow("Enterprise"),
-    edu: source_default2.cyan("Edu")
+    max: source_default.magenta("Max"),
+    pro: source_default.cyan("Pro"),
+    free: source_default.dim("Free"),
+    plus: source_default.green("Plus"),
+    team: source_default.blue("Team"),
+    business: source_default.blue("Business"),
+    enterprise: source_default.yellow("Enterprise"),
+    edu: source_default.cyan("Edu")
   };
-  return map[plan.toLowerCase()] ?? source_default2.dim(plan);
+  return map[plan.toLowerCase()] ?? source_default.dim(plan);
 }
 function formatProvider(provider) {
   switch (provider) {
     case "claude":
-      return source_default2.magenta("Claude");
+      return source_default.magenta("Claude");
     case "codex":
-      return source_default2.green("Codex");
+      return source_default.green("Codex");
     case "opencode":
-      return source_default2.cyan("OpenCode");
+      return source_default.cyan("OpenCode");
   }
 }
 function maskKey(key) {
@@ -5099,27 +5270,27 @@ function formatUsage(usage, note) {
   if (usage) {
     const parts = [];
     if (usage.fiveHourUsedPercent !== null) {
-      parts.push(`${source_default2.dim("5h")} ${colorRemaining(100 - usage.fiveHourUsedPercent)}`);
+      parts.push(`${source_default.dim("5h")} ${colorRemaining(100 - usage.fiveHourUsedPercent)}`);
     }
     if (usage.weeklyUsedPercent !== null) {
-      parts.push(`${source_default2.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`);
+      parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`);
     }
     if (usage.monthlyUsedPercent !== null && usage.monthlyUsedPercent !== undefined) {
-      parts.push(`${source_default2.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`);
+      parts.push(`${source_default.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`);
     }
     if (parts.length > 0)
-      return parts.join(source_default2.dim(" · "));
+      return parts.join(source_default.dim(" · "));
   }
-  return note ? source_default2.dim(note) : "";
+  return note ? source_default.dim(note) : "";
 }
 function colorRemaining(percent) {
   const value = Math.round(Math.min(100, Math.max(0, percent)));
   const text = `${value}%`;
   if (value >= 50)
-    return source_default2.green(text);
+    return source_default.green(text);
   if (value >= 20)
-    return source_default2.yellow(text);
-  return source_default2.red(text);
+    return source_default.yellow(text);
+  return source_default.red(text);
 }
 function formatBalance(balance) {
   if (!balance)
@@ -5128,9 +5299,9 @@ function formatBalance(balance) {
   const acctPart = formatBalanceSide(balance.account);
   if (keyPart && acctPart) {
     return [
-      `${source_default2.dim("key")} ${keyPart}`,
-      `${source_default2.dim("acct")} ${acctPart}`
-    ].join(source_default2.dim(" · "));
+      `${source_default.dim("key")} ${keyPart}`,
+      `${source_default.dim("acct")} ${acctPart}`
+    ].join(source_default.dim(" · "));
   }
   return keyPart || acctPart;
 }
@@ -5139,12 +5310,12 @@ function formatBalanceSide(side) {
     return "";
   const dollars = (v) => `$${v.toFixed(2)}`;
   if (side.unlimited) {
-    return side.usedUsd === null ? source_default2.dim("∞") : source_default2.dim(`${dollars(side.usedUsd)} used`);
+    return side.usedUsd === null ? source_default.dim("∞") : source_default.dim(`${dollars(side.usedUsd)} used`);
   }
   if (side.remainingUsd === null)
     return "";
-  const colored = side.remainingUsd >= 10 ? source_default2.green(dollars(side.remainingUsd)) : side.remainingUsd >= 1 ? source_default2.yellow(dollars(side.remainingUsd)) : source_default2.red(dollars(side.remainingUsd));
-  return `${colored} ${source_default2.dim("left")}`;
+  const colored = side.remainingUsd >= 10 ? source_default.green(dollars(side.remainingUsd)) : side.remainingUsd >= 1 ? source_default.yellow(dollars(side.remainingUsd)) : source_default.red(dollars(side.remainingUsd));
+  return `${colored} ${source_default.dim("left")}`;
 }
 
 // src/providers/claude/profiles.ts
@@ -5153,15 +5324,483 @@ var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
   ".claude.json",
   "backups"
 ]);
+async function ensureDir2(path) {
+  await mkdir4(path, { recursive: true });
+}
+async function ensurePrivateDir(path) {
+  await mkdir4(path, { recursive: true, mode: 448 });
+  try {
+    await chmod3(path, 448);
+  } catch {}
+}
 async function readState2() {
   return readJson(CLAUDE_STATE_FILE, { active: null });
 }
+async function writeState2(state) {
+  await ensureDir2(CLAUDE_PROFILES_DIR);
+  await writeJson(CLAUDE_STATE_FILE, state);
+}
+async function readProfileData(name) {
+  return readJson(claudeProfileDataFile(name), { type: "oauth" });
+}
+async function writeProfileData(name, data) {
+  await writeJson(claudeProfileDataFile(name), data);
+}
+async function profileExists(name) {
+  return fileExists(claudeProfileDataFile(name));
+}
+async function getProfileData(name) {
+  return readProfileData(name);
+}
+async function updateProfileDefaultModel(name, model) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const currentData = await readProfileData(name);
+  const normalizedModel = normalizeOptionalValue(model);
+  if (!normalizedModel) {
+    throw new Error("Default model cannot be empty");
+  }
+  const nextData = currentData.type === "api-key" ? normalizeApiKeyProfileData({
+    ...currentData,
+    model: normalizedModel
+  }) : currentData.type === "local-cliproxyapi" ? { ...currentData, defaultModel: normalizedModel } : normalizeOAuthProfileData({ defaultModel: normalizedModel });
+  await writeProfileData(name, nextData);
+  const state = await readState2();
+  if (state.active === name) {
+    await activateProfile(name, nextData);
+  }
+  return nextData;
+}
+async function updateClaudeProfileConfig(name, patch) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const current = await readProfileData(name);
+  const fields = patch.fields ?? {};
+  const pick = (key, fallback) => (key in fields) ? fields[key] : fallback;
+  const env2 = patch.env === undefined ? current.env : patch.env;
+  let next;
+  if (current.type === "api-key") {
+    next = normalizeApiKeyProfileData({
+      apiKey: pick("apiKey", current.apiKey) ?? "",
+      baseUrl: pick("baseUrl", current.baseUrl),
+      authToken: pick("authToken", current.authToken),
+      model: pick("model", current.model),
+      defaultFableModel: pick("defaultFableModel", current.defaultFableModel),
+      defaultSonnetModel: pick("defaultSonnetModel", current.defaultSonnetModel),
+      defaultOpusModel: pick("defaultOpusModel", current.defaultOpusModel),
+      defaultHaikuModel: pick("defaultHaikuModel", current.defaultHaikuModel),
+      subagentModel: pick("subagentModel", current.subagentModel),
+      env: env2
+    });
+    if (!next.apiKey) {
+      throw new Error("API key cannot be empty");
+    }
+  } else if (current.type === "local-cliproxyapi") {
+    const defaultModel = normalizeOptionalValue(pick("defaultModel", current.defaultModel));
+    if (!defaultModel) {
+      throw new Error("Default model cannot be empty");
+    }
+    const { env: _previousEnv, ...rest } = current;
+    next = { ...rest, defaultModel, ...withCustomEnv(env2) };
+  } else {
+    next = normalizeOAuthProfileData({
+      defaultModel: pick("defaultModel", current.defaultModel),
+      env: env2
+    });
+  }
+  await writeProfileData(name, next);
+  const state = await readState2();
+  const reapplied = state.active === name;
+  if (reapplied) {
+    await activateProfile(name, next);
+  }
+  return { data: next, reapplied };
+}
+async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
+  const data = normalizeOAuthProfileData(config);
+  await ensureDir2(claudeProfileDir(name));
+  await copyCredentials(fromCredentials, claudeProfileCredentials(name));
+  await writeProfileData(name, data);
+  const account = await readOAuthAccount();
+  if (account) {
+    await writeJson(claudeProfileAccountFile(name), account);
+  }
+  await activateProfile(name, data);
+  await writeState2({ active: name });
+}
+async function addApiKeyProfile(name, config) {
+  const state = await readState2();
+  if (state.active && state.active !== name && await profileExists(state.active)) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
+    }
+  }
+  await ensureDir2(claudeProfileDir(name));
+  const data = normalizeApiKeyProfileData(config);
+  await writeProfileData(name, data);
+  await activateProfile(name, data);
+  await writeState2({ active: name });
+}
+async function addLocalCLIProxyAPIProfile(name, config) {
+  const state = await readState2();
+  if (state.active && state.active !== name && await profileExists(state.active)) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
+    }
+  }
+  await ensureDir2(claudeProfileDir(name));
+  await writeProfileData(name, config);
+  await activateProfile(name, config);
+  await writeState2({ active: name });
+}
+async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
+  const current = await readProfileData(name);
+  if (current.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  await writeProfileData(name, { ...current, authIdentity });
+}
+async function switchProfile(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const state = await readState2();
+  const targetData = await readProfileData(name);
+  if (state.active === name && await isProfileApplied(name, targetData)) {
+    return targetData;
+  }
+  if (state.active && state.active !== name) {
+    const oldData = await readProfileData(state.active);
+    if (oldData.type === "oauth") {
+      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
+    }
+  }
+  await activateProfile(name, targetData);
+  await writeState2({ active: name });
+  return targetData;
+}
+async function snapshotCurrentOAuthProfile(name) {
+  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  if (currentCreds) {
+    await ensureDir2(claudeProfileDir(name));
+    await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
+  }
+  const currentAccount = await readOAuthAccount();
+  if (currentAccount) {
+    await writeJson(claudeProfileAccountFile(name), currentAccount);
+  }
+}
+async function snapshotCurrentOAuthProfileIfLiveMatches(name) {
+  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+  if (savedAccount) {
+    const liveAccount = await readOAuthAccount();
+    if (!sameOAuthSession(savedAccount, liveAccount)) {
+      return false;
+    }
+  }
+  await snapshotCurrentOAuthProfile(name);
+  return true;
+}
+async function activateProfile(name, targetData) {
+  if (targetData.type === "api-key") {
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
+    await applyApiConfig(targetData);
+    return;
+  }
+  if (targetData.type === "local-cliproxyapi") {
+    const runtime = await ensureManagedCLIProxyAPI({
+      profileId: targetData.profileId,
+      binaryPath: targetData.binaryPath
+    });
+    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
+    await applyLocalCLIProxyAPIConfig(config, targetData.env);
+    return;
+  }
+  await applyOAuthConfig(targetData.defaultModel, targetData.env);
+  await restoreOAuthCredentials(name);
+}
+async function restoreOAuthCredentials(name) {
+  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+  if (savedAccount) {
+    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveAccount = await readOAuthAccount();
+    if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
+      await snapshotCurrentOAuthProfile(name);
+      return;
+    }
+  }
+  const creds = await readFreshestOAuthCredentials(name, false);
+  if (!creds) {
+    throw new Error(`No credentials found at ${claudeProfileCredentials(name)}`);
+  }
+  await writeCredentials(creds, CREDENTIALS_FILE);
+  await writeOAuthAccount(savedAccount);
+}
+function oauthExpiresAt(creds) {
+  return creds?.claudeAiOauth?.expiresAt ?? 0;
+}
+function pickFresherCredentials(a, b) {
+  if (!a)
+    return b;
+  if (!b)
+    return a;
+  return oauthExpiresAt(b) > oauthExpiresAt(a) ? b : a;
+}
+async function readOAuthCredentialStores(name, includeMatchingGlobal) {
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
+  let global2 = null;
+  if (includeMatchingGlobal) {
+    const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
+      global2 = await readCredentials(CREDENTIALS_FILE);
+    }
+  }
+  return { snapshot, isolated, global: global2 };
+}
+function freshestOAuthCredentials(stores) {
+  return pickFresherCredentials(pickFresherCredentials(stores.snapshot, stores.isolated), stores.global);
+}
+async function readFreshestOAuthCredentials(name, includeMatchingGlobal) {
+  return freshestOAuthCredentials(await readOAuthCredentialStores(name, includeMatchingGlobal));
+}
+async function prepareIsolatedOAuthRun(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const dir = claudeProfileDir(name);
+  const configDir = claudeProfileConfigDir(name);
+  const state = await readState2();
+  const stores = await readOAuthCredentialStores(name, state.active === name);
+  const { snapshot, isolated } = stores;
+  const freshest = freshestOAuthCredentials(stores);
+  if (!freshest) {
+    throw new Error(`No credentials stored for Claude profile "${name}". Switch to it and log in first.`);
+  }
+  await ensureDir2(dir);
+  if (oauthExpiresAt(freshest) > oauthExpiresAt(isolated) || !isolated) {
+    await writeIsolatedCredentials(freshest, dir);
+  }
+  if (oauthExpiresAt(freshest) > oauthExpiresAt(snapshot)) {
+    await writeCredentials(freshest, claudeProfileCredentials(name));
+  }
+  await prepareIsolatedOAuthConfig(name);
+  return { secureStorageDir: dir, configDir };
+}
+async function prepareIsolatedLocalCLIProxyAPIRun(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const data = await readProfileData(name);
+  if (data.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  const configDir = claudeProfileConfigDir(name);
+  const secureStorageDir = claudeProfileSecureStorageDir(name);
+  await ensureDir2(configDir);
+  await ensurePrivateDir(secureStorageDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await writeIsolatedLocalClaudeJson(name);
+  return { secureStorageDir, configDir };
+}
+async function prepareIsolatedOAuthConfig(name) {
+  const configDir = claudeProfileConfigDir(name);
+  await ensureDir2(configDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await writeIsolatedClaudeJson(name);
+}
+async function linkSharedClaudeConfigEntries(configDir) {
+  let entries;
+  try {
+    entries = await readdir2(CLAUDE_DIR, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name))
+      continue;
+    const source = join5(CLAUDE_DIR, entry.name);
+    const destination = join5(configDir, entry.name);
+    const type = entry.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
+    await ensureSymlinkOrCopy(source, destination, type);
+  }
+}
+async function ensureSymlinkOrCopy(source, destination, type) {
+  try {
+    const stat2 = await lstat(destination);
+    if (!stat2.isSymbolicLink())
+      return;
+    const existing = await readlink(destination);
+    if (existing === source)
+      return;
+    await unlink(destination);
+  } catch {}
+  try {
+    await symlink(source, destination, type);
+    return;
+  } catch {}
+  if (type === "file") {
+    try {
+      await copyFile(source, destination);
+    } catch {}
+  }
+}
+async function writeIsolatedClaudeJson(name) {
+  const account = await readJson(claudeProfileAccountFile(name), null);
+  const data = await readJson(CLAUDE_JSON, {});
+  if (account) {
+    data.oauthAccount = account;
+  } else {
+    delete data.oauthAccount;
+  }
+  await writeJson(claudeProfileConfigJson(name), data);
+}
+async function writeIsolatedLocalClaudeJson(name) {
+  const data = await readJson(CLAUDE_JSON, {});
+  delete data.oauthAccount;
+  await writeJson(claudeProfileConfigJson(name), data);
+}
+async function syncIsolatedOAuthSnapshot(name) {
+  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
+  if (!isolated)
+    return;
+  const snapshot = await readCredentials(claudeProfileCredentials(name));
+  if (oauthExpiresAt(isolated) > oauthExpiresAt(snapshot)) {
+    await writeCredentials(isolated, claudeProfileCredentials(name));
+  }
+}
+async function isProfileApplied(name, targetData) {
+  if (targetData.type === "local-cliproxyapi") {
+    return false;
+  }
+  if (targetData.type === "api-key") {
+    if (!sameApiConfig(targetData, await getApiConfig()))
+      return false;
+    if (await readCredentials(CREDENTIALS_FILE))
+      return false;
+    if (await readOAuthAccount())
+      return false;
+    return true;
+  }
+  if (await getApiConfig())
+    return false;
+  if (normalizeOptionalValue(targetData.defaultModel) !== normalizeOptionalValue(await getConfiguredModel())) {
+    return false;
+  }
+  if (!await readCredentials(CREDENTIALS_FILE))
+    return false;
+  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
+  if (!savedAccount)
+    return true;
+  return sameOAuthSession(savedAccount, await readOAuthAccount());
+}
+function sameOAuthAccount(expected, actual) {
+  const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
+  const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
+  return Boolean(expectedId && actualId && expectedId === actualId);
+}
+function sameOAuthSession(expected, actual) {
+  return sameOAuthAccount(expected, actual) && expected.organizationUuid === actual?.organizationUuid;
+}
+async function snapshotActiveOAuthProfile(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const data = await readProfileData(name);
+  if (data.type !== "oauth") {
+    throw new Error(`Profile "${name}" is not an OAuth profile`);
+  }
+  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  if (!currentCreds) {
+    throw new Error("No active Claude credentials found");
+  }
+  await ensureDir2(claudeProfileDir(name));
+  await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
+  const currentAccount = await readOAuthAccount();
+  if (currentAccount) {
+    await writeJson(claudeProfileAccountFile(name), currentAccount);
+  }
+}
+async function removeProfile(name) {
+  if (!await profileExists(name)) {
+    throw new Error(`Profile "${name}" does not exist`);
+  }
+  const state = await readState2();
+  const data = await readProfileData(name);
+  if (data.type === "oauth") {
+    await deleteIsolatedCredentials(claudeProfileDir(name));
+  }
+  if (data.type === "local-cliproxyapi") {
+    await purgeManagedCLIProxyAPI({
+      profileId: data.profileId,
+      binaryPath: data.binaryPath
+    });
+  }
+  if (state.active === name && (data.type === "api-key" || data.type === "local-cliproxyapi")) {
+    await clearApiConfig();
+  }
+  await rm3(claudeProfileDir(name), { recursive: true });
+  if (state.active === name) {
+    await writeState2({ active: null });
+  }
+}
+function normalizeOptionalValue(value) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+function normalizeApiKeyProfileData(config) {
+  return {
+    type: "api-key",
+    apiKey: config.apiKey.trim(),
+    ...normalizeOptionalValue(config.baseUrl) ? { baseUrl: normalizeOptionalValue(config.baseUrl) } : {},
+    ...normalizeOptionalValue(config.authToken) ? { authToken: normalizeOptionalValue(config.authToken) } : {},
+    ...normalizeOptionalValue(config.model) ? { model: normalizeOptionalValue(config.model) } : {},
+    ...normalizeOptionalValue(config.defaultFableModel) ? { defaultFableModel: normalizeOptionalValue(config.defaultFableModel) } : {},
+    ...normalizeOptionalValue(config.defaultSonnetModel) ? { defaultSonnetModel: normalizeOptionalValue(config.defaultSonnetModel) } : {},
+    ...normalizeOptionalValue(config.defaultOpusModel) ? { defaultOpusModel: normalizeOptionalValue(config.defaultOpusModel) } : {},
+    ...normalizeOptionalValue(config.defaultHaikuModel) ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) } : {},
+    ...normalizeOptionalValue(config.subagentModel) ? { subagentModel: normalizeOptionalValue(config.subagentModel) } : {},
+    ...withCustomEnv(config.env)
+  };
+}
+function normalizeOAuthProfileData(config) {
+  const defaultModel = normalizeOptionalValue(config.defaultModel);
+  return {
+    type: "oauth",
+    ...defaultModel ? { defaultModel } : {},
+    ...withCustomEnv(config.env)
+  };
+}
+function withCustomEnv(env2) {
+  const normalized = normalizeCustomEnv(env2);
+  return Object.keys(normalized).length > 0 ? { env: normalized } : {};
+}
+function sameCustomEnv(expected, actual) {
+  const a = normalizeCustomEnv(expected);
+  const b = normalizeCustomEnv(actual);
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length)
+    return false;
+  return keys.every((key) => a[key] === b[key]);
+}
+function sameApiConfig(expected, actual) {
+  if (!actual)
+    return false;
+  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultFableModel) === normalizeOptionalValue(actual.defaultFableModel) && normalizeOptionalValue(expected.subagentModel) === normalizeOptionalValue(actual.subagentModel) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel) && sameCustomEnv(expected.env, actual.env);
+}
 
 // src/providers/codex/registry.ts
-import { mkdir as mkdir4 } from "fs/promises";
+import { mkdir as mkdir6 } from "fs/promises";
 
 // src/providers/codex/config.ts
-import { chmod as chmod3, mkdir as mkdir3, readFile as readFile3, writeFile as writeFile3 } from "fs/promises";
+import { chmod as chmod4, mkdir as mkdir5, readFile as readFile3, writeFile as writeFile3 } from "fs/promises";
 import { dirname as dirname3 } from "path";
 
 // src/lib/toml.ts
@@ -5531,13 +6170,13 @@ async function writeCodexConfig(config) {
   const content = renderCodexConfig(config);
   try {
     if (await readFile3(CODEX_CONFIG_FILE, "utf-8") === content) {
-      await chmod3(CODEX_CONFIG_FILE, 384);
+      await chmod4(CODEX_CONFIG_FILE, 384);
       return;
     }
   } catch {}
-  await mkdir3(dirname3(CODEX_CONFIG_FILE), { recursive: true });
+  await mkdir5(dirname3(CODEX_CONFIG_FILE), { recursive: true });
   await writeFile3(CODEX_CONFIG_FILE, content, { mode: 384 });
-  await chmod3(CODEX_CONFIG_FILE, 384);
+  await chmod4(CODEX_CONFIG_FILE, 384);
 }
 
 // src/providers/codex/registry.ts
@@ -5554,7 +6193,7 @@ var DEFAULT_REGISTRY = {
   accounts: []
 };
 async function ensureAccountsDir() {
-  await mkdir4(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function loadRegistry(options = {}) {
   if (!await fileExists(CODEX_REGISTRY_FILE)) {
@@ -5579,1040 +6218,6 @@ async function loadRegistry(options = {}) {
 }
 async function saveRegistry(reg) {
   await ensureAccountsDir();
-  await writeJson(CODEX_REGISTRY_FILE, reg);
-}
-
-// src/providers/opencode/native.ts
-import { execFile } from "child_process";
-import { promisify } from "util";
-import { join as join5 } from "path";
-var execFileAsync = promisify(execFile);
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function nativeOpenCodeDatabaseFile() {
-  const override = process.env.OPENCODE_DB?.trim();
-  if (override)
-    return override;
-  return join5(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
-}
-async function queryRows(dbPath, sql) {
-  try {
-    const mod = await import(["bun", "sqlite"].join(":"));
-    const db = new mod.Database(dbPath, { readonly: true });
-    try {
-      return db.prepare(sql).all();
-    } finally {
-      db.close();
-    }
-  } catch {}
-  try {
-    const mod = await import(["node", "sqlite"].join(":"));
-    const db = new mod.DatabaseSync(dbPath, { readOnly: true });
-    try {
-      return db.prepare(sql).all();
-    } finally {
-      db.close();
-    }
-  } catch {}
-  try {
-    const { stdout } = await execFileAsync("sqlite3", [
-      "-readonly",
-      "-json",
-      dbPath,
-      sql
-    ]);
-    const parsed = JSON.parse(stdout.trim() || "[]");
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-async function readOpenCodeConsoleCredentials(dbPath) {
-  if (!await fileExists(dbPath))
-    return [];
-  const rows = await queryRows(dbPath, "SELECT id, label, value, active FROM credential WHERE integration_id = 'opencode'");
-  if (!rows)
-    throw new Error("Could not read OpenCode's private subscription credentials.");
-  return rows.flatMap((row) => {
-    try {
-      const value = JSON.parse(String(row.value));
-      const metadata = value.metadata;
-      if (typeof row.id !== "string" || value.type !== "oauth" || typeof value.access !== "string" || !value.access || typeof value.refresh !== "string" || !value.refresh || typeof value.expires !== "number" || !Number.isFinite(value.expires) || typeof value.methodID !== "string" || !isRecord(metadata) || typeof metadata.server !== "string" || typeof metadata.accountID !== "string" || !metadata.accountID || typeof metadata.email !== "string" || typeof metadata.orgID !== "string" || !metadata.orgID)
-        return [];
-      return [{ id: row.id, label: String(row.label), active: row.active === 1 || row.active === true, value }];
-    } catch {
-      return [];
-    }
-  });
-}
-function parseCredentialRows(rows) {
-  const credentials = [];
-  for (const row of rows) {
-    if (typeof row.id !== "string" || row.id.length === 0 || typeof row.value !== "string") {
-      continue;
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(row.value);
-    } catch {
-      continue;
-    }
-    if (!isRecord(parsed) || typeof parsed.key !== "string" || !parsed.key) {
-      continue;
-    }
-    credentials.push({
-      id: row.id,
-      label: typeof row.label === "string" && row.label ? row.label : "OpenCode Go",
-      key: parsed.key,
-      active: row.active === 1 || row.active === true
-    });
-  }
-  return credentials.toSorted((left, right) => Number(right.active) - Number(left.active) || left.label.localeCompare(right.label) || left.id.localeCompare(right.id));
-}
-async function readNativeOpenCodeGoCredentials() {
-  const dbFile = nativeOpenCodeDatabaseFile();
-  if (!await fileExists(dbFile))
-    return { status: "ok", credentials: [] };
-  const rows = await queryRows(dbFile, "SELECT id, label, value, active FROM credential WHERE integration_id = 'opencode-go'");
-  if (!rows)
-    return { status: "unavailable" };
-  return { status: "ok", credentials: parseCredentialRows(rows) };
-}
-
-// src/providers/opencode/lock.ts
-import { randomUUID as randomUUID2 } from "crypto";
-import { open, readFile as readFile4, rm as rm3, stat as stat2 } from "fs/promises";
-async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
-  const timeoutAt = Date.now() + timeoutMs;
-  const token = randomUUID2();
-  while (Date.now() < timeoutAt) {
-    try {
-      const handle = await open(lockPath, "wx", 384);
-      await handle.writeFile(JSON.stringify({ pid: process.pid, token, createdAt: Date.now() }));
-      await handle.close();
-      return async () => {
-        try {
-          const current = JSON.parse(await readFile4(lockPath, "utf8"));
-          if (current.token === token)
-            await rm3(lockPath, { force: true });
-        } catch {}
-      };
-    } catch (error2) {
-      if (error2.code !== "EEXIST") {
-        throw new Error(`Could not lock this alias's private OpenCode ${resourceName}.`);
-      }
-    }
-    try {
-      const owner = JSON.parse(await readFile4(lockPath, "utf8"));
-      if (typeof owner.pid === "number" && Number.isInteger(owner.pid)) {
-        try {
-          process.kill(owner.pid, 0);
-        } catch (error2) {
-          if (error2.code === "ESRCH") {
-            await rm3(lockPath, { force: true });
-            continue;
-          }
-        }
-      } else {
-        const age = Date.now() - (await stat2(lockPath)).mtimeMs;
-        if (age > 30000) {
-          await rm3(lockPath, { force: true });
-          continue;
-        }
-      }
-    } catch {}
-    await new Promise((resolve2) => setTimeout(resolve2, 25));
-  }
-  throw new Error(`Timed out waiting for this alias's private OpenCode ${resourceName} lock.`);
-}
-
-// src/providers/opencode/profiles.ts
-function emptyState() {
-  return { active: null };
-}
-async function readOpenCodeState() {
-  return readJson(OPENCODE_STATE_FILE, emptyState());
-}
-
-// src/commands/add.ts
-import { spawn as spawn6, spawnSync as spawnSync6 } from "child_process";
-import { platform as platform4 } from "os";
-// node_modules/@inquirer/confirm/dist/esm/index.js
-function getBooleanValue(value, defaultValue) {
-  let answer = defaultValue !== false;
-  if (/^(y|yes)/i.test(value))
-    answer = true;
-  else if (/^(n|no)/i.test(value))
-    answer = false;
-  return answer;
-}
-function boolToString(value) {
-  return value ? "Yes" : "No";
-}
-var esm_default3 = createPrompt((config, done) => {
-  const { transformer = boolToString } = config;
-  const [status, setStatus] = useState("idle");
-  const [value, setValue] = useState("");
-  const theme = makeTheme(config.theme);
-  const prefix = usePrefix({ status, theme });
-  useKeypress((key, rl) => {
-    if (status !== "idle")
-      return;
-    if (isEnterKey(key)) {
-      const answer = getBooleanValue(value, config.default);
-      setValue(transformer(answer));
-      setStatus("done");
-      done(answer);
-    } else if (isTabKey(key)) {
-      const answer = boolToString(!getBooleanValue(value, config.default));
-      rl.clearLine(0);
-      rl.write(answer);
-      setValue(answer);
-    } else {
-      setValue(rl.line);
-    }
-  });
-  let formattedValue = value;
-  let defaultValue = "";
-  if (status === "done") {
-    formattedValue = theme.style.answer(value);
-  } else {
-    defaultValue = ` ${theme.style.defaultAnswer(config.default === false ? "y/N" : "Y/n")}`;
-  }
-  const message = theme.style.message(config.message, status);
-  return `${prefix} ${message}${defaultValue} ${formattedValue}`;
-});
-// node_modules/@inquirer/input/dist/esm/index.js
-var inputTheme = {
-  validationFailureMode: "keep"
-};
-var esm_default4 = createPrompt((config, done) => {
-  const { prefill = "tab" } = config;
-  const theme = makeTheme(inputTheme, config.theme);
-  const [status, setStatus] = useState("idle");
-  const [defaultValue = "", setDefaultValue] = useState(config.default);
-  const [errorMsg, setError] = useState();
-  const [value, setValue] = useState("");
-  const prefix = usePrefix({ status, theme });
-  async function validate(value2) {
-    const { required, pattern, patternError = "Invalid input" } = config;
-    if (required && !value2) {
-      return "You must provide a value";
-    }
-    if (pattern && !pattern.test(value2)) {
-      return patternError;
-    }
-    if (typeof config.validate === "function") {
-      return await config.validate(value2) || "You must provide a valid value";
-    }
-    return true;
-  }
-  useKeypress(async (key, rl) => {
-    if (status !== "idle") {
-      return;
-    }
-    if (isEnterKey(key)) {
-      const answer = value || defaultValue;
-      setStatus("loading");
-      const isValid = await validate(answer);
-      if (isValid === true) {
-        setValue(answer);
-        setStatus("done");
-        done(answer);
-      } else {
-        if (theme.validationFailureMode === "clear") {
-          setValue("");
-        } else {
-          rl.write(value);
-        }
-        setError(isValid);
-        setStatus("idle");
-      }
-    } else if (isBackspaceKey(key) && !value) {
-      setDefaultValue(undefined);
-    } else if (isTabKey(key) && !value) {
-      setDefaultValue(undefined);
-      rl.clearLine(0);
-      rl.write(defaultValue);
-      setValue(defaultValue);
-    } else {
-      setValue(rl.line);
-      setError(undefined);
-    }
-  });
-  useEffect((rl) => {
-    if (prefill === "editable" && defaultValue) {
-      rl.write(defaultValue);
-      setValue(defaultValue);
-    }
-  }, []);
-  const message = theme.style.message(config.message, status);
-  let formattedValue = value;
-  if (typeof config.transformer === "function") {
-    formattedValue = config.transformer(value, { isFinal: status === "done" });
-  } else if (status === "done") {
-    formattedValue = theme.style.answer(value);
-  }
-  let defaultStr;
-  if (defaultValue && status !== "done" && !value) {
-    defaultStr = theme.style.defaultAnswer(defaultValue);
-  }
-  let error2 = "";
-  if (errorMsg) {
-    error2 = theme.style.error(errorMsg);
-  }
-  return [
-    [prefix, message, defaultStr, formattedValue].filter((v) => v !== undefined).join(" "),
-    error2
-  ];
-});
-// node_modules/@inquirer/password/dist/esm/index.js
-var esm_default5 = createPrompt((config, done) => {
-  const { validate = () => true } = config;
-  const theme = makeTheme(config.theme);
-  const [status, setStatus] = useState("idle");
-  const [errorMsg, setError] = useState();
-  const [value, setValue] = useState("");
-  const prefix = usePrefix({ status, theme });
-  useKeypress(async (key, rl) => {
-    if (status !== "idle") {
-      return;
-    }
-    if (isEnterKey(key)) {
-      const answer = value;
-      setStatus("loading");
-      const isValid = await validate(answer);
-      if (isValid === true) {
-        setValue(answer);
-        setStatus("done");
-        done(answer);
-      } else {
-        rl.write(value);
-        setError(isValid || "You must provide a valid value");
-        setStatus("idle");
-      }
-    } else {
-      setValue(rl.line);
-      setError(undefined);
-    }
-  });
-  const message = theme.style.message(config.message, status);
-  let formattedValue = "";
-  let helpTip;
-  if (config.mask) {
-    const maskChar = typeof config.mask === "string" ? config.mask : "*";
-    formattedValue = maskChar.repeat(value.length);
-  } else if (status !== "done") {
-    helpTip = `${theme.style.help("[input is masked]")}${cursorHide}`;
-  }
-  if (status === "done") {
-    formattedValue = theme.style.answer(formattedValue);
-  }
-  let error2 = "";
-  if (errorMsg) {
-    error2 = theme.style.error(errorMsg);
-  }
-  return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error2];
-});
-// src/alias/store.ts
-import { mkdir as mkdir5 } from "fs/promises";
-function emptyRegistry2() {
-  return { version: 1, aliases: [] };
-}
-var RESERVED2 = new Set([
-  "add",
-  "use",
-  "list",
-  "ls",
-  "remove",
-  "rm",
-  "rename",
-  "purge",
-  "current",
-  "doctor",
-  "model",
-  "import",
-  "update",
-  "webconfig",
-  "help",
-  "-run",
-  "--run",
-  "--help",
-  "-h",
-  "--version",
-  "-v"
-]);
-async function ensureDir() {
-  await mkdir5(CLAUDEX_DIR, { recursive: true });
-}
-async function loadAliases2() {
-  const reg = await readJson(ALIAS_REGISTRY_FILE, emptyRegistry2());
-  if (!Array.isArray(reg.aliases)) {
-    reg.aliases = [];
-  }
-  return reg;
-}
-async function saveAliases(reg) {
-  await ensureDir();
-  await writeJsonSecure(ALIAS_REGISTRY_FILE, reg);
-}
-function findAlias2(reg, alias) {
-  const lower = alias.toLowerCase();
-  return reg.aliases.find((a) => a.alias.toLowerCase() === lower);
-}
-function targetsEqual(left, right) {
-  if (left.provider !== right.provider)
-    return false;
-  if (left.provider === "claude" && right.provider === "claude") {
-    return left.profileName === right.profileName;
-  }
-  if (left.provider === "codex" && right.provider === "codex") {
-    return left.accountKey === right.accountKey;
-  }
-  if (left.provider === "opencode" && right.provider === "opencode") {
-    return left.profileId === right.profileId;
-  }
-  return false;
-}
-function findAliasByTarget(reg, target) {
-  return reg.aliases.find((entry) => targetsEqual(entry.target, target));
-}
-function findAliasesByTarget(reg, target) {
-  return reg.aliases.filter((entry) => targetsEqual(entry.target, target));
-}
-function aliasExists(reg, alias) {
-  return findAlias2(reg, alias) !== undefined;
-}
-function isReservedAlias(alias) {
-  return RESERVED2.has(alias.toLowerCase());
-}
-function isValidAlias(alias) {
-  if (!alias)
-    return false;
-  if (isReservedAlias(alias))
-    return false;
-  if (/[/\\:*?"<>|.\s]/.test(alias))
-    return false;
-  return true;
-}
-function checkAlias(reg, alias, options = {}) {
-  if (!alias)
-    return "empty";
-  if (isReservedAlias(alias))
-    return "reserved";
-  if (!isValidAlias(alias))
-    return "charset";
-  if (options.ignoreAlias !== undefined && options.ignoreAlias.toLowerCase() === alias.toLowerCase()) {
-    return null;
-  }
-  if (aliasExists(reg, alias))
-    return "taken";
-  return null;
-}
-function describeAliasRejection(rejection, alias) {
-  switch (rejection) {
-    case "empty":
-      return "Alias cannot be empty";
-    case "reserved":
-      return `"${alias}" is a reserved command name`;
-    case "charset":
-      return "Invalid alias. Use letters, numbers, hyphens, or underscores.";
-    case "taken":
-      return `Alias "${alias}" already exists`;
-  }
-}
-async function addAlias(alias, target) {
-  const reg = await loadAliases2();
-  if (aliasExists(reg, alias)) {
-    throw new Error(`Alias "${alias}" already exists`);
-  }
-  const existingTarget = findAliasByTarget(reg, target);
-  if (existingTarget) {
-    throw new Error(`Account already imported as alias "${existingTarget.alias}"`);
-  }
-  reg.aliases.push({
-    alias,
-    target,
-    createdAt: Date.now()
-  });
-  await saveAliases(reg);
-}
-async function removeAlias(alias) {
-  const reg = await loadAliases2();
-  const idx = reg.aliases.findIndex((a) => a.alias.toLowerCase() === alias.toLowerCase());
-  if (idx < 0)
-    return false;
-  reg.aliases.splice(idx, 1);
-  await saveAliases(reg);
-  return true;
-}
-async function removeAliasesByTarget(target) {
-  const reg = await loadAliases2();
-  const before = reg.aliases.length;
-  reg.aliases = reg.aliases.filter((entry) => !targetsEqual(entry.target, target));
-  const removed = before - reg.aliases.length;
-  if (removed > 0) {
-    await saveAliases(reg);
-  }
-  return removed;
-}
-async function updateAlias(alias, target) {
-  const reg = await loadAliases2();
-  const entry = findAlias2(reg, alias);
-  if (!entry) {
-    throw new Error(`Alias "${alias}" not found`);
-  }
-  entry.target = target;
-  await saveAliases(reg);
-}
-async function renameAlias(currentAlias, nextAlias) {
-  const reg = await loadAliases2();
-  const entry = findAlias2(reg, currentAlias);
-  if (!entry) {
-    throw new Error(`Alias "${currentAlias}" not found`);
-  }
-  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
-  if (rejection) {
-    throw new Error(describeAliasRejection(rejection, nextAlias));
-  }
-  entry.alias = nextAlias;
-  await saveAliases(reg);
-}
-
-// src/accounts/create.ts
-import { createHash as createHash3 } from "crypto";
-
-// src/providers/claude/profiles.ts
-import {
-  chmod as chmod4,
-  copyFile,
-  lstat,
-  mkdir as mkdir6,
-  readdir as readdir2,
-  readlink,
-  rm as rm4,
-  symlink,
-  unlink
-} from "fs/promises";
-import { join as join6 } from "path";
-var PROFILE_CONFIG_LINK_EXCLUDES2 = new Set([
-  ".credentials.json",
-  ".claude.json",
-  "backups"
-]);
-async function ensureDir2(path) {
-  await mkdir6(path, { recursive: true });
-}
-async function ensurePrivateDir(path) {
-  await mkdir6(path, { recursive: true, mode: 448 });
-  try {
-    await chmod4(path, 448);
-  } catch {}
-}
-async function readState3() {
-  return readJson(CLAUDE_STATE_FILE, { active: null });
-}
-async function writeState2(state) {
-  await ensureDir2(CLAUDE_PROFILES_DIR);
-  await writeJson(CLAUDE_STATE_FILE, state);
-}
-async function readProfileData(name) {
-  return readJson(claudeProfileDataFile(name), { type: "oauth" });
-}
-async function writeProfileData(name, data) {
-  await writeJson(claudeProfileDataFile(name), data);
-}
-async function profileExists(name) {
-  return fileExists(claudeProfileDataFile(name));
-}
-async function getProfileData(name) {
-  return readProfileData(name);
-}
-async function updateProfileDefaultModel(name, model) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const currentData = await readProfileData(name);
-  const normalizedModel = normalizeOptionalValue(model);
-  if (!normalizedModel) {
-    throw new Error("Default model cannot be empty");
-  }
-  const nextData = currentData.type === "api-key" ? normalizeApiKeyProfileData({
-    ...currentData,
-    model: normalizedModel
-  }) : currentData.type === "local-cliproxyapi" ? { ...currentData, defaultModel: normalizedModel } : normalizeOAuthProfileData({ defaultModel: normalizedModel });
-  await writeProfileData(name, nextData);
-  const state = await readState3();
-  if (state.active === name) {
-    await activateProfile(name, nextData);
-  }
-  return nextData;
-}
-async function updateClaudeProfileConfig(name, patch) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const current = await readProfileData(name);
-  const fields = patch.fields ?? {};
-  const pick = (key, fallback) => (key in fields) ? fields[key] : fallback;
-  const env2 = patch.env === undefined ? current.env : patch.env;
-  let next;
-  if (current.type === "api-key") {
-    next = normalizeApiKeyProfileData({
-      apiKey: pick("apiKey", current.apiKey) ?? "",
-      baseUrl: pick("baseUrl", current.baseUrl),
-      authToken: pick("authToken", current.authToken),
-      model: pick("model", current.model),
-      defaultFableModel: pick("defaultFableModel", current.defaultFableModel),
-      defaultSonnetModel: pick("defaultSonnetModel", current.defaultSonnetModel),
-      defaultOpusModel: pick("defaultOpusModel", current.defaultOpusModel),
-      defaultHaikuModel: pick("defaultHaikuModel", current.defaultHaikuModel),
-      subagentModel: pick("subagentModel", current.subagentModel),
-      env: env2
-    });
-    if (!next.apiKey) {
-      throw new Error("API key cannot be empty");
-    }
-  } else if (current.type === "local-cliproxyapi") {
-    const defaultModel = normalizeOptionalValue(pick("defaultModel", current.defaultModel));
-    if (!defaultModel) {
-      throw new Error("Default model cannot be empty");
-    }
-    const { env: _previousEnv, ...rest } = current;
-    next = { ...rest, defaultModel, ...withCustomEnv(env2) };
-  } else {
-    next = normalizeOAuthProfileData({
-      defaultModel: pick("defaultModel", current.defaultModel),
-      env: env2
-    });
-  }
-  await writeProfileData(name, next);
-  const state = await readState3();
-  const reapplied = state.active === name;
-  if (reapplied) {
-    await activateProfile(name, next);
-  }
-  return { data: next, reapplied };
-}
-async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
-  const data = normalizeOAuthProfileData(config);
-  await ensureDir2(claudeProfileDir(name));
-  await copyCredentials(fromCredentials, claudeProfileCredentials(name));
-  await writeProfileData(name, data);
-  const account = await readOAuthAccount();
-  if (account) {
-    await writeJson(claudeProfileAccountFile(name), account);
-  }
-  await activateProfile(name, data);
-  await writeState2({ active: name });
-}
-async function addApiKeyProfile(name, config) {
-  const state = await readState3();
-  if (state.active && state.active !== name && await profileExists(state.active)) {
-    const oldData = await readProfileData(state.active);
-    if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
-    }
-  }
-  await ensureDir2(claudeProfileDir(name));
-  const data = normalizeApiKeyProfileData(config);
-  await writeProfileData(name, data);
-  await activateProfile(name, data);
-  await writeState2({ active: name });
-}
-async function addLocalCLIProxyAPIProfile(name, config) {
-  const state = await readState3();
-  if (state.active && state.active !== name && await profileExists(state.active)) {
-    const oldData = await readProfileData(state.active);
-    if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
-    }
-  }
-  await ensureDir2(claudeProfileDir(name));
-  await writeProfileData(name, config);
-  await activateProfile(name, config);
-  await writeState2({ active: name });
-}
-async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
-  const current = await readProfileData(name);
-  if (current.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
-  }
-  await writeProfileData(name, { ...current, authIdentity });
-}
-async function switchProfile(name) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const state = await readState3();
-  const targetData = await readProfileData(name);
-  if (state.active === name && await isProfileApplied(name, targetData)) {
-    return targetData;
-  }
-  if (state.active && state.active !== name) {
-    const oldData = await readProfileData(state.active);
-    if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
-    }
-  }
-  await activateProfile(name, targetData);
-  await writeState2({ active: name });
-  return targetData;
-}
-async function snapshotCurrentOAuthProfile(name) {
-  const currentCreds = await readCredentials(CREDENTIALS_FILE);
-  if (currentCreds) {
-    await ensureDir2(claudeProfileDir(name));
-    await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
-  }
-  const currentAccount = await readOAuthAccount();
-  if (currentAccount) {
-    await writeJson(claudeProfileAccountFile(name), currentAccount);
-  }
-}
-async function snapshotCurrentOAuthProfileIfLiveMatches(name) {
-  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-  if (savedAccount) {
-    const liveAccount = await readOAuthAccount();
-    if (!sameOAuthSession(savedAccount, liveAccount)) {
-      return false;
-    }
-  }
-  await snapshotCurrentOAuthProfile(name);
-  return true;
-}
-async function activateProfile(name, targetData) {
-  if (targetData.type === "api-key") {
-    await deleteCredentials(CREDENTIALS_FILE);
-    await writeOAuthAccount(null);
-    await applyApiConfig(targetData);
-    return;
-  }
-  if (targetData.type === "local-cliproxyapi") {
-    const runtime = await ensureManagedCLIProxyAPI({
-      profileId: targetData.profileId,
-      binaryPath: targetData.binaryPath
-    });
-    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
-    await deleteCredentials(CREDENTIALS_FILE);
-    await writeOAuthAccount(null);
-    await applyLocalCLIProxyAPIConfig(config, targetData.env);
-    return;
-  }
-  await applyOAuthConfig(targetData.defaultModel, targetData.env);
-  await restoreOAuthCredentials(name);
-}
-async function restoreOAuthCredentials(name) {
-  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-  if (savedAccount) {
-    const liveCreds = await readCredentials(CREDENTIALS_FILE);
-    const liveAccount = await readOAuthAccount();
-    if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
-      await snapshotCurrentOAuthProfile(name);
-      return;
-    }
-  }
-  const creds = await readFreshestOAuthCredentials(name, false);
-  if (!creds) {
-    throw new Error(`No credentials found at ${claudeProfileCredentials(name)}`);
-  }
-  await writeCredentials(creds, CREDENTIALS_FILE);
-  await writeOAuthAccount(savedAccount);
-}
-function oauthExpiresAt(creds) {
-  return creds?.claudeAiOauth?.expiresAt ?? 0;
-}
-function pickFresherCredentials(a, b) {
-  if (!a)
-    return b;
-  if (!b)
-    return a;
-  return oauthExpiresAt(b) > oauthExpiresAt(a) ? b : a;
-}
-async function readOAuthCredentialStores(name, includeMatchingGlobal) {
-  const snapshot = await readCredentials(claudeProfileCredentials(name));
-  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
-  let global2 = null;
-  if (includeMatchingGlobal) {
-    const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-    if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      global2 = await readCredentials(CREDENTIALS_FILE);
-    }
-  }
-  return { snapshot, isolated, global: global2 };
-}
-function freshestOAuthCredentials(stores) {
-  return pickFresherCredentials(pickFresherCredentials(stores.snapshot, stores.isolated), stores.global);
-}
-async function readFreshestOAuthCredentials(name, includeMatchingGlobal) {
-  return freshestOAuthCredentials(await readOAuthCredentialStores(name, includeMatchingGlobal));
-}
-async function prepareIsolatedOAuthRun(name) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const dir = claudeProfileDir(name);
-  const configDir = claudeProfileConfigDir(name);
-  const state = await readState3();
-  const stores = await readOAuthCredentialStores(name, state.active === name);
-  const { snapshot, isolated } = stores;
-  const freshest = freshestOAuthCredentials(stores);
-  if (!freshest) {
-    throw new Error(`No credentials stored for Claude profile "${name}". Switch to it and log in first.`);
-  }
-  await ensureDir2(dir);
-  if (oauthExpiresAt(freshest) > oauthExpiresAt(isolated) || !isolated) {
-    await writeIsolatedCredentials(freshest, dir);
-  }
-  if (oauthExpiresAt(freshest) > oauthExpiresAt(snapshot)) {
-    await writeCredentials(freshest, claudeProfileCredentials(name));
-  }
-  await prepareIsolatedOAuthConfig(name);
-  return { secureStorageDir: dir, configDir };
-}
-async function prepareIsolatedLocalCLIProxyAPIRun(name) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const data = await readProfileData(name);
-  if (data.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
-  }
-  const configDir = claudeProfileConfigDir(name);
-  const secureStorageDir = claudeProfileSecureStorageDir(name);
-  await ensureDir2(configDir);
-  await ensurePrivateDir(secureStorageDir);
-  await linkSharedClaudeConfigEntries(configDir);
-  await writeIsolatedLocalClaudeJson(name);
-  return { secureStorageDir, configDir };
-}
-async function prepareIsolatedOAuthConfig(name) {
-  const configDir = claudeProfileConfigDir(name);
-  await ensureDir2(configDir);
-  await linkSharedClaudeConfigEntries(configDir);
-  await writeIsolatedClaudeJson(name);
-}
-async function linkSharedClaudeConfigEntries(configDir) {
-  let entries;
-  try {
-    entries = await readdir2(CLAUDE_DIR, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (PROFILE_CONFIG_LINK_EXCLUDES2.has(entry.name))
-      continue;
-    const source = join6(CLAUDE_DIR, entry.name);
-    const destination = join6(configDir, entry.name);
-    const type = entry.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
-    await ensureSymlinkOrCopy(source, destination, type);
-  }
-}
-async function ensureSymlinkOrCopy(source, destination, type) {
-  try {
-    const stat3 = await lstat(destination);
-    if (!stat3.isSymbolicLink())
-      return;
-    const existing = await readlink(destination);
-    if (existing === source)
-      return;
-    await unlink(destination);
-  } catch {}
-  try {
-    await symlink(source, destination, type);
-    return;
-  } catch {}
-  if (type === "file") {
-    try {
-      await copyFile(source, destination);
-    } catch {}
-  }
-}
-async function writeIsolatedClaudeJson(name) {
-  const account = await readJson(claudeProfileAccountFile(name), null);
-  const data = await readJson(CLAUDE_JSON, {});
-  if (account) {
-    data.oauthAccount = account;
-  } else {
-    delete data.oauthAccount;
-  }
-  await writeJson(claudeProfileConfigJson(name), data);
-}
-async function writeIsolatedLocalClaudeJson(name) {
-  const data = await readJson(CLAUDE_JSON, {});
-  delete data.oauthAccount;
-  await writeJson(claudeProfileConfigJson(name), data);
-}
-async function syncIsolatedOAuthSnapshot(name) {
-  const isolated = await readIsolatedCredentials(claudeProfileDir(name));
-  if (!isolated)
-    return;
-  const snapshot = await readCredentials(claudeProfileCredentials(name));
-  if (oauthExpiresAt(isolated) > oauthExpiresAt(snapshot)) {
-    await writeCredentials(isolated, claudeProfileCredentials(name));
-  }
-}
-async function isProfileApplied(name, targetData) {
-  if (targetData.type === "local-cliproxyapi") {
-    return false;
-  }
-  if (targetData.type === "api-key") {
-    if (!sameApiConfig(targetData, await getApiConfig()))
-      return false;
-    if (await readCredentials(CREDENTIALS_FILE))
-      return false;
-    if (await readOAuthAccount())
-      return false;
-    return true;
-  }
-  if (await getApiConfig())
-    return false;
-  if (normalizeOptionalValue(targetData.defaultModel) !== normalizeOptionalValue(await getConfiguredModel())) {
-    return false;
-  }
-  if (!await readCredentials(CREDENTIALS_FILE))
-    return false;
-  const savedAccount = await readJson(claudeProfileAccountFile(name), null);
-  if (!savedAccount)
-    return true;
-  return sameOAuthSession(savedAccount, await readOAuthAccount());
-}
-function sameOAuthAccount(expected, actual) {
-  const expectedId = expected.accountUuid ?? expected.emailAddress ?? null;
-  const actualId = actual?.accountUuid ?? actual?.emailAddress ?? null;
-  return Boolean(expectedId && actualId && expectedId === actualId);
-}
-function sameOAuthSession(expected, actual) {
-  return sameOAuthAccount(expected, actual) && expected.organizationUuid === actual?.organizationUuid;
-}
-async function snapshotActiveOAuthProfile(name) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const data = await readProfileData(name);
-  if (data.type !== "oauth") {
-    throw new Error(`Profile "${name}" is not an OAuth profile`);
-  }
-  const currentCreds = await readCredentials(CREDENTIALS_FILE);
-  if (!currentCreds) {
-    throw new Error("No active Claude credentials found");
-  }
-  await ensureDir2(claudeProfileDir(name));
-  await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
-  const currentAccount = await readOAuthAccount();
-  if (currentAccount) {
-    await writeJson(claudeProfileAccountFile(name), currentAccount);
-  }
-}
-async function removeProfile(name) {
-  if (!await profileExists(name)) {
-    throw new Error(`Profile "${name}" does not exist`);
-  }
-  const state = await readState3();
-  const data = await readProfileData(name);
-  if (data.type === "oauth") {
-    await deleteIsolatedCredentials(claudeProfileDir(name));
-  }
-  if (data.type === "local-cliproxyapi") {
-    await purgeManagedCLIProxyAPI({
-      profileId: data.profileId,
-      binaryPath: data.binaryPath
-    });
-  }
-  if (state.active === name && (data.type === "api-key" || data.type === "local-cliproxyapi")) {
-    await clearApiConfig();
-  }
-  await rm4(claudeProfileDir(name), { recursive: true });
-  if (state.active === name) {
-    await writeState2({ active: null });
-  }
-}
-function normalizeOptionalValue(value) {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
-}
-function normalizeApiKeyProfileData(config) {
-  return {
-    type: "api-key",
-    apiKey: config.apiKey.trim(),
-    ...normalizeOptionalValue(config.baseUrl) ? { baseUrl: normalizeOptionalValue(config.baseUrl) } : {},
-    ...normalizeOptionalValue(config.authToken) ? { authToken: normalizeOptionalValue(config.authToken) } : {},
-    ...normalizeOptionalValue(config.model) ? { model: normalizeOptionalValue(config.model) } : {},
-    ...normalizeOptionalValue(config.defaultFableModel) ? { defaultFableModel: normalizeOptionalValue(config.defaultFableModel) } : {},
-    ...normalizeOptionalValue(config.defaultSonnetModel) ? { defaultSonnetModel: normalizeOptionalValue(config.defaultSonnetModel) } : {},
-    ...normalizeOptionalValue(config.defaultOpusModel) ? { defaultOpusModel: normalizeOptionalValue(config.defaultOpusModel) } : {},
-    ...normalizeOptionalValue(config.defaultHaikuModel) ? { defaultHaikuModel: normalizeOptionalValue(config.defaultHaikuModel) } : {},
-    ...normalizeOptionalValue(config.subagentModel) ? { subagentModel: normalizeOptionalValue(config.subagentModel) } : {},
-    ...withCustomEnv(config.env)
-  };
-}
-function normalizeOAuthProfileData(config) {
-  const defaultModel = normalizeOptionalValue(config.defaultModel);
-  return {
-    type: "oauth",
-    ...defaultModel ? { defaultModel } : {},
-    ...withCustomEnv(config.env)
-  };
-}
-function withCustomEnv(env2) {
-  const normalized = normalizeCustomEnv(env2);
-  return Object.keys(normalized).length > 0 ? { env: normalized } : {};
-}
-function sameCustomEnv(expected, actual) {
-  const a = normalizeCustomEnv(expected);
-  const b = normalizeCustomEnv(actual);
-  const keys = Object.keys(a);
-  if (keys.length !== Object.keys(b).length)
-    return false;
-  return keys.every((key) => a[key] === b[key]);
-}
-function sameApiConfig(expected, actual) {
-  if (!actual)
-    return false;
-  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultFableModel) === normalizeOptionalValue(actual.defaultFableModel) && normalizeOptionalValue(expected.subagentModel) === normalizeOptionalValue(actual.subagentModel) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel) && sameCustomEnv(expected.env, actual.env);
-}
-
-// src/providers/codex/registry.ts
-import { mkdir as mkdir7 } from "fs/promises";
-var DEFAULT_REGISTRY2 = {
-  schema_version: 3,
-  active_account_key: null,
-  active_account_activated_at_ms: null,
-  auto_switch: {
-    enabled: false,
-    threshold_5h_percent: 10,
-    threshold_weekly_percent: 5
-  },
-  api: { usage: true, account: true },
-  accounts: []
-};
-async function ensureAccountsDir2() {
-  await mkdir7(CODEX_ACCOUNTS_DIR, { recursive: true });
-}
-async function loadRegistry2(options = {}) {
-  if (!await fileExists(CODEX_REGISTRY_FILE)) {
-    return JSON.parse(JSON.stringify(DEFAULT_REGISTRY2));
-  }
-  const reg = await readJson(CODEX_REGISTRY_FILE, DEFAULT_REGISTRY2);
-  if (!Array.isArray(reg.accounts)) {
-    reg.accounts = [];
-  }
-  let changed = false;
-  for (const account of reg.accounts) {
-    const resolvedModel = resolveCodexModel(account.default_model, account.api_provider?.model ?? null);
-    if (account.default_model !== resolvedModel) {
-      account.default_model = resolvedModel;
-      changed = true;
-    }
-  }
-  if (changed && options.persistNormalization !== false) {
-    await saveRegistry2(reg);
-  }
-  return reg;
-}
-async function saveRegistry2(reg) {
-  await ensureAccountsDir2();
   await writeJson(CODEX_REGISTRY_FILE, reg);
 }
 function findAccountByKey(reg, accountKey) {
@@ -6691,11 +6296,328 @@ function managedProviderNames(reg) {
   return names;
 }
 
-// src/providers/codex/auth.ts
-import { chmod as chmod5, copyFile as copyFile2, mkdir as mkdir8, readFile as readFile5, rename as rename2, unlink as unlink2, writeFile as writeFile4 } from "fs/promises";
+// src/providers/opencode/profiles.ts
+import { chmod as chmod5, mkdir as mkdir7, rename as rename2, rm as rm5, writeFile as writeFile4 } from "fs/promises";
 import { randomUUID as randomUUID3 } from "crypto";
 import { dirname as dirname4 } from "path";
-async function ensureAccountsDir3() {
+
+// src/providers/opencode/native.ts
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { join as join6 } from "path";
+var execFileAsync = promisify(execFile);
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function nativeOpenCodeDatabaseFile() {
+  const override = process.env.OPENCODE_DB?.trim();
+  if (override)
+    return override;
+  return join6(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+}
+async function queryRows(dbPath, sql) {
+  try {
+    const mod = await import(["bun", "sqlite"].join(":"));
+    const db = new mod.Database(dbPath, { readonly: true });
+    try {
+      return db.prepare(sql).all();
+    } finally {
+      db.close();
+    }
+  } catch {}
+  try {
+    const { stdout } = await execFileAsync("sqlite3", [
+      "-readonly",
+      "-json",
+      dbPath,
+      sql
+    ]);
+    const parsed = JSON.parse(stdout.trim() || "[]");
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {}
+  if (!process.versions.bun) {
+    try {
+      const { stdout } = await execFileAsync(process.execPath, [
+        "--disable-warning=ExperimentalWarning",
+        "--input-type=module",
+        "-e",
+        `import { DatabaseSync } from "node:sqlite";
+const db = new DatabaseSync(process.argv[1], { readOnly: true });
+try { process.stdout.write(JSON.stringify(db.prepare(process.argv[2]).all())); }
+finally { db.close(); }`,
+        dbPath,
+        sql
+      ]);
+      const parsed = JSON.parse(stdout.trim() || "[]");
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {}
+  }
+  return null;
+}
+async function readOpenCodeConsoleCredentials(dbPath) {
+  if (!await fileExists(dbPath))
+    return [];
+  const rows = await queryRows(dbPath, "SELECT id, label, value, active FROM credential WHERE integration_id = 'opencode'");
+  if (!rows)
+    throw new Error("Could not read OpenCode's private subscription credentials.");
+  return rows.flatMap((row) => {
+    try {
+      const value = JSON.parse(String(row.value));
+      const metadata = value.metadata;
+      if (typeof row.id !== "string" || value.type !== "oauth" || typeof value.access !== "string" || !value.access || typeof value.refresh !== "string" || !value.refresh || typeof value.expires !== "number" || !Number.isFinite(value.expires) || typeof value.methodID !== "string" || !isRecord(metadata) || typeof metadata.server !== "string" || typeof metadata.accountID !== "string" || !metadata.accountID || typeof metadata.email !== "string" || typeof metadata.orgID !== "string" || !metadata.orgID)
+        return [];
+      return [{ id: row.id, label: String(row.label), active: row.active === 1 || row.active === true, value }];
+    } catch {
+      return [];
+    }
+  });
+}
+function parseCredentialRows(rows) {
+  const credentials = [];
+  for (const row of rows) {
+    if (typeof row.id !== "string" || row.id.length === 0 || typeof row.value !== "string") {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(row.value);
+    } catch {
+      continue;
+    }
+    if (!isRecord(parsed) || typeof parsed.key !== "string" || !parsed.key) {
+      continue;
+    }
+    credentials.push({
+      id: row.id,
+      label: typeof row.label === "string" && row.label ? row.label : "OpenCode Go",
+      key: parsed.key,
+      active: row.active === 1 || row.active === true
+    });
+  }
+  return credentials.toSorted((left, right) => Number(right.active) - Number(left.active) || left.label.localeCompare(right.label) || left.id.localeCompare(right.id));
+}
+async function readNativeOpenCodeGoCredentials() {
+  const dbFile = nativeOpenCodeDatabaseFile();
+  if (!await fileExists(dbFile))
+    return { status: "ok", credentials: [] };
+  const rows = await queryRows(dbFile, "SELECT id, label, value, active FROM credential WHERE integration_id = 'opencode-go'");
+  if (!rows)
+    return { status: "unavailable" };
+  return { status: "ok", credentials: parseCredentialRows(rows) };
+}
+
+// src/providers/opencode/lock.ts
+import { randomUUID as randomUUID2 } from "crypto";
+import { open, readFile as readFile4, rm as rm4, stat as stat2 } from "fs/promises";
+async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
+  const timeoutAt = Date.now() + timeoutMs;
+  const token = randomUUID2();
+  while (Date.now() < timeoutAt) {
+    try {
+      const handle = await open(lockPath, "wx", 384);
+      await handle.writeFile(JSON.stringify({ pid: process.pid, token, createdAt: Date.now() }));
+      await handle.close();
+      return async () => {
+        try {
+          const current = JSON.parse(await readFile4(lockPath, "utf8"));
+          if (current.token === token)
+            await rm4(lockPath, { force: true });
+        } catch {}
+      };
+    } catch (error2) {
+      if (error2.code !== "EEXIST") {
+        throw new Error(`Could not lock this alias's private OpenCode ${resourceName}.`);
+      }
+    }
+    try {
+      const owner = JSON.parse(await readFile4(lockPath, "utf8"));
+      if (typeof owner.pid === "number" && Number.isInteger(owner.pid)) {
+        try {
+          process.kill(owner.pid, 0);
+        } catch (error2) {
+          if (error2.code === "ESRCH") {
+            await rm4(lockPath, { force: true });
+            continue;
+          }
+        }
+      } else {
+        const age = Date.now() - (await stat2(lockPath)).mtimeMs;
+        if (age > 30000) {
+          await rm4(lockPath, { force: true });
+          continue;
+        }
+      }
+    } catch {}
+    await new Promise((resolve2) => setTimeout(resolve2, 25));
+  }
+  throw new Error(`Timed out waiting for this alias's private OpenCode ${resourceName} lock.`);
+}
+
+// src/providers/opencode/profiles.ts
+var OPENCODE_GO_PROVIDER_ID = "opencode-go";
+var OPENCODE_V2_MANAGED_PROVIDER_ID = "claudex-switch-opencode-go";
+function emptyState() {
+  return { active: null };
+}
+function isOpenCodeAuthInfo(value) {
+  if (!value || typeof value !== "object")
+    return false;
+  const info2 = value;
+  return info2.type === "api" && typeof info2.key === "string" && info2.key.length > 0;
+}
+async function ensureProfileDir(profileId) {
+  const directory = openCodeProfileDir(profileId);
+  await mkdir7(directory, { recursive: true, mode: 448 });
+  await chmod5(directory, 448);
+}
+async function writeProfileData2(profileId, data) {
+  await ensureProfileDir(profileId);
+  await writeJsonSecure(openCodeProfileDataFile(profileId), data);
+}
+function createOpenCodeProfileId() {
+  return `go-${randomUUID3()}`;
+}
+function normalizeOpenCodeGoModel(input) {
+  const model = input.trim();
+  if (!model.startsWith(`${OPENCODE_GO_PROVIDER_ID}/`) || model.length <= OPENCODE_GO_PROVIDER_ID.length + 1) {
+    throw new Error("OpenCode Go models must use the form opencode-go/<model> (for example opencode-go/kimi-k3).");
+  }
+  return model;
+}
+async function readOpenCodeState() {
+  return readJson(OPENCODE_STATE_FILE, emptyState());
+}
+async function writeOpenCodeState(state) {
+  await mkdir7(OPENCODE_PROFILES_DIR, { recursive: true, mode: 448 });
+  await writeJsonSecure(OPENCODE_STATE_FILE, state);
+}
+async function setActiveOpenCodeProfile(profileId) {
+  const state = await readOpenCodeState();
+  state.active = profileId;
+  await writeOpenCodeState(state);
+}
+async function openCodeProfileExists(profileId) {
+  return fileExists(openCodeProfileDataFile(profileId));
+}
+async function getOpenCodeProfileData(profileId) {
+  const data = await readJson(openCodeProfileDataFile(profileId), null);
+  if (!data || data.type !== "go") {
+    throw new Error("OpenCode Go profile no longer exists.");
+  }
+  return data;
+}
+async function updateOpenCodeProfileDefaultModel(profileId, defaultModel) {
+  const current = await getOpenCodeProfileData(profileId);
+  const next = { ...current, defaultModel };
+  await writeProfileData2(profileId, next);
+  return next;
+}
+function openCodeSetupEnvironment(profileId) {
+  const env2 = { ...process.env };
+  delete env2.OPENCODE_AUTH_CONTENT;
+  env2.XDG_DATA_HOME = openCodeProfileDataHome(profileId);
+  return env2;
+}
+async function openCodeRunEnvironment(profileId) {
+  const auth = await readJson(openCodeProfileAuthFile(profileId), {});
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  if (!isOpenCodeAuthInfo(credential)) {
+    throw new Error("OpenCode Go credential is missing from this profile.");
+  }
+  const env2 = { ...process.env };
+  env2.OPENCODE_AUTH_CONTENT = JSON.stringify({
+    [OPENCODE_GO_PROVIDER_ID]: credential
+  });
+  return env2;
+}
+async function hasOpenCodeGoCredential(profileId) {
+  const profile = await readJson(openCodeProfileDataFile(profileId), null);
+  if (!profile || profile.type !== "go")
+    return false;
+  if (profile.console) {
+    const credentials = await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(profileId));
+    return credentials.some((credential) => credential.id === profile.console.credentialId && credential.value.metadata.accountID === profile.console.accountId && credential.value.metadata.orgID === profile.console.orgId);
+  }
+  return await readOpenCodeGoApiKey(profileId) !== null;
+}
+async function saveOpenCodeConsoleProfile(profileId, profile) {
+  if (!profile.console)
+    throw new Error("Subscription identity is missing.");
+  await writeProfileData2(profileId, profile);
+}
+async function readOpenCodeGoApiKey(profileId) {
+  const auth = await readJson(openCodeProfileAuthFile(profileId), {});
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  return isOpenCodeAuthInfo(credential) ? credential.key : null;
+}
+async function createOpenCodeGoProfile(profileId, credential) {
+  await writeProfileData2(profileId, { type: "go" });
+  if (credential !== undefined) {
+    await saveOpenCodeGoCredential(profileId, credential);
+  }
+}
+async function saveOpenCodeGoCredential(profileId, credential) {
+  if (!isOpenCodeAuthInfo(credential)) {
+    throw new Error("The saved OpenCode Go credential is invalid.");
+  }
+  const authFile = openCodeProfileAuthFile(profileId);
+  await mkdir7(openCodeProfileDataHome(profileId), {
+    recursive: true,
+    mode: 448
+  });
+  await mkdir7(dirname4(authFile), {
+    recursive: true,
+    mode: 448
+  });
+  const temporaryFile = `${authFile}.${randomUUID3()}.tmp`;
+  try {
+    await writeFile4(temporaryFile, JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2), { mode: 384, flag: "wx" });
+    await chmod5(temporaryFile, 384);
+    await rename2(temporaryFile, authFile);
+  } finally {
+    await rm5(temporaryFile, { force: true });
+  }
+}
+async function readGlobalOpenCodeGoCredential() {
+  const auth = await readJson(OPENCODE_GLOBAL_AUTH_FILE, {});
+  const credential = auth[OPENCODE_GO_PROVIDER_ID];
+  return isOpenCodeAuthInfo(credential) ? credential : null;
+}
+async function removeOpenCodeProfile(profileId) {
+  const directory = openCodeProfileDir(profileId);
+  if (!/^go-[0-9a-f-]{36}$/i.test(profileId)) {
+    throw new Error("Refusing to remove an invalid OpenCode profile id.");
+  }
+  const profile = await readJson(openCodeProfileDataFile(profileId), null);
+  let release;
+  if (profile?.console) {
+    await mkdir7(OPENCODE_LOCKS_DIR, { recursive: true, mode: 448 });
+    release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account", 100);
+  }
+  try {
+    await rm5(directory, { recursive: true, force: true });
+    const state = await readOpenCodeState();
+    if (state.active === profileId) {
+      state.active = null;
+      await writeOpenCodeState(state);
+    }
+  } finally {
+    await release?.();
+  }
+}
+
+// src/commands/add.ts
+import { spawn as spawn6, spawnSync as spawnSync6 } from "child_process";
+import { platform as platform4 } from "os";
+
+// src/accounts/create.ts
+import { createHash as createHash3 } from "crypto";
+
+// src/providers/codex/auth.ts
+import { chmod as chmod6, copyFile as copyFile2, mkdir as mkdir8, readFile as readFile5, rename as rename3, unlink as unlink2, writeFile as writeFile5 } from "fs/promises";
+import { randomUUID as randomUUID4 } from "crypto";
+import { dirname as dirname5 } from "path";
+async function ensureAccountsDir2() {
   await mkdir8(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function readActiveAuth() {
@@ -6725,7 +6647,7 @@ async function switchToAccount(accountKey) {
   await writeRawAuthFileIfChanged(CODEX_AUTH_FILE, srcContent);
 }
 async function saveAccountAuth(accountKey, authData) {
-  await ensureAccountsDir3();
+  await ensureAccountsDir2();
   const destPath = codexAccountAuthFile(accountKey);
   await writeAuthFile(destPath, normalizeAuthForCodexCli(authData));
 }
@@ -6738,19 +6660,19 @@ async function writeAuthFileIfChanged(path, authData) {
 async function writeRawAuthFileIfChanged(path, content) {
   try {
     if (await readFile5(path, "utf-8") === content) {
-      await chmod5(path, 384);
+      await chmod6(path, 384);
       return;
     }
   } catch {}
   await writeRawAuthFile(path, content);
 }
 async function writeRawAuthFile(path, content) {
-  await mkdir8(dirname4(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${randomUUID3()}.tmp`;
+  await mkdir8(dirname5(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${randomUUID4()}.tmp`;
   try {
-    await writeFile4(tempPath, content, { mode: 384 });
-    await rename2(tempPath, path);
-    await chmod5(path, 384);
+    await writeFile5(tempPath, content, { mode: 384 });
+    await rename3(tempPath, path);
+    await chmod6(path, 384);
   } catch (err) {
     try {
       await unlink2(tempPath);
@@ -6893,14 +6815,14 @@ async function createCodexApiKeyAccount(input) {
   if (!defaultModel)
     throw new Error("Default model cannot be empty");
   const accountKey = codexApiAccountKey(key);
-  const existingAlias = findAliasByTarget(await loadAliases2(), {
+  const existingAlias = findAliasByTarget(await loadAliases(), {
     provider: "codex",
     accountKey
   });
   if (existingAlias) {
     throw new Error(`This Codex account is already imported as "${existingAlias.alias}"`);
   }
-  const registry = await loadRegistry2();
+  const registry = await loadRegistry();
   await syncActiveAuthSnapshot(registry);
   await saveAccountAuth(accountKey, {
     auth_mode: "apikey",
@@ -6925,7 +6847,7 @@ async function createCodexApiKeyAccount(input) {
   };
   addAccountToRegistry(registry, account);
   setActiveAccount(registry, accountKey);
-  await saveRegistry2(registry);
+  await saveRegistry(registry);
   await switchToAccount(accountKey);
   await applyCodexApiProvider(input.provider, key, defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
@@ -6937,7 +6859,7 @@ function codexApiAccountKey(apiKey) {
 async function assertAliasUsable(alias) {
   if (!alias)
     throw new Error("Alias cannot be empty");
-  const registry = await loadAliases2();
+  const registry = await loadAliases();
   const rejection = checkAlias(registry, alias);
   if (rejection)
     throw new Error(describeAliasRejection(rejection, alias));
@@ -6947,18 +6869,18 @@ async function assertAliasUsable(alias) {
 import { spawn as spawn2 } from "child_process";
 
 // src/providers/codex/isolated-home.ts
-import { chmod as chmod6, copyFile as copyFile3, mkdtemp, readFile as readFile6, rm as rm5, writeFile as writeFile5 } from "fs/promises";
+import { chmod as chmod7, copyFile as copyFile3, mkdtemp, readFile as readFile6, rm as rm6, writeFile as writeFile6 } from "fs/promises";
 import { tmpdir as tmpdir2 } from "os";
 import { join as join7 } from "path";
 var AUTH_FILE_NAME = "auth.json";
 async function prepareIsolatedCodexHome(auth = null) {
   const home = await mkdtemp(join7(tmpdir2(), "claudex-codex-"));
-  await chmod6(home, 448);
+  await chmod7(home, 448);
   if (await fileExists(CODEX_CONFIG_FILE)) {
     await copyFile3(CODEX_CONFIG_FILE, join7(home, "config.toml"));
   }
   if (auth) {
-    await writeFile5(join7(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
+    await writeFile6(join7(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
   }
   return home;
 }
@@ -6970,7 +6892,7 @@ async function readIsolatedCodexAuth(home) {
   }
 }
 async function cleanupIsolatedCodexHome(home) {
-  await rm5(home, { recursive: true, force: true });
+  await rm6(home, { recursive: true, force: true });
 }
 
 // src/providers/codex/login.ts
@@ -6999,7 +6921,7 @@ async function runIsolatedCodexLogin() {
 
 // src/lib/oneapi.ts
 import { mkdir as mkdir9 } from "fs/promises";
-import { dirname as dirname5 } from "path";
+import { dirname as dirname6 } from "path";
 var FETCH_TIMEOUT_MS = 4000;
 var UNLIMITED_THRESHOLD_USD = 1e7;
 var DEFAULT_QUOTA_PER_UNIT = 500000;
@@ -7050,7 +6972,7 @@ async function getRelayConfig(origin) {
 async function saveRelayConfig(origin, config) {
   const relays = await readJson(RELAYS_FILE, {});
   relays[origin] = config;
-  await mkdir9(dirname5(RELAYS_FILE), { recursive: true });
+  await mkdir9(dirname6(RELAYS_FILE), { recursive: true });
   await writeJsonSecure(RELAYS_FILE, relays);
 }
 async function detectRelay(origin) {
@@ -7123,162 +7045,6 @@ async function getJson(url, headers) {
   }
 }
 
-// src/providers/opencode/profiles.ts
-import { chmod as chmod7, mkdir as mkdir10, rename as rename3, rm as rm6, writeFile as writeFile6 } from "fs/promises";
-import { randomUUID as randomUUID4 } from "crypto";
-import { dirname as dirname6 } from "path";
-var OPENCODE_GO_PROVIDER_ID = "opencode-go";
-var OPENCODE_V2_MANAGED_PROVIDER_ID = "claudex-switch-opencode-go";
-function emptyState2() {
-  return { active: null };
-}
-function isOpenCodeAuthInfo(value) {
-  if (!value || typeof value !== "object")
-    return false;
-  const info2 = value;
-  return info2.type === "api" && typeof info2.key === "string" && info2.key.length > 0;
-}
-async function ensureProfileDir(profileId) {
-  const directory = openCodeProfileDir(profileId);
-  await mkdir10(directory, { recursive: true, mode: 448 });
-  await chmod7(directory, 448);
-}
-async function writeProfileData2(profileId, data) {
-  await ensureProfileDir(profileId);
-  await writeJsonSecure(openCodeProfileDataFile(profileId), data);
-}
-function createOpenCodeProfileId() {
-  return `go-${randomUUID4()}`;
-}
-function normalizeOpenCodeGoModel(input) {
-  const model = input.trim();
-  if (!model.startsWith(`${OPENCODE_GO_PROVIDER_ID}/`) || model.length <= OPENCODE_GO_PROVIDER_ID.length + 1) {
-    throw new Error("OpenCode Go models must use the form opencode-go/<model> (for example opencode-go/kimi-k3).");
-  }
-  return model;
-}
-async function readOpenCodeState2() {
-  return readJson(OPENCODE_STATE_FILE, emptyState2());
-}
-async function writeOpenCodeState(state) {
-  await mkdir10(OPENCODE_PROFILES_DIR, { recursive: true, mode: 448 });
-  await writeJsonSecure(OPENCODE_STATE_FILE, state);
-}
-async function setActiveOpenCodeProfile(profileId) {
-  const state = await readOpenCodeState2();
-  state.active = profileId;
-  await writeOpenCodeState(state);
-}
-async function openCodeProfileExists(profileId) {
-  return fileExists(openCodeProfileDataFile(profileId));
-}
-async function getOpenCodeProfileData(profileId) {
-  const data = await readJson(openCodeProfileDataFile(profileId), null);
-  if (!data || data.type !== "go") {
-    throw new Error("OpenCode Go profile no longer exists.");
-  }
-  return data;
-}
-async function updateOpenCodeProfileDefaultModel(profileId, defaultModel) {
-  const current = await getOpenCodeProfileData(profileId);
-  const next = { ...current, defaultModel };
-  await writeProfileData2(profileId, next);
-  return next;
-}
-function openCodeSetupEnvironment(profileId) {
-  const env2 = { ...process.env };
-  delete env2.OPENCODE_AUTH_CONTENT;
-  env2.XDG_DATA_HOME = openCodeProfileDataHome(profileId);
-  return env2;
-}
-async function openCodeRunEnvironment(profileId) {
-  const auth = await readJson(openCodeProfileAuthFile(profileId), {});
-  const credential = auth[OPENCODE_GO_PROVIDER_ID];
-  if (!isOpenCodeAuthInfo(credential)) {
-    throw new Error("OpenCode Go credential is missing from this profile.");
-  }
-  const env2 = { ...process.env };
-  env2.OPENCODE_AUTH_CONTENT = JSON.stringify({
-    [OPENCODE_GO_PROVIDER_ID]: credential
-  });
-  return env2;
-}
-async function hasOpenCodeGoCredential(profileId) {
-  const profile = await readJson(openCodeProfileDataFile(profileId), null);
-  if (!profile || profile.type !== "go")
-    return false;
-  if (profile.console) {
-    const credentials = await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(profileId));
-    return credentials.some((credential) => credential.id === profile.console.credentialId && credential.value.metadata.accountID === profile.console.accountId && credential.value.metadata.orgID === profile.console.orgId);
-  }
-  return await readOpenCodeGoApiKey(profileId) !== null;
-}
-async function saveOpenCodeConsoleProfile(profileId, profile) {
-  if (!profile.console)
-    throw new Error("Subscription identity is missing.");
-  await writeProfileData2(profileId, profile);
-}
-async function readOpenCodeGoApiKey(profileId) {
-  const auth = await readJson(openCodeProfileAuthFile(profileId), {});
-  const credential = auth[OPENCODE_GO_PROVIDER_ID];
-  return isOpenCodeAuthInfo(credential) ? credential.key : null;
-}
-async function createOpenCodeGoProfile(profileId, credential) {
-  await writeProfileData2(profileId, { type: "go" });
-  if (credential !== undefined) {
-    await saveOpenCodeGoCredential(profileId, credential);
-  }
-}
-async function saveOpenCodeGoCredential(profileId, credential) {
-  if (!isOpenCodeAuthInfo(credential)) {
-    throw new Error("The saved OpenCode Go credential is invalid.");
-  }
-  const authFile = openCodeProfileAuthFile(profileId);
-  await mkdir10(openCodeProfileDataHome(profileId), {
-    recursive: true,
-    mode: 448
-  });
-  await mkdir10(dirname6(authFile), {
-    recursive: true,
-    mode: 448
-  });
-  const temporaryFile = `${authFile}.${randomUUID4()}.tmp`;
-  try {
-    await writeFile6(temporaryFile, JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2), { mode: 384, flag: "wx" });
-    await chmod7(temporaryFile, 384);
-    await rename3(temporaryFile, authFile);
-  } finally {
-    await rm6(temporaryFile, { force: true });
-  }
-}
-async function readGlobalOpenCodeGoCredential() {
-  const auth = await readJson(OPENCODE_GLOBAL_AUTH_FILE, {});
-  const credential = auth[OPENCODE_GO_PROVIDER_ID];
-  return isOpenCodeAuthInfo(credential) ? credential : null;
-}
-async function removeOpenCodeProfile(profileId) {
-  const directory = openCodeProfileDir(profileId);
-  if (!/^go-[0-9a-f-]{36}$/i.test(profileId)) {
-    throw new Error("Refusing to remove an invalid OpenCode profile id.");
-  }
-  const profile = await readJson(openCodeProfileDataFile(profileId), null);
-  let release;
-  if (profile?.console) {
-    await mkdir10(OPENCODE_LOCKS_DIR, { recursive: true, mode: 448 });
-    release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account", 100);
-  }
-  try {
-    await rm6(directory, { recursive: true, force: true });
-    const state = await readOpenCodeState2();
-    if (state.active === profileId) {
-      state.active = null;
-      await writeOpenCodeState(state);
-    }
-  } finally {
-    await release?.();
-  }
-}
-
 // src/providers/opencode/tui.ts
 import { spawn as spawn3, spawnSync as spawnSync4 } from "child_process";
 async function runOpenCodeTui(profileId, spawnCommand = spawn3) {
@@ -7327,14 +7093,14 @@ ${result.stderr ?? ""}`);
 
 // src/providers/opencode/console.ts
 import { spawn as spawn5 } from "child_process";
-import { chmod as chmod9, mkdir as mkdir12 } from "fs/promises";
+import { chmod as chmod9, mkdir as mkdir11 } from "fs/promises";
 import { join as join9 } from "path";
 
 // src/providers/opencode/runtime.ts
 import { randomBytes as randomBytes2, randomUUID as randomUUID5 } from "crypto";
 import { spawn as spawn4 } from "child_process";
 import { join as join8 } from "path";
-import { chmod as chmod8, mkdir as mkdir11, readFile as readFile7, rename as rename4, rm as rm7, writeFile as writeFile7 } from "fs/promises";
+import { chmod as chmod8, mkdir as mkdir10, readFile as readFile7, rename as rename4, rm as rm7, writeFile as writeFile7 } from "fs/promises";
 var OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 function mapOpenCodeGoModelForV2(model) {
   const normalized = normalizeOpenCodeGoModel(model);
@@ -7501,7 +7267,7 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
   }
   const selectedGoModel = `${OPENCODE_GO_PROVIDER_ID}/${managedModel.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1)}`;
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
-  await mkdir11(runtimeRoot, { recursive: true, mode: 448 });
+  await mkdir10(runtimeRoot, { recursive: true, mode: 448 });
   await chmod8(runtimeRoot, 448);
   const inventoryFile = openCodeProfileV2ModelInventoryFile(profileId);
   const release = await acquireProfileLock(`${inventoryFile}.lock`, "model history");
@@ -7817,7 +7583,7 @@ async function waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password) {
 }
 async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, spawnCommand = spawn4, fetcher = fetch) {
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
-  await mkdir11(runtimeRoot, { recursive: true, mode: 448 });
+  await mkdir10(runtimeRoot, { recursive: true, mode: 448 });
   await chmod8(runtimeRoot, 448);
   const credentialStateFile = openCodeProfileV2CredentialStateFile(profileId);
   const release = await acquireProfileLock(`${credentialStateFile}.lock`, "credential sync");
@@ -7899,9 +7665,9 @@ async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credent
   if (await fileExists(legacyAuthFile)) {
     throw new Error("OpenCode V2 found a legacy auth.json in this alias's private runtime data. It will not import that file into this alias's SQLite database; preserve or remove it before retrying.");
   }
-  await mkdir11(privateRoot, { recursive: true, mode: 448 });
+  await mkdir10(privateRoot, { recursive: true, mode: 448 });
   await chmod8(privateRoot, 448);
-  await Promise.all([dataHome, join8(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir11(path, { recursive: true, mode: 448 })));
+  await Promise.all([dataHome, join8(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir10(path, { recursive: true, mode: 448 })));
   const env2 = { ...process.env };
   delete env2.OPENCODE_AUTH_CONTENT;
   delete env2[OPENCODE_NATIVE_GO_KEY_ENV];
@@ -7926,7 +7692,7 @@ async function openCodeConsoleEnvironment(profileId) {
   const root = openCodeProfileV2RuntimeDir(profileId);
   const data = openCodeProfileV2DataHome(profileId);
   for (const path of [root, data, join9(data, "opencode"), join9(root, "state"), join9(root, "cache"), OPENCODE_LOCKS_DIR]) {
-    await mkdir12(path, { recursive: true, mode: 448 });
+    await mkdir11(path, { recursive: true, mode: 448 });
     await chmod9(path, 448);
   }
   const env2 = { ...process.env };
@@ -8356,11 +8122,11 @@ async function resolveOpenCodeV2Key(options) {
     let key;
     let sourceLabel;
     if (importable.length > 0) {
-      const choice = await esm_default2({
+      const choice = await esm_default5({
         message: "OpenCode Go credential source",
         choices: [
           ...importable.map((credential) => ({
-            name: `Import local OpenCode login${credential.active ? " (current)" : ""}  ${source_default2.dim(`${credential.label} · ${maskKey(credential.key)}`)}`,
+            name: `Import local OpenCode login${credential.active ? " (current)" : ""}  ${source_default.dim(`${credential.label} · ${maskKey(credential.key)}`)}`,
             value: credential.id
           })),
           { name: "Paste an API key manually", value: null }
@@ -8412,7 +8178,7 @@ async function resolveOpenCodeV2Key(options) {
   return "";
 }
 async function promptForKey(message) {
-  const key = await esm_default5({
+  const key = await esm_default4({
     message,
     validate: (value) => value.trim().length > 0 || "Enter a non-empty OpenCode Go API key."
   });
@@ -8443,13 +8209,13 @@ async function add(alias) {
     blank();
     process.exit(1);
   }
-  const reg = await loadAliases2();
+  const reg = await loadAliases();
   if (aliasExists(reg, alias)) {
     error(`Alias "${alias}" already exists.`);
     blank();
     process.exit(1);
   }
-  const accountType = await esm_default2({
+  const accountType = await esm_default5({
     message: "What type of account?",
     choices: [
       {
@@ -8520,8 +8286,8 @@ async function addOpenCodeSubscription(alias) {
     const profile = await loginOpenCodeConsole(profileId);
     await addAlias(alias, { provider: "opencode", profileId });
     await setActiveOpenCodeProfile(profileId);
-    success(`${source_default2.bold(alias)} created  ${profile.console.email} · ${profile.console.orgName}  Go subscription verified`);
-    hint(`Run ${source_default2.cyan(`claudex-switch ${alias} -run`)} to use this subscription (${profile.defaultModel}).`);
+    success(`${source_default.bold(alias)} created  ${profile.console.email} · ${profile.console.orgName}  Go subscription verified`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to use this subscription (${profile.defaultModel}).`);
     blank();
   } catch (err) {
     await removeOpenCodeProfile(profileId);
@@ -8562,7 +8328,7 @@ async function addOpenCodeGo(alias) {
       const currentCredential = await readGlobalOpenCodeGoCredential();
       if (currentCredential) {
         info("Found an existing OpenCode Go credential.");
-        const importCurrent = await esm_default3({
+        const importCurrent = await esm_default2({
           message: "Save a private copy as the new account?",
           default: true
         });
@@ -8586,11 +8352,11 @@ async function addOpenCodeGo(alias) {
     await addAlias(alias, { provider: "opencode", profileId });
     await setActiveOpenCodeProfile(profileId);
     blank();
-    success(`${source_default2.bold(alias)} created  ${source_default2.dim("OpenCode Go subscription")}`);
+    success(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
     const historyHint = openCodeVersion.major === 2 ? "OpenCode V2 keeps /resume history private to this alias." : "OpenCode V1 Go aliases share /resume history.";
-    hint(`Run ${source_default2.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`);
     if (openCodeVersion.major === 2) {
-      hint(`First run needs a Go model: ${source_default2.cyan(`claudex-switch ${alias} -run --model opencode-go/<model>`)}; it is saved as this alias's default.`);
+      hint(`First run needs a Go model: ${source_default.cyan(`claudex-switch ${alias} -run --model opencode-go/<model>`)}; it is saved as this alias's default.`);
     }
     blank();
   } catch (err) {
@@ -8611,7 +8377,7 @@ async function addClaudeOAuth(alias) {
   if (creds || authStatus?.loggedIn) {
     const sub = creds?.claudeAiOauth?.subscriptionType ?? authStatus?.subscriptionType ?? null;
     info(`Found active Claude session${sub ? ` (${formatPlan(sub)})` : ""}`);
-    const importCurrent = await esm_default3({
+    const importCurrent = await esm_default2({
       message: "Save this session as the new account?",
       default: true
     });
@@ -8619,7 +8385,7 @@ async function addClaudeOAuth(alias) {
       if (!creds) {
         blank();
         error("Claude reported a session, but credentials could not be read.");
-        hint(`Try ${source_default2.cyan("claude auth logout")} then ${source_default2.cyan("claude auth login")}`);
+        hint(`Try ${source_default.cyan("claude auth logout")} then ${source_default.cyan("claude auth login")}`);
         blank();
         process.exit(1);
       }
@@ -8627,7 +8393,7 @@ async function addClaudeOAuth(alias) {
       await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel: defaultModel2 });
       await addAlias(alias, { provider: "claude", profileName: alias });
       blank();
-      success(`${source_default2.bold(alias)} created from current Claude session`);
+      success(`${source_default.bold(alias)} created from current Claude session`);
       blank();
       return;
     }
@@ -8663,14 +8429,14 @@ async function addClaudeOAuth(alias) {
   await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
-  success(`${source_default2.bold(alias)} created`);
+  success(`${source_default.bold(alias)} created`);
   blank();
 }
 async function addClaudeApiKey(alias) {
   const config = await promptClaudeApiConfig();
   await createClaudeApiKeyAccount({ alias, ...config });
   blank();
-  success(`${source_default2.bold(alias)} created  ${source_default2.dim(maskKey(config.apiKey))}`);
+  success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(config.apiKey))}`);
   await maybeSetupRelayBalance(config.baseUrl);
   blank();
 }
@@ -8708,9 +8474,9 @@ async function addLocalCLIProxyAPI(alias) {
     profileWritten = true;
     await addAlias(alias, { provider: "claude", profileName });
     blank();
-    success(`${source_default2.bold(alias)} created  ${source_default2.dim("ChatGPT via local CLIProxyAPI")}`);
+    success(`${source_default.bold(alias)} created  ${source_default.dim("ChatGPT via local CLIProxyAPI")}`);
     hint(`Default mapping: fable → ${CLI_PROXY_API_DEFAULTS.fableModel}, opus/sonnet → ${CLI_PROXY_API_DEFAULTS.opusModel}, haiku → ${CLI_PROXY_API_DEFAULTS.haikuModel}.`);
-    hint(`Run ${source_default2.cyan(`claudex-switch ${alias} -run`)} to start Claude Code; its normal skills, MCP servers, hooks, and CLAUDE.md remain enabled.`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start Claude Code; its normal skills, MCP servers, hooks, and CLAUDE.md remain enabled.`);
     blank();
   } catch (err) {
     try {
@@ -8731,7 +8497,7 @@ async function resolveCLIProxyAPIBinaryForAdd() {
   if (existing)
     return existing;
   if (platform4() === "darwin" && hasHomebrew()) {
-    const install = await esm_default3({
+    const install = await esm_default2({
       message: "CLIProxyAPI is not installed. Install it with Homebrew now?",
       default: true
     });
@@ -8746,7 +8512,7 @@ async function resolveCLIProxyAPIBinaryForAdd() {
       error("Homebrew did not provide a usable CLIProxyAPI executable.");
     }
   }
-  const explicitPath = (await esm_default4({
+  const explicitPath = (await esm_default3({
     message: "Path to an existing CLIProxyAPI executable (Enter to cancel)"
   })).trim();
   return explicitPath ? findCLIProxyAPIBinary(explicitPath) : null;
@@ -8773,17 +8539,17 @@ async function maybeSetupRelayBalance(baseUrl2) {
   if (!relay)
     return;
   blank();
-  info(`This looks like a one-api/new-api relay${relay.systemName ? ` (${source_default2.bold(relay.systemName)})` : ""}.`);
+  info(`This looks like a one-api/new-api relay${relay.systemName ? ` (${source_default.bold(relay.systemName)})` : ""}.`);
   hint("With a console access token, `list` also shows the account wallet balance.");
   hint("Find both fields on the relay console's personal settings page (系统访问令牌 + 用户ID).");
   for (;; ) {
-    const token = (await esm_default5({
+    const token = (await esm_default4({
       message: "System access token (not an sk- key; Enter to skip)",
       mask: "*"
     })).trim();
     if (!token)
       return;
-    const userIdRaw = (await esm_default4({
+    const userIdRaw = (await esm_default3({
       message: "Numeric user ID (Enter if the site doesn't need one)",
       validate: (value) => /^\d*$/.test(value.trim()) || "User ID must be a number"
     })).trim();
@@ -8795,11 +8561,11 @@ async function maybeSetupRelayBalance(baseUrl2) {
       return;
     }
     error("The relay rejected the token/user ID.");
-    hint(`Try again, press Enter to skip, or edit ${source_default2.cyan(RELAYS_FILE)} later.`);
+    hint(`Try again, press Enter to skip, or edit ${source_default.cyan(RELAYS_FILE)} later.`);
   }
 }
 async function promptClaudeApiConfig() {
-  const apiKey = await esm_default5({
+  const apiKey = await esm_default4({
     message: "Paste your Anthropic API key",
     mask: "*",
     validate: (v) => {
@@ -8808,7 +8574,7 @@ async function promptClaudeApiConfig() {
       return true;
     }
   });
-  const baseUrl2 = await esm_default4({
+  const baseUrl2 = await esm_default3({
     message: "Base URL (optional, for proxy/custom endpoint)",
     validate: (value) => {
       const trimmed = value.trim();
@@ -8822,20 +8588,20 @@ async function promptClaudeApiConfig() {
       }
     }
   });
-  const authToken = await esm_default5({
+  const authToken = await esm_default4({
     message: "Auth token (optional, only if your provider requires it)",
     mask: "*"
   });
-  const model = await esm_default4({
+  const model = await esm_default3({
     message: "Default model (optional)"
   });
-  const defaultSonnetModel = await esm_default4({
+  const defaultSonnetModel = await esm_default3({
     message: "Sonnet model mapping (optional)"
   });
-  const defaultOpusModel = await esm_default4({
+  const defaultOpusModel = await esm_default3({
     message: "Opus model mapping (optional)"
   });
-  const defaultHaikuModel = await esm_default4({
+  const defaultHaikuModel = await esm_default3({
     message: "Haiku model mapping (optional)"
   });
   return {
@@ -8849,7 +8615,7 @@ async function promptClaudeApiConfig() {
   };
 }
 async function promptClaudeDefaultModel() {
-  const defaultModel = await esm_default4({
+  const defaultModel = await esm_default3({
     message: "Default model (optional)"
   });
   const normalized = defaultModel.trim();
@@ -8902,7 +8668,7 @@ async function addCodexChatGPT(alias) {
     process.exit(1);
   }
   const accountKey = `${userId}::${accountId}`;
-  const existingAlias = findAliasByTarget(await loadAliases2(), {
+  const existingAlias = findAliasByTarget(await loadAliases(), {
     provider: "codex",
     accountKey
   });
@@ -8912,7 +8678,7 @@ async function addCodexChatGPT(alias) {
     blank();
     process.exit(1);
   }
-  const reg = await loadRegistry2();
+  const reg = await loadRegistry();
   await syncActiveAuthSnapshot(reg);
   await saveAccountAuth(accountKey, auth);
   const accountRecord = {
@@ -8933,17 +8699,17 @@ async function addCodexChatGPT(alias) {
   };
   addAccountToRegistry(reg, accountRecord);
   setActiveAccount(reg, accountKey);
-  await saveRegistry2(reg);
+  await saveRegistry(reg);
   await switchToAccount(accountKey);
   await applyCodexApiProvider(null, undefined, defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
-  success(`${source_default2.bold(alias)} created  ${source_default2.dim(email)}`);
+  success(`${source_default.bold(alias)} created  ${source_default.dim(email)}`);
   blank();
 }
 async function addCodexApiKey(alias) {
   const { provider: apiProvider, defaultModel } = await promptCodexApiProvider();
-  const key = (await esm_default5({
+  const key = (await esm_default4({
     message: "Paste your OpenAI API key",
     mask: "*",
     validate: (v) => {
@@ -8966,12 +8732,12 @@ async function addCodexApiKey(alias) {
     process.exit(1);
   }
   blank();
-  success(`${source_default2.bold(alias)} created  ${source_default2.dim(maskKey(key))}`);
+  success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key))}`);
   await maybeSetupRelayBalance(apiProvider.base_url ?? undefined);
   blank();
 }
 async function promptCodexDefaultModel() {
-  const model = await esm_default4({
+  const model = await esm_default3({
     message: "Default model",
     default: DEFAULT_CODEX_MODEL,
     validate: (value) => {
@@ -8983,7 +8749,7 @@ async function promptCodexDefaultModel() {
   return model.trim();
 }
 async function promptCodexApiProvider() {
-  const providerType = await esm_default2({
+  const providerType = await esm_default5({
     message: "Codex API provider?",
     choices: [
       {
@@ -9008,7 +8774,7 @@ async function promptCodexApiProvider() {
       defaultModel: await promptCodexDefaultModel()
     };
   }
-  const name = await esm_default4({
+  const name = await esm_default3({
     message: "Provider name",
     default: "admin",
     validate: (value) => {
@@ -9021,7 +8787,7 @@ async function promptCodexApiProvider() {
       return true;
     }
   });
-  const baseUrl2 = await esm_default4({
+  const baseUrl2 = await esm_default3({
     message: "Base URL",
     default: "https://newapi.hybaliez.com/v1",
     validate: (value) => {
@@ -9036,7 +8802,7 @@ async function promptCodexApiProvider() {
     }
   });
   const model = await promptCodexDefaultModel();
-  const envKey = await esm_default4({
+  const envKey = await esm_default3({
     message: "Env key",
     default: "OPENAI_API_KEY",
     validate: (value) => {
@@ -9352,11 +9118,11 @@ async function syncCodexSessionProviders(targetProvider, managedProviders) {
 // src/commands/use.ts
 async function use(aliasOrName) {
   blank();
-  const aliasReg = await loadAliases2();
-  const entry = findAlias2(aliasReg, aliasOrName);
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
   if (!entry) {
     error(`Alias "${aliasOrName}" not found.`);
-    hint(`Run ${source_default2.cyan("claudex-switch list")} to see your accounts`);
+    hint(`Run ${source_default.cyan("claudex-switch list")} to see your accounts`);
     blank();
     process.exit(1);
   }
@@ -9382,14 +9148,14 @@ async function switchOpenCode(alias, profileId) {
   }
   if (!await hasOpenCodeGoCredential(profileId)) {
     error("OpenCode Go credential is missing from this profile.");
-    hint(`Run ${source_default2.cyan(`claudex-switch refresh ${alias}`)} to reconnect it.`);
+    hint(`Run ${source_default.cyan(`claudex-switch refresh ${alias}`)} to reconnect it.`);
     blank();
     process.exit(1);
   }
   await getOpenCodeProfileData(profileId);
   await setActiveOpenCodeProfile(profileId);
-  success(`Selected ${source_default2.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
-  hint(`Run ${source_default2.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
+  success(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
+  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
   blank();
 }
 async function switchClaude(alias, profileName) {
@@ -9402,18 +9168,18 @@ async function switchClaude(alias, profileName) {
   const data = await switchProfile(profileName);
   let label;
   if (data.type === "api-key" && data.apiKey) {
-    label = source_default2.dim(maskKey(data.apiKey));
+    label = source_default.dim(maskKey(data.apiKey));
   } else if (data.type === "local-cliproxyapi") {
-    label = source_default2.dim("CLIProxyAPI · local ChatGPT login");
+    label = source_default.dim("CLIProxyAPI · local ChatGPT login");
   } else {
     const creds = await readCredentials(claudeProfileCredentials(profileName));
     label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
   }
-  success(`Switched to ${source_default2.bold(alias)}  ${formatProvider("claude")}  ${formatType(data.type)}  ${label}`);
+  success(`Switched to ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType(data.type)}  ${label}`);
   blank();
 }
 async function switchCodex(alias, accountKey) {
-  const reg = await loadRegistry2();
+  const reg = await loadRegistry();
   const account = findAccountByKey(reg, accountKey);
   if (!account) {
     error(`Codex account not found in registry.`);
@@ -9433,16 +9199,16 @@ async function switchCodex(alias, accountKey) {
   }
   if (reg.active_account_key !== accountKey) {
     setActiveAccount(reg, accountKey);
-    await saveRegistry2(reg);
+    await saveRegistry(reg);
   }
   await syncSessionVisibility(account, managedProviderNames(reg));
   const plan = formatPlan(account.plan ?? account.last_usage?.plan_type ?? null);
-  const email = account.email ? source_default2.dim(account.email) : "";
-  success(`Switched to ${source_default2.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
+  const email = account.email ? source_default.dim(account.email) : "";
+  success(`Switched to ${source_default.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
   if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
     const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
     if (!process.env[envKey]) {
-      hint(`Raw ${source_default2.cyan("codex")} needs ${source_default2.cyan(envKey)} in the shell; ${source_default2.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`);
+      hint(`Raw ${source_default.cyan("codex")} needs ${source_default.cyan(envKey)} in the shell; ${source_default.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`);
     }
   }
   blank();
@@ -9462,117 +9228,6 @@ async function syncSessionVisibility(account, managedProviders) {
 
 // src/commands/run.ts
 import { spawn as spawn7 } from "child_process";
-
-// src/commands/use.ts
-async function use2(aliasOrName) {
-  blank();
-  const aliasReg = await loadAliases2();
-  const entry = findAlias2(aliasReg, aliasOrName);
-  if (!entry) {
-    error(`Alias "${aliasOrName}" not found.`);
-    hint(`Run ${source_default2.cyan("claudex-switch list")} to see your accounts`);
-    blank();
-    process.exit(1);
-  }
-  switch (entry.target.provider) {
-    case "claude":
-      await switchClaude2(entry.alias, entry.target.profileName);
-      break;
-    case "codex":
-      await switchCodex2(entry.alias, entry.target.accountKey);
-      break;
-    case "opencode":
-      await switchOpenCode2(entry.alias, entry.target.profileId);
-      break;
-  }
-  return entry;
-}
-async function switchOpenCode2(alias, profileId) {
-  if (!await openCodeProfileExists(profileId)) {
-    error("OpenCode Go profile no longer exists.");
-    hint("The underlying profile may have been purged.");
-    blank();
-    process.exit(1);
-  }
-  if (!await hasOpenCodeGoCredential(profileId)) {
-    error("OpenCode Go credential is missing from this profile.");
-    hint(`Run ${source_default2.cyan(`claudex-switch refresh ${alias}`)} to reconnect it.`);
-    blank();
-    process.exit(1);
-  }
-  await getOpenCodeProfileData(profileId);
-  await setActiveOpenCodeProfile(profileId);
-  success(`Selected ${source_default2.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
-  hint(`Run ${source_default2.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
-  blank();
-}
-async function switchClaude2(alias, profileName) {
-  if (!await profileExists(profileName)) {
-    error(`Claude profile "${profileName}" no longer exists.`);
-    hint("The underlying profile may have been removed.");
-    blank();
-    process.exit(1);
-  }
-  const data = await switchProfile(profileName);
-  let label;
-  if (data.type === "api-key" && data.apiKey) {
-    label = source_default2.dim(maskKey(data.apiKey));
-  } else if (data.type === "local-cliproxyapi") {
-    label = source_default2.dim("CLIProxyAPI · local ChatGPT login");
-  } else {
-    const creds = await readCredentials(claudeProfileCredentials(profileName));
-    label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
-  }
-  success(`Switched to ${source_default2.bold(alias)}  ${formatProvider("claude")}  ${formatType(data.type)}  ${label}`);
-  blank();
-}
-async function switchCodex2(alias, accountKey) {
-  const reg = await loadRegistry2();
-  const account = findAccountByKey(reg, accountKey);
-  if (!account) {
-    error(`Codex account not found in registry.`);
-    hint("The account may have been removed by codex-auth.");
-    blank();
-    process.exit(1);
-  }
-  try {
-    await syncActiveAuthSnapshot(reg);
-    const auth = account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
-    await switchToAccount(accountKey);
-    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
-  } catch (err) {
-    error(`Failed to switch: ${err instanceof Error ? err.message : String(err)}`);
-    blank();
-    process.exit(1);
-  }
-  if (reg.active_account_key !== accountKey) {
-    setActiveAccount(reg, accountKey);
-    await saveRegistry2(reg);
-  }
-  await syncSessionVisibility2(account, managedProviderNames(reg));
-  const plan = formatPlan(account.plan ?? account.last_usage?.plan_type ?? null);
-  const email = account.email ? source_default2.dim(account.email) : "";
-  success(`Switched to ${source_default2.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
-  if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
-    const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
-    if (!process.env[envKey]) {
-      hint(`Raw ${source_default2.cyan("codex")} needs ${source_default2.cyan(envKey)} in the shell; ${source_default2.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`);
-    }
-  }
-  blank();
-}
-async function syncSessionVisibility2(account, managedProviders) {
-  const targetProvider = codexAccountProviderName(account);
-  if (!targetProvider)
-    return;
-  try {
-    const result = await syncCodexSessionProviders(targetProvider, managedProviders);
-    if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
-      info(`Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`);
-      hint("Sessions from both API and subscription could be /resume now.");
-    }
-  } catch {}
-}
 
 // src/lib/model-shorthand.ts
 var CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
@@ -9668,18 +9323,62 @@ async function updateDefaultModel(entry, normalizedModel) {
     await updateOpenCodeProfileDefaultModel(entry.target.profileId, profile.console ? normalizeOpenCodeConsoleModel(normalizedModel) : normalizeOpenCodeGoModel(normalizedModel));
     return "subscription";
   }
-  const reg = await loadRegistry2();
+  const reg = await loadRegistry();
   const existing = findAccountByKey(reg, entry.target.accountKey);
   if (!existing) {
     throw new Error("Codex account not found in registry.");
   }
   const account = updateAccountDefaultModel(reg, entry.target.accountKey, normalizedModel);
-  await saveRegistry2(reg);
+  await saveRegistry(reg);
   if (reg.active_account_key === entry.target.accountKey) {
     const auth = account.auth_mode === "apikey" ? await readAccountAuth(entry.target.accountKey) : null;
     await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
   }
   return account.auth_mode ?? "unknown";
+}
+async function model(aliasOrName, defaultModel) {
+  blank();
+  if (!defaultModel.trim()) {
+    error("Default model cannot be empty.");
+    blank();
+    process.exit(1);
+  }
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
+  if (!entry) {
+    error(`Alias "${aliasOrName}" not found.`);
+    blank();
+    process.exit(1);
+  }
+  const { model: modelPart, effort } = splitModelEffort(defaultModel);
+  if (effort) {
+    error("Effort levels aren't stored with the default model.");
+    hint(`Use ${source_default.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
+    blank();
+    process.exit(1);
+  }
+  const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
+  const normalizedModel = profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart) : resolveModelShorthand(entry.target.provider, modelPart);
+  let authMode;
+  try {
+    if (entry.target.provider === "opencode" && (await getOpenCodeProfileData(entry.target.profileId)).console) {
+      const prepared = await prepareOpenCodeConsoleRun(entry.target.profileId, normalizedModel);
+      try {
+        authMode = await updateDefaultModel(entry, normalizedModel);
+      } finally {
+        await prepared.release();
+      }
+    } else {
+      authMode = await updateDefaultModel(entry, normalizedModel);
+    }
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
+  }
+  blank();
+  success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider(entry.target.provider)}  ${formatType(authMode)}  ${source_default.dim(normalizedModel)}`);
+  blank();
 }
 
 // src/commands/run.ts
@@ -9789,14 +9488,14 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
   const isolatedLocalCLIProxyAPI = isClaude && profile?.type === "local-cliproxyapi";
   if (entry.target.provider === "codex") {
-    await use2(aliasOrName);
+    await use(aliasOrName);
     try {
       if (await repairCodexStringifiedArrays()) {
         info("Repaired stringified arrays in ~/.codex/config.toml");
       }
     } catch {}
   } else if (isOpenCode) {
-    await use2(aliasOrName);
+    await use(aliasOrName);
   }
   let secureStorageDir;
   let configDir;
@@ -9810,7 +9509,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       configDir = context.configDir;
     } catch (err) {
       error(err instanceof Error ? err.message : String(err));
-      hint(`Run ${source_default2.cyan(`claudex-switch ${aliasOrName}`)} to switch globally, then log in with ${source_default2.cyan("claude")}.`);
+      hint(`Run ${source_default.cyan(`claudex-switch ${aliasOrName}`)} to switch globally, then log in with ${source_default.cyan("claude")}.`);
       blank();
       process.exit(1);
     }
@@ -9842,7 +9541,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         await localLease?.release();
       } catch {}
       error(err instanceof Error ? err.message : String(err));
-      hint(`Run ${source_default2.cyan(`claudex-switch doctor ${aliasOrName}`)} after fixing the local proxy.`);
+      hint(`Run ${source_default.cyan(`claudex-switch doctor ${aliasOrName}`)} after fixing the local proxy.`);
       blank();
       process.exit(1);
     }
@@ -9887,7 +9586,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     return 1;
   }
   const env2 = applyCodexAutoreview(baseEnv, runOptions.autoreviewOverride);
-  info(`Running ${source_default2.cyan([command, ...args].join(" "))}`);
+  info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   if (entry.target.provider === "codex") {
     const inheritedState = process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
     const state = runOptions.autoreviewOverride === undefined ? `${inheritedState} (inherited)` : `${runOptions.autoreviewOverride ? "on" : "off"} (this session)`;
@@ -9927,7 +9626,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
           } catch {}
         } else if (entry.target.provider === "codex") {
           try {
-            await syncActiveAuthSnapshot(await loadRegistry2());
+            await syncActiveAuthSnapshot(await loadRegistry());
           } catch {}
         }
         await finish(code ?? 1);
@@ -9952,7 +9651,7 @@ async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir
   if (auth?.auth_mode !== "apikey" || !auth.OPENAI_API_KEY) {
     return;
   }
-  const reg = await loadRegistry2();
+  const reg = await loadRegistry();
   const account = findAccountByKey(reg, entry.target.accountKey);
   const envKey = account?.api_provider?.env_key || "OPENAI_API_KEY";
   return {
@@ -9961,13 +9660,13 @@ async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir
   };
 }
 async function resolveAliasOrExit(aliasOrName) {
-  const aliasReg = await loadAliases2();
-  const entry = findAlias2(aliasReg, aliasOrName);
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
   if (entry) {
     return entry;
   }
   error(`Alias "${aliasOrName}" not found.`);
-  hint(`Run ${source_default2.cyan("claudex-switch list")} to see your accounts`);
+  hint(`Run ${source_default.cyan("claudex-switch list")} to see your accounts`);
   blank();
   process.exit(1);
 }
@@ -9983,7 +9682,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim();
       if (!nextValue) {
         error(`Missing model name after ${arg}.`);
-        hint(`Example: ${source_default2.cyan("claudex-switch <alias> -run --model 4.8 max")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --model 4.8 max")}`);
         blank();
         process.exit(1);
       }
@@ -10002,7 +9701,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim().toLowerCase();
       if (!nextValue || !["true", "false", "1", "0"].includes(nextValue)) {
         error("Missing header toggle after --attribution-header.");
-        hint(`Example: ${source_default2.cyan("claudex-switch <alias> -run --attribution-header false")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --attribution-header false")}`);
         blank();
         process.exit(1);
       }
@@ -10014,7 +9713,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim().toLowerCase();
       if (nextValue !== "on" && nextValue !== "off") {
         error("Expected 'on' or 'off' after --autoreview.");
-        hint(`Example: ${source_default2.cyan("claudex-switch cx -run --autoreview off")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
         blank();
         process.exit(1);
       }
@@ -10430,7 +10129,7 @@ async function persistRefreshedAuth(accountKey, isActive, originalAuth, refreshe
     await saveAccountAuth(accountKey, refreshedAuth);
     return;
   }
-  const registry = await loadRegistry2();
+  const registry = await loadRegistry();
   const account = findAccountByKey(registry, accountKey);
   if (registry.active_account_key !== accountKey || !account) {
     await saveAccountAuth(accountKey, refreshedAuth);
@@ -10488,7 +10187,7 @@ function parseSnapshot(snapshot) {
 async function list(options = {}) {
   const withUsage = options.usage !== false;
   const offlineJson = options.json === true && !withUsage;
-  const aliasReg = await loadAliases2();
+  const aliasReg = await loadAliases();
   const validAliases = options.json ? aliasReg.aliases.filter(isWellFormedJsonAlias) : aliasReg.aliases;
   if (validAliases.length === 0) {
     if (options.json) {
@@ -10498,19 +10197,19 @@ async function list(options = {}) {
     blank();
     console.log(header("  No accounts yet"));
     blank();
-    hint(`Run ${source_default2.cyan("claudex-switch import")} to import existing accounts`);
-    hint(`or  ${source_default2.cyan("claudex-switch add <alias>")} to add a new one`);
+    hint(`Run ${source_default.cyan("claudex-switch import")} to import existing accounts`);
+    hint(`or  ${source_default.cyan("claudex-switch add <alias>")} to add a new one`);
     blank();
     return;
   }
   const claudeAliases = validAliases.filter((a) => a.target.provider === "claude");
   const codexAliases = validAliases.filter((a) => a.target.provider === "codex");
   const openCodeAliases = validAliases.filter((a) => a.target.provider === "opencode");
-  const claudeState = await readState3();
-  const openCodeState = await readOpenCodeState2();
+  const claudeState = await readState2();
+  const openCodeState = await readOpenCodeState();
   let codexReg = null;
   try {
-    codexReg = await loadRegistry2({ persistNormalization: !offlineJson });
+    codexReg = await loadRegistry({ persistNormalization: !offlineJson });
     if (!offlineJson)
       await syncActiveAuthSnapshot(codexReg);
   } catch {}
@@ -10600,18 +10299,18 @@ function renderSection(infos) {
   const maxAliasLen = Math.max(...infos.map((info2) => info2.alias.length));
   for (const info2 of infos) {
     const icon = info2.isActive ? icons.active : icons.inactive;
-    const name = info2.isActive ? source_default2.green.bold(info2.alias) : info2.alias;
+    const name = info2.isActive ? source_default.green.bold(info2.alias) : info2.alias;
     const paddedName = name + " ".repeat(Math.max(0, maxAliasLen - info2.alias.length));
     const type = formatType(info2.authMode);
     const plan = formatPlan(info2.plan);
-    const email = info2.email ? source_default2.dim(info2.email) : "";
-    const apiProvider = info2.apiProvider ? `  ${source_default2.dim(info2.apiProvider)}` : "";
-    const model = info2.defaultModel ? `  ${source_default2.dim(info2.defaultModel)}` : "";
+    const email = info2.email ? source_default.dim(info2.email) : "";
+    const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
+    const model2 = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
     const usage = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage || balance;
     const quotaStr = quota ? `  ${quota}` : "";
-    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}${quotaStr}`);
+    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model2}${quotaStr}`);
   }
 }
 async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
@@ -10782,11 +10481,11 @@ function safePlan(plan, authMode) {
   const normalized = plan.trim().toLowerCase();
   return SAFE_PLANS.has(normalized) ? normalized : null;
 }
-function safeDefaultModel(model) {
-  if (typeof model !== "string" || model.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:/+-]*$/.test(model) || /api[-_]?key|secret|token|credential|bearer|^(?:sk|gh[pousr]|xox[baprs])[-_]/i.test(model)) {
+function safeDefaultModel(model2) {
+  if (typeof model2 !== "string" || model2.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:/+-]*$/.test(model2) || /api[-_]?key|secret|token|credential|bearer|^(?:sk|gh[pousr]|xox[baprs])[-_]/i.test(model2)) {
     return null;
   }
-  return model;
+  return model2;
 }
 function safeAuthMode(provider, authMode) {
   const allowed = {
@@ -10854,7 +10553,7 @@ function compareJsonAccounts(left, right) {
 async function persistDisplayedCodexPlans(entries, infos, registry) {
   if (!registry)
     return;
-  const latestRegistry = await loadRegistry2();
+  const latestRegistry = await loadRegistry();
   let changed = false;
   entries.forEach((entry, index) => {
     if (entry.target.provider !== "codex")
@@ -10870,40 +10569,40 @@ async function persistDisplayedCodexPlans(entries, infos, registry) {
     }
   });
   if (changed)
-    await saveRegistry2(latestRegistry);
+    await saveRegistry(latestRegistry);
 }
 
 // src/commands/remove.ts
 async function remove(aliasName) {
   blank();
-  const reg = await loadAliases2();
-  const entry = findAlias2(reg, aliasName);
+  const reg = await loadAliases();
+  const entry = findAlias(reg, aliasName);
   if (!entry) {
     error(`Alias "${aliasName}" not found.`);
     blank();
     process.exit(1);
   }
   const provider = entry.target.provider;
-  const ok = await esm_default3({
+  const ok = await esm_default2({
     message: `Remove alias "${aliasName}"? The ${formatProvider(provider)} account will be kept.`,
     default: false
   });
   if (!ok) {
-    console.log(source_default2.dim("  Cancelled"));
+    console.log(source_default.dim("  Cancelled"));
     blank();
     return;
   }
   await removeAlias(aliasName);
   blank();
-  success(`${source_default2.bold(aliasName)} alias removed`);
+  success(`${source_default.bold(aliasName)} alias removed`);
   blank();
 }
 
 // src/commands/rename.ts
 async function rename6(currentAlias, nextAlias) {
   blank();
-  const reg = await loadAliases2();
-  const entry = findAlias2(reg, currentAlias);
+  const reg = await loadAliases();
+  const entry = findAlias(reg, currentAlias);
   if (!entry) {
     error(`Alias "${currentAlias}" not found.`);
     blank();
@@ -10915,26 +10614,26 @@ async function rename6(currentAlias, nextAlias) {
     blank();
     process.exit(1);
   }
-  const ok = await esm_default3({
+  const ok = await esm_default2({
     message: `Rename alias "${currentAlias}" to "${nextAlias}"?`,
     default: true
   });
   if (!ok) {
-    console.log(source_default2.dim("  Cancelled"));
+    console.log(source_default.dim("  Cancelled"));
     blank();
     return;
   }
   await renameAlias(currentAlias, nextAlias);
   blank();
-  success(`${source_default2.bold(currentAlias)} renamed to ${source_default2.bold(nextAlias)}`);
+  success(`${source_default.bold(currentAlias)} renamed to ${source_default.bold(nextAlias)}`);
   blank();
 }
 
 // src/accounts/purge.ts
 import { unlink as unlink3 } from "fs/promises";
 async function planPurge(aliasName) {
-  const reg = await loadAliases2();
-  const entry = findAlias2(reg, aliasName);
+  const reg = await loadAliases();
+  const entry = findAlias(reg, aliasName);
   if (!entry) {
     throw new Error(`Alias "${aliasName}" not found`);
   }
@@ -10954,10 +10653,10 @@ async function purgeAccount(aliasName) {
     await removeOpenCodeProfile(entry.target.profileId);
   } else {
     try {
-      const codexReg = await loadRegistry2();
+      const codexReg = await loadRegistry();
       const removed = removeAccountFromRegistry(codexReg, entry.target.accountKey);
       if (removed) {
-        await saveRegistry2(codexReg);
+        await saveRegistry(codexReg);
       }
       const authFile = codexAccountAuthFile(entry.target.accountKey);
       if (await fileExists(authFile)) {
@@ -10982,12 +10681,12 @@ async function purge(aliasName) {
   }
   const { linkedAliases } = plan;
   const aliasLabel = linkedAliases.length === 1 ? `This will also remove alias "${aliasName}".` : `This will also remove ${linkedAliases.length} aliases: ${linkedAliases.join(", ")}.`;
-  const ok = await esm_default3({
+  const ok = await esm_default2({
     message: `Purge ${formatProvider(plan.entry.target.provider)} account "${aliasName}"? ${aliasLabel}`,
     default: false
   });
   if (!ok) {
-    console.log(source_default2.dim("  Cancelled"));
+    console.log(source_default.dim("  Cancelled"));
     blank();
     return;
   }
@@ -10999,43 +10698,43 @@ async function purge(aliasName) {
     process.exit(1);
   }
   blank();
-  success(`${source_default2.bold(aliasName)} account purged`);
+  success(`${source_default.bold(aliasName)} account purged`);
   blank();
 }
 
 // src/commands/current.ts
 async function current() {
-  const aliasReg = await loadAliases2();
-  const claudeState = await readState3();
+  const aliasReg = await loadAliases();
+  const claudeState = await readState2();
   let codexReg = null;
   try {
-    codexReg = await loadRegistry2();
+    codexReg = await loadRegistry();
   } catch {}
-  const openCodeState = await readOpenCodeState2();
+  const openCodeState = await readOpenCodeState();
   blank();
   let found = false;
   if (claudeState.active) {
     const alias = aliasReg.aliases.find((a) => a.target.provider === "claude" && a.target.profileName === claudeState.active);
     const displayName = alias ? alias.alias : claudeState.active;
-    console.log(`  ${formatProvider("claude")}:  ${source_default2.green.bold(displayName)}`);
+    console.log(`  ${formatProvider("claude")}:  ${source_default.green.bold(displayName)}`);
     found = true;
   }
   if (codexReg?.active_account_key) {
     const alias = aliasReg.aliases.find((a) => a.target.provider === "codex" && a.target.accountKey === codexReg.active_account_key);
     const account = codexReg.accounts?.find((a) => a.account_key === codexReg.active_account_key);
     const displayName = alias ? alias.alias : account?.email ?? codexReg.active_account_key;
-    console.log(`  ${formatProvider("codex")}:   ${source_default2.green.bold(displayName)}`);
+    console.log(`  ${formatProvider("codex")}:   ${source_default.green.bold(displayName)}`);
     found = true;
   }
   if (openCodeState.active) {
     const alias = aliasReg.aliases.find((a) => a.target.provider === "opencode" && a.target.profileId === openCodeState.active);
     const displayName = alias ? alias.alias : openCodeState.active;
-    console.log(`  ${formatProvider("opencode")}: ${source_default2.green.bold(displayName)}`);
+    console.log(`  ${formatProvider("opencode")}: ${source_default.green.bold(displayName)}`);
     found = true;
   }
   if (!found) {
-    console.log(source_default2.dim("  No active accounts"));
-    hint(`Run ${source_default2.cyan("claudex-switch add <alias>")} to create one`);
+    console.log(source_default.dim("  No active accounts"));
+    hint(`Run ${source_default.cyan("claudex-switch add <alias>")} to create one`);
   }
   blank();
 }
@@ -11046,7 +10745,7 @@ async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
   blank();
-  const reg = await loadAliases2();
+  const reg = await loadAliases();
   let imported = 0;
   let skipped = 0;
   const claudeResult = await importClaudeProfiles(reg);
@@ -11080,12 +10779,12 @@ async function importClaudeProfiles(reg) {
     const target = { provider: "claude", profileName: name };
     const existing = findAliasByTarget(reg, target);
     if (existing) {
-      console.log(source_default2.dim(`  skip  ${name} (already imported as "${existing.alias}")`));
+      console.log(source_default.dim(`  skip  ${name} (already imported as "${existing.alias}")`));
       skipped++;
       continue;
     }
     if (!isValidAlias(name) || aliasExists(reg, name)) {
-      console.log(source_default2.dim(`  skip  ${name} (${aliasExists(reg, name) ? "alias already exists" : "invalid alias name"})`));
+      console.log(source_default.dim(`  skip  ${name} (${aliasExists(reg, name) ? "alias already exists" : "invalid alias name"})`));
       skipped++;
       continue;
     }
@@ -11094,7 +10793,7 @@ async function importClaudeProfiles(reg) {
       target,
       createdAt: Date.now()
     });
-    console.log(`  ${source_default2.green("+")} ${name}  ${source_default2.dim("(claude)")}`);
+    console.log(`  ${source_default.green("+")} ${name}  ${source_default.dim("(claude)")}`);
     imported++;
   }
   return { imported, skipped };
@@ -11103,7 +10802,7 @@ async function importCodexAccounts(reg) {
   let imported = 0;
   let skipped = 0;
   try {
-    const codexReg = await loadRegistry2();
+    const codexReg = await loadRegistry();
     if (!codexReg.accounts || codexReg.accounts.length === 0) {
       return { imported, skipped };
     }
@@ -11114,7 +10813,7 @@ async function importCodexAccounts(reg) {
       };
       const existing = findAliasByTarget(reg, target);
       if (existing) {
-        console.log(source_default2.dim(`  skip  ${account.email || account.account_key} (already imported as "${existing.alias}")`));
+        console.log(source_default.dim(`  skip  ${account.email || account.account_key} (already imported as "${existing.alias}")`));
         skipped++;
         continue;
       }
@@ -11146,7 +10845,7 @@ async function importCodexAccounts(reg) {
         target,
         createdAt: Date.now()
       });
-      console.log(`  ${source_default2.green("+")} ${finalAlias}  ${source_default2.dim("(codex)")}  ${source_default2.dim(account.email || "")}`);
+      console.log(`  ${source_default.green("+")} ${finalAlias}  ${source_default.dim("(codex)")}  ${source_default.dim(account.email || "")}`);
       imported++;
     }
   } catch {}
@@ -11157,11 +10856,11 @@ async function importCodexAccounts(reg) {
 import { spawn as spawn9 } from "child_process";
 async function refresh(aliasOrName) {
   blank();
-  const aliasReg = await loadAliases2();
-  const entry = findAlias2(aliasReg, aliasOrName);
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, aliasOrName);
   if (!entry) {
     error(`Alias "${aliasOrName}" not found.`);
-    hint(`Run ${source_default2.cyan("claudex-switch list")} to see your accounts`);
+    hint(`Run ${source_default.cyan("claudex-switch list")} to see your accounts`);
     blank();
     process.exit(1);
   }
@@ -11207,7 +10906,7 @@ async function refreshOpenCode(alias, profileId) {
         info(`Sign in again as ${profile.console.email} and authorize ${profile.console.orgName}.`);
         await loginOpenCodeConsole(profileId, profile);
         await setActiveOpenCodeProfile(profileId);
-        success(`${source_default2.bold(alias)} OpenCode subscription reconnected`);
+        success(`${source_default.bold(alias)} OpenCode subscription reconnected`);
       } catch (err) {
         error(err instanceof Error ? err.message : String(err));
         process.exit(1);
@@ -11223,7 +10922,7 @@ async function refreshOpenCode(alias, profileId) {
       process.exit(1);
       return;
     }
-    info(`Replace the OpenCode Go API key for ${source_default2.bold(alias)}.`);
+    info(`Replace the OpenCode Go API key for ${source_default.bold(alias)}.`);
     hint("The key stays in claudex-switch's private profile. OpenCode terminal tools may inherit process environment variables.");
     blank();
     const trimmedKey = await resolveOpenCodeV2Key({
@@ -11239,11 +10938,11 @@ async function refreshOpenCode(alias, profileId) {
       return;
     }
     await setActiveOpenCodeProfile(profileId);
-    success(`${source_default2.bold(alias)} OpenCode Go key replaced`);
+    success(`${source_default.bold(alias)} OpenCode Go key replaced`);
     blank();
     return;
   }
-  info(`Opening OpenCode TUI for ${source_default2.bold(alias)}...`);
+  info(`Opening OpenCode TUI for ${source_default.bold(alias)}...`);
   hint("Use /connect → OpenCode Go to replace or repair this account's credential, then exit the TUI.");
   blank();
   const previousKey = await readOpenCodeGoApiKey(profileId);
@@ -11256,7 +10955,7 @@ async function refreshOpenCode(alias, profileId) {
     return;
   }
   await setActiveOpenCodeProfile(profileId);
-  success(`${source_default2.bold(alias)} OpenCode Go credential refreshed`);
+  success(`${source_default.bold(alias)} OpenCode Go credential refreshed`);
   blank();
 }
 async function refreshClaude(alias, profileName) {
@@ -11278,7 +10977,7 @@ async function refreshClaude(alias, profileName) {
   }
   const savedAccount = await readJson(claudeProfileAccountFile(profileName), null);
   await switchProfile(profileName);
-  info(`Opening Claude login for ${source_default2.bold(alias)}...`);
+  info(`Opening Claude login for ${source_default.bold(alias)}...`);
   blank();
   const exitCode = await runLoginCommand("claude", [
     "auth",
@@ -11287,7 +10986,7 @@ async function refreshClaude(alias, profileName) {
   if (exitCode !== 0) {
     blank();
     error("Claude login failed or was cancelled.");
-    hint(`If Claude refuses the current session, run ${source_default2.cyan("claude auth logout")} and retry.`);
+    hint(`If Claude refuses the current session, run ${source_default.cyan("claude auth logout")} and retry.`);
     blank();
     process.exit(1);
   }
@@ -11296,7 +10995,7 @@ async function refreshClaude(alias, profileName) {
     await switchProfile(profileName);
     blank();
     error(`Claude login completed for a different account (${formatClaudeIdentity(currentAccount)}).`);
-    hint(`Retry and sign in as ${source_default2.cyan(savedAccount?.emailAddress ?? savedAccount?.accountUuid ?? alias)}.`);
+    hint(`Retry and sign in as ${source_default.cyan(savedAccount?.emailAddress ?? savedAccount?.accountUuid ?? alias)}.`);
     blank();
     process.exit(1);
   }
@@ -11312,8 +11011,8 @@ async function refreshClaude(alias, profileName) {
   const creds = await readCredentials();
   const account = await readOAuthAccount();
   const label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
-  const email = account?.emailAddress ? `  ${source_default2.dim(account.emailAddress)}` : "";
-  success(`Refreshed ${source_default2.bold(alias)}  ${formatProvider("claude")}  ${formatType("oauth")}  ${label}${email}`);
+  const email = account?.emailAddress ? `  ${source_default.dim(account.emailAddress)}` : "";
+  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("oauth")}  ${label}${email}`);
   blank();
 }
 async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
@@ -11323,7 +11022,7 @@ async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
     blank();
     process.exit(1);
   }
-  info(`Opening CLIProxyAPI's own ChatGPT login for ${source_default2.bold(alias)}...`);
+  info(`Opening CLIProxyAPI's own ChatGPT login for ${source_default.bold(alias)}...`);
   blank();
   let login;
   try {
@@ -11339,14 +11038,14 @@ async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
     process.exit(1);
   }
   await updateLocalCLIProxyAPIProfileIdentity(profileName, login.identity);
-  if ((await readState3()).active === profileName) {
+  if ((await readState2()).active === profileName) {
     await switchProfile(profileName);
   }
-  success(`Refreshed ${source_default2.bold(alias)}  ${formatProvider("claude")}  ${formatType("local-cliproxyapi")}`);
+  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("local-cliproxyapi")}`);
   blank();
 }
 async function refreshCodex(alias, accountKey) {
-  const reg = await loadRegistry2();
+  const reg = await loadRegistry();
   const account = findAccountByKey(reg, accountKey);
   if (!account) {
     error("Codex account not found in registry.");
@@ -11359,7 +11058,7 @@ async function refreshCodex(alias, accountKey) {
     blank();
     process.exit(1);
   }
-  info(`Opening Codex login for ${source_default2.bold(alias)}...`);
+  info(`Opening Codex login for ${source_default.bold(alias)}...`);
   blank();
   let loginResult;
   try {
@@ -11396,11 +11095,11 @@ async function refreshCodex(alias, accountKey) {
     if (!savedEmail || !refreshedEmail || savedEmail !== refreshedEmail) {
       blank();
       error(`Codex login completed for a different account (${email}).`);
-      hint(`Retry and sign in as ${source_default2.cyan(account.email || alias)}.`);
+      hint(`Retry and sign in as ${source_default.cyan(account.email || alias)}.`);
       blank();
       process.exit(1);
     }
-    info(`Account key changed for ${source_default2.bold(email)} (org/team change detected). Migrating...`);
+    info(`Account key changed for ${source_default.bold(email)} (org/team change detected). Migrating...`);
     oldKey = accountKey;
     accountKey = refreshedKey;
     account.account_key = refreshedKey;
@@ -11418,12 +11117,12 @@ async function refreshCodex(alias, accountKey) {
     await applyCodexApiProvider(null, undefined, account.default_model);
     setActiveAccount(reg, accountKey);
   }
-  await saveRegistry2(reg);
+  await saveRegistry(reg);
   if (oldKey) {
     await updateAlias(alias, { provider: "codex", accountKey });
     await removeAccountAuthFile(oldKey);
   }
-  success(`Refreshed ${source_default2.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${source_default2.dim(account.email || "")}`);
+  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${source_default.dim(account.email || "")}`);
   blank();
 }
 function matchesClaudeAccount(expected, actual) {
@@ -11456,82 +11155,13 @@ async function runLoginCommand(command, args) {
   }
 }
 
-// src/commands/model.ts
-async function updateDefaultModel2(entry, normalizedModel) {
-  if (entry.target.provider === "claude") {
-    const profile = await updateProfileDefaultModel(entry.target.profileName, normalizedModel);
-    return profile.type;
-  }
-  if (entry.target.provider === "opencode") {
-    const profile = await getOpenCodeProfileData(entry.target.profileId);
-    await updateOpenCodeProfileDefaultModel(entry.target.profileId, profile.console ? normalizeOpenCodeConsoleModel(normalizedModel) : normalizeOpenCodeGoModel(normalizedModel));
-    return "subscription";
-  }
-  const reg = await loadRegistry2();
-  const existing = findAccountByKey(reg, entry.target.accountKey);
-  if (!existing) {
-    throw new Error("Codex account not found in registry.");
-  }
-  const account = updateAccountDefaultModel(reg, entry.target.accountKey, normalizedModel);
-  await saveRegistry2(reg);
-  if (reg.active_account_key === entry.target.accountKey) {
-    const auth = account.auth_mode === "apikey" ? await readAccountAuth(entry.target.accountKey) : null;
-    await applyCodexApiProvider(account.auth_mode === "apikey" ? account.api_provider : null, auth?.auth_mode === "apikey" ? auth.OPENAI_API_KEY : undefined, account.default_model);
-  }
-  return account.auth_mode ?? "unknown";
-}
-async function model(aliasOrName, defaultModel) {
-  blank();
-  if (!defaultModel.trim()) {
-    error("Default model cannot be empty.");
-    blank();
-    process.exit(1);
-  }
-  const aliasReg = await loadAliases2();
-  const entry = findAlias2(aliasReg, aliasOrName);
-  if (!entry) {
-    error(`Alias "${aliasOrName}" not found.`);
-    blank();
-    process.exit(1);
-  }
-  const { model: modelPart, effort } = splitModelEffort(defaultModel);
-  if (effort) {
-    error("Effort levels aren't stored with the default model.");
-    hint(`Use ${source_default2.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
-    blank();
-    process.exit(1);
-  }
-  const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
-  const normalizedModel = profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart) : resolveModelShorthand(entry.target.provider, modelPart);
-  let authMode;
-  try {
-    if (entry.target.provider === "opencode" && (await getOpenCodeProfileData(entry.target.profileId)).console) {
-      const prepared = await prepareOpenCodeConsoleRun(entry.target.profileId, normalizedModel);
-      try {
-        authMode = await updateDefaultModel2(entry, normalizedModel);
-      } finally {
-        await prepared.release();
-      }
-    } else {
-      authMode = await updateDefaultModel2(entry, normalizedModel);
-    }
-  } catch (err) {
-    error(err instanceof Error ? err.message : String(err));
-    blank();
-    process.exit(1);
-  }
-  blank();
-  success(`Updated ${source_default2.bold(entry.alias)}  ${formatProvider(entry.target.provider)}  ${formatType(authMode)}  ${source_default2.dim(normalizedModel)}`);
-  blank();
-}
-
 // src/lib/update.ts
 import { realpathSync } from "fs";
 import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.18.1",
+  version: "1.18.2",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -11752,6 +11382,24 @@ function installLatestUpdate(update) {
   const ok = update.installMethod === "brew" ? updateWithHomebrew(update.runCommand, updateEnv) : updateWithBun(update.latestVersion, update.runCommand, updateEnv);
   return { ok, env: updateEnv };
 }
+async function runAutoUpdateIfNeeded(options = {}) {
+  const update = await checkForLatestUpdate(options);
+  if (update.status !== "available") {
+    return { action: "continue" };
+  }
+  info(`Updating claudex-switch from v${update.currentVersion} to v${update.latestVersion}`);
+  hint("Running self-update before continuing...");
+  const installed = installLatestUpdate(update);
+  if (!installed.ok) {
+    hint("Auto-update failed; continuing with current version.");
+    return { action: "continue" };
+  }
+  const restart = update.runCommand(update.argv[0] ?? update.execPath, update.argv.slice(1), {
+    env: installed.env,
+    stdio: "inherit"
+  });
+  return { action: "restart", exitCode: restart.status ?? 1 };
+}
 function createUpdateEnv(env2) {
   return {
     ...env2,
@@ -11814,7 +11462,7 @@ async function update() {
       if (!installed.ok) {
         blank();
         error("Update failed.");
-        hint(`If this install is managed externally, reinstall it manually or retry ${source_default2.cyan("claudex-switch update")}.`);
+        hint(`If this install is managed externally, reinstall it manually or retry ${source_default.cyan("claudex-switch update")}.`);
         blank();
         process.exit(1);
       }
@@ -11829,7 +11477,7 @@ async function update() {
     case "unsupported":
       if (result.unsupportedInstallMethod === "npm") {
         error("This claudex-switch command is installed through npm/nvm, which is not supported.");
-        hint(`Reinstall with the installer script or ${source_default2.cyan("bun install -g git+https://github.com/Holden-Lin/claudex-switch.git")}.`);
+        hint(`Reinstall with the installer script or ${source_default.cyan("bun install -g git+https://github.com/Holden-Lin/claudex-switch.git")}.`);
       } else {
         error("Could not determine how this claudex-switch install was installed.");
         hint("Automatic update currently supports Bun and Homebrew installs.");
@@ -13128,11 +12776,11 @@ function validateCustomEnv(env2) {
 
 // src/webconfig/snapshot.ts
 async function buildSnapshot() {
-  const aliasReg = await loadAliases2();
-  const claudeState = await readState3();
+  const aliasReg = await loadAliases();
+  const claudeState = await readState2();
   let codexReg = null;
   try {
-    codexReg = await loadRegistry2();
+    codexReg = await loadRegistry();
   } catch {}
   const claude = [];
   const codex = [];
@@ -13272,8 +12920,8 @@ async function describeCodexAccount(entry, registry, linkedAliases) {
 }
 async function renameAccountAlias(from, to) {
   const target = to.trim();
-  const registry = await loadAliases2();
-  if (!findAlias2(registry, from)) {
+  const registry = await loadAliases();
+  if (!findAlias(registry, from)) {
     throw new Error(`别名 "${from}" 不存在`);
   }
   const rejection = checkAlias(registry, target, { ignoreAlias: from });
@@ -13284,8 +12932,8 @@ async function renameAccountAlias(from, to) {
   return target;
 }
 async function deleteAccount(alias) {
-  const registry = await loadAliases2();
-  if (!findAlias2(registry, alias)) {
+  const registry = await loadAliases();
+  if (!findAlias(registry, alias)) {
     throw new Error(`别名 "${alias}" 不存在`);
   }
   const { linkedAliases } = await purgeAccount(alias);
@@ -13308,8 +12956,8 @@ async function applyChanges(changes) {
   return results;
 }
 async function applyChange(change) {
-  const aliasReg = await loadAliases2();
-  const entry = findAlias2(aliasReg, change.alias);
+  const aliasReg = await loadAliases();
+  const entry = findAlias(aliasReg, change.alias);
   if (!entry) {
     throw new Error(`别名 "${change.alias}" 不存在`);
   }
@@ -13328,7 +12976,7 @@ async function applyChange(change) {
 async function applyCodexChange(accountKey, alias, fields) {
   if (fields.baseUrl !== undefined)
     requireValidUrl(fields.baseUrl);
-  const registry = await loadRegistry2();
+  const registry = await loadRegistry();
   const existing = findAccountByKey(registry, accountKey);
   if (existing?.api_provider?.type === "custom" && fields.baseUrl !== undefined && !fields.baseUrl.trim()) {
     throw new Error("中转站账号的请求地址不能为空");
@@ -13350,7 +12998,7 @@ async function applyCodexChange(accountKey, alias, fields) {
       OPENAI_API_KEY: key
     });
   }
-  await saveRegistry2(registry);
+  await saveRegistry(registry);
   const reapplied = registry.active_account_key === accountKey;
   if (reapplied) {
     const auth = account.auth_mode === "apikey" ? await readAccountAuth(accountKey) : null;
@@ -13381,7 +13029,7 @@ var ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 async function createAccount(request) {
   const alias = request.alias.trim();
   const fields = request.fields ?? {};
-  const registry = await loadAliases2();
+  const registry = await loadAliases();
   const rejection = checkAlias(registry, alias);
   if (rejection)
     throw new Error(aliasRejectionMessage(rejection));
@@ -13420,7 +13068,7 @@ async function createCodex(request, alias, fields) {
   const defaultModel = (fields.defaultModel ?? "").trim();
   if (!defaultModel)
     throw new Error("默认模型不能为空");
-  const existing = findAliasByTarget(await loadAliases2(), {
+  const existing = findAliasByTarget(await loadAliases(), {
     provider: "codex",
     accountKey: codexApiAccountKey(apiKey)
   });
@@ -13674,7 +13322,7 @@ async function webconfig(args = []) {
     options = parseWebConfigArgs(args);
   } catch (err) {
     error(err instanceof Error ? err.message : String(err));
-    hint(`Usage: ${source_default2.cyan("claudex-switch webconfig [--port <n>] [--no-open]")}`);
+    hint(`Usage: ${source_default.cyan("claudex-switch webconfig [--port <n>] [--no-open]")}`);
     blank();
     process.exit(1);
   }
@@ -13686,9 +13334,9 @@ async function webconfig(args = []) {
     blank();
     process.exit(1);
   }
-  success(`Config UI running at ${source_default2.cyan(server.url)}`);
+  success(`Config UI running at ${source_default.cyan(server.url)}`);
   hint("The link carries a one-time token and only works from this machine.");
-  hint(`Press ${source_default2.cyan("Ctrl-C")} to stop.`);
+  hint(`Press ${source_default.cyan("Ctrl-C")} to stop.`);
   blank();
   if (options.open !== false && !openExternalUrl(server.url)) {
     info("Could not open a browser automatically — open the link above.");
@@ -13708,8 +13356,8 @@ async function webconfig(args = []) {
 // src/commands/doctor.ts
 async function doctor(aliasOrName, options = {}) {
   blank();
-  const aliases = await loadAliases2();
-  const entry = findAlias2(aliases, aliasOrName);
+  const aliases = await loadAliases();
+  const entry = findAlias(aliases, aliasOrName);
   if (!entry) {
     fail(`Alias "${aliasOrName}" not found.`);
     return;
@@ -13747,7 +13395,7 @@ async function doctor(aliasOrName, options = {}) {
     return;
   }
   if (!status.loggedIn) {
-    fail(`No valid local ChatGPT login is available. Run ${source_default2.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
+    fail(`No valid local ChatGPT login is available. Run ${source_default.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
     return;
   }
   if (!status.environmentValid) {
@@ -13791,15 +13439,15 @@ async function doctor(aliasOrName, options = {}) {
       fail(`Luna (${lunaModel}) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
       return;
     }
-    success(`${source_default2.bold(entry.alias)} Luna (${lunaModel}) live verification passed`);
+    success(`${source_default.bold(entry.alias)} Luna (${lunaModel}) live verification passed`);
     blank();
     return;
   }
   if (options.restart && status.running) {
-    success(`${source_default2.bold(entry.alias)} managed proxy restarted`);
+    success(`${source_default.bold(entry.alias)} managed proxy restarted`);
   } else {
-    success(`${source_default2.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
-    hint(`Use ${source_default2.cyan(`claudex-switch doctor ${entry.alias} --live`)} for a small, quota-consuming model request.`);
+    success(`${source_default.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
+    hint(`Use ${source_default.cyan(`claudex-switch doctor ${entry.alias} --live`)} for a small, quota-consuming model request.`);
   }
   blank();
 }
@@ -13809,278 +13457,9 @@ function fail(message) {
   process.exit(1);
 }
 
-// src/lib/ui.ts
-var icons2 = {
-  active: source_default2.green("▸"),
-  inactive: source_default2.dim(" "),
-  success: source_default2.green("✓"),
-  error: source_default2.red("✗"),
-  arrow: source_default2.cyan("→"),
-  info: source_default2.blue("●")
-};
-function error2(text) {
-  console.error(`  ${icons2.error} ${source_default2.red(text)}`);
-}
-function hint2(text) {
-  console.log(source_default2.dim(`  ${text}`));
-}
-function blank2() {
-  console.log();
-}
-function formatProvider2(provider) {
-  switch (provider) {
-    case "claude":
-      return source_default2.magenta("Claude");
-    case "codex":
-      return source_default2.green("Codex");
-    case "opencode":
-      return source_default2.cyan("OpenCode");
-  }
-}
-
-// src/lib/update.ts
-import { realpathSync as realpathSync2 } from "fs";
-import { spawnSync as spawnSync8 } from "child_process";
-var REPO2 = "Holden-Lin/claudex-switch";
-var LATEST_RELEASE_URL2 = `https://github.com/${REPO2}/releases/latest`;
-var LATEST_RELEASE_API_URL2 = `https://api.github.com/repos/${REPO2}/releases/latest`;
-var BUN_INSTALL_SPEC2 = `git+https://github.com/${REPO2}.git`;
-var HOMEBREW_FORMULA_URL2 = `https://raw.githubusercontent.com/${REPO2}/main/Formula/claudex-switch.rb`;
-var SKIP_AUTO_UPDATE_ENV2 = "CLAUDEX_SKIP_AUTO_UPDATE";
-var DISABLE_AUTO_UPDATE_ENV2 = "CLAUDEX_DISABLE_AUTO_UPDATE";
-var CURRENT_VERSION2 = normalizeVersion2(package_default.version);
-function normalizeVersion2(version2) {
-  return version2.replace(/^v/, "");
-}
-function compareVersions2(a, b) {
-  const aParts = normalizeVersion2(a).split(/[.-]/);
-  const bParts = normalizeVersion2(b).split(/[.-]/);
-  const length = Math.max(aParts.length, bParts.length);
-  for (let i = 0;i < length; i += 1) {
-    const aValue = Number.parseInt(aParts[i] ?? "0", 10);
-    const bValue = Number.parseInt(bParts[i] ?? "0", 10);
-    if (aValue > bValue)
-      return 1;
-    if (aValue < bValue)
-      return -1;
-  }
-  return 0;
-}
-function extractVersionFromReleaseUrl2(url) {
-  const match = url.match(/\/tag\/(v?[^/?#]+)\/?$/);
-  return match ? normalizeVersion2(match[1]) : null;
-}
-function extractVersionFromReleaseApiPayload2(payload) {
-  if (!payload || typeof payload !== "object")
-    return null;
-  const tagName = payload.tag_name;
-  return typeof tagName === "string" && tagName.length > 0 ? normalizeVersion2(tagName) : null;
-}
-async function fetchLatestReleaseVersion2(fetchImpl = fetch) {
-  const headers = { "user-agent": "claudex-switch" };
-  try {
-    const response = await fetchImpl(LATEST_RELEASE_URL2, {
-      headers,
-      redirect: "follow",
-      signal: AbortSignal.timeout(2500)
-    });
-    if (response.ok) {
-      const version2 = extractVersionFromReleaseUrl2(response.url);
-      if (version2)
-        return version2;
-    }
-  } catch {}
-  try {
-    const response = await fetchImpl(LATEST_RELEASE_API_URL2, {
-      headers: {
-        ...headers,
-        accept: "application/vnd.github+json"
-      },
-      signal: AbortSignal.timeout(2500)
-    });
-    if (!response.ok)
-      return null;
-    return extractVersionFromReleaseApiPayload2(await response.json());
-  } catch {
-    return null;
-  }
-}
-function detectInstallMethod2(argv = process.argv, execPath = process.execPath, runCommand = spawnSync8) {
-  const brewPrefix = readCommandStdout2(runCommand("brew", ["--prefix"], {
-    encoding: "utf-8",
-    stdio: ["ignore", "pipe", "ignore"]
-  }));
-  const cliPath = resolveCliPath2(argv, execPath);
-  const realCliPath = resolveRealPath2(cliPath);
-  if (brewPrefix && (pathStartsWith2(cliPath, brewPrefix) || pathStartsWith2(realCliPath, brewPrefix))) {
-    return "brew";
-  }
-  const bunCheck = runCommand("bun", ["--version"], {
-    stdio: ["ignore", "ignore", "ignore"]
-  });
-  if (bunCheck.status === 0 && !bunCheck.error) {
-    const bunGlobalBin = readCommandStdout2(runCommand("bun", ["pm", "bin", "-g"], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"]
-    }));
-    if (bunGlobalBin && (pathStartsWith2(cliPath, bunGlobalBin) || pathStartsWith2(realCliPath, bunGlobalBin))) {
-      return "bun";
-    }
-  }
-  return null;
-}
-function detectUnsupportedInstallMethod2(argv, execPath, runCommand) {
-  const cliPath = resolveCliPath2(argv, execPath);
-  const realCliPath = resolveRealPath2(cliPath);
-  const npmCheck = runCommand("npm", ["--version"], {
-    stdio: ["ignore", "ignore", "ignore"]
-  });
-  if (npmCheck.status === 0 && !npmCheck.error) {
-    const npmPrefix = readCommandStdout2(runCommand("npm", ["prefix", "-g"], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"]
-    }));
-    const npmRoot = readCommandStdout2(runCommand("npm", ["root", "-g"], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"]
-    }));
-    const npmBin = npmPrefix ? `${npmPrefix.replace(/\/$/, "")}/bin` : "";
-    if (npmBin && (pathStartsWith2(cliPath, npmBin) || pathStartsWith2(realCliPath, npmBin)) || npmRoot && (pathStartsWith2(cliPath, npmRoot) || pathStartsWith2(realCliPath, npmRoot))) {
-      return "npm";
-    }
-  }
-  return null;
-}
-function pathStartsWith2(path, prefix) {
-  if (!path)
-    return false;
-  return path === prefix || path.startsWith(`${prefix.replace(/\/$/, "")}/`);
-}
-function resolveRealPath2(path) {
-  if (!path)
-    return null;
-  try {
-    return realpathSync2(path);
-  } catch {
-    return path;
-  }
-}
-async function checkForLatestUpdate2(options = {}, settings = {}) {
-  const argv = options.argv ?? process.argv;
-  const env2 = options.env ?? process.env;
-  const execPath = options.execPath ?? process.execPath;
-  const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion2;
-  const runCommand = options.runCommand ?? spawnSync8;
-  const respectDisableEnv = settings.respectDisableEnv ?? true;
-  if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV2] === "1" || env2[DISABLE_AUTO_UPDATE_ENV2] === "1")) {
-    return {
-      status: "disabled",
-      currentVersion: CURRENT_VERSION2
-    };
-  }
-  const latestVersion = await fetchLatestVersion();
-  if (!latestVersion) {
-    return {
-      status: "unavailable",
-      currentVersion: CURRENT_VERSION2
-    };
-  }
-  if (compareVersions2(latestVersion, CURRENT_VERSION2) <= 0) {
-    return {
-      status: "up-to-date",
-      currentVersion: CURRENT_VERSION2,
-      latestVersion
-    };
-  }
-  const installMethod = detectInstallMethod2(argv, execPath, runCommand);
-  if (!installMethod) {
-    return {
-      status: "unsupported",
-      currentVersion: CURRENT_VERSION2,
-      latestVersion,
-      unsupportedInstallMethod: detectUnsupportedInstallMethod2(argv, execPath, runCommand) ?? undefined
-    };
-  }
-  return {
-    status: "available",
-    currentVersion: CURRENT_VERSION2,
-    latestVersion,
-    installMethod,
-    argv,
-    env: env2,
-    execPath,
-    runCommand
-  };
-}
-function installLatestUpdate2(update2) {
-  const updateEnv = createUpdateEnv2(update2.env);
-  const ok = update2.installMethod === "brew" ? updateWithHomebrew2(update2.runCommand, updateEnv) : updateWithBun2(update2.latestVersion, update2.runCommand, updateEnv);
-  return { ok, env: updateEnv };
-}
-async function runAutoUpdateIfNeeded(options = {}) {
-  const update2 = await checkForLatestUpdate2(options);
-  if (update2.status !== "available") {
-    return { action: "continue" };
-  }
-  info(`Updating claudex-switch from v${update2.currentVersion} to v${update2.latestVersion}`);
-  hint("Running self-update before continuing...");
-  const installed = installLatestUpdate2(update2);
-  if (!installed.ok) {
-    hint("Auto-update failed; continuing with current version.");
-    return { action: "continue" };
-  }
-  const restart = update2.runCommand(update2.argv[0] ?? update2.execPath, update2.argv.slice(1), {
-    env: installed.env,
-    stdio: "inherit"
-  });
-  return { action: "restart", exitCode: restart.status ?? 1 };
-}
-function createUpdateEnv2(env2) {
-  return {
-    ...env2,
-    [SKIP_AUTO_UPDATE_ENV2]: "1"
-  };
-}
-function updateWithHomebrew2(runCommand, env2) {
-  const result = runCommand("brew", ["install", "--formula", HOMEBREW_FORMULA_URL2], {
-    env: env2,
-    stdio: "inherit"
-  });
-  return result.status === 0 && !result.error;
-}
-function updateWithBun2(version2, runCommand, env2) {
-  const installArgs = [
-    "install",
-    "-g",
-    `${BUN_INSTALL_SPEC2}#v${normalizeVersion2(version2)}`
-  ];
-  const remove2 = runCommand("bun", ["remove", "-g", "claudex-switch"], {
-    env: env2,
-    stdio: "inherit"
-  });
-  if (remove2.status !== 0 || remove2.error) {
-    return false;
-  }
-  const install = runCommand("bun", installArgs, {
-    env: env2,
-    stdio: "inherit"
-  });
-  return install.status === 0 && !install.error;
-}
-function readCommandStdout2(result) {
-  return typeof result.stdout === "string" ? result.stdout.trim() : "";
-}
-function resolveCliPath2(argv, execPath) {
-  const scriptPath = argv[1];
-  if (scriptPath && /[\\/]/.test(scriptPath)) {
-    return scriptPath;
-  }
-  return argv[0] || execPath || null;
-}
-
 // src/index.ts
 var HELP = `
-  ${source_default.bold("claudex-switch")} \u2014 Manage Claude Code, Codex, and OpenCode accounts
+  ${source_default.bold("claudex-switch")} — Manage Claude Code, Codex, and OpenCode accounts
 
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
@@ -14150,11 +13529,11 @@ function enforceRepoLocalHomeSafety(command, machineReadable = false) {
   if (machineReadable) {
     console.error("Refusing to run repo-local claudex-switch against your real HOME. Set CLAUDEX_TEST_HOME for an isolated inventory.");
   } else {
-    blank2();
-    error2("Refusing to run repo-local claudex-switch against your real HOME.");
-    hint2(`Use ${source_default.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`);
-    hint2(`Set ${source_default.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`);
-    blank2();
+    blank();
+    error("Refusing to run repo-local claudex-switch against your real HOME.");
+    hint(`Use ${source_default.cyan("CLAUDEX_TEST_HOME=$(mktemp -d) bun ./dist/claudex-switch.js <command>")} for test data.`);
+    hint(`Set ${source_default.cyan("CLAUDEX_ALLOW_REAL_HOME=1")} only when you intentionally want to touch real account files.`);
+    blank();
   }
   process.exit(1);
 }
@@ -14177,15 +13556,15 @@ function parseListOptions(args) {
 async function interactivePicker() {
   const aliasReg = await loadAliases();
   if (aliasReg.aliases.length === 0) {
-    blank2();
+    blank();
     console.log(source_default.bold("  Welcome to claudex-switch"));
-    blank2();
+    blank();
     console.log(source_default.dim(`  Run ${source_default.cyan("claudex-switch import")} to import existing accounts`));
     console.log(source_default.dim(`  or  ${source_default.cyan("claudex-switch add <alias>")} to add a new one`));
-    blank2();
+    blank();
     return;
   }
-  blank2();
+  blank();
   const claudeState = await readState2();
   let codexReg = null;
   try {
@@ -14193,7 +13572,7 @@ async function interactivePicker() {
   } catch {}
   const openCodeState = await readOpenCodeState();
   const choices = aliasReg.aliases.map((entry) => {
-    const provider = formatProvider2(entry.target.provider);
+    const provider = formatProvider(entry.target.provider);
     let isActive = false;
     if (entry.target.provider === "claude") {
       isActive = claudeState.active === entry.target.profileName;
@@ -14208,7 +13587,7 @@ async function interactivePicker() {
       value: entry.alias
     };
   });
-  const choice = await esm_default2({
+  const choice = await esm_default5({
     message: "Switch to account",
     choices
   });
@@ -14222,9 +13601,9 @@ async function main() {
     if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
-        error2("--autoreview can only be used with -run or --run.");
-        hint2(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
-        blank2();
+        error("--autoreview can only be used with -run or --run.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
+        blank();
         process.exit(1);
       }
     }
@@ -14382,7 +13761,7 @@ async function main() {
     }
   } catch (err) {
     if (err instanceof Error && err.message.includes("User force closed")) {
-      blank2();
+      blank();
       process.exit(0);
     }
     throw err;
