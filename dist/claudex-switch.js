@@ -5,15 +5,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2034,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2179,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3443,7 +3456,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join9, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname7, join as join10, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -6895,6 +6908,243 @@ ${result.stderr ?? ""}`);
   }
 }
 
+// src/providers/opencode/native.ts
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { join as join7 } from "path";
+var execFileAsync = promisify(execFile);
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function nativeOpenCodeDatabaseFile() {
+  const override = process.env.OPENCODE_DB?.trim();
+  if (override)
+    return override;
+  return join7(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+}
+async function queryRows(dbPath, sql) {
+  try {
+    const mod = await import(["bun", "sqlite"].join(":"));
+    const db = new mod.Database(dbPath, { readonly: true });
+    try {
+      return db.prepare(sql).all();
+    } finally {
+      db.close();
+    }
+  } catch {}
+  try {
+    const mod = await import(["node", "sqlite"].join(":"));
+    const db = new mod.DatabaseSync(dbPath, { readOnly: true });
+    try {
+      return db.prepare(sql).all();
+    } finally {
+      db.close();
+    }
+  } catch {}
+  try {
+    const { stdout } = await execFileAsync("sqlite3", [
+      "-readonly",
+      "-json",
+      dbPath,
+      sql
+    ]);
+    const parsed = JSON.parse(stdout.trim() || "[]");
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function parseCredentialRows(rows) {
+  const credentials = [];
+  for (const row of rows) {
+    if (typeof row.id !== "string" || row.id.length === 0 || typeof row.value !== "string") {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(row.value);
+    } catch {
+      continue;
+    }
+    if (!isRecord(parsed) || typeof parsed.key !== "string" || !parsed.key) {
+      continue;
+    }
+    credentials.push({
+      id: row.id,
+      label: typeof row.label === "string" && row.label ? row.label : "OpenCode Go",
+      key: parsed.key,
+      active: row.active === 1 || row.active === true
+    });
+  }
+  return credentials.toSorted((left, right) => Number(right.active) - Number(left.active) || left.label.localeCompare(right.label) || left.id.localeCompare(right.id));
+}
+async function readNativeOpenCodeGoCredentials() {
+  const dbFile = nativeOpenCodeDatabaseFile();
+  if (!await fileExists(dbFile))
+    return { status: "ok", credentials: [] };
+  const rows = await queryRows(dbFile, "SELECT id, label, value, active FROM credential WHERE integration_id = 'opencode-go'");
+  if (!rows)
+    return { status: "unavailable" };
+  return { status: "ok", credentials: parseCredentialRows(rows) };
+}
+
+// src/providers/opencode/usage.ts
+var OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
+var FETCH_TIMEOUT_MS2 = 5000;
+async function probeOpenCodeGoKey(apiKey) {
+  const key = apiKey.trim();
+  if (!key)
+    return { status: "invalid" };
+  try {
+    const response = await fetch(OPENCODE_GO_USAGE_URL, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+    });
+    if (response.status === 401)
+      return { status: "invalid" };
+    if (response.status === 403)
+      return { status: "no-subscription" };
+    if (!response.ok)
+      return { status: "unreachable" };
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {}
+    return { status: "valid", usage: parseOpenCodeUsageResponse(data) };
+  } catch {
+    return { status: "unreachable" };
+  }
+}
+async function fetchOpenCodeUsage(profileId) {
+  const apiKey = await readOpenCodeGoApiKey(profileId);
+  if (!apiKey)
+    return { usage: null, note: "reconnect required" };
+  const probe = await probeOpenCodeGoKey(apiKey);
+  switch (probe.status) {
+    case "invalid":
+      return { usage: null, note: "reconnect required" };
+    case "no-subscription":
+      return { usage: null, note: "Go subscription required" };
+    case "unreachable":
+      return { usage: null, note: "quota unavailable" };
+    case "valid":
+      return probe.usage ? { usage: probe.usage, note: null } : { usage: null, note: "quota unavailable" };
+  }
+}
+function parseOpenCodeUsageResponse(data) {
+  if (!data || typeof data !== "object")
+    return null;
+  const usage = data.usage;
+  if (!usage || typeof usage !== "object")
+    return null;
+  const windows = usage;
+  const rolling = parseWindow(windows.rolling);
+  const weekly = parseWindow(windows.weekly);
+  const monthly = parseWindow(windows.monthly);
+  if (!rolling && !weekly && !monthly)
+    return null;
+  return {
+    fiveHourUsedPercent: rolling?.usedPercent ?? null,
+    fiveHourResetsAt: rolling?.resetsAt ?? null,
+    weeklyUsedPercent: weekly?.usedPercent ?? null,
+    weeklyResetsAt: weekly?.resetsAt ?? null,
+    monthlyUsedPercent: monthly?.usedPercent ?? null,
+    monthlyResetsAt: monthly?.resetsAt ?? null
+  };
+}
+function parseWindow(value) {
+  if (!value || typeof value !== "object")
+    return null;
+  const window = value;
+  const rateLimited = window.status === "rate-limited";
+  if (!rateLimited && (typeof window.percent !== "number" || !Number.isFinite(window.percent))) {
+    return null;
+  }
+  const usedPercent = rateLimited ? 100 : Math.min(100, Math.max(0, window.percent));
+  const parsedReset = typeof window.resetsAt === "string" ? Date.parse(window.resetsAt) : NaN;
+  return {
+    usedPercent,
+    resetsAt: Number.isFinite(parsedReset) ? parsedReset : null
+  };
+}
+
+// src/commands/opencode-key.ts
+var MAX_VALIDATION_ROUNDS = 3;
+async function resolveOpenCodeV2Key(options) {
+  const native = await readNativeOpenCodeGoCredentials().catch(() => null);
+  const importable = native?.status === "ok" ? native.credentials : [];
+  if (importable.length > 0) {
+    info("Found an OpenCode Go login in this machine's OpenCode database.");
+    hint("Importing reads that credential from OpenCode's local database and saves it in this alias's private claudex-switch profile.");
+    blank();
+  }
+  for (let round = 0;round < MAX_VALIDATION_ROUNDS; round += 1) {
+    let key;
+    let sourceLabel;
+    if (importable.length > 0) {
+      const choice = await esm_default5({
+        message: "OpenCode Go credential source",
+        choices: [
+          ...importable.map((credential) => ({
+            name: `Import local OpenCode login${credential.active ? " (current)" : ""}  ${source_default.dim(`${credential.label} · ${maskKey(credential.key)}`)}`,
+            value: credential.id
+          })),
+          { name: "Paste an API key manually", value: null }
+        ]
+      });
+      const imported = choice ? importable.find((credential) => credential.id === choice) : undefined;
+      if (imported) {
+        key = imported.key;
+        sourceLabel = "imported from the local OpenCode database";
+      } else {
+        key = await promptForKey(options.message);
+        sourceLabel = "entered manually";
+      }
+    } else {
+      key = await promptForKey(options.message);
+      sourceLabel = "entered manually";
+    }
+    if (options.previousKey && key === options.previousKey) {
+      error("The entered OpenCode Go API key is unchanged; the profile was not refreshed.");
+      blank();
+      process.exit(1);
+      return key;
+    }
+    const probe = await probeOpenCodeGoKey(key);
+    if (probe.status === "valid") {
+      const usage = formatUsage(probe.usage, null);
+      success(`OpenCode Go key verified (${sourceLabel})${usage ? `  ${usage}` : ""}`);
+      return key;
+    }
+    if (probe.status === "unreachable") {
+      hint("Could not reach OpenCode Go to verify this key right now; it will be saved and checked on first use.");
+      return key;
+    }
+    if (probe.status === "invalid") {
+      error("OpenCode Go rejected this API key (invalid API key).");
+    } else {
+      error("This key is valid but has no OpenCode Go subscription.");
+    }
+    if (importable.length > 0) {
+      hint("Pick another source, paste the account's current API key, or press Ctrl-C to cancel.");
+    } else {
+      hint("Check the key on opencode.ai and try again, or press Ctrl-C to cancel.");
+    }
+    blank();
+  }
+  error("Too many invalid OpenCode Go API keys; nothing was saved.");
+  blank();
+  process.exit(1);
+  return "";
+}
+async function promptForKey(message) {
+  const key = await esm_default4({
+    message,
+    validate: (value) => value.trim().length > 0 || "Enter a non-empty OpenCode Go API key."
+  });
+  return key.trim();
+}
+
 // src/commands/add.ts
 function readClaudeAuthStatus() {
   const result = spawnSync6("claude", ["auth", "status"], {
@@ -6998,13 +7248,9 @@ async function addOpenCodeGo(alias) {
       info("OpenCode V2 uses a private key prompt instead of the TUI connect flow.");
       hint("OpenCode terminal tools may inherit process environment variables; use this account only in trusted workspaces.");
       blank();
-      const key = await esm_default4({
-        message: "OpenCode Go API key",
-        validate: (value) => value.trim().length > 0 || "Enter a non-empty OpenCode Go API key."
+      const trimmedKey = await resolveOpenCodeV2Key({
+        message: "OpenCode Go API key"
       });
-      const trimmedKey = key.trim();
-      if (!trimmedKey)
-        throw new Error("No OpenCode Go API key was entered.");
       await createOpenCodeGoProfile(profileId, { type: "api", key: trimmedKey });
       profileCreated = true;
     } else {
@@ -7038,6 +7284,9 @@ async function addOpenCodeGo(alias) {
     success(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
     const historyHint = openCodeVersion.major === 2 ? "OpenCode V2 keeps /resume history private to this alias." : "OpenCode V1 Go aliases share /resume history.";
     hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`);
+    if (openCodeVersion.major === 2) {
+      hint(`First run needs a Go model: ${source_default.cyan(`claudex-switch ${alias} -run --model opencode-go/<model>`)}; it is saved as this alias's default.`);
+    }
     blank();
   } catch (err) {
     if (profileCreated) {
@@ -7508,7 +7757,7 @@ async function promptCodexApiProvider() {
 }
 
 // src/providers/codex/sessions.ts
-import { execFile } from "child_process";
+import { execFile as execFile2 } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import {
   open,
@@ -7519,12 +7768,12 @@ import {
   stat as stat2,
   utimes
 } from "fs/promises";
-import { join as join7 } from "path";
+import { join as join8 } from "path";
 import { pipeline } from "stream/promises";
-import { promisify } from "util";
+import { promisify as promisify2 } from "util";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
-  join7("sqlite", "state_5.sqlite"),
+  join8("sqlite", "state_5.sqlite"),
   "state_5.sqlite"
 ];
 var FIRST_LINE_MAX_BYTES = 4 * 1024 * 1024;
@@ -7541,7 +7790,7 @@ async function listJsonlFiles(root) {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = join7(dir, entry.name);
+      const fullPath = join8(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
@@ -7663,14 +7912,14 @@ async function openSqlite(dbPath) {
     return null;
   }
 }
-var execFileAsync = promisify(execFile);
+var execFileAsync2 = promisify2(execFile2);
 function sqlQuote(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProviders) {
   const target = sqlQuote(targetProvider);
   const managed = [...managedProviders].map((name) => sqlQuote(name.toLowerCase())).join(", ");
-  const { stdout } = await execFileAsync("sqlite3", [
+  const { stdout } = await execFileAsync2("sqlite3", [
     "-cmd",
     ".timeout 2000",
     dbPath,
@@ -7681,7 +7930,7 @@ async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProvid
 async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   let dbPath = null;
   for (const candidate of STATE_DB_CANDIDATES) {
-    const fullPath = join7(CODEX_DIR, candidate);
+    const fullPath = join8(CODEX_DIR, candidate);
     if (await fileExists(fullPath)) {
       dbPath = fullPath;
       break;
@@ -7726,7 +7975,7 @@ async function scanOpenFiles(paths) {
   for (let i = 0;i < paths.length; i += LSOF_CHUNK_SIZE) {
     const chunk = paths.slice(i, i + LSOF_CHUNK_SIZE);
     try {
-      const { stdout, stderr } = await execFileAsync("lsof", ["-w", "-Fn", "--", ...chunk], { maxBuffer: 16777216 });
+      const { stdout, stderr } = await execFileAsync2("lsof", ["-w", "-Fn", "--", ...chunk], { maxBuffer: 16777216 });
       if (stderr.trim())
         return { ok: false };
       for (const path of parseLsofPaths(stdout))
@@ -7749,7 +7998,7 @@ async function scanOpenFiles(paths) {
 }
 async function anyCodexProcessRunning() {
   try {
-    await execFileAsync("pgrep", ["-f", "codex"]);
+    await execFileAsync2("pgrep", ["-f", "codex"]);
     return true;
   } catch (err) {
     const e = err;
@@ -7761,7 +8010,7 @@ async function anyCodexProcessRunning() {
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
   const candidates = [];
   for (const dirName of SESSION_DIRS) {
-    const root = join7(CODEX_DIR, dirName);
+    const root = join8(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
       try {
         const first = await readFirstLine(filePath);
@@ -8054,7 +8303,7 @@ async function model(aliasOrName, defaultModel) {
 // src/providers/opencode/runtime.ts
 import { randomBytes as randomBytes2, randomUUID as randomUUID4 } from "crypto";
 import { spawn as spawn5 } from "child_process";
-import { join as join8 } from "path";
+import { join as join9 } from "path";
 import { chmod as chmod8, mkdir as mkdir10, open as open2, readFile as readFile6, rename as rename5, rm as rm7, stat as stat3, writeFile as writeFile7 } from "fs/promises";
 var OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 function mapOpenCodeGoModelForV2(model2) {
@@ -8062,7 +8311,7 @@ function mapOpenCodeGoModelForV2(model2) {
   const modelId = normalized.slice(OPENCODE_GO_PROVIDER_ID.length + 1);
   return `${OPENCODE_V2_MANAGED_PROVIDER_ID}/${modelId}`;
 }
-function isRecord(value) {
+function isRecord2(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function parseConfigContent(content) {
@@ -8070,7 +8319,7 @@ function parseConfigContent(content) {
     return {};
   try {
     const parsed = JSON.parse(content);
-    if (!isRecord(parsed))
+    if (!isRecord2(parsed))
       throw new Error("Configuration must be a JSON object.");
     return parsed;
   } catch {
@@ -8105,10 +8354,10 @@ function modelForV2(config, selectedModel) {
 function buildOpenCodeV2Config(source, selectedModel, managedModels = []) {
   const config = parseConfigContent(source);
   const providersValue = config.providers;
-  if (providersValue !== undefined && !isRecord(providersValue)) {
+  if (providersValue !== undefined && !isRecord2(providersValue)) {
     throw new Error("OpenCode V2 providers config must be an object.");
   }
-  const providers = isRecord(providersValue) ? { ...providersValue } : {};
+  const providers = isRecord2(providersValue) ? { ...providersValue } : {};
   if (Object.hasOwn(providers, OPENCODE_V2_MANAGED_PROVIDER_ID)) {
     throw new Error("OpenCode V2 config already uses claudex-switch's reserved provider ID; refusing to override it.");
   }
@@ -8129,16 +8378,16 @@ function buildOpenCodeV2Config(source, selectedModel, managedModels = []) {
   };
   config.providers = providers;
   const experimentalValue = config.experimental;
-  if (experimentalValue !== undefined && !isRecord(experimentalValue)) {
+  if (experimentalValue !== undefined && !isRecord2(experimentalValue)) {
     throw new Error("OpenCode V2 experimental config must be an object.");
   }
-  const experimental = isRecord(experimentalValue) ? { ...experimentalValue } : {};
+  const experimental = isRecord2(experimentalValue) ? { ...experimentalValue } : {};
   const existingPolicies = experimental.policies;
   if (existingPolicies !== undefined && !Array.isArray(existingPolicies)) {
     throw new Error("OpenCode V2 experimental.policies must be an array.");
   }
   const sourcePolicies = Array.isArray(existingPolicies) ? existingPolicies : [];
-  const userDeniesManaged = sourcePolicies.some((policy) => isRecord(policy) && policy.action === "provider.use" && policy.effect === "deny" && typeof policy.resource === "string" && providerPatternMatches(policy.resource, OPENCODE_V2_MANAGED_PROVIDER_ID));
+  const userDeniesManaged = sourcePolicies.some((policy) => isRecord2(policy) && policy.action === "provider.use" && policy.effect === "deny" && typeof policy.resource === "string" && providerPatternMatches(policy.resource, OPENCODE_V2_MANAGED_PROVIDER_ID));
   if (userDeniesManaged) {
     throw new Error("OpenCode V2 configuration denies claudex-switch's managed Go provider; refusing to weaken that restriction.");
   }
@@ -8152,9 +8401,9 @@ function buildOpenCodeV2Config(source, selectedModel, managedModels = []) {
     resource: OPENCODE_V2_MANAGED_PROVIDER_ID,
     effect: "allow"
   };
-  const policies = sourcePolicies.filter((policy) => !isRecord(policy) || (policy.action !== denyOtherProviders.action || policy.resource !== denyOtherProviders.resource || policy.effect !== denyOtherProviders.effect) && (policy.action !== allowManagedProvider.action || policy.resource !== allowManagedProvider.resource || policy.effect !== allowManagedProvider.effect));
-  const userDenies = sourcePolicies.filter((policy) => isRecord(policy) && policy.action === "provider.use" && policy.effect === "deny");
-  const userNonDenies = policies.filter((policy) => !isRecord(policy) || policy.action !== "provider.use" || policy.effect !== "deny");
+  const policies = sourcePolicies.filter((policy) => !isRecord2(policy) || (policy.action !== denyOtherProviders.action || policy.resource !== denyOtherProviders.resource || policy.effect !== denyOtherProviders.effect) && (policy.action !== allowManagedProvider.action || policy.resource !== allowManagedProvider.resource || policy.effect !== allowManagedProvider.effect));
+  const userDenies = sourcePolicies.filter((policy) => isRecord2(policy) && policy.action === "provider.use" && policy.effect === "deny");
+  const userNonDenies = policies.filter((policy) => !isRecord2(policy) || policy.action !== "provider.use" || policy.effect !== "deny");
   experimental.policies = [
     ...userNonDenies,
     denyOtherProviders,
@@ -8291,7 +8540,7 @@ async function readOwnedCredentialIds(file) {
   } catch {
     throw new Error("This alias's private OpenCode credential index is malformed; refusing cleanup.");
   }
-  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.credentialIds) || value.credentialIds.some((id) => typeof id !== "string" || id.length === 0)) {
+  if (!isRecord2(value) || value.version !== 1 || !Array.isArray(value.credentialIds) || value.credentialIds.some((id) => typeof id !== "string" || id.length === 0)) {
     throw new Error("This alias's private OpenCode credential index has an unexpected schema.");
   }
   return [...new Set(value.credentialIds)];
@@ -8318,7 +8567,7 @@ function serverUrlFromLine(line) {
   } catch {
     return null;
   }
-  if (!isRecord(value) || typeof value.url !== "string")
+  if (!isRecord2(value) || typeof value.url !== "string")
     return null;
   let url;
   try {
@@ -8418,7 +8667,7 @@ async function fetchOpenCodeApi(fetcher, baseUrl2, path, password, init = {}) {
   }
 }
 function locationData(value) {
-  if (!isRecord(value) || !isRecord(value.location) || typeof value.location.directory !== "string" || value.data === undefined) {
+  if (!isRecord2(value) || !isRecord2(value.location) || typeof value.location.directory !== "string" || value.data === undefined) {
     throw new Error("OpenCode V2 returned an unexpected location-scoped API response.");
   }
   return value.data;
@@ -8436,7 +8685,7 @@ function configuredDefaultAgent(configEntries) {
   }
   let defaultAgent = "build";
   for (const entry of configEntries) {
-    if (isRecord(entry) && entry.type === "document" && isRecord(entry.info)) {
+    if (isRecord2(entry) && entry.type === "document" && isRecord2(entry.info)) {
       if (entry.info.default_agent !== undefined) {
         if (typeof entry.info.default_agent !== "string" || !entry.info.default_agent) {
           throw new Error("OpenCode V2 has an invalid default agent setting.");
@@ -8463,12 +8712,12 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
   if (!Array.isArray(agentData)) {
     throw new Error("OpenCode V2 returned an unexpected agent inventory.");
   }
-  const agent = agentData.find((item) => isRecord(item) && item.id === defaultAgentId);
-  if (!isRecord(agent) || !Array.isArray(agent.permissions)) {
+  const agent = agentData.find((item) => isRecord2(item) && item.id === defaultAgentId);
+  if (!isRecord2(agent) || !Array.isArray(agent.permissions)) {
     throw new Error("OpenCode V2's configured default agent is unavailable in this location.");
   }
   if (agent.model !== undefined) {
-    if (!isRecord(agent.model) || typeof agent.model.providerID !== "string" || typeof agent.model.id !== "string") {
+    if (!isRecord2(agent.model) || typeof agent.model.providerID !== "string" || typeof agent.model.id !== "string") {
       throw new Error("OpenCode V2's default agent has an invalid model setting.");
     }
     if (agent.model.providerID !== OPENCODE_V2_MANAGED_PROVIDER_ID) {
@@ -8505,7 +8754,7 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
     }
     const models = [];
     for (const item of modelData) {
-      if (!isRecord(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
+      if (!isRecord2(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
       models.push({ providerID: item.providerID, id: item.id });
@@ -8545,10 +8794,10 @@ async function waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password) {
       throw new Error("Could not verify OpenCode V2's managed Go integration.");
     }
     const integration = locationData(await responseJson(response));
-    if (!isRecord(integration) || integration.id !== OPENCODE_V2_MANAGED_PROVIDER_ID || !Array.isArray(integration.methods) || !Array.isArray(integration.connections)) {
+    if (!isRecord2(integration) || integration.id !== OPENCODE_V2_MANAGED_PROVIDER_ID || !Array.isArray(integration.methods) || !Array.isArray(integration.connections)) {
       throw new Error("OpenCode V2 returned an unexpected managed integration response.");
     }
-    if (integration.methods.some((method) => isRecord(method) && method.type === "key")) {
+    if (integration.methods.some((method) => isRecord2(method) && method.type === "key")) {
       return;
     }
     await new Promise((resolve2) => setTimeout(resolve2, 100));
@@ -8586,10 +8835,10 @@ async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, s
       if (typeof model2 !== "string" || !model2.startsWith(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/`)) {
         throw new Error("OpenCode V2's managed Go model is not configured for this alias.");
       }
-      const providers = isRecord(config.providers) ? config.providers : {};
+      const providers = isRecord2(config.providers) ? config.providers : {};
       const managedProvider = providers[OPENCODE_V2_MANAGED_PROVIDER_ID];
-      const managedModelMap = isRecord(managedProvider) ? managedProvider.models : undefined;
-      const modelIds = isRecord(managedModelMap) ? Object.keys(managedModelMap) : [];
+      const managedModelMap = isRecord2(managedProvider) ? managedProvider.models : undefined;
+      const modelIds = isRecord2(managedModelMap) ? Object.keys(managedModelMap) : [];
       if (modelIds.length === 0) {
         throw new Error("OpenCode V2's managed Go model inventory is empty for this alias.");
       }
@@ -8604,17 +8853,17 @@ async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, s
         throw new Error("Could not verify the selected key in this alias's private database.");
       }
       const integration = locationData(await responseJson(current));
-      if (!isRecord(integration) || integration.id !== OPENCODE_V2_MANAGED_PROVIDER_ID || !Array.isArray(integration.connections)) {
+      if (!isRecord2(integration) || integration.id !== OPENCODE_V2_MANAGED_PROVIDER_ID || !Array.isArray(integration.connections)) {
         throw new Error("OpenCode V2 returned an unexpected private credential response.");
       }
       const connections = integration.connections;
       const active = connections[0];
-      if (!isRecord(active) || active.type !== "credential" || active.label !== label || typeof active.id !== "string" || active.id.length === 0) {
+      if (!isRecord2(active) || active.type !== "credential" || active.label !== label || typeof active.id !== "string" || active.id.length === 0) {
         throw new Error("OpenCode V2 did not activate the selected key in this alias's private database.");
       }
       let tracked = [...new Set([...ownedIds, active.id])];
       await writeOwnedCredentialIds(credentialStateFile, tracked);
-      const currentIds = new Set(connections.flatMap((connection) => isRecord(connection) && connection.type === "credential" && typeof connection.id === "string" ? [connection.id] : []));
+      const currentIds = new Set(connections.flatMap((connection) => isRecord2(connection) && connection.type === "credential" && typeof connection.id === "string" ? [connection.id] : []));
       for (const id of ownedIds) {
         if (id === active.id)
           continue;
@@ -8645,15 +8894,15 @@ async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credent
   const serializedConfig = JSON.stringify(buildOpenCodeV2Config(sourceConfig, selectedModel, managedModels));
   const privateRoot = openCodeProfileV2RuntimeDir(profileId);
   const dataHome = openCodeProfileV2DataHome(profileId);
-  const stateHome = join8(privateRoot, "state");
-  const cacheHome = join8(privateRoot, "cache");
-  const legacyAuthFile = join8(dataHome, "opencode", "auth.json");
+  const stateHome = join9(privateRoot, "state");
+  const cacheHome = join9(privateRoot, "cache");
+  const legacyAuthFile = join9(dataHome, "opencode", "auth.json");
   if (await fileExists(legacyAuthFile)) {
     throw new Error("OpenCode V2 found a legacy auth.json in this alias's private runtime data. It will not import that file into this alias's SQLite database; preserve or remove it before retrying.");
   }
   await mkdir10(privateRoot, { recursive: true, mode: 448 });
   await chmod8(privateRoot, 448);
-  await Promise.all([dataHome, join8(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir10(path, { recursive: true, mode: 448 })));
+  await Promise.all([dataHome, join9(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir10(path, { recursive: true, mode: 448 })));
   const env2 = { ...process.env };
   delete env2.OPENCODE_AUTH_CONTENT;
   delete env2[OPENCODE_NATIVE_GO_KEY_ENV];
@@ -9097,7 +9346,7 @@ var USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 var TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
 var CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 var EXPIRY_SKEW_MS = 60000;
-var FETCH_TIMEOUT_MS2 = 5000;
+var FETCH_TIMEOUT_MS3 = 5000;
 function expiresAt(creds) {
   return creds?.claudeAiOauth?.expiresAt ?? 0;
 }
@@ -9152,7 +9401,7 @@ async function requestUsage(accessToken) {
         "anthropic-beta": "oauth-2025-04-20",
         "Content-Type": "application/json"
       },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
     });
     if (res.status === 401 || res.status === 403)
       return "unauthorized";
@@ -9203,7 +9452,7 @@ async function refreshOAuthToken(creds) {
         refresh_token: refreshToken,
         client_id: CLIENT_ID
       }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS2)
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
     });
     if (!res.ok)
       return "denied";
@@ -9455,69 +9704,6 @@ function parseSnapshot(snapshot) {
     any = true;
   }
   return any ? info2 : null;
-}
-
-// src/providers/opencode/usage.ts
-var OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
-var FETCH_TIMEOUT_MS3 = 5000;
-async function fetchOpenCodeUsage(profileId) {
-  const apiKey = await readOpenCodeGoApiKey(profileId);
-  if (!apiKey)
-    return { usage: null, note: "reconnect required" };
-  try {
-    const response = await fetch(OPENCODE_GO_USAGE_URL, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS3)
-    });
-    if (response.status === 401) {
-      return { usage: null, note: "reconnect required" };
-    }
-    if (response.status === 403) {
-      return { usage: null, note: "Go subscription required" };
-    }
-    if (!response.ok)
-      return { usage: null, note: "quota unavailable" };
-    const usage = parseOpenCodeUsageResponse(await response.json());
-    return usage ? { usage, note: null } : { usage: null, note: "quota unavailable" };
-  } catch {
-    return { usage: null, note: "quota unavailable" };
-  }
-}
-function parseOpenCodeUsageResponse(data) {
-  if (!data || typeof data !== "object")
-    return null;
-  const usage = data.usage;
-  if (!usage || typeof usage !== "object")
-    return null;
-  const windows = usage;
-  const rolling = parseWindow(windows.rolling);
-  const weekly = parseWindow(windows.weekly);
-  const monthly = parseWindow(windows.monthly);
-  if (!rolling && !weekly && !monthly)
-    return null;
-  return {
-    fiveHourUsedPercent: rolling?.usedPercent ?? null,
-    fiveHourResetsAt: rolling?.resetsAt ?? null,
-    weeklyUsedPercent: weekly?.usedPercent ?? null,
-    weeklyResetsAt: weekly?.resetsAt ?? null,
-    monthlyUsedPercent: monthly?.usedPercent ?? null,
-    monthlyResetsAt: monthly?.resetsAt ?? null
-  };
-}
-function parseWindow(value) {
-  if (!value || typeof value !== "object")
-    return null;
-  const window = value;
-  const rateLimited = window.status === "rate-limited";
-  if (!rateLimited && (typeof window.percent !== "number" || !Number.isFinite(window.percent))) {
-    return null;
-  }
-  const usedPercent = rateLimited ? 100 : Math.min(100, Math.max(0, window.percent));
-  const parsedReset = typeof window.resetsAt === "string" ? Date.parse(window.resetsAt) : NaN;
-  return {
-    usedPercent,
-    resetsAt: Number.isFinite(parsedReset) ? parsedReset : null
-  };
 }
 
 // src/commands/list.ts
@@ -10240,23 +10426,10 @@ async function refreshOpenCode(alias, profileId) {
     info(`Replace the OpenCode Go API key for ${source_default.bold(alias)}.`);
     hint("The key stays in claudex-switch's private profile. OpenCode terminal tools may inherit process environment variables.");
     blank();
-    const key = await esm_default4({
+    const trimmedKey = await resolveOpenCodeV2Key({
       message: "New OpenCode Go API key",
-      validate: (value) => value.trim().length > 0 || "Enter a non-empty OpenCode Go API key."
+      previousKey: previousKey2
     });
-    const trimmedKey = key.trim();
-    if (!trimmedKey) {
-      error("No OpenCode Go API key was entered; the existing key was left unchanged.");
-      blank();
-      process.exit(1);
-      return;
-    }
-    if (trimmedKey === previousKey2) {
-      error("The entered OpenCode Go API key is unchanged; the profile was not refreshed.");
-      blank();
-      process.exit(1);
-      return;
-    }
     try {
       await saveOpenCodeGoCredential(profileId, { type: "api", key: trimmedKey });
     } catch (err) {
@@ -10267,7 +10440,6 @@ async function refreshOpenCode(alias, profileId) {
     }
     await setActiveOpenCodeProfile(profileId);
     success(`${source_default.bold(alias)} OpenCode Go key replaced`);
-    hint("No provider request was made to validate the key.");
     blank();
     return;
   }
@@ -10490,7 +10662,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.16.0",
+  version: "1.17.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -12835,7 +13007,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join9(root, "package.json");
+  const packageFile = join10(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {

@@ -2,17 +2,18 @@
 
 ## Now
 
-本次发布 [v1.16.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.16.0)（OpenCode V2 隔离适配）。发布后校验记录暂存本地，随下次版本提交同推。
+本次发布 [v1.17.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.17.0)：OpenCode Go `add`/`refresh` 支持显式导入本机 OpenCode 已登录凭据，并在保存前向服务端验证 key。
 
 ## Next
 
-- [ ] 以后拿到 OpenCode Go API key 时，补一次 V2 真机短测：隔离 HOME 中 `add` / `-run` 发短请求 / 重启 `/sessions` 查看 A / B 隔离；这是唯一未覆盖的真 key 路径。
+- [ ] 拿到第二账号 key 后，在隔离 HOME 用真实 key 走一次新 `add` 导入/验证流程，再 `-run` 发短请求并查 `/sessions` A/B 隔离；本机 `openlam42` 已导入真钥并验额度，但真 key `-run` 短测仍缺。
 - [ ] 在真实 HOME 上跑一次 `claudex-switch webconfig`，确认自己的账号列表和密钥显示无误（本次仅在隔离测试 HOME 中验证）。
 - [ ] 用户返回后，在日常项目中运行 `claudex-switch chatgpt --run` 试用交互体验；无需为了测试主动重新登录。
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
 
+- [x] 2026-10-04：OpenCode Go `add`/`refresh` 支持显式导入本机 OpenCode V2 库中 `opencode-go` 凭据，并在保存前以 usage 端点验证（401/403 重试、离线告警仍存）；用户 `openlam42` 已用原生真钥修好并验证额度。262 项测试、文档检查、构建通过；隔离 HOME PTY 实测无效 key 被拒且不落盘；版本升至 `1.17.0`。
 - [x] 2026-10-02：完成 v1.16.0 发布前验证并发布：CI 离线合同（固定 OpenCode 2.0.6）与本机 macOS 合同（真实 OpenCode 2.0.21、假 key，覆盖私有 API 连接、启动配置、A/B 库隔离、`/connect` 恢复、refresh 同步、fail-closed 及无 key 日志）皆过；254 项测试 1,044 断言、类型检查、文档检查、构建通过。真实 key 短测因暂无 key 未做。四平台安装包及 Homebrew 配方经 tag workflow 发布。
 - [x] 2026-10-02：按隔离验收包核对并合并 [PR #6](https://github.com/Holden-Lin/claudex-switch/pull/6)：候选补丁 SHA-256 相符、应用后 git tree 与 head `433359c` 逐字节一致，本机 254 项测试 1,044 断言、类型检查、文档检查、142 模块构建与 CLI help 通过，CI run #120 双 job 成功；合并提交 `688c3e2`，main 已同步，版本升至 `1.16.0`（暂不发布）。
 - [x] 2026-10-01：v1.15.0 已发布并设为 latest，四平台安装包和 Homebrew 配方齐备，release workflow 与 main CI 通过；macOS arm64 下载校验和、许可文件、版本及隔离 HOME 离线 JSON 验证通过。本次验证下载该安装包 1 次，曝光统计应排除。
