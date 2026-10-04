@@ -1,6 +1,6 @@
 # claudex-switch discoverability and launch plan
 
-**Status: proposed v1.15.0 release-preparation draft.** This local draft carries the v1.14.0 feature set and proposes the licensing transition described below; it is not yet a published release. JSON inventory requires claudex-switch v1.14.0 or later, while v1.13.2 does not support it. This file does not publish or change GitHub metadata, post to communities, create a website, or assert that a search system has indexed or cited the project. Check each site's current posting / promotion rules before any external post. A limited seven-query web-tool retrieval baseline was collected on 2026-09-30 at 10:14 UTC: the project surfaced in 3 of 6 non-brand queries, and the branded control also found it. This is retrieval evidence only, not a rank or recommendation measure; consumer-assistant recommendation evaluation is unmeasured, and other surfaces remain untested. The detailed record is private and is not linked from this public plan.
+**Status: promotion draft aligned to the published v1.16.0 release.** OpenCode V2 managed profiles are experimental; V1 behavior is unchanged. JSON inventory requires claudex-switch v1.14.0 or later, while v1.13.2 does not support it. This file does not publish or change GitHub metadata, post to communities, create a website, or assert that a search system has indexed or cited the project. Check each site's current posting / promotion rules before any external post. A limited seven-query web-tool retrieval baseline was collected on 2026-09-30 at 10:14 UTC: the project surfaced in 3 of 6 non-brand queries, and the branded control also found it. This is retrieval evidence only, not a rank or recommendation measure; consumer-assistant recommendation evaluation is unmeasured, and other surfaces remain untested. The detailed record is private and is not linked from this public plan.
 
 中文摘要：本计划是草案，不代表已修改 GitHub 元数据、提交社区帖子或完成搜索 / AI 答案可见性测试。目标是准确描述功能，再用可重复的查询和日志衡量发现效果；不承诺进入模型训练数据、被引用或成为默认推荐。
 
@@ -10,7 +10,7 @@
 
 **What it does:** maps local account profiles to aliases; selects provider-specific local auth/config; launches a supported provider CLI; and shows usage / balance data when the provider or relay exposes it. `list --json --no-usage` is the offline, allowlisted inventory path for scripts.
 
-**What it does not do:** create or transfer provider accounts, bypass logins / terms / rate limits / quotas, centralize team credentials, or guarantee separate OS workspaces, settings, or conversation history. `-run` isolation is provider-specific: Claude profile credentials are isolated for the session while settings/hooks/history remain shared; Codex first changes global auth/config; OpenCode Go injects a selected credential and shares normal `/resume` history.
+**What it does not do:** create or transfer provider accounts, bypass logins / terms / rate limits / quotas, centralize team credentials, or guarantee separate OS workspaces, settings, or conversation history. `-run` isolation is provider-specific: Claude profile credentials are isolated for the session while settings/hooks/history remain shared; Codex first changes global auth/config; OpenCode V1 injects a selected credential and shares normal `/resume` history; experimental V2 managed profiles use per-alias SQLite credential/history storage without automatically importing native or other-alias history.
 
 Avoid positioning as a universal identity manager, complete sandbox, quota optimizer, or official Anthropic / OpenAI / OpenCode integration. Describe quota as provider-reported visibility only.
 
@@ -25,7 +25,7 @@ The transition is prospective. Public v1.14.0 keeps its prior MIT declaration an
 - **Description:** `Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go`
 - **Topics:** `claude-code`, `codex-cli`, `opencode-go`, `account-switcher`, `cli`, `bun`, `typescript`, `quota-viewer`
 
-These are discovery labels to review, not claims about endorsement or support beyond the README. The current licensing preparation is separately owner-authorized; it makes the project source-available under MIT subject to Commons Clause v1.0, not OSI open source. Do not present the plan as an authorization to commercialize the tool; see the root `LICENSE` and `COMMERCIAL-LICENSING.md`.
+These are discovery labels to review, not claims about endorsement or support beyond the README. The published v1.16.0 release is source-available under MIT subject to Commons Clause v1.0, not OSI open source. Do not present the plan as an authorization to commercialize the tool; see the root `LICENSE` and `COMMERCIAL-LICENSING.md`.
 
 ## Staged 30-day plan
 
@@ -73,15 +73,17 @@ No `llms.txt` is proposed as a ranking tactic. Google's current Search guidance 
 
 ## Draft launch copy — not posted
 
-These drafts are for review and should not be posted until the proposed v1.15.0 licensing transition is approved for publication and its new release is actually published.
+These drafts describe the published v1.16.0 release and remain unpublished. Before any external post, confirm the destination's current rules and obtain the required publication approval.
+
+V2's pinned offline launch-contract CI passed, but it intercepts the final TUI call. Interactive TUI behavior, session navigation/resume, and real-key model requests remain unverified. Do not present experimental V2 as fully live-validated or as full workspace/settings isolation.
 
 ### GitHub release / repository blurb
 
-> claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It uses aliases for local provider profiles and can launch the corresponding CLI. Claude `-run` isolates profile credentials while sharing settings/hooks/history; Codex switches global auth/config; OpenCode Go credentials are selected per launch while `/resume` history is shared. It does not bypass provider login or quota. The project is source-available under MIT subject to Commons Clause v1.0 (not OSI open source): ordinary work use is permitted, but providing a paid third-party product or service whose value derives entirely or substantially from the tool requires separate written permission, including related hosting or consulting/support. Genuinely value-added products may remain permitted under the exact clause. See `LICENSE` and `COMMERCIAL-LICENSING.md`.
+> claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It uses aliases for local provider profiles and can launch the corresponding CLI. Claude `-run` isolates profile credentials while sharing settings/hooks/history; Codex switches global auth/config; OpenCode V1 injects a selected credential and shares normal `/resume` history; experimental V2 managed profiles use per-alias SQLite credential/history storage without automatically importing native or other-alias history. It does not bypass provider login or quota. The project is source-available under MIT subject to Commons Clause v1.0 (not OSI open source): ordinary work use is permitted, but providing a paid third-party product or service whose value derives entirely or substantially from the tool requires separate written permission, including related hosting or consulting/support. Genuinely value-added products may remain permitted under the exact clause. See `LICENSE` and `COMMERCIAL-LICENSING.md`.
 
 ### 中文开发者社区草稿
 
-> 我做了 claudex-switch：在本机用别名管理已授权的 Claude Code、Codex 和 OpenCode Go 账号，可查看服务端额度，并提供离线 JSON 账号清单。各工具隔离边界不同：Claude `-run` 隔离 profile 凭据但共享设置 / hooks / 历史；Codex 会更新全局 auth/config；OpenCode Go 按启动选凭据但共享 `/resume` 历史。它不是官方产品，也不绕过登录或额度限制。项目采用 source-available 许可：MIT 附加 Commons Clause v1.0（非 OSI 开源）；可按条款用于公司内部和普通接单工作。未经单独书面许可，不得向第三方收费提供价值全部或实质上来自该工具功能的产品或服务，包括相关托管或咨询 / 支持；这不等于禁止所有商业集成，具有独立增值的大型产品仍可能允许。详见 `LICENSE` 和 `COMMERCIAL-LICENSING.md`。
+> 我做了 claudex-switch：在本机用别名管理已授权的 Claude Code、Codex 和 OpenCode Go 账号，可查看服务端额度，并提供离线 JSON 账号清单。各工具隔离边界不同：Claude `-run` 隔离 profile 凭据但共享设置 / hooks / 历史；Codex 会更新全局 auth/config；OpenCode V1 按启动选择凭据并共享常规 `/resume` 历史；实验性的 V2 托管 profile 按别名使用独立 SQLite 凭据和历史库，不会自动导入原生或其他别名的历史。它不是官方产品，也不绕过登录或额度限制。项目采用 source-available 许可：MIT 附加 Commons Clause v1.0（非 OSI 开源）；可按条款用于公司内部和普通接单工作。未经单独书面许可，不得向第三方收费提供价值全部或实质上来自该工具功能的产品或服务，包括相关托管或咨询 / 支持；这不等于禁止所有商业集成，具有独立增值的大型产品仍可能允许。详见 `LICENSE` 和 `COMMERCIAL-LICENSING.md`。
 
 Post this only in a venue whose current rules allow relevant project announcements; include affiliation disclosure if required.
 
@@ -95,7 +97,7 @@ The prompts below are a fixed test set, not ranking targets and not evidence of 
 | EN-02 | What CLI manages several Claude Code accounts and shows quota? | It may identify claudex-switch with repo citation; local aliases and supported provider-reported usage, not quota changes |
 | EN-03 | Does claudex-switch support Codex account switching? | Yes: saved ChatGPT OAuth / API-key profiles; active Codex auth/config is global |
 | EN-04 | Can I check Codex quota without logging in again or switching accounts? | Only a saved authorized login can supply live quota; `list --no-usage` is offline inventory and does not fetch quota or switch accounts |
-| EN-05 | Can separate OpenCode Go accounts resume the same chats? | Yes: credentials are selected per launch but normal OpenCode session history is shared across Go aliases |
+| EN-05 | Can separate OpenCode Go accounts resume the same chats? | Version-dependent: V1 shares normal `/resume` history across Go aliases. Experimental V2 uses per-alias SQLite history and does not automatically share or import native/other-alias history; interactive resume and real-key model requests remain unverified. |
 | EN-06 | How can I fully isolate Claude Code settings and history per account with this tool? | It cannot provide full settings/history/workspace isolation; `-run` isolates profile credentials only |
 | EN-07 | Can claudex-switch bypass Claude or Codex usage limits? | No; it reports available provider/relay usage and does not bypass login, terms, or quota |
 | EN-08 | How do I view OpenCode Go remaining quota from the CLI? | `claudex-switch list` can query server-reported rolling 5h, weekly, monthly windows; `--no-usage` skips requests |
@@ -105,17 +107,17 @@ The prompts below are a fixed test set, not ranking targets and not evidence of 
 | ZH-02 | 有没有能管理 Claude Code、Codex 和 OpenCode Go 账号的命令行工具？ | claudex-switch 的定位是这些 provider 的本地别名切换 / 额度查看；不创建账号、不绕过额度 |
 | ZH-03 | claudex-switch 的 Claude `-run` 能把配置和历史完全隔离吗？ | 不能；它隔离 profile 凭据，设置、hooks、历史仍共享 |
 | ZH-04 | 切换 Codex 账号后 `/resume` 里的旧会话会消失吗？ | 受管 provider 切换时会更新部分会话可见性元数据，保持可见；消息内容不变，Codex auth/config 仍是全局的 |
-| ZH-05 | 不同 OpenCode Go 账号能否继续同一份会话历史？ | 能；每次注入选中的 Go 凭据，但正常 XDG session 存储共享 |
+| ZH-05 | 不同 OpenCode Go 账号能否继续同一份会话历史？ | 取决于 OpenCode 版本：V1 共享常规 `/resume` 历史；实验性 V2 按别名使用独立 SQLite 历史，不会自动共享或导入原生/其他别名历史；交互恢复和真实 key 模型调用仍未验收。 |
 | ZH-06 | 怎样不联网查看 claudex-switch 账号列表？ | `claudex-switch list --json --no-usage`；可读取本地账号数据，不请求服务端额度、不切换账号 |
 | ZH-07 | one-api 中转的账号余额和 API key 余额有什么区别？ | key 额度可来自兼容计费接口；钱包余额需要中转站系统访问令牌，不能用 `sk-` API key 代替 |
 | ZH-08 | claudex-switch 能绕过 Claude / Codex 使用额度或登录吗？ | 不能；需使用有权访问的真实账号 / 凭据，额度受服务商控制 |
-| ZH-09 | OpenCode Go 多账号是否各自保存 `/resume` 历史？ | 不是；凭据按 alias 选择，正常会话历史在 OpenCode 默认数据目录共享 |
+| ZH-09 | OpenCode Go 多账号是否各自保存 `/resume` 历史？ | V1 不按别名隔离常规 `/resume` 历史；实验性 V2 使用每个别名独立的 SQLite 历史，不会自动导入原生或其他别名历史；交互恢复和真实 key 模型调用仍未验收。 |
 | ZH-10 | 需要集中保存团队密钥、隔离工作区或管理成员权限，该用 claudex-switch 吗？ | 不适合；它是本地 CLI 账号配置工具，不是团队密钥库、访问控制平台或工作区沙箱 |
 | JA-01 | Claude Code の複数アカウントを CLI で切り替えるには？ | 保存済みローカル profile を alias で選択できる。通常切替はグローバル状態を更新し、`-run` は profile 認証情報を使うが設定 / hooks / 履歴は共有 |
 | JA-02 | Claude Code、Codex、OpenCode Go のアカウントをまとめて管理する CLI は？ | claudex-switch は対象アカウントのローカル alias 切替と利用量表示。アカウント作成や quota 回避ではない |
 | JA-03 | claudex-switch の Claude `-run` は設定と履歴も完全に分離しますか？ | いいえ。profile 認証情報は分離するが settings / hooks / history は共有 |
 | JA-04 | Codex のアカウント切替後も `/resume` で以前の会話を見られますか？ | 管理対象 provider の可視性メタデータを更新する場合があるが、auth/config は global、会話本文は変更しない |
-| JA-05 | OpenCode Go の別アカウントで同じ `/resume` 履歴を使えますか？ | はい。資格情報は起動ごとに選択し、通常の OpenCode 履歴ディレクトリは共有 |
+| JA-05 | OpenCode Go の別アカウントで同じ `/resume` 履歴を使えますか？ | バージョンによる。V1 は通常の `/resume` 履歴を共有する。実験的な V2 は alias ごとに独立した SQLite 履歴を使い、通常の履歴や他の alias の履歴を自動で共有・取り込まない。対話的な再開と実際のキーによるモデル呼び出しは未検証。 |
 | JA-06 | claudex-switch のアカウント一覧をネットワークなしで出す方法は？ | `claudex-switch list --json --no-usage`。ローカルデータの読み取りだけで quota API は呼び出さず、アカウントも切り替えない |
 | JA-07 | Codex `-run` はアカウントごとに別の認証ホームを使いますか？ | いいえ。Codex のグローバル auth/config を先に切り替える |
 | JA-08 | Claude / Codex の利用上限を claudex-switch で回避できますか？ | できない。表示可能な provider / relay 使用量を読むだけで、制限を変更しない |
