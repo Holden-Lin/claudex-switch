@@ -591,7 +591,7 @@ export async function verifyEffectiveOpenCodeRouting(
       if (!isRecord(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
-      if (providerId === "opencode" && item.enabled === false) continue;
+      if (providerId === OPENCODE_GO_PROVIDER_ID && item.enabled === false) continue;
       models.push({ providerID: item.providerID, id: item.id });
     }
     const signature = JSON.stringify(

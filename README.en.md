@@ -192,6 +192,8 @@ On OpenCode 2.x, choose **OpenCode Subscription — browser login**. Sign in to 
 
 `claudex-switch add go-second` → Subscription → authorize the second account → `claudex-switch go-second -run`. Existing key accounts use **OpenCode Go API Key**.
 
+Subscription models use `opencode-go/<model>` with the Console-provided Go endpoint and authorization; same-ID `opencode/<model>` routes belong to Zen. Old `opencode/` defaults saved by v1.18.0 normalize to Go for display and launch without another login. Bun-installed script commands use Bun's SQLite and no longer emit Node's experimental SQLite warning.
+
 The V1/V2 details below describe the API-key path. See the [OpenCode guide](docs/use-cases/opencode-go.md) for browser subscriptions.
 
 OpenCode launches with `--auto` by default, which automatically approves permissions not explicitly denied; review the permission rules before using the commands below.

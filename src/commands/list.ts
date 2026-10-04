@@ -26,6 +26,7 @@ import {
   readOpenCodeState,
 } from "../providers/opencode/profiles";
 import { fetchOpenCodeUsage } from "../providers/opencode/usage";
+import { normalizeOpenCodeConsoleModel } from "../providers/opencode/console";
 import {
   blank,
   header,
@@ -264,7 +265,9 @@ async function getOpenCodeAccountInfo(
 
   try {
     const profile = await getOpenCodeProfileData(profileId);
-    info.defaultModel = profile.defaultModel ?? null;
+    info.defaultModel = profile.console && profile.defaultModel
+      ? normalizeOpenCodeConsoleModel(profile.defaultModel)
+      : profile.defaultModel ?? null;
     if (profile.console) {
       info.email = profile.console.email;
     }

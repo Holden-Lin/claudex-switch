@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { appendFile, chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { appendFile, chmod, copyFile, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,6 +32,9 @@ const profileA = `go-${randomUUID()}`;
 const profileB = `go-${randomUUID()}`;
 const helper = join(repoRoot, "tests", "fixtures", "opencode-console-login.ts");
 const capture = join(home, "tui-capture.json");
+const productCLI = join(home, "claudex-switch.js");
+await copyFile(join(repoRoot, "dist", "claudex-switch.js"), productCLI);
+await chmod(productCLI, 0o755); // Bun install makes the package bin executable.
 const bin = join(home, "bin");
 await mkdir(bin);
 await writeFile(join(bin, "opencode"), `#!/bin/sh
@@ -101,16 +104,25 @@ const fake = Bun.serve({
     }
     if (path === "/api/user") return Response.json({ id: `user_${account}`, email: `${account}@example.test` });
     if (path === "/api/orgs") return Response.json([{ id: `wrk_${account}`, name: `Workspace ${account}` }]);
-    if (path === "/api/v2/config") return Response.json({ providers: { opencode: {
-      canonical: "opencode", name: "Console Go", package: "@opencode/ai/providers/openai-compatible",
-      settings: { baseURL: `http://127.0.0.1:${fake.port}/api/inference` },
-      models: {
-        "minimax-m3": { modelID: "minimax-m3", name: `MiniMax M3 Go ${account}`,
-          capabilities: { tools: true, input: ["text"], output: ["text"] }, limit: { context: 200000, output: 8000 } },
-        // A paid Console alias must not become Go merely because its upstream modelID matches.
-        "zen-copy": { modelID: "minimax-m3", name: "Paid Zen Copy",
-          capabilities: { tools: true, input: ["text"], output: ["text"] }, limit: { context: 200000, output: 8000 } },
+    if (path === "/api/v2/config") return Response.json({ providers: {
+      // Production Console declares Zen and Go separately, often with the
+      // same model IDs. Subscription access must never select the Zen route.
+      opencode: {
+        name: "Console Zen", package: "aisdk:@ai-sdk/openai-compatible",
+        settings: { baseURL: `http://127.0.0.1:${fake.port}/api/inference/zen` },
+        models: { "minimax-m3": { name: "MiniMax M3 Zen",
+          capabilities: { tools: true, input: ["text"], output: ["text"] }, limit: { context: 200000, output: 8000 } } },
       },
+      "opencode-go": {
+        name: "Console Go", package: "aisdk:@ai-sdk/openai-compatible",
+        settings: { baseURL: `http://127.0.0.1:${fake.port}/api/inference/go` },
+        models: {
+          "minimax-m3": { modelID: "minimax-m3", name: `MiniMax M3 Go ${account}`,
+            capabilities: { tools: true, input: ["text"], output: ["text"] }, limit: { context: 200000, output: 8000 } },
+          // A paid Console alias must not become Go merely because its upstream modelID matches.
+          "zen-copy": { modelID: "minimax-m3", name: "Paid Zen Copy",
+            capabilities: { tools: true, input: ["text"], output: ["text"] }, limit: { context: 200000, output: 8000 } },
+        },
     } } });
     if (path === "/api/go/status") return Response.json(!hasSubscription ? null : {
       product: "go", access: {
@@ -131,16 +143,22 @@ const consoleProvider = await import("../src/providers/opencode/console");
 const paths = await import("../src/lib/paths");
 const runtime = await import("../src/providers/opencode/runtime");
 const native = await import("../src/providers/opencode/native");
+const profiles = await import("../src/providers/opencode/profiles");
 const aliases = await import("../src/alias/store");
 async function runCli(args: string[]) {
-  const child = Bun.spawn([process.execPath, "--preload", preload,
-    join(repoRoot, "dist", "claudex-switch.js"), ...args], {
+  const executable = productCLI;
+  // Exercise the installed script's shebang for list, including SQLite reads.
+  // Run needs the test-only public catalog transport preloaded before launch.
+  const command = args[0] === "list" ? [executable, ...args]
+    : [process.execPath, "--preload", preload, executable, ...args];
+  const child = Bun.spawn(command, {
     env: process.env, cwd: home, stdout: "pipe", stderr: "pipe",
   });
   const [stdout, stderr, code] = await Promise.all([
     new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
   ]);
   assert(!/fake-(?:access|refresh)-/.test(stdout + stderr), "CLI output leaked fake OAuth secrets");
+  assert(!/ExperimentalWarning|SQLite is an experimental feature/.test(stderr), "Installed CLI emitted a SQLite warning");
   assert.equal(code, 0, `CLI ${args.join(" ")} failed: ${stderr}\n${stdout}`);
   return stdout;
 }
@@ -148,6 +166,7 @@ try {
   selectedAccount = "A";
   const accountA = await consoleProvider.loginOpenCodeConsole(profileA);
   assert.equal(accountA.console?.accountId, "user_A");
+  assert.equal(accountA.defaultModel, "opencode-go/minimax-m3");
   await report("PASS login A through real native device OAuth and save private marker");
   selectedAccount = "B";
   const accountB = await consoleProvider.loginOpenCodeConsole(profileB);
@@ -158,11 +177,26 @@ try {
 
   const prepared = await consoleProvider.prepareOpenCodeConsoleRun(profileA);
   const config = JSON.parse(prepared.env.OPENCODE_CONFIG_CONTENT!);
-  assert.equal(config.model, "opencode/minimax-m3");
-  assert.equal(config.providers.opencode.models["zen-copy"].disabled, true);
-  await prepared.release();
+  assert.equal(config.model, "opencode-go/minimax-m3");
+  assert.deepEqual(config.enabled_providers, ["opencode-go"]);
+  assert.equal(config.providers["opencode-go"].models["zen-copy"].disabled, true);
+  try {
+    await runtime.withOpenCodePrivateServer(prepared.env, async (baseUrl, password) => {
+      await runtime.verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, ["opencode-go/minimax-m3"], "opencode-go");
+      const response = await runtime.fetchOpenCodeApi(fetch, baseUrl, "/api/provider/opencode-go", password);
+      assert.equal(response.status, 200);
+      const provider = runtime.locationData(await response.json()) as { integrationID: string; settings: { baseURL: string } };
+      assert.equal(provider.integrationID, "opencode");
+      assert.equal(provider.settings.baseURL, `http://127.0.0.1:${fake.port}/api/inference/go`);
+    });
+  } finally { await prepared.release(); }
   await assert.rejects(() => consoleProvider.prepareOpenCodeConsoleRun(profileA, "opencode/zen-copy"), /unavailable/);
-  await report("PASS native routing admits Go model and excludes paid alias with matching upstream modelID");
+  await report("PASS native Go provider uses Console OAuth and Go endpoint, excluding matching Zen IDs and paid aliases");
+  await profiles.updateOpenCodeProfileDefaultModel(profileA, "opencode/minimax-m3");
+  const legacy = await consoleProvider.prepareOpenCodeConsoleRun(profileA);
+  try { assert.equal(JSON.parse(legacy.env.OPENCODE_CONFIG_CONTENT!).model, "opencode-go/minimax-m3"); }
+  finally { await legacy.release(); }
+  await report("PASS v1.18.0 stored Zen prefix is routed to Go without another account login");
   const usageA = await consoleProvider.fetchOpenCodeConsoleUsage(profileA);
   const usageB = await consoleProvider.fetchOpenCodeConsoleUsage(profileB);
   assert.equal(usageA.usage?.fiveHourUsedPercent, 10);
@@ -173,6 +207,7 @@ try {
   await writeFile(join(home, "list.json"), JSON.stringify(jsonList, null, 2));
   const rows = Array.isArray(jsonList) ? jsonList : jsonList.accounts;
   assert.equal(rows.find((row: { alias: string }) => row.alias === "goa").authMode, "subscription");
+  assert.equal(rows.find((row: { alias: string }) => row.alias === "goa").defaultModel, "opencode-go/minimax-m3");
   assert.equal(rows.find((row: { alias: string }) => row.alias === "gob").usage.fiveHourUsedPercent, 20);
   const textList = await runCli(["list"]);
   assert(textList.includes("goa") && textList.includes("gob") && /subscription/i.test(textList));
@@ -182,7 +217,7 @@ try {
   await runCli(["goa", "-run"]);
   const launch = JSON.parse(await readFile(capture, "utf8"));
   assert.equal(launch.database, paths.openCodeProfileV2DatabaseFile(profileA));
-  assert.equal(launch.config.model, "opencode/minimax-m3");
+  assert.equal(launch.config.model, "opencode-go/minimax-m3");
   assert(launch.args.includes("--standalone"));
   await report("PASS built CLI -run reaches TUI with A private database and selected Go model");
 

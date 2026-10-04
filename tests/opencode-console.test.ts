@@ -143,18 +143,62 @@ describe("OpenCode browser subscriptions", () => {
   });
 
   test("restricts Console to available Go models, disables other models and retains permission settings", () => {
-    const go = [{ providerID: "opencode", id: "minimax-m3" }];
-    const models = [...go, { providerID: "opencode", id: "paid" }];
-    const config = consoleProvider.buildOpenCodeConsoleConfig(JSON.stringify({ permissions: [{ action: "read", effect: "allow" }], providers: { opencode: { models: { custom: { name: "Custom" } } } } }), "opencode-go/minimax-m3", models, go);
-    expect(config.model).toBe("opencode/minimax-m3");
+    const go = [{ providerID: "opencode-go", id: "minimax-m3" }];
+    const models = [...go, { providerID: "opencode-go", id: "paid" }, { providerID: "opencode", id: "minimax-m3" }];
+    const config = consoleProvider.buildOpenCodeConsoleConfig(JSON.stringify({ permissions: [{ action: "read", effect: "allow" }], providers: { "opencode-go": { models: { custom: { name: "Custom" } } } } }), "opencode-go/minimax-m3", models, go);
+    expect(config.model).toBe("opencode-go/minimax-m3");
+    expect(config.enabled_providers).toEqual(["opencode-go"]);
     expect(config.permissions).toEqual([{ action: "read", effect: "allow" }]);
-    expect((config.providers as any).opencode.models.paid.disabled).toBe(true);
-    expect((config.providers as any).opencode.models.custom.disabled).toBe(true);
+    expect((config.providers as any)["opencode-go"].models.paid.disabled).toBe(true);
+    expect((config.providers as any)["opencode-go"].models.custom.disabled).toBe(true);
     expect(() => consoleProvider.buildOpenCodeConsoleConfig(undefined, "opencode/paid", models, go)).toThrow("unavailable");
     for (const override of [{ settings: { apiKey: "fake" } }, { variants: [{ id: "paid", headers: { Authorization: "fake" } }] }]) {
-      expect(() => consoleProvider.buildOpenCodeConsoleConfig(JSON.stringify({ providers: { opencode: { models: { custom: override } } } }), "opencode/minimax-m3", models, go)).toThrow("routing");
+      expect(() => consoleProvider.buildOpenCodeConsoleConfig(JSON.stringify({ providers: { "opencode-go": { models: { custom: override } } } }), "opencode/minimax-m3", models, go)).toThrow("routing");
     }
-    expect(() => consoleProvider.buildOpenCodeConsoleConfig(JSON.stringify({ experimental: { policies: [{ action: "provider.use", resource: "opencode", effect: "deny" }] } }), "opencode/minimax-m3", models, go)).toThrow("refusing to weaken");
+    expect(() => consoleProvider.buildOpenCodeConsoleConfig(JSON.stringify({ experimental: { policies: [{ action: "provider.use", resource: "opencode-go", effect: "deny" }] } }), "opencode/minimax-m3", models, go)).toThrow("refusing to weaken");
+  });
+
+  test("selects the production Console Go provider and rejects Zen even with matching model IDs", async () => {
+    await saveOpenCodeConsoleProfile(A, profile());
+    await seed(openCodeProfileV2DatabaseFile(A));
+    const credential = await consoleProvider.readPinnedConsoleCredential(A);
+    const go = { providerID: "opencode-go", id: "minimax-m3", enabled: true };
+    const models = [go, { providerID: "opencode", id: "minimax-m3", enabled: true },
+      { providerID: "opencode-go", id: "zen-copy", modelID: "minimax-m3", enabled: true },
+      { providerID: "opencode-go", id: "kimi-k3", enabled: false },
+      { providerID: "opencode-go", id: "glm-5.3", enabled: true }];
+    let includeGo = true;
+    globalThis.fetch = (async (url: unknown) => {
+      if (String(url).endsWith("/api/v2/config")) return Response.json({ providers: {
+        opencode: { models: { "minimax-m3": {} } },
+        ...(includeGo ? { "opencode-go": { models: { "minimax-m3": {}, "zen-copy": { modelID: "minimax-m3" }, "kimi-k3": {}, "glm-5.3": { disabled: true } } } } : {}),
+      } });
+      return Response.json({ data: [{ id: "minimax-m3" }, { id: "kimi-k3" }, { id: "glm-5.3" }] });
+    }) as typeof fetch;
+    expect(await consoleProvider.fetchOpenCodeConsoleGoModels(models, credential)).toEqual([go]);
+    includeGo = false;
+    await expect(consoleProvider.fetchOpenCodeConsoleGoModels(models, credential)).rejects.toThrow("no available Go models");
+  });
+
+  test("maps v1.18.0 stored Zen defaults onto the Go route and never maps Go back to Zen", () => {
+    for (const input of ["opencode/minimax-m3", "opencode-go/minimax-m3"]) {
+      expect(consoleProvider.normalizeOpenCodeConsoleModel(input)).toBe("opencode-go/minimax-m3");
+      expect(consoleProvider.buildOpenCodeConsoleConfig(undefined, input, [], [{ providerID: "opencode-go", id: "minimax-m3" }]).model).toBe("opencode-go/minimax-m3");
+    }
+    expect(() => consoleProvider.normalizeOpenCodeConsoleModel("openai/gpt-6")).toThrow("opencode-go/<model>");
+  });
+
+  test("offline list reports the effective Go default for old profiles without rewriting the saved account", async () => {
+    await saveOpenCodeConsoleProfile(A, profile());
+    await seed(openCodeProfileV2DatabaseFile(A));
+    await saveAliases({ version: 1, aliases: [{ alias: "go-a", target: { provider: "opencode", profileId: A } }] });
+    globalThis.fetch = (() => { throw new Error("offline list must not request or refresh"); }) as typeof fetch;
+    const output: string[] = [];
+    spyOn(console, "log").mockImplementation((line) => { output.push(String(line)); });
+    await list({ usage: false, json: true });
+    expect(JSON.parse(output[0]!).accounts[0].defaultModel).toBe("opencode-go/minimax-m3");
+    expect(await readJson(openCodeProfileDataFile(A), null)).toEqual(profile());
+    expect((await consoleProvider.readPinnedConsoleCredential(A)).value.access).toBe("fake-access-user_a");
   });
 
   test("adds through the subscription menu without an API key and shows verified identity", async () => {

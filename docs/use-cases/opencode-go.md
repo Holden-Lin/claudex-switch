@@ -22,12 +22,12 @@ macOS 优先在支持的浏览器中打开隐私窗口；若仍登录到旧账�
 ```sh
 claudex-switch go-first -run
 claudex-switch go-second -run
-claudex-switch go-second -run --model opencode/kimi-k3
-claudex-switch model go-second opencode/minimax-m3
+claudex-switch go-second -run --model opencode-go/kimi-k3
+claudex-switch model go-second opencode-go/minimax-m3
 claudex-switch refresh go-second
 ```
 
-订阅模型使用 `opencode/<model>`，也接受 `opencode-go/<model>` 并转为 Console 模型标识。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `-run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
+订阅模型使用 `opencode-go/<model>`；Console 的 OAuth integration 是 `opencode`，但 Go 模型 provider 是 `opencode-go`，`opencode/<model>` 属于 Zen 路由。v1.18.0 误存的 `opencode/` 默认值和旧命令参数会在启动时转为 Go 路由，无需重新登录。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `-run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
 
 OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 负责续期和写回。`refresh` 在临时私有数据库中重新登录、验证订阅，再通过 OpenCode 支持的本地凭据接口替换；必须是同一账号和 workspace。取消、登录错误账号、无订阅或验证失败会保留原 profile；成功刷新保留已有会话。
 
@@ -37,7 +37,7 @@ OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 
 
 `list` 查询绑定账号的 Console Go 状态，用该账号的 Bearer token 与 workspace ID 读取 5 小时、周、月窗口，显示剩余百分比。无订阅、需要重新授权、服务不可达或缺失的窗口分别显示状态 / 未知，不将缺失数据视为零用量。过期 token 的续期仍由原生 OpenCode 执行。`list --no-usage` 不联网、不续期；JSON 继续遵循 [既有输出合同](../list-json.md)，不包含账号邮箱或 token。
 
-启动前检查当前项目合并后的 provider、默认 agent 和模型库存；保留权限 / system 设置，拒绝自定义 OpenCode provider 或模型路由覆盖，以及选用非 Go 模型的默认 agent。Console 声明中与官方 Go 目录 ID 不符的自定义 / Zen 模型不会自动选入。Console 自己的订阅计费和余额策略仍由服务端决定，本工具不更改 `useBalance` 设置。
+启动前检查当前项目合并后的 provider、默认 agent 和模型库存；保留权限 / system 设置，拒绝自定义 Go provider 或模型路由覆盖，以及选用非 Go 模型的默认 agent。仅选择 Console 的 `opencode-go` 声明中与官方 Go 目录 ID 匹配的模型；同名 Zen 模型也不选入。Go 端点与授权沿用原生 Console 提供的配置。Console 自己的订阅计费和余额策略仍由服务端决定，本工具不更改 `useBalance` 设置。
 
 TUI 内 `/connect` 可以改变当前别名私有库的活动凭据；`list` 始终查询 claudex 绑定的凭据，下次启动也会恢复该绑定。会话历史不跨别名共享，不自动导入原生 OpenCode 历史。V2 拒绝命令行目录与 resume/session 覆盖；从目标项目目录运行。TUI 的 `/sessions` 可选择同一别名库中其他项目的历史，跳转后的项目不再做启动前检查。
 
@@ -53,7 +53,9 @@ OpenCode 默认以 `--auto` 启动，会自动批准未明确拒绝的权限；�
 
 ## 验证范围
 
-订阅验收使用真实 OpenCode 2.0.22、隔离 HOME、模拟本地 Console 和浏览器授权响应，覆盖 A/B 登录、额度、原生 token 轮换、绑定恢复、错误账号 / 无订阅拒绝、刷新保留会话与 CLI 输出。不会使用真实账号进行测试，也未验证真实订阅的模型响应或生产计费。
+已用保存的账号凭据只读核对真实 Console `/api/v2/config` 与 `/api/go/status`：Go 和 Zen 分属两个 provider，额度与网页已用百分比相符；此核对不刷新或修改凭据。
+
+订阅验收使用真实 OpenCode 2.0.22、隔离 HOME、按生产结构模拟的双 provider Console 和浏览器授权响应，覆盖 Go 端点与 OAuth integration 绑定、同名 Zen 排除、旧默认值迁移、A/B 登录、额度、原生 token 轮换、绑定恢复、错误账号 / 无订阅拒绝、刷新保留会话与 CLI 输出。正常脚本入口也验证没有 Node SQLite 实验性警告；未验证真实订阅的模型响应或生产计费。
 
 开发者可在已安装 OpenCode 2.x 的环境运行 `bun run test:opencode-subscription` 重现此验收；需要本地回环端口，测试目录由脚本临时创建。
 

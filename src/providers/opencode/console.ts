@@ -5,7 +5,7 @@ import { cleanupOpenShimDir, createOpenShimDir } from "../../lib/browser";
 import { OPENCODE_LOCKS_DIR, openCodeProfileConsoleLock, openCodeProfileV2DatabaseFile, openCodeProfileV2DataHome, openCodeProfileV2RuntimeDir } from "../../lib/paths";
 import type { OpenCodeGoProfileData, UsageFetchResult, UsageInfo } from "../../types";
 import { readOpenCodeConsoleCredentials, type OpenCodeConsoleCredential } from "./native";
-import { createOpenCodeProfileId, getOpenCodeProfileData, removeOpenCodeProfile, saveOpenCodeConsoleProfile } from "./profiles";
+import { OPENCODE_GO_PROVIDER_ID, createOpenCodeProfileId, getOpenCodeProfileData, removeOpenCodeProfile, saveOpenCodeConsoleProfile } from "./profiles";
 import { acquireProfileLock, fetchOpenCodeApi, locationData, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer } from "./runtime";
 
 type JsonRecord = Record<string, unknown>;
@@ -108,7 +108,7 @@ async function nativeModels(env: NodeJS.ProcessEnv, credentialId: string): Promi
       const response = await fetchOpenCodeApi(fetch, baseUrl, "/api/model", password);
       if (response.ok) {
         const models = locationData(await response.json());
-        if (Array.isArray(models) && models.some((item) => record(item) && item.providerID === "opencode" && item.enabled !== false)) {
+        if (Array.isArray(models) && models.some((item) => record(item) && item.providerID === OPENCODE_GO_PROVIDER_ID && item.enabled !== false)) {
           const integrationResponse = await fetchOpenCodeApi(fetch, baseUrl, "/api/integration/opencode", password);
           const integration = integrationResponse.ok ? locationData(await integrationResponse.json()) : null;
           if (record(integration) && Array.isArray(integration.connections) && record(integration.connections[0]) &&
@@ -133,18 +133,21 @@ async function nativeModels(env: NodeJS.ProcessEnv, credentialId: string): Promi
   });
 }
 
-async function goModels(models: JsonRecord[], credential: OpenCodeConsoleCredential): Promise<JsonRecord[]> {
+export async function fetchOpenCodeConsoleGoModels(models: JsonRecord[], credential: OpenCodeConsoleCredential): Promise<JsonRecord[]> {
   const configResponse = await consoleGet(credential, "/api/v2/config");
   if (!configResponse.ok) throw new Error("Could not verify the workspace's Console model configuration.");
   const config = await configResponse.json();
-  const provider = record(config) && record(config.providers) ? config.providers.opencode : null;
-  const declaredModels = record(provider) && record(provider.models) ? new Set(Object.keys(provider.models)) : new Set();
+  const provider = record(config) && record(config.providers) ? config.providers[OPENCODE_GO_PROVIDER_ID] : null;
+  const declaredModels = record(provider) && record(provider.models)
+    ? new Set(Object.entries(provider.models).filter(([, model]) => record(model) && model.disabled !== true).map(([id]) => id))
+    : new Set();
   const response = await fetch("https://opencode.ai/zen/go/v1/models", { signal: AbortSignal.timeout(5_000), redirect: "error" });
   if (!response.ok) throw new Error("Could not load OpenCode's Go model catalog.");
   const data = await response.json();
   const ids = new Set(record(data) && Array.isArray(data.data) ? data.data.flatMap((item: unknown) => record(item) && typeof item.id === "string" ? [item.id] : []) : []);
-  // Match declared IDs exactly. A paid/custom alias of a Go model is not a Go route.
-  const available = models.filter((item) => item.providerID === "opencode" && declaredModels.has(String(item.id)) &&
+  // Console OAuth integration is "opencode", but its subscription provider is
+  // "opencode-go". Zen may declare the same IDs on a different billing route.
+  const available = models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) &&
     item.enabled !== false && typeof item.id === "string" && ids.has(item.id));
   if (available.length === 0) throw new Error("This Console workspace has no available Go models; check its subscription and retry.");
   return available;
@@ -152,9 +155,10 @@ async function goModels(models: JsonRecord[], credential: OpenCodeConsoleCredent
 
 export function normalizeOpenCodeConsoleModel(model: string): string {
   const trimmed = model.trim();
-  // Existing Go model spelling is convenient for both account types.
-  const normalized = trimmed.replace(/^opencode-go\//, "opencode/");
-  if (!/^opencode\/[^/\s]+$/.test(normalized)) throw new Error("Subscription models must use opencode/<model> or opencode-go/<model>.");
+  // v1.18.0 saved the Zen prefix by mistake; keep those profiles usable while
+  // always selecting the subscription route, including explicit old overrides.
+  const normalized = trimmed.replace(/^opencode\//, `${OPENCODE_GO_PROVIDER_ID}/`);
+  if (!/^opencode-go\/[^/\s]+$/.test(normalized)) throw new Error("Subscription models must use opencode-go/<model>.");
   return normalized;
 }
 
@@ -180,10 +184,10 @@ export function buildOpenCodeConsoleConfig(source: string | undefined, model: st
   const config: unknown = source?.trim() ? JSON.parse(source) : {};
   if (!record(config)) throw new Error("Invalid OpenCode configuration.");
   const selected = normalizeOpenCodeConsoleModel(model);
-  if (!go.some((item) => `opencode/${item.id}` === selected)) throw new Error("The selected model is unavailable through this workspace's Go subscription.");
+  if (!go.some((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && `${OPENCODE_GO_PROVIDER_ID}/${item.id}` === selected)) throw new Error("The selected model is unavailable through this workspace's Go subscription.");
   const providers = config.providers ?? {};
   if (!record(providers)) throw new Error("Invalid OpenCode provider configuration.");
-  const provider = providers.opencode ?? {};
+  const provider = providers[OPENCODE_GO_PROVIDER_ID] ?? {};
   if (!record(provider)) throw new Error("Invalid OpenCode Console provider configuration.");
   // Do not let user-configured keys/endpoints supersede the selected native OAuth.
   validateConsoleProvider(provider);
@@ -191,15 +195,15 @@ export function buildOpenCodeConsoleConfig(source: string | undefined, model: st
   if (!record(overrides)) throw new Error("Invalid OpenCode model configuration.");
   const allowed = new Set(go.map((item) => item.id));
   const selectedOverrides: JsonRecord = { ...overrides };
-  const allIds = new Set([...Object.keys(overrides), ...models.filter((item) => item.providerID === "opencode").map((item) => String(item.id))]);
+  const allIds = new Set([...Object.keys(overrides), ...models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID).map((item) => String(item.id))]);
   for (const id of allIds) {
     const previous = selectedOverrides[id] ?? {};
     if (!record(previous)) throw new Error("Invalid OpenCode model override.");
     selectedOverrides[id] = allowed.has(id) ? previous : { ...previous, disabled: true };
   }
-  config.providers = { ...providers, opencode: { ...provider, models: selectedOverrides } };
+  config.providers = { ...providers, [OPENCODE_GO_PROVIDER_ID]: { ...provider, models: selectedOverrides } };
   config.model = selected;
-  return restrictOpenCodeProviders(config, "opencode");
+  return restrictOpenCodeProviders(config, OPENCODE_GO_PROVIDER_ID);
 }
 
 /** Login into a disposable native store; publish only a verified account/workspace. */
@@ -231,9 +235,9 @@ export async function loginOpenCodeConsole(profileId: string, previous?: OpenCod
     if (latest.value.metadata.accountID !== metadata.accountID || latest.value.metadata.orgID !== metadata.orgID) {
       throw new Error("OpenCode changed the account or workspace during verification; nothing was replaced.");
     }
-    const available = await goModels(models, latest);
+    const available = await fetchOpenCodeConsoleGoModels(models, latest);
     const preferred = previous?.defaultModel ? normalizeOpenCodeConsoleModel(previous.defaultModel) : null;
-    const defaultModel = available.some((item) => `opencode/${item.id}` === preferred) ? preferred! : `opencode/${available[0]!.id}`;
+    const defaultModel = available.some((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}` === preferred) ? preferred! : `${OPENCODE_GO_PROVIDER_ID}/${available[0]!.id}`;
     const profile: OpenCodeGoProfileData = { type: "go", defaultModel, console: {
       credentialId: latest.id, accountId: metadata.accountID, email: metadata.email, orgId: metadata.orgID, orgName: metadata.orgName ?? metadata.orgID,
     } };
@@ -250,7 +254,7 @@ export async function loginOpenCodeConsole(profileId: string, previous?: OpenCod
         if (current.console?.credentialId !== previous.console.credentialId) {
           throw new Error("This account changed while browser login was open; retry refresh.");
         }
-        if (current.defaultModel && available.some((item) => `opencode/${item.id}` === normalizeOpenCodeConsoleModel(current.defaultModel!))) {
+        if (current.defaultModel && available.some((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}` === normalizeOpenCodeConsoleModel(current.defaultModel!))) {
           profile.defaultModel = normalizeOpenCodeConsoleModel(current.defaultModel);
         }
       }
@@ -289,18 +293,18 @@ export async function prepareOpenCodeConsoleRun(profileId: string, selectedModel
     const models = await nativeModels(env, credential.id);
     const latest = await readPinnedConsoleCredential(profileId, profile);
     await requireSubscription(latest);
-    const available = await goModels(models, latest);
-    env.OPENCODE_CONFIG_CONTENT = JSON.stringify(buildOpenCodeConsoleConfig(source, selectedModel ?? profile.defaultModel ?? `opencode/${available[0]!.id}`, models, available));
+    const available = await fetchOpenCodeConsoleGoModels(models, latest);
+    env.OPENCODE_CONFIG_CONTENT = JSON.stringify(buildOpenCodeConsoleConfig(source, selectedModel ?? profile.defaultModel ?? `${OPENCODE_GO_PROVIDER_ID}/${available[0]!.id}`, models, available));
     await withOpenCodePrivateServer(env, async (baseUrl, password) => {
-      await verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, available.map((item) => `opencode/${item.id}`), "opencode", (entries) => {
+      await verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, available.map((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}`), OPENCODE_GO_PROVIDER_ID, (entries) => {
         if (!Array.isArray(entries)) throw new Error("Invalid OpenCode effective configuration.");
         for (const entry of entries) {
-          if (record(entry) && record(entry.info) && record(entry.info.providers) && record(entry.info.providers.opencode)) {
-            validateConsoleProvider(entry.info.providers.opencode);
+          if (record(entry) && record(entry.info) && record(entry.info.providers) && record(entry.info.providers[OPENCODE_GO_PROVIDER_ID])) {
+            validateConsoleProvider(entry.info.providers[OPENCODE_GO_PROVIDER_ID]);
           }
         }
       });
-      const response = await fetchOpenCodeApi(fetch, baseUrl, "/api/provider/opencode", password);
+      const response = await fetchOpenCodeApi(fetch, baseUrl, `/api/provider/${OPENCODE_GO_PROVIDER_ID}`, password);
       const provider = response.ok ? locationData(await response.json()) : null;
       if (!record(provider) || provider.integrationID !== "opencode") throw new Error("OpenCode Console is not using this alias's subscription integration.");
     });

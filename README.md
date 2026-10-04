@@ -193,6 +193,8 @@ OpenCode 2.x 推荐选择 **OpenCode Subscription — browser login**。浏览�
 
 `claudex-switch add go-second` → 选择 Subscription → 第二账号浏览器授权 → `claudex-switch go-second -run`。旧的 key 账号继续选择 **OpenCode Go API Key**。
 
+订阅模型使用 `opencode-go/<model>`，由 Console 提供 Go 端点和授权；同名 `opencode/<model>` 属于 Zen。v1.18.0 保存的旧 `opencode/` 默认值会在显示和启动时转为 Go，无需重新登录。Bun 安装的脚本命令使用 Bun 自带 SQLite，不再出现 Node 实验性 SQLite 警告。
+
 以下为 API key 路径的 V1 / V2 说明；订阅登录详见 [OpenCode 指南](docs/use-cases/opencode-go.md)。
 
 OpenCode 默认以 `--auto` 启动，会自动批准未被明确拒绝的权限；运行前请检查权限规则。

@@ -2,11 +2,11 @@
 
 ## Now
 
-本次版本 [v1.18.0](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.18.0)：OpenCode 2.x `add` 新增浏览器 Subscription 登录，支持第二账号，无需寻找 Go key；旧 key 入口保留。
+本次版本 [v1.18.1](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.18.1)：修正 Console Go provider 选择，第二账号订阅模型检查采用 `opencode-go`；旧默认模型自动转到 Go 路由，Bun 安装的脚本入口不再出现 Node SQLite 实验性警告。
 
 ## Next
 
-- [ ] 用户用 `claudex-switch add go-second` 选择 Subscription，在浏览器登录真实第二账号并授权持有 Go 的 workspace；再 `-run` 发短请求、查额度与 `/sessions`。本次已以 OpenCode 2.0.22 + 模拟 Console 验完原生 OAuth、续期与 A/B 隔离，真实订阅模型响应和计费仍待用户实测，不自行修改已有账号。
+- [ ] 用户在 v1.18.1 重试失败的第二账号 `add`，选择 Subscription 并授权它的 Go workspace，再 `-run` 发短请求、查 `/sessions`；真实订阅模型响应和计费仍待用户实测。已只读核对生产 Console 双 provider 结构与 `openlam42` 额度，并以真实 OpenCode 2.0.22 + 对应结构 fixture 验 Go 端点、OAuth 绑定、旧默认值转换和 A/B 隔离；不自行刷新已有账号。
 - [ ] 拿到第二账号 key 后，在隔离 HOME 用真实 key 走一次新 `add` 导入/验证流程，再 `-run` 发短请求并查 `/sessions` A/B 隔离；本机 `openlam42` 已导入真钥并验额度，但真 key `-run` 短测仍缺。
 - [ ] 在真实 HOME 上跑一次 `claudex-switch webconfig`，确认自己的账号列表和密钥显示无误（本次仅在隔离测试 HOME 中验证）。
 - [ ] 用户返回后，在日常项目中运行 `claudex-switch chatgpt --run` 试用交互体验；无需为了测试主动重新登录。
@@ -14,6 +14,7 @@
 
 ## Done
 
+- [x] 2026-10-04：修正 v1.18.0 把 Console OAuth integration `opencode` 误当 Go model provider 的错误，Go 使用 `opencode-go` 与原生 Go 端点，排除同名 Zen 模型；旧默认值显示和启动均转 Go，无需重新登录。276 项测试、1,155 断言、类型 / 文档 / 构建 / 发布守卫通过；原生 2.0.22 双 provider fixture 14 项验收通过，包括直接脚本入口无 SQLite 警告。`openlam42` 真额度与截图相符，用户确认只看剩余，无须改显示；只读诊断未刷新或写入真实凭据。
 - [x] 2026-10-04：完成 OpenCode 浏览器订阅入口；273 项测试、1,144 断言、类型检查、文档检查、构建与发布守卫皆过；真实 OpenCode 2.0.22 在隔离 HOME 的 13 项模拟 Console 验收全过。覆盖 A/B 登录与额度、原生 token 轮换、绑定恢复、错误账号 / 无订阅 / 取消拒绝、刷新保留历史、打包 CLI list 和 -run；运行中 purge 保留账号，正常退出 / 启动失败均释放锁。版本升至 `1.18.0`，未读写真实账号。
 - [x] 2026-10-04：OpenCode Go `add`/`refresh` 支持显式导入本机 OpenCode V2 库中 `opencode-go` 凭据，并在保存前以 usage 端点验证（401/403 重试、离线告警仍存）；用户 `openlam42` 已用原生真钥修好并验证额度。262 项测试、文档检查、构建通过；隔离 HOME PTY 实测无效 key 被拒且不落盘；版本升至 `1.17.0`。
 - [x] 2026-10-02：完成 v1.16.0 发布前验证并发布：CI 离线合同（固定 OpenCode 2.0.6）与本机 macOS 合同（真实 OpenCode 2.0.21、假 key，覆盖私有 API 连接、启动配置、A/B 库隔离、`/connect` 恢复、refresh 同步、fail-closed 及无 key 日志）皆过；254 项测试 1,044 断言、类型检查、文档检查、构建通过。真实 key 短测因暂无 key 未做。四平台安装包及 Homebrew 配方经 tag workflow 发布。
