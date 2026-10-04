@@ -66,7 +66,8 @@ const {
 const {
   createOpenCodeGoProfile,
 } = await import("../src/providers/opencode/profiles");
-const { makeJwt, resetTestHome } = await import("./helpers");
+const { makeJwt, resetTestHome, createNativeOpenCodeCredentialDatabase } =
+  await import("./helpers");
 import type {
   AliasRegistry,
   CodexAuthFile,
@@ -74,6 +75,8 @@ import type {
   CredentialsFile,
   OAuthAccount,
 } from "../src/types";
+
+const originalFetch = globalThis.fetch;
 
 function createRegistry(): CodexRegistry {
   return {
@@ -95,12 +98,18 @@ describe("refresh", () => {
     childProcess.spawn.mockRestore?.();
     childProcess.spawnSync.mockRestore?.();
     prompts.password.mockRestore?.();
+    prompts.select.mockRestore?.();
     process.exit.mockRestore?.();
+    globalThis.fetch = originalFetch;
   });
 
   beforeEach(async () => {
     await resetTestHome();
     process.env.CLAUDEX_FORCE_FILE_CREDENTIALS = "1";
+    // OpenCode V2 refresh verifies the replacement key against the Go usage
+    // endpoint; never let tests reach the network.
+    globalThis.fetch = (async () =>
+      new Response("not found", { status: 404 })) as typeof fetch;
     spawnHandler = async () => 0;
     spawnSyncHandler = () => ({
       status: 0,
@@ -459,6 +468,64 @@ describe("refresh", () => {
     expect(output).toContain("OpenCode Go key replaced");
     expect(output).not.toContain("fake-v2-new-key");
     expect(prompts.password).toHaveBeenCalledTimes(1);
+
+    logSpy.mockRestore();
+  });
+
+  test("imports the local OpenCode V2 credential to replace a stale saved key", async () => {
+    const profileId = "go-00000000-0000-4000-8000-000000000005";
+    await createOpenCodeGoProfile(profileId, {
+      type: "api",
+      key: "ddd",
+    });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-stale",
+          target: { provider: "opencode", profileId },
+          createdAt: 1,
+        },
+      ],
+    });
+    spawnSyncHandler = () => ({
+      status: 0,
+      stdout: "opencode v2.0.22",
+      stderr: "",
+    });
+    spawnHandler = async (command) => {
+      throw new Error(`V2 key refresh should not launch OpenCode TUI: ${command}`);
+    };
+    await createNativeOpenCodeCredentialDatabase([
+      {
+        id: "cred_real",
+        label: "OpenCode Go",
+        key: "oc-real-key",
+        active: 1,
+      },
+    ]);
+    spyOn(prompts, "select").mockResolvedValue("cred_real");
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          usage: {
+            rolling: { status: "ok", percent: 30, resetsAt: "2026-09-14T10:00:00Z" },
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch;
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await refresh("go-stale");
+
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "oc-real-key" },
+    });
+    expect(prompts.password).not.toHaveBeenCalled();
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("OpenCode Go key verified");
+    expect(output).toContain("OpenCode Go key replaced");
+    expect(output).not.toContain("oc-real-key");
 
     logSpy.mockRestore();
   });

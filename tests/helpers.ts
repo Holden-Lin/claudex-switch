@@ -1,7 +1,49 @@
 import { mkdir, rm } from "fs/promises";
+import { dirname, join } from "path";
 import { tmpdir } from "os";
+import { Database } from "bun:sqlite";
+import { OPENCODE_GLOBAL_DATA_DIR } from "../src/lib/paths";
 
 export const TEST_HOME = process.env.CLAUDEX_TEST_HOME ?? "";
+
+export interface NativeOpenCodeCredentialRow {
+  id: string;
+  label: string;
+  key: string;
+  active: number;
+  integration?: string;
+}
+
+/**
+ * Build the OpenCode V2 SQLite credential store the real OpenCode writes, so
+ * `add`/`refresh` import tests exercise the same reader.
+ */
+export async function createNativeOpenCodeCredentialDatabase(
+  rows: NativeOpenCodeCredentialRow[],
+): Promise<void> {
+  const file = join(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+  await mkdir(dirname(file), { recursive: true });
+  const db = new Database(file);
+  try {
+    db.exec(
+      "CREATE TABLE credential (id text PRIMARY KEY, integration_id text, label text NOT NULL, value text NOT NULL, connector_id text, method_id text, active integer, time_created integer NOT NULL, time_updated integer NOT NULL)",
+    );
+    const insert = db.prepare(
+      "INSERT INTO credential (id, integration_id, label, value, connector_id, method_id, active, time_created, time_updated) VALUES (?, ?, ?, ?, NULL, NULL, ?, 0, 0)",
+    );
+    for (const row of rows) {
+      insert.run(
+        row.id,
+        row.integration ?? "opencode-go",
+        row.label,
+        JSON.stringify({ type: "key", key: row.key }),
+        row.active,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
 
 // Fail-fast guard for any test that deletes/overwrites a real config path.
 // If tests/preload.ts did not run (e.g. someone bypassed bunfig), CLAUDEX_TEST_HOME

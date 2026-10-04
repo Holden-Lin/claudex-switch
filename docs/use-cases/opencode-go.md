@@ -1,6 +1,6 @@
 # Use OpenCode Go accounts with V1 and V2
 
-中文摘要：OpenCode V1 使用隔离的 `auth.json` 登录流程，并保留常规 `/resume` 历史；V2 用遮蔽输入保存 key，通过 OpenCode 支持的本地集成 API 同步到每个别名独立的 SQLite 数据库。V2 历史按别名隔离，不会自动导入其他别名或原生 OpenCode 历史。
+中文摘要：OpenCode V1 使用隔离的 `auth.json` 登录流程，并保留常规 `/resume` 历史；V2 可用遮蔽输入保存 key，也可显式导入本机 OpenCode 已登录的凭据，保存前向服务端验证，再通过 OpenCode 支持的本地集成 API 同步到每个别名独立的 SQLite 数据库。V2 历史按别名隔离，不会自动导入其他别名或原生 OpenCode 历史。
 
 Use this when you manage OpenCode Go subscription keys with claudex-switch aliases. OpenCode V1 and V2 have different credential storage and launch behavior.
 
@@ -22,7 +22,7 @@ The normal launch does not rewrite the global `auth.json`. Saving auth with `/co
 
 ## OpenCode V2
 
-V2 add and refresh prompt for the Go API key with masked input. They do not export credentials from OpenCode's SQLite database and do not contact OpenCode Go to validate the key. The key is saved in the alias's private claudex-switch profile; entering an invalid key may not fail until the first provider request. Refresh rejects an unchanged key rather than reporting a successful replacement.
+V2 add and refresh verify the Go API key against the usage endpoint before saving: 401 (invalid key) and 403 (no Go subscription) are rejected and the prompt repeats; network trouble is reported and the key is still saved, so an offline setup can finish and an invalid key fails on its first provider request. The prompt also offers an explicit import of a Go login already stored in local OpenCode's SQLite database (active credential first, `opencode-go` only; never silent, never other providers), or a manually pasted masked key. The key is saved in the alias's private claudex-switch profile. Refresh still rejects an unchanged key rather than reporting a successful replacement.
 
 For a managed run, claudex-switch starts OpenCode with `--standalone` and assigns the alias its own XDG data/state/cache roots and SQLite database. It overrides inherited `OPENCODE_DB` so the alias cannot reuse another profile's database or OpenCode's normal global database. OpenCode's legacy `auth.json` migration therefore runs only against this alias-private data root; existing global/native sessions are not imported. The key is stored atomically in claudex-switch's private profile, then synced through OpenCode's supported local integration API into the alias-private SQLite credential store before each TUI launch. The short-lived sync server binds to `127.0.0.1`; the Go key is sent in its local request body, never argv or child environment. Refresh changes the claudex sidecar; the next run syncs it into OpenCode's private database.
 

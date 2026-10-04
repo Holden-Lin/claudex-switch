@@ -20,7 +20,7 @@ No. `-run` is provider-specific:
 
 - Claude OAuth / API-key profiles use profile-specific auth for the launched Claude session. Claude settings, hooks, and history remain shared; it is not a separate project/workspace or operating-system user
 - Codex switches global active authentication and provider config before launching, with `--approve-for-me` by default; restart an already-running Codex client after a switch
-- OpenCode V1 injects the chosen credential and shares the normal `/resume` history. OpenCode V2 uses a separate SQLite database per alias and syncs the masked claudex key through OpenCode's supported local integration API before launch. V2 history is not automatically shared with other aliases or imported from normal OpenCode history. See the [OpenCode Go guide](./use-cases/opencode-go.md).
+- OpenCode V1 injects the chosen credential and shares the normal `/resume` history. OpenCode V2 uses a separate SQLite database per alias and syncs the masked claudex key through OpenCode's supported local integration API before launch; its `add`/`refresh` verifies a key with the server before saving and can explicitly import a login already stored by local OpenCode. V2 history is not automatically shared with other aliases or imported from normal OpenCode history. See the [OpenCode Go guide](./use-cases/opencode-go.md).
 
 OpenCode V2 aliases reject CLI directory and resume/session overrides so the launch preflight uses the intended working directory. The TUI can still navigate to sessions from other projects already stored in that alias's private database; that in-app destination is not re-preflighted.
 

@@ -85,6 +85,7 @@ import {
   detectOpenCodeVersion,
   isSupportedOpenCodeVersion,
 } from "../providers/opencode/version";
+import { resolveOpenCodeV2Key } from "./opencode-key";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -202,13 +203,9 @@ async function addOpenCodeGo(alias: string): Promise<void> {
       info("OpenCode V2 uses a private key prompt instead of the TUI connect flow.");
       hint("OpenCode terminal tools may inherit process environment variables; use this account only in trusted workspaces.");
       blank();
-      const key = await password({
+      const trimmedKey = await resolveOpenCodeV2Key({
         message: "OpenCode Go API key",
-        validate: (value) =>
-          value.trim().length > 0 || "Enter a non-empty OpenCode Go API key.",
       });
-      const trimmedKey = key.trim();
-      if (!trimmedKey) throw new Error("No OpenCode Go API key was entered.");
       await createOpenCodeGoProfile(profileId, { type: "api", key: trimmedKey });
       profileCreated = true;
     } else {
@@ -253,6 +250,11 @@ async function addOpenCodeGo(alias: string): Promise<void> {
     hint(
       `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`,
     );
+    if (openCodeVersion.major === 2) {
+      hint(
+        `First run needs a Go model: ${chalk.cyan(`claudex-switch ${alias} -run --model opencode-go/<model>`)}; it is saved as this alias's default.`,
+      );
+    }
     blank();
   } catch (err) {
     if (profileCreated) {

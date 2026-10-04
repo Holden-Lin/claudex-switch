@@ -40,7 +40,7 @@ claudex-switch work -run
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
 - Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
 - Codex 支持 ChatGPT OAuth + OpenAI API Key
-- OpenCode Go 支持按别名选择订阅凭据；V1 共享常规 `/resume` 历史，V2 每个别名使用独立 SQLite 凭据库和历史，不会自动导入原生或其他别名历史；`list` 显示服务端 5 小时 / 周 / 月额度
+- OpenCode Go 支持按别名选择订阅凭据；V2 新增 / 刷新会先向服务端验证 key，并可显式导入本机 OpenCode 已登录的凭据；V1 共享常规 `/resume` 历史，V2 每个别名使用独立 SQLite 凭据库和历史，不会自动导入原生或其他别名历史；`list` 显示服务端 5 小时 / 周 / 月额度
 - macOS Keychain 凭证兼容
 
 ## 安装
@@ -173,7 +173,7 @@ claudex-switch add work
 - **Claude Code · ChatGPT（本机 CLIProxyAPI）** — 在 Claude Code 中使用独立的 ChatGPT 登录；本项目管理本机代理、模型映射和启动
 - **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等），可为该账号保存默认模型
 - **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商，并为该账号保存默认模型
-- **OpenCode Go** — 使用 OpenCode Go 订阅；可直接导入当前 OpenCode Go 凭据，或在专属 OpenCode TUI 里用 `/connect` 登录
+- **OpenCode Go** — 使用 OpenCode Go 订阅；V1 可直接导入当前 Go 凭据，或在专属 OpenCode TUI 里用 `/connect` 登录；V2 可显式导入本机 OpenCode 已登录的凭据或手动粘贴 API key，保存前会先验证
 
 选择 Codex API Key 后会继续选择接口来源：
 
@@ -193,7 +193,7 @@ OpenCode 默认以 `--auto` 启动，会自动批准未被明确拒绝的权限�
 ```bash
 claudex-switch add go-work
 # OpenCode V1：可导入磁盘上的当前凭据，或在专属 TUI 里运行 /connect
-# OpenCode V2：会提示输入 API key；不会从 OpenCode SQLite 数据库导出密钥
+# OpenCode V2：可显式导入本机 OpenCode 已登录的凭据，或手动粘贴 API key；保存前会向服务端验证
 
 claudex-switch go-work -run
 claudex-switch go-work -run --model opencode-go/kimi-k3
@@ -203,7 +203,7 @@ claudex-switch refresh go-work # V1 使用专属 TUI；V2 提示输入新 key
 
 V1 正常启动会通过 `OPENCODE_AUTH_CONTENT` 注入别名凭据并保留 OpenCode 常规数据目录，因此 Go 别名共享 `/resume` 历史。V2 使用 `--standalone` 私有服务，为每个别名设置独立的 XDG 数据、状态、缓存和 SQLite 数据库，并覆盖继承的 `OPENCODE_DB`；历史不会跨别名共享，也不会自动导入常规 OpenCode 历史。V2 的 key 经 OpenCode 支持的本地集成 API 同步进该别名的私有 SQLite 凭据库，启动前同步失败则拒绝打开 TUI。启动前会检查当前目录的有效 Go 模型、默认 agent 和模型库存；发现其他 provider 模型或不兼容的默认 agent 时会拒绝启动。它不会改写当前 agent 的 permission/system 设置。使用 TUI 内 `/connect` 可临时更改该别名私有数据库中的活动凭据；它不会更改 claudex 保存的 key，下次用 claudex 启动时会重新同步。OpenCode 的其他环境变量 / 配置仍可能按其正常行为继承。网络隔离 CI fixture 会启动固定版本的 OpenCode v2.0.6 私有服务和真实构建版 claudex-switch CLI，验证真实启动配置、凭据同步 / 清理、别名数据库隔离、手动 `/connect` 后下次启动恢复 claudex 保存凭据、刷新后下次启动使用新凭据、策略 / 模型 fail-closed，以及日志不含 key。PATH shim 将版本与服务命令转交给 OpenCode，只拦截最终 `--standalone` TUI 启动，因此交互 TUI、交互式 add/refresh 提示、会话导航 / 恢复和真实模型调用仍未验收。
 
-V2 新增 / 刷新不会向 OpenCode Go 发出验证请求；无效 key 可能要到首次实际调用时才报错。key 不会通过 argv 或子进程环境传入；它会写入 claudex 的私有 profile，并在启动前通过仅绑定本机回环地址的 API 写入对应别名的 SQLite 凭据库。TUI 内 `/connect` 明确切换的是当前别名的私有 OpenCode 凭据，不会更新 claudex key；下次 claudex 启动会重新同步该 key。只在可信工作区运行，并留意默认 `--auto` 会自动批准未明确拒绝的权限。`claudex-switch list` 用保存的 claudex Go key 查询服务端额度；手动 `/connect` 不会改变显示的额度身份。Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；始终用 `<alias> -run` 启动。
+V2 新增 / 刷新会先向 OpenCode Go 验证 key：401（无效 key）或 403（无 Go 订阅）会报错并要求重试；网络不可达时提示后仍保存，无效 key 要到首次实际调用时才报错。显式选择导入本机凭据时，claudex 只从本机 OpenCode 的 SQLite 数据库读取 `opencode-go` 凭据写入该别名的私有 profile，不会静默导出其它 provider 凭据。key 不会通过 argv 或子进程环境传入；它会写入 claudex 的私有 profile，并在启动前通过仅绑定本机回环地址的 API 写入对应别名的 SQLite 凭据库。TUI 内 `/connect` 明确切换的是当前别名的私有 OpenCode 凭据，不会更新 claudex key；下次 claudex 启动会重新同步该 key。只在可信工作区运行，并留意默认 `--auto` 会自动批准未明确拒绝的权限。`claudex-switch list` 用保存的 claudex Go key 查询服务端额度；手动 `/connect` 不会改变显示的额度身份。Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；始终用 `<alias> -run` 启动。
 
 自定义供应商示例配置：
 
@@ -292,7 +292,7 @@ claudex-switch webconfig
 | Claude | Claude API Key（含请求地址、Auth Token、各模型映射、自定义环境变量，支持贴 export 块导入） |
 | Codex | Codex API Key（OpenAI 官方，或自定义中转：Provider 名称 / base URL / 模型 / env key） |
 
-Claude OAuth、Codex ChatGPT 登录、本机 CLIProxyAPI、OpenCode Go 这四种需交互登录的类型暂未放进网页，仍走 CLI 的 `claudex-switch add <alias>`。OpenCode Go 的凭据仅在 OpenCode TUI 的 `/connect` 中管理。
+Claude OAuth、Codex ChatGPT 登录、本机 CLIProxyAPI、OpenCode Go 这四种需交互登录的类型暂未放进网页，仍走 CLI 的 `claudex-switch add <alias>`。OpenCode Go 的凭据由 `claudex-switch add` / `refresh`（以及 V1 TUI 内的 `/connect`）管理，网页暂不支持。
 
 每个账号行右侧有两个按钮：铅笔图标可以**原位改别名**（回车保存、Esc 取消），`删除` 则是**彻底删除账号**。点开卡片就能改配置，底部一次性保存所有改动的账号：
 

@@ -4,6 +4,44 @@ import { readOpenCodeGoApiKey } from "./profiles";
 const OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 const FETCH_TIMEOUT_MS = 5_000;
 
+export type OpenCodeGoKeyProbe =
+  | { status: "valid"; usage: UsageInfo | null }
+  | { status: "invalid" }
+  | { status: "no-subscription" }
+  | { status: "unreachable" };
+
+/**
+ * Verify a Go API key against the same server endpoint `list` uses. A
+ * definitive rejection (401/403) is reported as such; network trouble is
+ * reported as `unreachable` so offline setups can still save a key.
+ */
+export async function probeOpenCodeGoKey(
+  apiKey: string,
+): Promise<OpenCodeGoKeyProbe> {
+  const key = apiKey.trim();
+  if (!key) return { status: "invalid" };
+
+  try {
+    const response = await fetch(OPENCODE_GO_USAGE_URL, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (response.status === 401) return { status: "invalid" };
+    if (response.status === 403) return { status: "no-subscription" };
+    if (!response.ok) return { status: "unreachable" };
+
+    let data: unknown = null;
+    try {
+      data = await response.json();
+    } catch {
+      // A 200 with an unreadable body still proves the key authenticated.
+    }
+    return { status: "valid", usage: parseOpenCodeUsageResponse(data) };
+  } catch {
+    return { status: "unreachable" };
+  }
+}
+
 /** Read server-side Go quota, including usage from other OpenCode clients. */
 export async function fetchOpenCodeUsage(
   profileId: string,
@@ -11,25 +49,18 @@ export async function fetchOpenCodeUsage(
   const apiKey = await readOpenCodeGoApiKey(profileId);
   if (!apiKey) return { usage: null, note: "reconnect required" };
 
-  try {
-    const response = await fetch(OPENCODE_GO_USAGE_URL, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (response.status === 401) {
+  const probe = await probeOpenCodeGoKey(apiKey);
+  switch (probe.status) {
+    case "invalid":
       return { usage: null, note: "reconnect required" };
-    }
-    if (response.status === 403) {
+    case "no-subscription":
       return { usage: null, note: "Go subscription required" };
-    }
-    if (!response.ok) return { usage: null, note: "quota unavailable" };
-
-    const usage = parseOpenCodeUsageResponse(await response.json());
-    return usage
-      ? { usage, note: null }
-      : { usage: null, note: "quota unavailable" };
-  } catch {
-    return { usage: null, note: "quota unavailable" };
+    case "unreachable":
+      return { usage: null, note: "quota unavailable" };
+    case "valid":
+      return probe.usage
+        ? { usage: probe.usage, note: null }
+        : { usage: null, note: "quota unavailable" };
   }
 }
 

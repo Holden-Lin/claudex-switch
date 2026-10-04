@@ -1,5 +1,4 @@
 import { spawn } from "child_process";
-import { password } from "@inquirer/prompts";
 import chalk from "chalk";
 import { findAlias, loadAliases, updateAlias } from "../alias/store";
 import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
@@ -42,6 +41,7 @@ import {
   detectOpenCodeVersion,
   isSupportedOpenCodeVersion,
 } from "../providers/opencode/version";
+import { resolveOpenCodeV2Key } from "./opencode-key";
 import type { OAuthAccount } from "../types";
 
 export async function refresh(aliasOrName: string): Promise<void> {
@@ -104,24 +104,10 @@ async function refreshOpenCode(alias: string, profileId: string): Promise<void> 
     info(`Replace the OpenCode Go API key for ${chalk.bold(alias)}.`);
     hint("The key stays in claudex-switch's private profile. OpenCode terminal tools may inherit process environment variables.");
     blank();
-    const key = await password({
+    const trimmedKey = await resolveOpenCodeV2Key({
       message: "New OpenCode Go API key",
-      validate: (value) =>
-        value.trim().length > 0 || "Enter a non-empty OpenCode Go API key.",
+      previousKey,
     });
-    const trimmedKey = key.trim();
-    if (!trimmedKey) {
-      error("No OpenCode Go API key was entered; the existing key was left unchanged.");
-      blank();
-      process.exit(1);
-      return;
-    }
-    if (trimmedKey === previousKey) {
-      error("The entered OpenCode Go API key is unchanged; the profile was not refreshed.");
-      blank();
-      process.exit(1);
-      return;
-    }
 
     try {
       await saveOpenCodeGoCredential(profileId, { type: "api", key: trimmedKey });
@@ -134,7 +120,6 @@ async function refreshOpenCode(alias: string, profileId: string): Promise<void> 
 
     await setActiveOpenCodeProfile(profileId);
     success(`${chalk.bold(alias)} OpenCode Go key replaced`);
-    hint("No provider request was made to validate the key.");
     blank();
     return;
   }

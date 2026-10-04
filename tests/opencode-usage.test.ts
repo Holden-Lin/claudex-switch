@@ -3,6 +3,7 @@ import { createOpenCodeGoProfile } from "../src/providers/opencode/profiles";
 import {
   fetchOpenCodeUsage,
   parseOpenCodeUsageResponse,
+  probeOpenCodeGoKey,
 } from "../src/providers/opencode/usage";
 import { resetTestHome } from "./helpers";
 
@@ -92,6 +93,68 @@ describe("OpenCode Go usage", () => {
     await expect(fetchOpenCodeUsage(PROFILE_ID)).resolves.toEqual({
       usage: null,
       note: "Go subscription required",
+    });
+  });
+
+  test("probes a key: 401 invalid, 403 no subscription, network trouble unreachable", async () => {
+    globalThis.fetch = (async () =>
+      new Response("", { status: 401 })) as typeof fetch;
+    await expect(probeOpenCodeGoKey("bad-key")).resolves.toEqual({
+      status: "invalid",
+    });
+
+    globalThis.fetch = (async () =>
+      new Response("", { status: 403 })) as typeof fetch;
+    await expect(probeOpenCodeGoKey("unsubscribed-key")).resolves.toEqual({
+      status: "no-subscription",
+    });
+
+    globalThis.fetch = (async () => {
+      throw new Error("offline");
+    }) as typeof fetch;
+    await expect(probeOpenCodeGoKey("some-key")).resolves.toEqual({
+      status: "unreachable",
+    });
+
+    globalThis.fetch = (async () =>
+      new Response("", { status: 500 })) as typeof fetch;
+    await expect(probeOpenCodeGoKey("some-key")).resolves.toEqual({
+      status: "unreachable",
+    });
+
+    await expect(probeOpenCodeGoKey("   ")).resolves.toEqual({
+      status: "invalid",
+    });
+  });
+
+  test("probes a valid key and returns its usage windows", async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          usage: {
+            rolling: { status: "ok", percent: 25, resetsAt: "2026-09-14T10:00:00Z" },
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch;
+
+    await expect(probeOpenCodeGoKey("oc-good-key")).resolves.toEqual({
+      status: "valid",
+      usage: {
+        fiveHourUsedPercent: 25,
+        fiveHourResetsAt: Date.parse("2026-09-14T10:00:00Z"),
+        weeklyUsedPercent: null,
+        weeklyResetsAt: null,
+        monthlyUsedPercent: null,
+        monthlyResetsAt: null,
+      },
+    });
+
+    globalThis.fetch = (async () =>
+      new Response("not json", { status: 200 })) as typeof fetch;
+    await expect(probeOpenCodeGoKey("oc-good-key")).resolves.toEqual({
+      status: "valid",
+      usage: null,
     });
   });
 });

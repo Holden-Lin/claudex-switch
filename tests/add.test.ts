@@ -62,7 +62,8 @@ const { getProfileData } = await import("../src/providers/claude/profiles");
 const { stopManagedCLIProxyAPI } = await import(
   "../src/providers/cliproxyapi/managed"
 );
-const { makeJwt, resetTestHome } = await import("./helpers");
+const { makeJwt, resetTestHome, createNativeOpenCodeCredentialDatabase } =
+  await import("./helpers");
 import type { CodexAuthFile } from "../src/types";
 
 const originalFetch = globalThis.fetch;
@@ -444,6 +445,98 @@ describe("add", () => {
     expect(output).not.toContain("fake-v2-go-key");
     expect(prompts.password).toHaveBeenCalledTimes(1);
 
+    logSpy.mockRestore();
+  });
+
+  test("imports an existing local OpenCode V2 credential when explicitly selected", async () => {
+    const selectValues = ["opencode-go", "cred_native"];
+    selectHandler = async () => selectValues.shift() ?? "manual";
+    spawnSyncHandler = (command, args) => {
+      expect(command).toBe("opencode");
+      expect(args).toEqual(["--version"]);
+      return { status: 0, stdout: "opencode v2.0.22", stderr: "" };
+    };
+    await createNativeOpenCodeCredentialDatabase([
+      {
+        id: "cred_native",
+        label: "OpenCode Go",
+        key: "oc-native-secret",
+        active: 1,
+      },
+    ]);
+    const fetchCalls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      fetchCalls.push(String(input));
+      return new Response(
+        JSON.stringify({
+          usage: {
+            rolling: { status: "ok", percent: 10, resetsAt: "2026-09-14T10:00:00Z" },
+          },
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    passwordHandler = async () => {
+      throw new Error("Import path must not ask for a manual key");
+    };
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    await add("go-imported");
+
+    const aliases = await loadAliases();
+    const target = aliases.aliases[0]?.target;
+    expect(target?.provider).toBe("opencode");
+    if (!target || target.provider !== "opencode") {
+      throw new Error("Expected an OpenCode target");
+    }
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "oc-native-secret" },
+    });
+    expect(prompts.password).not.toHaveBeenCalled();
+    expect(fetchCalls).toEqual(["https://opencode.ai/zen/go/v1/usage"]);
+    const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("go-imported created");
+    expect(output).toContain("OpenCode Go key verified");
+    expect(output).not.toContain("oc-native-secret");
+
+    logSpy.mockRestore();
+  });
+
+  test("re-prompts until OpenCode Go accepts the entered key", async () => {
+    selectHandler = async () => "opencode-go";
+    spawnSyncHandler = (command, args) => {
+      expect(command).toBe("opencode");
+      expect(args).toEqual(["--version"]);
+      return { status: 0, stdout: "opencode v2.0.22", stderr: "" };
+    };
+    const passwordValues = ["bogus-key", "oc-good-key"];
+    passwordHandler = async () => passwordValues.shift() ?? "oc-good-key";
+    let fetchCount = 0;
+    globalThis.fetch = (async () => {
+      fetchCount += 1;
+      return fetchCount === 1
+        ? new Response("", { status: 401 })
+        : new Response(JSON.stringify({ usage: {} }), { status: 200 });
+    }) as typeof fetch;
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    await add("go-retry");
+
+    const aliases = await loadAliases();
+    const target = aliases.aliases[0]?.target;
+    if (!target || target.provider !== "opencode") {
+      throw new Error("Expected an OpenCode target");
+    }
+    expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
+      "opencode-go": { type: "api", key: "oc-good-key" },
+    });
+    expect(prompts.password).toHaveBeenCalledTimes(2);
+    expect(fetchCount).toBe(2);
+    expect(errorSpy.mock.calls.flat().join("\n")).toContain("rejected");
+    expect(logSpy.mock.calls.flat().join("\n")).toContain("go-retry created");
+
+    errorSpy.mockRestore();
     logSpy.mockRestore();
   });
 
