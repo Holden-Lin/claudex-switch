@@ -1,43 +1,60 @@
-# Use OpenCode Go accounts with V1 and V2
+# 使用 OpenCode Go 订阅账号
 
-中文摘要：OpenCode V1 使用隔离的 `auth.json` 登录流程，并保留常规 `/resume` 历史；V2 可用遮蔽输入保存 key，也可显式导入本机 OpenCode 已登录的凭据，保存前向服务端验证，再通过 OpenCode 支持的本地集成 API 同步到每个别名独立的 SQLite 数据库。V2 历史按别名隔离，不会自动导入其他别名或原生 OpenCode 历史。
+OpenCode 2.x 推荐用浏览器授权订阅账号，无需生成或复制 Go API key。已有 API key 的账号仍可沿用旧入口；OpenCode 1.x 继续使用私有 TUI / key 流程。
 
-Use this when you manage OpenCode Go subscription keys with claudex-switch aliases. OpenCode V1 and V2 have different credential storage and launch behavior.
-
-Both versions launch OpenCode with `--auto` by default. OpenCode auto-approves permissions that are not explicitly denied; review your permission rules before using it.
+## 新增第二个订阅账号
 
 ```sh
-claudex-switch add go-work
-claudex-switch go-work -run
-claudex-switch go-work -run --model opencode-go/kimi-k3
-claudex-switch model go-work opencode-go/deepseek-v4-flash
-claudex-switch refresh go-work
+claudex-switch add go-second
+# 选择 OpenCode Subscription — browser login (Go / Go Plus)
+# 浏览器中登录第二个账号，选择持有 Go 订阅的 workspace，再授权
+
+claudex-switch go-second -run
+claudex-switch list
 ```
 
-## OpenCode V1
+添加成功前会检查 workspace 的有效 Go 订阅，并从其 Console 声明的模型与官方 Go 目录中选择可用默认模型。无需首次启动时手填模型。浏览器授权成功但无 Go 订阅、模型不可用或服务不可达，均不创建可用别名；可修正 workspace 后重试。
 
-V1 can import a Go credential from the legacy disk `auth.json` after confirmation or open a private TUI for `/connect`. Each alias keeps its Go credential in a claudex-switch profile. A normal launch injects the selected credential through `OPENCODE_AUTH_CONTENT` and leaves OpenCode's normal XDG data directory in place, so V1 aliases share `/resume` history.
+macOS 优先在支持的浏览器中打开隐私窗口；若仍登录到旧账号，先切换浏览器身份再授权。每个别名都有独立的 OpenCode SQLite 凭据库、会话历史和 XDG 数据 / 状态 / 缓存目录，启动使用 `--standalone`，不改写原生 OpenCode 的全局登录。
 
-The normal launch does not rewrite the global `auth.json`. Saving auth with `/connect` in a shared TUI may rewrite that file, however, so use the private `add` or `refresh` login flow to change a Go credential.
+## 切换、模型与刷新
 
-## OpenCode V2
+```sh
+claudex-switch go-first -run
+claudex-switch go-second -run
+claudex-switch go-second -run --model opencode/kimi-k3
+claudex-switch model go-second opencode/minimax-m3
+claudex-switch refresh go-second
+```
 
-V2 add and refresh verify the Go API key against the usage endpoint before saving: 401 (invalid key) and 403 (no Go subscription) are rejected and the prompt repeats; network trouble is reported and the key is still saved, so an offline setup can finish and an invalid key fails on its first provider request. The prompt also offers an explicit import of a Go login already stored in local OpenCode's SQLite database (active credential first, `opencode-go` only; never silent, never other providers), or a manually pasted masked key. The key is saved in the alias's private claudex-switch profile. Refresh still rejects an unchanged key rather than reporting a successful replacement.
+订阅模型使用 `opencode/<model>`，也接受 `opencode-go/<model>` 并转为 Console 模型标识。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `-run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
 
-For a managed run, claudex-switch starts OpenCode with `--standalone` and assigns the alias its own XDG data/state/cache roots and SQLite database. It overrides inherited `OPENCODE_DB` so the alias cannot reuse another profile's database or OpenCode's normal global database. OpenCode's legacy `auth.json` migration therefore runs only against this alias-private data root; existing global/native sessions are not imported. The key is stored atomically in claudex-switch's private profile, then synced through OpenCode's supported local integration API into the alias-private SQLite credential store before each TUI launch. The short-lived sync server binds to `127.0.0.1`; the Go key is sent in its local request body, never argv or child environment. Refresh changes the claudex sidecar; the next run syncs it into OpenCode's private database.
+OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 负责续期和写回。`refresh` 在临时私有数据库中重新登录、验证订阅，再通过 OpenCode 支持的本地凭据接口替换；必须是同一账号和 workspace。取消、登录错误账号、无订阅或验证失败会保留原 profile；成功刷新保留已有会话。
 
-V2 refuses to start unless a Go model is selected by the alias default, `OPENCODE_CONFIG_CONTENT.model`, or `-run --model opencode-go/<model>`. It checks the effective default agent and model inventory in the launch working directory before storing the key; a non-Go default-agent model, an unavailable Go model, or another provider in the effective model inventory stops the launch. The current agent and its permission/system settings are left intact. To keep that preflight aligned with the TUI, V2 aliases reject a positional directory, `--continue`/`-c`, `--session`/`-s`, and unknown forwarded arguments. Start claudex-switch from the intended project directory and begin a fresh session; `--prompt` is still supported.
+不同别名可以同时运行；同一订阅别名的启动、续期和刷新共用锁，以免两个私有服务同时轮换 refresh token。运行中若需要再次打开同一别名、刷新或删除账号，请先退出该别名的 TUI；删除会拒绝正在使用的订阅账号并保留别名和凭据。
 
-The alias-private database can contain sessions from more than one project. OpenCode's in-app `/sessions` navigation can select a session from another project in that database, and that destination is not re-preflighted by claudex-switch. Treat V2 as per-alias database isolation, not a continuous same-project/session guarantee. History is not automatically shared with other aliases or imported from OpenCode's normal/native history. If you use `/connect` during a TUI session, that can change the active credential in this alias's private OpenCode database for the rest of that session. It does not change the claudex sidecar, and the next claudex launch syncs the sidecar key again. `list` quota reflects the saved claudex key, not a credential manually connected in the current TUI.
+## 额度与配置
 
-The Go key is persisted in OpenCode's alias-private SQLite credential store and is not passed to terminal tools as an environment variable. Other OpenCode settings and environment variables may still be inherited according to OpenCode's normal behavior. Use V2 aliases only in trusted workspaces, especially with `--auto` enabled. Use `add` or `refresh` to change the claudex Go key. `/connect` changes only OpenCode's current alias-private credential; the next claudex launch restores the claudex sidecar as the active key.
+`list` 查询绑定账号的 Console Go 状态，用该账号的 Bearer token 与 workspace ID 读取 5 小时、周、月窗口，显示剩余百分比。无订阅、需要重新授权、服务不可达或缺失的窗口分别显示状态 / 未知，不将缺失数据视为零用量。过期 token 的续期仍由原生 OpenCode 执行。`list --no-usage` 不联网、不续期；JSON 继续遵循 [既有输出合同](../list-json.md)，不包含账号邮箱或 token。
 
-The repository includes a network-disabled CI fixture against the digest-pinned OpenCode v2.0.6 binary. It checks upstream private-store API primitives and also runs the built claudex-switch CLI against real private OpenCode servers. A PATH shim delegates `--version` and local `serve` commands to the official binary, then intercepts the final `--standalone` TUI invocation to capture nonsecret launch metadata and exit deterministically. It verifies product config generation, readiness checks, credential sync and owned-record cleanup, alias A/B database separation, preservation of the normal auth/database sentinels, manual `/connect` reset to the saved sidecar, refreshed-sidecar use on the next launch, fail-closed policy/model cases, shutdown, and absence of fake keys in logs. The interactive add/refresh prompt commands are covered by unit tests; interactive TUI behavior, session navigation/resume, and live model requests remain unverified.
+启动前检查当前项目合并后的 provider、默认 agent 和模型库存；保留权限 / system 设置，拒绝自定义 OpenCode provider 或模型路由覆盖，以及选用非 Go 模型的默认 agent。Console 声明中与官方 Go 目录 ID 不符的自定义 / Zen 模型不会自动选入。Console 自己的订阅计费和余额策略仍由服务端决定，本工具不更改 `useBalance` 设置。
 
-## Usage and models
+TUI 内 `/connect` 可以改变当前别名私有库的活动凭据；`list` 始终查询 claudex 绑定的凭据，下次启动也会恢复该绑定。会话历史不跨别名共享，不自动导入原生 OpenCode 历史。V2 拒绝命令行目录与 resume/session 覆盖；从目标项目目录运行。TUI 的 `/sessions` 可选择同一别名库中其他项目的历史，跳转后的项目不再做启动前检查。
 
-`claudex-switch list` can query OpenCode Go's server-reported rolling five-hour, weekly, and monthly usage windows. It sends the selected profile's Go key to the OpenCode usage endpoint. Use `list --no-usage` to skip that request. The displayed values report service usage, not extra quota or a mechanism to change plan limits.
+OpenCode 默认以 `--auto` 启动，会自动批准未明确拒绝的权限；在可信项目中运行并检查自己的权限规则。
 
-Go model overrides use the full `opencode-go/<model>` form. claudex-switch maps this to OpenCode V2's managed provider; if no Go model can be resolved, the launch fails closed rather than inheriting a non-Go OpenCode default. OpenCode V2's root TUI does not accept `--model`, so `claudex-switch <alias> -run --model opencode-go/<model>` applies the model through its V2 config. Claude / Codex effort flags are not supported for OpenCode Go.
+## 保留的 Go API key 入口
 
-`claudex-switch <alias>` records a selected alias but does not launch OpenCode. Use `<alias> -run` to open the TUI.
+`add` 中选择 **OpenCode Go API Key**：
+
+- V1 可显式复制旧 `auth.json` 中的 Go 凭据，或在私有 TUI 中 `/connect` 登录。常规启动通过 `OPENCODE_AUTH_CONTENT` 注入凭据，保留共享 `/resume` 历史。
+- V2 可显式导入本机 SQLite 中的 `opencode-go` 凭据，或遮蔽输入 key；只读取 Go，不静默导出其他 provider。保存前以 Go usage 端点验证，401 / 403 拒绝并重试；网络不可达时提示后仍允许保存，首次模型请求可能失败。
+- V2 key 保存在 claudex 私有 profile，启动前通过回环本地 API 同步到别名私有数据库；不经 argv 或子进程环境传入。首次启动仍需 `--model opencode-go/<model>`；`refresh` 保持替换 key 的行为。
+
+## 验证范围
+
+订阅验收使用真实 OpenCode 2.0.22、隔离 HOME、模拟本地 Console 和浏览器授权响应，覆盖 A/B 登录、额度、原生 token 轮换、绑定恢复、错误账号 / 无订阅拒绝、刷新保留会话与 CLI 输出。不会使用真实账号进行测试，也未验证真实订阅的模型响应或生产计费。
+
+开发者可在已安装 OpenCode 2.x 的环境运行 `bun run test:opencode-subscription` 重现此验收；需要本地回环端口，测试目录由脚本临时创建。
+
+旧 API key 路径另有网络隔离 CI fixture，固定 OpenCode v2.0.6，验证本地凭据写入、模型检查与 A/B 私有库隔离；最终交互 TUI 被测试 shim 捕获。交互导航与真实模型请求不属于这两套离线验收的范围。

@@ -23,7 +23,7 @@ AUTH_URL=""
 PASSTHROUGH_ARGS=()
 for arg in "$@"; do
   case "$arg" in
-    https://auth.openai.com/*|https://auth0.openai.com/*)
+    https://auth.openai.com/*|https://auth0.openai.com/*|https://opencode.ai/console/*|https://opencode.ai/auth*)
       AUTH_URL="$arg" ;;
     *)
       PASSTHROUGH_ARGS+=("$arg") ;;

@@ -1,6 +1,6 @@
 {
   "name": "claudex-switch",
-  "version": "1.17.0",
+  "version": "1.18.0",
   "description": "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   "type": "module",
   "bin": {
@@ -15,6 +15,7 @@
     "preinstall": "node ./scripts/guard-package-manager.js",
     "test": "bun test",
     "test:opencode-v2-private": "node scripts/verify-opencode-v2-private-store.mjs",
+    "test:opencode-subscription": "bun scripts/verify-opencode-subscription.ts",
     "docs:check": "node ./scripts/validate-docs.mjs",
     "verify": "bun run docs:check && bun run test && bun run build && bun ./dist/claudex-switch.js help >/dev/null",
     "release:guard": "bash ./scripts/check-release-state.sh",

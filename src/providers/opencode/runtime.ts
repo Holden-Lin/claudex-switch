@@ -1,7 +1,9 @@
+import { acquireProfileLock } from "./lock";
+export { acquireProfileLock } from "./lock";
 import { randomBytes, randomUUID } from "crypto";
 import { spawn, type ChildProcess } from "child_process";
 import { join } from "path";
-import { chmod, mkdir, open, readFile, rename, rm, stat, writeFile } from "fs/promises";
+import { chmod, mkdir, readFile, rename, rm, writeFile } from "fs/promises";
 import {
   openCodeProfileV2DatabaseFile,
   openCodeProfileV2DataHome,
@@ -130,6 +132,10 @@ export function buildOpenCodeV2Config(
   };
   config.providers = providers;
 
+  return restrictOpenCodeProviders(config, OPENCODE_V2_MANAGED_PROVIDER_ID);
+}
+
+export function restrictOpenCodeProviders(config: JsonRecord, providerId: string): JsonRecord {
   // Keep managed OpenCode Go as the only provider available to this alias run.
   // User permission rules are otherwise preserved by the merged config.
   const experimentalValue = config.experimental;
@@ -148,7 +154,7 @@ export function buildOpenCodeV2Config(
       policy.action === "provider.use" &&
       policy.effect === "deny" &&
       typeof policy.resource === "string" &&
-      providerPatternMatches(policy.resource, OPENCODE_V2_MANAGED_PROVIDER_ID),
+      providerPatternMatches(policy.resource, providerId),
   );
   if (userDeniesManaged) {
     throw new Error(
@@ -162,7 +168,7 @@ export function buildOpenCodeV2Config(
   };
   const allowManagedProvider = {
     action: "provider.use",
-    resource: OPENCODE_V2_MANAGED_PROVIDER_ID,
+    resource: providerId,
     effect: "allow",
   };
   const policies = sourcePolicies.filter(
@@ -200,76 +206,22 @@ export function buildOpenCodeV2Config(
 
   const disabledProviders = stringArray(config.disabled_providers, "disabled_providers");
   const enabledProviders = stringArray(config.enabled_providers, "enabled_providers");
-  if (disabledProviders.includes(OPENCODE_V2_MANAGED_PROVIDER_ID)) {
+  if (disabledProviders.includes(providerId)) {
     throw new Error(
       "OpenCode V2 configuration disables claudex-switch's managed Go provider; refusing to weaken that restriction.",
     );
   }
-  if (config.enabled_providers !== undefined && !enabledProviders.includes(OPENCODE_V2_MANAGED_PROVIDER_ID)) {
+  if (config.enabled_providers !== undefined && !enabledProviders.includes(providerId)) {
     throw new Error(
       "OpenCode V2 configuration does not enable claudex-switch's managed Go provider; refusing to override the allowlist.",
     );
   }
-  config.enabled_providers = [OPENCODE_V2_MANAGED_PROVIDER_ID];
+  config.enabled_providers = [providerId];
   if (config.disabled_providers !== undefined) config.disabled_providers = disabledProviders;
 
   return config;
 }
 
-async function acquireProfileLock(
-  lockPath: string,
-  resourceName: string,
-): Promise<() => Promise<void>> {
-  const timeoutAt = Date.now() + 10_000;
-  const token = randomUUID();
-  while (Date.now() < timeoutAt) {
-    try {
-      const handle = await open(lockPath, "wx", 0o600);
-      await handle.writeFile(JSON.stringify({ pid: process.pid, token, createdAt: Date.now() }));
-      await handle.close();
-      return async () => {
-        try {
-          const current = JSON.parse(await readFile(lockPath, "utf8")) as { token?: unknown };
-          if (current.token === token) await rm(lockPath, { force: true });
-        } catch {
-          // If the lock changed or disappeared, leave it alone.
-        }
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
-        throw new Error(`Could not lock this alias's private OpenCode ${resourceName}.`);
-      }
-    }
-
-    try {
-      const owner = JSON.parse(await readFile(lockPath, "utf8")) as {
-        pid?: unknown;
-        token?: unknown;
-        createdAt?: unknown;
-      };
-      if (typeof owner.pid === "number" && Number.isInteger(owner.pid)) {
-        try {
-          process.kill(owner.pid, 0);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ESRCH") {
-            await rm(lockPath, { force: true });
-            continue;
-          }
-        }
-      } else {
-        const age = Date.now() - (await stat(lockPath)).mtimeMs;
-        if (age > 30_000) {
-          await rm(lockPath, { force: true });
-          continue;
-        }
-      }
-    } catch {
-      // Another process may still be writing the lock contents; retry briefly.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error(`Timed out waiting for this alias's private OpenCode ${resourceName} lock.`);
-}
 
 async function readModelInventory(file: string): Promise<string[]> {
   let contents: string;
@@ -479,7 +431,7 @@ function authHeaders(password: string): Record<string, string> {
   };
 }
 
-async function fetchOpenCodeApi(
+export async function fetchOpenCodeApi(
   fetcher: FetchFunction,
   baseUrl: string,
   path: string,
@@ -498,7 +450,32 @@ async function fetchOpenCodeApi(
   }
 }
 
-function locationData(value: unknown): unknown {
+/** One lifecycle for all writers/readers of an alias-private native store. */
+export async function withOpenCodePrivateServer<T>(
+  env: NodeJS.ProcessEnv,
+  callback: (baseUrl: string, password: string) => Promise<T>,
+  spawnCommand: SpawnCommand = spawn,
+): Promise<T> {
+  const password = randomBytes(32).toString("base64url");
+  const serverEnv = { ...env };
+  delete serverEnv.OPENCODE_AUTH_CONTENT;
+  delete serverEnv[OPENCODE_NATIVE_GO_KEY_ENV];
+  serverEnv.OPENCODE_PASSWORD = password;
+  serverEnv.OPENCODE_DISABLE_AUTOUPDATE = "1";
+  serverEnv.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  const child = spawnCommand("opencode",
+    ["serve", "--stdio", "--hostname", "127.0.0.1", "--port", "0"],
+    { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: serverEnv });
+  try {
+    const baseUrl = await waitForLocalServer(child, 15_000);
+    child.stdout?.on("data", () => {});
+    return await callback(baseUrl, password);
+  } finally {
+    await stopLocalServer(child);
+  }
+}
+
+export function locationData(value: unknown): unknown {
   if (
     !isRecord(value) ||
     !isRecord(value.location) ||
@@ -536,17 +513,21 @@ function configuredDefaultAgent(configEntries: unknown): string {
   return defaultAgent;
 }
 
-async function verifyEffectiveOpenCodeRouting(
+export async function verifyEffectiveOpenCodeRouting(
   fetcher: FetchFunction,
   baseUrl: string,
   password: string,
   managedModels: string[],
+  providerId = OPENCODE_V2_MANAGED_PROVIDER_ID,
+  validateConfig?: (entries: unknown) => void,
 ): Promise<void> {
   const configResponse = await fetchOpenCodeApi(fetcher, baseUrl, "/api/config", password, {
     method: "GET",
   });
   if (!configResponse.ok) throw new Error("Could not verify OpenCode V2's effective local configuration.");
-  const defaultAgentId = configuredDefaultAgent(await responseJson(configResponse));
+  const configEntries = await responseJson(configResponse);
+  validateConfig?.(configEntries);
+  const defaultAgentId = configuredDefaultAgent(configEntries);
 
   const agentResponse = await fetchOpenCodeApi(fetcher, baseUrl, "/api/agent", password, {
     method: "GET",
@@ -564,14 +545,14 @@ async function verifyEffectiveOpenCodeRouting(
     if (!isRecord(agent.model) || typeof agent.model.providerID !== "string" || typeof agent.model.id !== "string") {
       throw new Error("OpenCode V2's default agent has an invalid model setting.");
     }
-    if (agent.model.providerID !== OPENCODE_V2_MANAGED_PROVIDER_ID) {
+    if (agent.model.providerID !== providerId) {
       throw new Error(
         `OpenCode V2 default agent "${defaultAgentId}" selects another provider. Set its model to this alias's Go model or choose a Go-compatible default agent.`,
       );
     }
     const agentModelId = agent.model.id;
     const managedModelIds = managedModels.map((model) =>
-      model.slice(OPENCODE_GO_PROVIDER_ID.length + 1),
+      model.slice(model.indexOf("/") + 1),
     );
     if (!managedModelIds.includes(agentModelId)) {
       throw new Error(
@@ -581,7 +562,7 @@ async function verifyEffectiveOpenCodeRouting(
   }
 
   const expected = new Set(
-    managedModels.map((model) => model.slice(OPENCODE_GO_PROVIDER_ID.length + 1)),
+    managedModels.map((model) => model.slice(model.indexOf("/") + 1)),
   );
   const timeoutAt = Date.now() + 10_000;
   let previousSignature = "";
@@ -610,12 +591,13 @@ async function verifyEffectiveOpenCodeRouting(
       if (!isRecord(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
+      if (providerId === "opencode" && item.enabled === false) continue;
       models.push({ providerID: item.providerID, id: item.id });
     }
     const signature = JSON.stringify(
       models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
     );
-    const onlyManaged = models.every((model) => model.providerID === OPENCODE_V2_MANAGED_PROVIDER_ID);
+    const onlyManaged = models.every((model) => model.providerID === providerId);
     const actual = new Set(models.map((model) => model.id));
     const sameInventory =
       onlyManaged &&
@@ -702,23 +684,8 @@ export async function syncOpenCodeV2CredentialToPrivateDatabase(
 
   async function syncLocked(): Promise<void> {
     const ownedIds = await readOwnedCredentialIds(credentialStateFile);
-    const password = randomBytes(32).toString("base64url");
     const label = `claudex-switch-${profileId}-${randomUUID()}`;
-    const serverEnv = { ...env };
-    delete serverEnv.OPENCODE_AUTH_CONTENT;
-    delete serverEnv[OPENCODE_NATIVE_GO_KEY_ENV];
-    serverEnv.OPENCODE_PASSWORD = password;
-    serverEnv.OPENCODE_DISABLE_AUTOUPDATE = "1";
-    serverEnv.OPENCODE_DISABLE_MODELS_FETCH = "1";
-    const child = spawnCommand(
-      "opencode",
-      ["serve", "--stdio", "--hostname", "127.0.0.1", "--port", "0"],
-      { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: serverEnv },
-    );
-
-    try {
-      const baseUrl = await waitForLocalServer(child, 15_000);
-      child.stdout?.on("data", () => {});
+    await withOpenCodePrivateServer(env, async (baseUrl, password) => {
       await waitForManagedIntegrationKeyMethod(fetcher, baseUrl, password);
 
       const config = parseConfigContent(env.OPENCODE_CONFIG_CONTENT);
@@ -822,9 +789,7 @@ export async function syncOpenCodeV2CredentialToPrivateDatabase(
           // Failed cleanup is retried next run; the active key was verified.
         }
       }
-    } finally {
-      await stopLocalServer(child);
-    }
+    }, spawnCommand);
   }
 }
 

@@ -27,8 +27,10 @@ import {
 import { resolveManagedLocalCLIProxyAPIModel } from "../providers/cliproxyapi/managed";
 import {
   normalizeOpenCodeGoModel,
+  getOpenCodeProfileData,
   updateOpenCodeProfileDefaultModel,
 } from "../providers/opencode/profiles";
+import { normalizeOpenCodeConsoleModel, prepareOpenCodeConsoleRun } from "../providers/opencode/console";
 import type { AliasEntry } from "../types";
 
 export async function updateDefaultModel(
@@ -44,9 +46,10 @@ export async function updateDefaultModel(
   }
 
   if (entry.target.provider === "opencode") {
+    const profile = await getOpenCodeProfileData(entry.target.profileId);
     await updateOpenCodeProfileDefaultModel(
       entry.target.profileId,
-      normalizeOpenCodeGoModel(normalizedModel),
+      profile.console ? normalizeOpenCodeConsoleModel(normalizedModel) : normalizeOpenCodeGoModel(normalizedModel),
     );
     return "subscription";
   }
@@ -125,7 +128,13 @@ export async function model(
 
   let authMode: string;
   try {
-    authMode = await updateDefaultModel(entry, normalizedModel);
+    if (entry.target.provider === "opencode" && (await getOpenCodeProfileData(entry.target.profileId)).console) {
+      const prepared = await prepareOpenCodeConsoleRun(entry.target.profileId, normalizedModel);
+      try { authMode = await updateDefaultModel(entry, normalizedModel); }
+      finally { await prepared.release(); }
+    } else {
+      authMode = await updateDefaultModel(entry, normalizedModel);
+    }
   } catch (err) {
     error(err instanceof Error ? err.message : String(err));
     blank();

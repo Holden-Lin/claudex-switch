@@ -47,6 +47,7 @@ import {
   prepareOpenCodeV2RunEnvironment,
   type OpenCodeV2CredentialSync,
 } from "../providers/opencode/runtime";
+import { normalizeOpenCodeConsoleModel, prepareOpenCodeConsoleRun } from "../providers/opencode/console";
 import {
   detectOpenCodeVersion,
   isSupportedOpenCodeVersion,
@@ -228,14 +229,16 @@ export async function runAliasSession(
     ? profile?.type === "local-cliproxyapi"
       ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
       : isOpenCode
-        ? normalizeOpenCodeGoModel(runOptions.modelOverride)
+        ? openCodeProfile?.console
+          ? normalizeOpenCodeConsoleModel(runOptions.modelOverride)
+          : normalizeOpenCodeGoModel(runOptions.modelOverride)
         : resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
     : profile?.type === "oauth" || profile?.type === "local-cliproxyapi"
       ? profile.type === "local-cliproxyapi"
         ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
         : profile.defaultModel
       : openCodeProfile?.defaultModel;
-  if (runOptions.modelOverride && resolvedModel) {
+  if (runOptions.modelOverride && resolvedModel && !isOpenCode) {
     await updateDefaultModel(entry, resolvedModel);
     if (claudeProfileName) {
       profile = await getProfileData(claudeProfileName);
@@ -373,8 +376,16 @@ export async function runAliasSession(
     ...runOptions.forwardedArgs,
   ];
   let baseEnv: NodeJS.ProcessEnv | undefined;
+  let releaseOpenCode: (() => Promise<void>) | undefined;
   try {
-    if (isOpenCodeV2 && openCodeProfileId) {
+    if (openCodeProfile?.console && openCodeVersion?.major !== 2) {
+      throw new Error("OpenCode subscription accounts require OpenCode 2.x.");
+    }
+    if (isOpenCodeV2 && openCodeProfileId && openCodeProfile?.console) {
+      const prepared = await prepareOpenCodeConsoleRun(openCodeProfileId, resolvedModel);
+      baseEnv = prepared.env;
+      releaseOpenCode = prepared.release;
+    } else if (isOpenCodeV2 && openCodeProfileId) {
       const prepared = await prepareOpenCodeV2RunEnvironment(
         openCodeProfileId,
         resolvedModel,
@@ -390,7 +401,11 @@ export async function runAliasSession(
         configDir,
       );
     }
+    if (isOpenCode && runOptions.modelOverride && resolvedModel) {
+      await updateDefaultModel(entry, resolvedModel);
+    }
   } catch (err) {
+    await releaseOpenCode?.();
     error(err instanceof Error ? err.message : String(err));
     blank();
     return 1;
@@ -415,6 +430,7 @@ export async function runAliasSession(
       settled = true;
       try {
         await localLease?.release();
+        await releaseOpenCode?.();
       } catch {
         // A failed cleanup leaves only a PID-scoped lease; manager lifecycle
         // code removes it after this launcher has exited.

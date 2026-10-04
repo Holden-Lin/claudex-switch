@@ -9,9 +9,14 @@ import {
   openCodeProfileDataFile,
   openCodeProfileDataHome,
   openCodeProfileDir,
+  openCodeProfileV2DatabaseFile,
+  OPENCODE_LOCKS_DIR,
+  openCodeProfileConsoleLock,
 } from "../../lib/paths";
 import { fileExists, readJson, writeJsonSecure } from "../../lib/fs";
 import type { OpenCodeGoProfileData, OpenCodeProfileState } from "../../types";
+import { readOpenCodeConsoleCredentials } from "./native";
+import { acquireProfileLock } from "./lock";
 
 export const OPENCODE_GO_PROVIDER_ID = "opencode-go";
 // V2 accounts use a separate, stable provider ID rather than the native
@@ -39,6 +44,11 @@ async function ensureProfileDir(profileId: string): Promise<void> {
   const directory = openCodeProfileDir(profileId);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await chmod(directory, 0o700);
+}
+
+async function writeProfileData(profileId: string, data: OpenCodeGoProfileData): Promise<void> {
+  await ensureProfileDir(profileId);
+  await writeJsonSecure(openCodeProfileDataFile(profileId), data);
 }
 
 export function createOpenCodeProfileId(): string {
@@ -93,7 +103,7 @@ export async function updateOpenCodeProfileDefaultModel(
 ): Promise<OpenCodeGoProfileData> {
   const current = await getOpenCodeProfileData(profileId);
   const next = { ...current, defaultModel };
-  await writeJsonSecure(openCodeProfileDataFile(profileId), next);
+  await writeProfileData(profileId, next);
   return next;
 }
 
@@ -136,7 +146,23 @@ export async function openCodeRunEnvironment(
 }
 
 export async function hasOpenCodeGoCredential(profileId: string): Promise<boolean> {
+  const profile = await readJson<OpenCodeGoProfileData | null>(openCodeProfileDataFile(profileId), null);
+  if (!profile || profile.type !== "go") return false;
+  if (profile.console) {
+    const credentials = await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(profileId));
+    return credentials.some((credential) => credential.id === profile.console!.credentialId &&
+      credential.value.metadata.accountID === profile.console!.accountId &&
+      credential.value.metadata.orgID === profile.console!.orgId);
+  }
   return (await readOpenCodeGoApiKey(profileId)) !== null;
+}
+
+export async function saveOpenCodeConsoleProfile(
+  profileId: string,
+  profile: OpenCodeGoProfileData,
+): Promise<void> {
+  if (!profile.console) throw new Error("Subscription identity is missing.");
+  await writeProfileData(profileId, profile);
 }
 
 /** Read one private Go key for an authenticated provider request. */
@@ -152,8 +178,7 @@ export async function createOpenCodeGoProfile(
   profileId: string,
   credential?: unknown,
 ): Promise<void> {
-  await ensureProfileDir(profileId);
-  await writeJsonSecure(openCodeProfileDataFile(profileId), { type: "go" });
+  await writeProfileData(profileId, { type: "go" });
 
   if (credential !== undefined) {
     await saveOpenCodeGoCredential(profileId, credential);
@@ -205,11 +230,18 @@ export async function removeOpenCodeProfile(profileId: string): Promise<void> {
   if (!/^go-[0-9a-f-]{36}$/i.test(profileId)) {
     throw new Error("Refusing to remove an invalid OpenCode profile id.");
   }
-  await rm(directory, { recursive: true, force: true });
-
-  const state = await readOpenCodeState();
-  if (state.active === profileId) {
-    state.active = null;
-    await writeOpenCodeState(state);
+  const profile = await readJson<OpenCodeGoProfileData | null>(openCodeProfileDataFile(profileId), null);
+  let release: (() => Promise<void>) | undefined;
+  if (profile?.console) {
+    await mkdir(OPENCODE_LOCKS_DIR, { recursive: true, mode: 0o700 });
+    release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account", 100);
   }
+  try {
+    await rm(directory, { recursive: true, force: true });
+    const state = await readOpenCodeState();
+    if (state.active === profileId) {
+      state.active = null;
+      await writeOpenCodeState(state);
+    }
+  } finally { await release?.(); }
 }

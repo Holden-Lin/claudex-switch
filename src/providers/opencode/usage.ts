@@ -1,5 +1,6 @@
 import type { UsageFetchResult, UsageInfo } from "../../types";
-import { readOpenCodeGoApiKey } from "./profiles";
+import { getOpenCodeProfileData, readOpenCodeGoApiKey } from "./profiles";
+import { fetchOpenCodeConsoleUsage } from "./console";
 
 const OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 const FETCH_TIMEOUT_MS = 5_000;
@@ -46,6 +47,8 @@ export async function probeOpenCodeGoKey(
 export async function fetchOpenCodeUsage(
   profileId: string,
 ): Promise<UsageFetchResult> {
+  const profile = await getOpenCodeProfileData(profileId).catch(() => null);
+  if (profile?.console) return fetchOpenCodeConsoleUsage(profileId);
   const apiKey = await readOpenCodeGoApiKey(profileId);
   if (!apiKey) return { usage: null, note: "reconnect required" };
 

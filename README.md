@@ -173,7 +173,8 @@ claudex-switch add work
 - **Claude Code · ChatGPT（本机 CLIProxyAPI）** — 在 Claude Code 中使用独立的 ChatGPT 登录；本项目管理本机代理、模型映射和启动
 - **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等），可为该账号保存默认模型
 - **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商，并为该账号保存默认模型
-- **OpenCode Go** — 使用 OpenCode Go 订阅；V1 可直接导入当前 Go 凭据，或在专属 OpenCode TUI 里用 `/connect` 登录；V2 可显式导入本机 OpenCode 已登录的凭据或手动粘贴 API key，保存前会先验证
+- **OpenCode Subscription** — OpenCode 2.x 浏览器订阅登录，无需 API key；添加第二账号时选择它的 Go workspace
+- **OpenCode Go API Key** — 保留 V1 私有 TUI / V2 显式导入或粘贴 key 的路径
 
 选择 Codex API Key 后会继续选择接口来源：
 
@@ -187,6 +188,12 @@ claudex-switch add work
 - 旧的 Codex 本地账号会在首次加载时自动补上 `default_model`
 
 ### 在 OpenCode V1 / V2 中使用 Go 订阅
+
+OpenCode 2.x 推荐选择 **OpenCode Subscription — browser login**。浏览器中登录要添加的账号，选择持有 Go 订阅的 workspace 并授权，无需寻找或生成 Go key。每个别名保存独立的原生 OAuth 凭据与历史，OpenCode 自动续期 token。添加前会验证订阅并选择可用 Go 默认模型；`refresh` 必须登录同一账号和 workspace，取消、无订阅或登录错账号不会替换原账号。`list` 显示对应订阅的 5 小时、周、月额度。
+
+`claudex-switch add go-second` → 选择 Subscription → 第二账号浏览器授权 → `claudex-switch go-second -run`。旧的 key 账号继续选择 **OpenCode Go API Key**。
+
+以下为 API key 路径的 V1 / V2 说明；订阅登录详见 [OpenCode 指南](docs/use-cases/opencode-go.md)。
 
 OpenCode 默认以 `--auto` 启动，会自动批准未被明确拒绝的权限；运行前请检查权限规则。
 

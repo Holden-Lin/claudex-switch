@@ -172,7 +172,8 @@ Then choose an account type:
 - **Claude API Key** — Anthropic API key, with optional Base URL, auth token, default model, and Sonnet / Opus / Haiku model mapping
 - **Codex ChatGPT** — ChatGPT login (Plus, Pro, Team, etc.), with a saved default model per account
 - **Codex API Key** — OpenAI API key, with either the official API or a custom OpenAI-compatible provider, plus a saved default model per account
-- **OpenCode Go** — OpenCode Go subscription; V1 can import the current Go credential or use `/connect` in a private OpenCode TUI; V2 can explicitly import a login already stored by local OpenCode or paste an API key, verified before saving
+- **OpenCode Subscription** — OpenCode 2.x browser subscription login; authorize the Go workspace, without an API key
+- **OpenCode Go API Key** — existing V1 private-TUI and V2 import/paste-key workflows
 
 After choosing Codex API Key, choose the API source:
 
@@ -186,6 +187,12 @@ When switching accounts, `claudex-switch` also syncs the saved default model for
 - Existing local Codex accounts get `default_model` backfilled on first load
 
 ### Use an OpenCode Go subscription with V1 or V2
+
+On OpenCode 2.x, choose **OpenCode Subscription — browser login**. Sign in to the account to add, select its Go workspace, and authorize; no Go API key is needed. Each alias has its own native OAuth credential and history; OpenCode owns token refresh. Setup verifies active Go access and selects an available Go default model. Refresh must use the same account and workspace; cancellation, a missing subscription, or a different identity does not replace the saved account. `list` reads that workspace’s five-hour, weekly, and monthly quota.
+
+`claudex-switch add go-second` → Subscription → authorize the second account → `claudex-switch go-second -run`. Existing key accounts use **OpenCode Go API Key**.
+
+The V1/V2 details below describe the API-key path. See the [OpenCode guide](docs/use-cases/opencode-go.md) for browser subscriptions.
 
 OpenCode launches with `--auto` by default, which automatically approves permissions not explicitly denied; review the permission rules before using the commands below.
 

@@ -30,6 +30,11 @@ export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 export const CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 export const OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");
 export const OPENCODE_STATE_FILE = join(CLAUDEX_DIR, "opencode", "state.json");
+export const OPENCODE_LOCKS_DIR = join(CLAUDEX_DIR, "opencode", "locks");
+
+export function openCodeProfileConsoleLock(profileId: string): string {
+  return join(OPENCODE_LOCKS_DIR, `${profileId}.lock`);
+}
 
 // OpenCode uses the XDG data directory for auth.json. Its default on macOS and
 // Linux is ~/.local/share, but honoring XDG_DATA_HOME keeps this aligned with a

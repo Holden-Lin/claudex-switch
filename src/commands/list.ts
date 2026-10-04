@@ -265,6 +265,9 @@ async function getOpenCodeAccountInfo(
   try {
     const profile = await getOpenCodeProfileData(profileId);
     info.defaultModel = profile.defaultModel ?? null;
+    if (profile.console) {
+      info.email = profile.console.email;
+    }
     if (!(await hasOpenCodeGoCredential(profileId))) {
       info.authMode = "missing credential";
       info.usageNote = "reconnect required";

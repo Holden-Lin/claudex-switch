@@ -86,6 +86,7 @@ import {
   isSupportedOpenCodeVersion,
 } from "../providers/opencode/version";
 import { resolveOpenCodeV2Key } from "./opencode-key";
+import { loginOpenCodeConsole } from "../providers/opencode/console";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -150,7 +151,11 @@ export async function add(alias: string): Promise<void> {
         value: "codex-apikey" as const,
       },
       {
-        name: "OpenCode Go — OpenCode Go subscription（本机 TUI）",
+        name: "OpenCode Subscription — browser login (Go / Go Plus)",
+        value: "opencode-subscription" as const,
+      },
+      {
+        name: "OpenCode Go API Key — paste or import a Go key",
         value: "opencode-go" as const,
       },
     ],
@@ -175,6 +180,34 @@ export async function add(alias: string): Promise<void> {
     case "opencode-go":
       await addOpenCodeGo(alias);
       break;
+    case "opencode-subscription":
+      await addOpenCodeSubscription(alias);
+      break;
+  }
+}
+
+async function addOpenCodeSubscription(alias: string): Promise<void> {
+  const version = detectOpenCodeVersion();
+  if (version?.major !== 2) {
+    error("Browser subscription login requires OpenCode 2.x. Upgrade OpenCode or choose the Go API Key entry.");
+    process.exit(1);
+    return;
+  }
+  const profileId = createOpenCodeProfileId();
+  try {
+    info("Opening OpenCode subscription login in your browser...");
+    hint("Sign in to the account to add, select the workspace that owns Go, and authorize. No API key is needed.");
+    const profile = await loginOpenCodeConsole(profileId);
+    await addAlias(alias, { provider: "opencode", profileId });
+    await setActiveOpenCodeProfile(profileId);
+    success(`${chalk.bold(alias)} created  ${profile.console!.email} · ${profile.console!.orgName}  Go subscription verified`);
+    hint(`Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to use this subscription (${profile.defaultModel}).`);
+    blank();
+  } catch (err) {
+    await removeOpenCodeProfile(profileId);
+    error(err instanceof Error ? err.message : String(err));
+    blank();
+    process.exit(1);
   }
 }
 

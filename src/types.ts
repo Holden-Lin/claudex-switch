@@ -134,12 +134,19 @@ export interface ProfileInfo {
 }
 
 // -- OpenCode Go types --
-// Only the OpenCode Go credential is copied into each profile. OpenCode keeps
-// its own auth schema, so this project intentionally treats the credential as
-// opaque and never exposes or serializes its key in an alias registry.
+// Go API-key profiles keep a private sidecar. Browser subscription profiles
+// pin a nonsecret identity; their native SQLite store owns OAuth rotation.
 export interface OpenCodeGoProfileData {
   type: "go";
   defaultModel?: string;
+  // OAuth tokens remain authoritative in OpenCode's private database.
+  console?: {
+    credentialId: string;
+    accountId: string;
+    email: string;
+    orgId: string;
+    orgName: string;
+  };
 }
 
 export interface OpenCodeProfileState {

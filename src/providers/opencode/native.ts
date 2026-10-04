@@ -36,7 +36,7 @@ export function nativeOpenCodeDatabaseFile(): string {
   return join(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
 }
 
-async function queryRows(
+export async function queryRows(
   dbPath: string,
   sql: string,
 ): Promise<JsonRecord[] | null> {
@@ -76,6 +76,44 @@ async function queryRows(
   } catch {
     return null;
   }
+}
+
+export interface OpenCodeConsoleCredential {
+  id: string;
+  label: string;
+  active: boolean;
+  value: {
+    type: "oauth";
+    methodID: string;
+    access: string;
+    refresh: string;
+    expires: number;
+    metadata: { server: string; accountID: string; email: string; orgID: string; orgName?: string };
+  };
+}
+
+/** Read only Console OAuth records; never fall back to another provider/key. */
+export async function readOpenCodeConsoleCredentials(dbPath: string): Promise<OpenCodeConsoleCredential[]> {
+  if (!(await fileExists(dbPath))) return [];
+  const rows = await queryRows(dbPath,
+    "SELECT id, label, value, active FROM credential WHERE integration_id = 'opencode'");
+  if (!rows) throw new Error("Could not read OpenCode's private subscription credentials.");
+  return rows.flatMap((row) => {
+    try {
+      const value = JSON.parse(String(row.value));
+      const metadata = value.metadata;
+      if (typeof row.id !== "string" || value.type !== "oauth" ||
+          typeof value.access !== "string" || !value.access ||
+          typeof value.refresh !== "string" || !value.refresh ||
+          typeof value.expires !== "number" || !Number.isFinite(value.expires) ||
+          typeof value.methodID !== "string" ||
+          !isRecord(metadata) || typeof metadata.server !== "string" ||
+          typeof metadata.accountID !== "string" || !metadata.accountID ||
+          typeof metadata.email !== "string" ||
+          typeof metadata.orgID !== "string" || !metadata.orgID) return [];
+      return [{ id: row.id, label: String(row.label), active: row.active === 1 || row.active === true, value }];
+    } catch { return []; }
+  });
 }
 
 function parseCredentialRows(rows: JsonRecord[]): NativeOpenCodeGoCredential[] {

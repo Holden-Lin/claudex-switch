@@ -32,6 +32,7 @@ import {
 } from "../providers/codex/registry";
 import {
   openCodeProfileExists,
+  getOpenCodeProfileData,
   readOpenCodeGoApiKey,
   saveOpenCodeGoCredential,
   setActiveOpenCodeProfile,
@@ -42,6 +43,7 @@ import {
   isSupportedOpenCodeVersion,
 } from "../providers/opencode/version";
 import { resolveOpenCodeV2Key } from "./opencode-key";
+import { loginOpenCodeConsole } from "../providers/opencode/console";
 import type { OAuthAccount } from "../types";
 
 export async function refresh(aliasOrName: string): Promise<void> {
@@ -91,7 +93,27 @@ async function refreshOpenCode(alias: string, profileId: string): Promise<void> 
     return;
   }
 
+  if ((await getOpenCodeProfileData(profileId)).console && openCodeVersion.major !== 2) {
+    error("OpenCode subscription accounts require OpenCode 2.x.");
+    process.exit(1);
+    return;
+  }
+
   if (openCodeVersion.major === 2) {
+    const profile = await getOpenCodeProfileData(profileId);
+    if (profile.console) {
+      try {
+        info(`Sign in again as ${profile.console.email} and authorize ${profile.console.orgName}.`);
+        await loginOpenCodeConsole(profileId, profile);
+        await setActiveOpenCodeProfile(profileId);
+        success(`${chalk.bold(alias)} OpenCode subscription reconnected`);
+      } catch (err) {
+        error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+      blank();
+      return;
+    }
     const previousKey = await readOpenCodeGoApiKey(profileId);
     if (!previousKey) {
       error("This profile has no saved OpenCode Go API key to replace.");
