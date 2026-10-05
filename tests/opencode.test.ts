@@ -174,6 +174,22 @@ describe("OpenCode Go profiles", () => {
     expect((await getOpenCodeProfileData(PROFILE_ID)).defaultModel).toBe("opencode-go/glm-5.3-flash");
   });
 
+  test("V2 lists the live Go catalog in the picker without saving it as history", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-catalog-key" });
+    serveGoCatalog();
+    const prepared = await prepareOpenCodeV2RunEnvironment(PROFILE_ID, "opencode-go/glm-5.3-flash", async () => {});
+    const config = JSON.parse(prepared.env.OPENCODE_CONFIG_CONTENT ?? "{}");
+    expect(config.model).toBe(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/glm-5.3-flash`);
+    expect(Object.keys(config.providers[OPENCODE_V2_MANAGED_PROVIDER_ID].models).sort()).toEqual([
+      "glm-5.3-flash",
+      "kimi-k3",
+      "minimax-m3",
+    ]);
+    expect(JSON.parse(await readFile(openCodeProfileV2ModelInventoryFile(PROFILE_ID), "utf8"))).toEqual([
+      "opencode-go/glm-5.3-flash",
+    ]);
+  });
+
   test("V2 history drops a differently-cased spelling of the selected model", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-history-key" });
     await mkdir(openCodeProfileV2RuntimeDir(PROFILE_ID), { recursive: true });

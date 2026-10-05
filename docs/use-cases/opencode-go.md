@@ -51,6 +51,7 @@ OpenCode 默认以 `--auto` 启动，会自动批准未明确拒绝的权限；�
 - V2 可显式导入本机 SQLite 中的 `opencode-go` 凭据，或遮蔽输入 key；只读取 Go，不静默导出其他 provider。保存前以 Go usage 端点验证，401 / 403 拒绝并重试；网络不可达时提示后仍允许保存，首次模型请求可能失败。
 - V2 key 保存在 claudex 私有 profile，启动前通过回环本地 API 同步到别名私有数据库；不经 argv 或子进程环境传入。首次启动仍需 `--model opencode-go/<model>`；`refresh` 保持替换 key 的行为。
 - key 别名的 `model` 与 `-run --model` 按官方 Go 目录校正模型 ID：TUI 显示名或大小写不同（如 `GLM-5.3-Flash`）自动转成目录 ID（`glm-5.3-flash`），目录中没有的模型直接拒绝并列出可选 ID；旧版误存的默认值在下次启动时自动更正。目录不可达时保留原输入。
+- V2 key 别名启动时把官方 Go 目录全部列入 TUI 模型选择器，可直接切换；目录不可达时只列该别名用过的模型（私有历史）。
 
 ## 验证范围
 
