@@ -1003,8 +1003,10 @@ async function verifyProductLaunchContract(base) {
   const deniedModel = await runProductLaunch(fixture, "product-bad-model", "product-denied-model");
   assert(deniedModel.status !== 0 && deniedModel.capture === null, "A non-Go model unexpectedly launched the V2 TUI.");
   assert(
-    deniedModel.output.includes("only bind credentials for OpenCode Go models"),
-    "The non-Go model fixture did not report the expected fail-closed reason.",
+    deniedModel.output.includes(
+      "OpenCode Go models must use the form opencode-go/<model> (for example opencode-go/kimi-k3).",
+    ),
+    "The non-Go model fixture did not report the expected early model-validation failure.",
   );
   assert(
     deniedModel.startedEvents.includes("version") &&
