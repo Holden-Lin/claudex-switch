@@ -5,6 +5,7 @@ import { cleanupOpenShimDir, createOpenShimDir } from "../../lib/browser";
 import { OPENCODE_LOCKS_DIR, openCodeProfileConsoleLock, openCodeProfileV2DatabaseFile, openCodeProfileV2DataHome, openCodeProfileV2RuntimeDir } from "../../lib/paths";
 import type { OpenCodeGoProfileData, UsageFetchResult, UsageInfo } from "../../types";
 import { readOpenCodeConsoleCredentials, type OpenCodeConsoleCredential } from "./native";
+import { fetchOpenCodeGoCatalogIds } from "./catalog";
 import { OPENCODE_GO_PROVIDER_ID, createOpenCodeProfileId, getOpenCodeProfileData, removeOpenCodeProfile, saveOpenCodeConsoleProfile } from "./profiles";
 import { acquireProfileLock, fetchOpenCodeApi, locationData, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer } from "./runtime";
 
@@ -141,10 +142,8 @@ export async function fetchOpenCodeConsoleGoModels(models: JsonRecord[], credent
   const declaredModels = record(provider) && record(provider.models)
     ? new Set(Object.entries(provider.models).filter(([, model]) => record(model) && model.disabled !== true).map(([id]) => id))
     : new Set();
-  const response = await fetch("https://opencode.ai/zen/go/v1/models", { signal: AbortSignal.timeout(5_000), redirect: "error" });
-  if (!response.ok) throw new Error("Could not load OpenCode's Go model catalog.");
-  const data = await response.json();
-  const ids = new Set(record(data) && Array.isArray(data.data) ? data.data.flatMap((item: unknown) => record(item) && typeof item.id === "string" ? [item.id] : []) : []);
+  const ids = await fetchOpenCodeGoCatalogIds();
+  if (!ids) throw new Error("Could not load OpenCode's Go model catalog.");
   // Console OAuth integration is "opencode", but its subscription provider is
   // "opencode-go". Zen may declare the same IDs on a different billing route.
   const available = models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) &&

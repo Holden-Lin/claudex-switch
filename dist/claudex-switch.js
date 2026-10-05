@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2048,6 +2034,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2192,7 +2179,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -7096,6 +7083,37 @@ import { spawn as spawn5 } from "child_process";
 import { chmod as chmod9, mkdir as mkdir11 } from "fs/promises";
 import { join as join9 } from "path";
 
+// src/providers/opencode/catalog.ts
+var OPENCODE_GO_CATALOG_URL = "https://opencode.ai/zen/go/v1/models";
+async function fetchOpenCodeGoCatalogIds() {
+  try {
+    const response = await fetch(OPENCODE_GO_CATALOG_URL, { signal: AbortSignal.timeout(5000), redirect: "error" });
+    if (!response.ok)
+      return null;
+    const data = await response.json();
+    const items = data && typeof data === "object" && Array.isArray(data.data) ? data.data : [];
+    const ids = new Set(items.flatMap((item) => item && typeof item === "object" && typeof item.id === "string" ? [item.id] : []));
+    return ids.size > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+function matchOpenCodeGoModel(input, catalog) {
+  const model = normalizeOpenCodeGoModel(input);
+  const id = model.slice(OPENCODE_GO_PROVIDER_ID.length + 1);
+  if (catalog.has(id))
+    return model;
+  const wanted = id.toLowerCase().replace(/\s+/g, "-");
+  const match = [...catalog].find((candidate) => candidate.toLowerCase() === wanted);
+  if (match)
+    return `${OPENCODE_GO_PROVIDER_ID}/${match}`;
+  throw new Error(`OpenCode Go has no model "${id}". Available: ${[...catalog].sort().join(", ")}.`);
+}
+async function resolveOpenCodeGoModel(input) {
+  const catalog = await fetchOpenCodeGoCatalogIds();
+  return catalog ? matchOpenCodeGoModel(input, catalog) : normalizeOpenCodeGoModel(input);
+}
+
 // src/providers/opencode/runtime.ts
 import { randomBytes as randomBytes2, randomUUID as randomUUID5 } from "crypto";
 import { spawn as spawn4 } from "child_process";
@@ -7272,7 +7290,7 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
   const inventoryFile = openCodeProfileV2ModelInventoryFile(profileId);
   const release = await acquireProfileLock(`${inventoryFile}.lock`, "model history");
   try {
-    const existing = await readModelInventory(inventoryFile);
+    const existing = (await readModelInventory(inventoryFile)).filter((model) => model === selectedGoModel || model.toLowerCase() !== selectedGoModel.toLowerCase());
     const next = [...new Set([...existing, selectedGoModel])];
     buildOpenCodeV2Config(source, selectedGoModel, next);
     await writeModelInventory(inventoryFile, next);
@@ -7811,11 +7829,9 @@ async function fetchOpenCodeConsoleGoModels(models, credential) {
   const config = await configResponse.json();
   const provider = record(config) && record(config.providers) ? config.providers[OPENCODE_GO_PROVIDER_ID] : null;
   const declaredModels = record(provider) && record(provider.models) ? new Set(Object.entries(provider.models).filter(([, model]) => record(model) && model.disabled !== true).map(([id]) => id)) : new Set;
-  const response = await fetch("https://opencode.ai/zen/go/v1/models", { signal: AbortSignal.timeout(5000), redirect: "error" });
-  if (!response.ok)
+  const ids = await fetchOpenCodeGoCatalogIds();
+  if (!ids)
     throw new Error("Could not load OpenCode's Go model catalog.");
-  const data = await response.json();
-  const ids = new Set(record(data) && Array.isArray(data.data) ? data.data.flatMap((item) => record(item) && typeof item.id === "string" ? [item.id] : []) : []);
   const available = models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) && item.enabled !== false && typeof item.id === "string" && ids.has(item.id));
   if (available.length === 0)
     throw new Error("This Console workspace has no available Go models; check its subscription and retry.");
@@ -9358,7 +9374,7 @@ async function model(aliasOrName, defaultModel) {
     process.exit(1);
   }
   const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
-  const normalizedModel = profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart) : resolveModelShorthand(entry.target.provider, modelPart);
+  let normalizedModel = profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart) : resolveModelShorthand(entry.target.provider, modelPart);
   let authMode;
   try {
     if (entry.target.provider === "opencode" && (await getOpenCodeProfileData(entry.target.profileId)).console) {
@@ -9369,6 +9385,9 @@ async function model(aliasOrName, defaultModel) {
         await prepared.release();
       }
     } else {
+      if (entry.target.provider === "opencode") {
+        normalizedModel = await resolveOpenCodeGoModel(normalizedModel);
+      }
       authMode = await updateDefaultModel(entry, normalizedModel);
     }
   } catch (err) {
@@ -9477,7 +9496,21 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   let profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
   const openCodeProfile = openCodeProfileId ? await getOpenCodeProfileData(openCodeProfileId) : null;
-  const resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile) : profile.defaultModel : openCodeProfile?.defaultModel;
+  let resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile) : profile.defaultModel : openCodeProfile?.defaultModel;
+  if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
+    try {
+      const canonical = await resolveOpenCodeGoModel(resolvedModel);
+      if (!runOptions.modelOverride && canonical !== resolvedModel) {
+        await updateOpenCodeProfileDefaultModel(openCodeProfileId, canonical);
+        info(`Corrected the saved default model to ${source_default.cyan(canonical)}.`);
+      }
+      resolvedModel = canonical;
+    } catch (err) {
+      error(err instanceof Error ? err.message : String(err));
+      blank();
+      return 1;
+    }
+  }
   if (runOptions.modelOverride && resolvedModel && !isOpenCode) {
     await updateDefaultModel(entry, resolvedModel);
     if (claudeProfileName) {
@@ -11161,7 +11194,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.18.2",
+  version: "1.18.3",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

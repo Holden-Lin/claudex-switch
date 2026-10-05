@@ -279,7 +279,11 @@ async function rememberOpenCodeV2Model(
   const inventoryFile = openCodeProfileV2ModelInventoryFile(profileId);
   const release = await acquireProfileLock(`${inventoryFile}.lock`, "model history");
   try {
-    const existing = await readModelInventory(inventoryFile);
+    // Drop a differently-cased spelling of the selected model (for example a
+    // display name saved before IDs were resolved against the catalog), so
+    // the picker does not keep offering an ID the upstream rejects.
+    const existing = (await readModelInventory(inventoryFile)).filter((model) =>
+      model === selectedGoModel || model.toLowerCase() !== selectedGoModel.toLowerCase());
     const next = [...new Set([...existing, selectedGoModel])];
     buildOpenCodeV2Config(source, selectedGoModel, next);
     await writeModelInventory(inventoryFile, next);

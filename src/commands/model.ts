@@ -31,6 +31,7 @@ import {
   updateOpenCodeProfileDefaultModel,
 } from "../providers/opencode/profiles";
 import { normalizeOpenCodeConsoleModel, prepareOpenCodeConsoleRun } from "../providers/opencode/console";
+import { resolveOpenCodeGoModel } from "../providers/opencode/catalog";
 import type { AliasEntry } from "../types";
 
 export async function updateDefaultModel(
@@ -121,7 +122,7 @@ export async function model(
     entry.target.provider === "claude"
       ? await getProfileData(entry.target.profileName)
       : null;
-  const normalizedModel =
+  let normalizedModel =
     profile?.type === "local-cliproxyapi"
       ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart)
       : resolveModelShorthand(entry.target.provider, modelPart);
@@ -133,6 +134,9 @@ export async function model(
       try { authMode = await updateDefaultModel(entry, normalizedModel); }
       finally { await prepared.release(); }
     } else {
+      if (entry.target.provider === "opencode") {
+        normalizedModel = await resolveOpenCodeGoModel(normalizedModel);
+      }
       authMode = await updateDefaultModel(entry, normalizedModel);
     }
   } catch (err) {

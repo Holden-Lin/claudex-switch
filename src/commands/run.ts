@@ -42,7 +42,9 @@ import {
   getOpenCodeProfileData,
   normalizeOpenCodeGoModel,
   openCodeRunEnvironment,
+  updateOpenCodeProfileDefaultModel,
 } from "../providers/opencode/profiles";
+import { resolveOpenCodeGoModel } from "../providers/opencode/catalog";
 import {
   prepareOpenCodeV2RunEnvironment,
   type OpenCodeV2CredentialSync,
@@ -225,7 +227,7 @@ export async function runAliasSession(
   const openCodeProfile = openCodeProfileId
     ? await getOpenCodeProfileData(openCodeProfileId)
     : null;
-  const resolvedModel = runOptions.modelOverride
+  let resolvedModel = runOptions.modelOverride
     ? profile?.type === "local-cliproxyapi"
       ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
       : isOpenCode
@@ -238,6 +240,22 @@ export async function runAliasSession(
         ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
         : profile.defaultModel
       : openCodeProfile?.defaultModel;
+  if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
+    // Key-based Go aliases take the model ID verbatim; resolve display names
+    // and casing against the official catalog before the upstream rejects it.
+    try {
+      const canonical = await resolveOpenCodeGoModel(resolvedModel);
+      if (!runOptions.modelOverride && canonical !== resolvedModel) {
+        await updateOpenCodeProfileDefaultModel(openCodeProfileId, canonical);
+        info(`Corrected the saved default model to ${chalk.cyan(canonical)}.`);
+      }
+      resolvedModel = canonical;
+    } catch (err) {
+      error(err instanceof Error ? err.message : String(err));
+      blank();
+      return 1;
+    }
+  }
   if (runOptions.modelOverride && resolvedModel && !isOpenCode) {
     await updateDefaultModel(entry, resolvedModel);
     if (claudeProfileName) {

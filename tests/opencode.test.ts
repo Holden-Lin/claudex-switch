@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
@@ -12,6 +12,7 @@ import {
   OPENCODE_GLOBAL_AUTH_FILE,
   OPENCODE_STATE_FILE,
   openCodeProfileAuthFile,
+  openCodeProfileDataFile,
   openCodeProfileV2DatabaseFile,
   openCodeProfileV2CredentialStateFile,
   openCodeProfileV2DataHome,
@@ -36,10 +37,21 @@ import {
   syncOpenCodeV2CredentialToPrivateDatabase,
 } from "../src/providers/opencode/runtime";
 import { parseOpenCodeVersion } from "../src/providers/opencode/version";
+import { matchOpenCodeGoModel, resolveOpenCodeGoModel } from "../src/providers/opencode/catalog";
+import { model as setDefaultModel } from "../src/commands/model";
 
 const PROFILE_ID = "go-00000000-0000-4000-8000-000000000001";
 const PROFILE_ID_2 = "go-00000000-0000-4000-8000-000000000002";
 const CREDENTIAL = { type: "api", key: "go-test-secret" };
+const originalFetch = globalThis.fetch;
+const GO_CATALOG = new Set(["glm-5.3-flash", "kimi-k3", "minimax-m3"]);
+
+function serveGoCatalog(ids = GO_CATALOG) {
+  globalThis.fetch = (async () => Response.json({
+    object: "list",
+    data: [...ids].map((id) => ({ id, object: "model" })),
+  })) as unknown as typeof fetch;
+}
 
 type SpawnCall = {
   command: string;
@@ -100,6 +112,82 @@ describe("OpenCode Go profiles", () => {
     await resetTestHome();
     spyOn(console, "log").mockImplementation(() => {});
     spyOn(console, "error").mockImplementation(() => {});
+    // Offline by default: model IDs pass through unchanged unless a test
+    // serves the Go catalog explicitly.
+    globalThis.fetch = (async () => { throw new Error("offline"); }) as unknown as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test("resolves Go display names and casing to the catalog model ID", async () => {
+    expect(matchOpenCodeGoModel("opencode-go/GLM-5.3-Flash", GO_CATALOG)).toBe("opencode-go/glm-5.3-flash");
+    expect(matchOpenCodeGoModel("opencode-go/Kimi K3", GO_CATALOG)).toBe("opencode-go/kimi-k3");
+    expect(matchOpenCodeGoModel("opencode-go/kimi-k3", GO_CATALOG)).toBe("opencode-go/kimi-k3");
+    expect(() => matchOpenCodeGoModel("opencode-go/glm-9", GO_CATALOG)).toThrow(
+      'OpenCode Go has no model "glm-9". Available: glm-5.3-flash, kimi-k3, minimax-m3.',
+    );
+    expect(await resolveOpenCodeGoModel("opencode-go/GLM-5.3-Flash")).toBe("opencode-go/GLM-5.3-Flash");
+    serveGoCatalog();
+    expect(await resolveOpenCodeGoModel("opencode-go/GLM-5.3-Flash")).toBe("opencode-go/glm-5.3-flash");
+  });
+
+  test("model command saves the catalog ID and rejects unknown Go models", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, CREDENTIAL);
+    await saveAliases({
+      version: 1,
+      aliases: [{ alias: "go-work", target: { provider: "opencode", profileId: PROFILE_ID }, createdAt: 1 }],
+    });
+    serveGoCatalog();
+    await setDefaultModel("go-work", "opencode-go/GLM-5.3-Flash");
+    expect((await getOpenCodeProfileData(PROFILE_ID)).defaultModel).toBe("opencode-go/glm-5.3-flash");
+
+    const exit = spyOn(process, "exit").mockImplementation((() => { throw new Error("exit"); }) as never);
+    try {
+      await expect(setDefaultModel("go-work", "opencode-go/glm-9")).rejects.toThrow("exit");
+    } finally {
+      exit.mockRestore();
+    }
+    expect((await getOpenCodeProfileData(PROFILE_ID)).defaultModel).toBe("opencode-go/glm-5.3-flash");
+  });
+
+  test("corrects a saved display-name default before launching", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, CREDENTIAL);
+    await writeJsonSecure(openCodeProfileDataFile(PROFILE_ID), {
+      type: "go",
+      defaultModel: "opencode-go/GLM-5.3-Flash",
+    });
+    await saveAliases({
+      version: 1,
+      aliases: [{ alias: "go-work", target: { provider: "opencode", profileId: PROFILE_ID }, createdAt: 1 }],
+    });
+    serveGoCatalog();
+    const calls: SpawnCall[] = [];
+    const exitCode = await runAliasSession(
+      "go-work",
+      [],
+      createSpawn(calls),
+      () => ({ major: 1, minor: 18, patch: 30, raw: "1.18.30" }),
+    );
+    expect(exitCode).toBe(0);
+    expect(calls[0]?.args).toEqual(["--auto", "--model", "opencode-go/glm-5.3-flash"]);
+    expect((await getOpenCodeProfileData(PROFILE_ID)).defaultModel).toBe("opencode-go/glm-5.3-flash");
+  });
+
+  test("V2 history drops a differently-cased spelling of the selected model", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-history-key" });
+    await mkdir(openCodeProfileV2RuntimeDir(PROFILE_ID), { recursive: true });
+    await writeFile(
+      openCodeProfileV2ModelInventoryFile(PROFILE_ID),
+      JSON.stringify(["opencode-go/GLM-5.3-Flash", "opencode-go/kimi-k3"]),
+    );
+    const prepared = await prepareOpenCodeV2RunEnvironment(PROFILE_ID, "opencode-go/glm-5.3-flash", async () => {});
+    const config = JSON.parse(prepared.env.OPENCODE_CONFIG_CONTENT ?? "{}");
+    expect(Object.keys(config.providers[OPENCODE_V2_MANAGED_PROVIDER_ID].models).sort()).toEqual(["glm-5.3-flash", "kimi-k3"]);
+    expect(JSON.parse(await readFile(openCodeProfileV2ModelInventoryFile(PROFILE_ID), "utf8"))).toEqual([
+      "opencode-go/kimi-k3",
+      "opencode-go/glm-5.3-flash",
+    ]);
   });
 
   test("stores only the Go credential in a private 0600 profile", async () => {
