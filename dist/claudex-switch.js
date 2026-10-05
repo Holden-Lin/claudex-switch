@@ -7673,7 +7673,12 @@ async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credent
   if (!key)
     throw new Error("OpenCode Go credential is missing from this profile.");
   const sourceConfig = process.env.OPENCODE_CONFIG_CONTENT;
-  const managedModels = await rememberOpenCodeV2Model(profileId, sourceConfig, selectedModel);
+  const history = await rememberOpenCodeV2Model(profileId, sourceConfig, selectedModel);
+  const catalog = await fetchOpenCodeGoCatalogIds();
+  const managedModels = [...new Set([
+    ...history,
+    ...[...catalog ?? []].map((id) => `${OPENCODE_GO_PROVIDER_ID}/${id}`)
+  ])];
   const serializedConfig = JSON.stringify(buildOpenCodeV2Config(sourceConfig, selectedModel, managedModels));
   const privateRoot = openCodeProfileV2RuntimeDir(profileId);
   const dataHome = openCodeProfileV2DataHome(profileId);
@@ -11194,7 +11199,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.18.3",
+  version: "1.18.4",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

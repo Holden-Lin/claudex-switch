@@ -1,4 +1,5 @@
 import { acquireProfileLock } from "./lock";
+import { fetchOpenCodeGoCatalogIds } from "./catalog";
 export { acquireProfileLock } from "./lock";
 import { randomBytes, randomUUID } from "crypto";
 import { spawn, type ChildProcess } from "child_process";
@@ -806,7 +807,15 @@ export async function prepareOpenCodeV2RunEnvironment(
   const key = await readOpenCodeGoApiKey(profileId);
   if (!key) throw new Error("OpenCode Go credential is missing from this profile.");
   const sourceConfig = process.env.OPENCODE_CONFIG_CONTENT;
-  const managedModels = await rememberOpenCodeV2Model(profileId, sourceConfig, selectedModel);
+  const history = await rememberOpenCodeV2Model(profileId, sourceConfig, selectedModel);
+  // The managed provider only exposes models listed in its overlay, so add the
+  // live Go catalog to make every Go model selectable in the TUI picker.
+  // Offline, the alias's own model history still works.
+  const catalog = await fetchOpenCodeGoCatalogIds();
+  const managedModels = [...new Set([
+    ...history,
+    ...[...(catalog ?? [])].map((id) => `${OPENCODE_GO_PROVIDER_ID}/${id}`),
+  ])];
   const serializedConfig = JSON.stringify(
     buildOpenCodeV2Config(sourceConfig, selectedModel, managedModels),
   );

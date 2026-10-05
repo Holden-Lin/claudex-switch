@@ -2,7 +2,7 @@
 
 ## Now
 
-本次版本 [v1.18.3](https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.18.3)：key 型 OpenCode Go 别名按官方 Go 目录校正模型 ID，修正误存显示名（`GLM-5.3-Flash`）导致的 “Model is unavailable”；旧默认值下次启动自动更正，模型历史去掉大小写重复项。
+待发 v1.18.4（PR 待合并）：V2 key 别名的 TUI 模型选择器列出完整 Go 目录，可切换模型。先合 PR #8 修复 main CI 契约断言，再合本 PR 并打 tag。
 
 ## Next
 
@@ -15,6 +15,7 @@
 
 ## Done
 
+- [x] 2026-10-05：评审 PR #8（仅改 CI 契约脚本里非 Go 模型的报错断言，适配 v1.18.3 提前校验；两个 CI job 通过），可合并，但自动模式拦截了 agent 合并，留给用户。V2 选择器只显示历史模型：受管 provider 只暴露 overlay 列出的模型；真实 OpenCode 2.0.21 隔离实测 44 个目录 ID（含虚构 ID）均能通过启动检查，遂启动时并入在线 Go 目录（不写入历史）。282 项测试、1,180 断言、类型检查通过；真实 2.0.21 假 key 启动检查 43 个模型入选择器、耗时约 1.2 秒。
 - [x] 2026-10-05：合并远端 v1.17.0–v1.18.2 并解决 TODO 冲突；修复 key 型 Go 别名把显示名 `GLM-5.3-Flash` 当模型 ID 发给上游被拒的问题：`model`、`-run --model` 与已存默认值均按官方 Go 目录（与订阅路径共用抽取的 catalog 模块）解析，未知模型拒绝并列出可选；V2 历史去大小写重复。281 项测试、1,177 断言、类型 / 文档 / 构建通过；隔离 HOME 下打包 CLI 对真实目录验证显示名、含空格名转换及未知模型拒绝。
 - [x] 2026-10-04：修正 v1.18.0 把 Console OAuth integration `opencode` 误当 Go model provider 的错误，Go 使用 `opencode-go` 与原生 Go 端点，排除同名 Zen 模型；旧默认值显示和启动均转 Go，无需重新登录。277 项测试、1,163 断言、类型 / 文档 / 构建 / 发布守卫通过；原生 2.0.22 双 provider fixture 14 项验收通过，包括正常 Node 脚本入口无 SQLite 警告。PTY 检查发现 Bun 入口乱码，已恢复 Node；无 sqlite3 的 Node SQLite 回退也验证无实验性警告，其他警告仍保留。`openlam42` 真额度与截图相符，用户确认只看剩余，无须改显示；只读诊断未刷新或写入真实凭据。
 - [x] 2026-10-04：完成 OpenCode 浏览器订阅入口；273 项测试、1,144 断言、类型检查、文档检查、构建与发布守卫皆过；真实 OpenCode 2.0.22 在隔离 HOME 的 13 项模拟 Console 验收全过。覆盖 A/B 登录与额度、原生 token 轮换、绑定恢复、错误账号 / 无订阅 / 取消拒绝、刷新保留历史、打包 CLI list 和 -run；运行中 purge 保留账号，正常退出 / 启动失败均释放锁。版本升至 `1.18.0`，未读写真实账号。
