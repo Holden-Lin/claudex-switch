@@ -147,9 +147,10 @@ export async function runAliasSession(
   const entry = await resolveAliasOrExit(aliasOrName);
   if (
     runOptions.autoreviewOverride !== undefined &&
-    entry.target.provider !== "codex"
+    entry.target.provider !== "codex" &&
+    entry.target.provider !== "opencode"
   ) {
-    error("--autoreview is only supported for Codex sessions.");
+    error("--autoreview is only supported for Codex and OpenCode sessions.");
     blank();
     process.exit(1);
   }
@@ -428,10 +429,12 @@ export async function runAliasSession(
     blank();
     return 1;
   }
-  const env = applyCodexAutoreview(baseEnv, runOptions.autoreviewOverride);
+  const env = applyAutoreview(baseEnv, runOptions.autoreviewOverride);
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
-  if (entry.target.provider === "codex") {
+  // Codex reads the env in its Stop hook; OpenCode V2 in the cc_chats
+  // completion-review plugin, which delegates to the same review script.
+  if (entry.target.provider === "codex" || entry.target.provider === "opencode") {
     const inheritedState =
       process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
     const state =
@@ -644,7 +647,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
   };
 }
 
-function applyCodexAutoreview(
+function applyAutoreview(
   baseEnv: NodeJS.ProcessEnv | undefined,
   override?: boolean,
 ): NodeJS.ProcessEnv | undefined {

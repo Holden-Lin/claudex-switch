@@ -9448,8 +9448,8 @@ function requestsUnsafeOpenCodeV2Target(args) {
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn7, openCodeVersionDetector = detectOpenCodeVersion, openCodeCredentialSync) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = await resolveAliasOrExit(aliasOrName);
-  if (runOptions.autoreviewOverride !== undefined && entry.target.provider !== "codex") {
-    error("--autoreview is only supported for Codex sessions.");
+  if (runOptions.autoreviewOverride !== undefined && entry.target.provider !== "codex" && entry.target.provider !== "opencode") {
+    error("--autoreview is only supported for Codex and OpenCode sessions.");
     blank();
     process.exit(1);
   }
@@ -9623,9 +9623,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     blank();
     return 1;
   }
-  const env2 = applyCodexAutoreview(baseEnv, runOptions.autoreviewOverride);
+  const env2 = applyAutoreview(baseEnv, runOptions.autoreviewOverride);
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
-  if (entry.target.provider === "codex") {
+  if (entry.target.provider === "codex" || entry.target.provider === "opencode") {
     const inheritedState = process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
     const state = runOptions.autoreviewOverride === undefined ? `${inheritedState} (inherited)` : `${runOptions.autoreviewOverride ? "on" : "off"} (this session)`;
     info(`Autoreview: ${state}`);
@@ -9769,7 +9769,7 @@ function parseRunArgumentOptions(args) {
     autoreviewOverride
   };
 }
-function applyCodexAutoreview(baseEnv, override) {
+function applyAutoreview(baseEnv, override) {
   if (override === undefined)
     return baseEnv;
   const env2 = { ...baseEnv ?? process.env };
@@ -11199,7 +11199,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.18.4",
+  version: "1.19.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

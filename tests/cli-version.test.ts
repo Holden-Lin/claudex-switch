@@ -114,7 +114,7 @@ describe("cli version flags", () => {
 
     expect(result.status).toBe(1);
     expect(output).toContain("Expected 'on' or 'off' after --autoreview.");
-    expect(output).not.toContain("--autoreview is only supported for Codex sessions.");
+    expect(output).not.toContain("--autoreview is only supported for Codex and OpenCode sessions.");
   });
 
   test("accepts autoreview through both alias and use session syntaxes", async () => {
@@ -137,7 +137,7 @@ describe("cli version flags", () => {
       const result = runCli(args);
       const output = `${result.stderr}${result.stdout}`;
       expect(result.status).toBe(1);
-      expect(output).toContain("--autoreview is only supported for Codex sessions.");
+      expect(output).toContain("--autoreview is only supported for Codex and OpenCode sessions.");
     }
   });
 });

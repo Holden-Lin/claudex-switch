@@ -33,7 +33,7 @@ See the [JSON output reference](./docs/list-json.md), [use cases](./docs/use-cas
 - `claudex-switch <alias> -run --model <model> [effort]` starts with the selected model and saves it as that account's default for the next run. Bare Claude versions still map to Opus (e.g. `5.5` → `claude-opus-5-5`), with series forms such as `sonnet5` and `fable5.1`, and a bare `fable` means the latest Fable (`claude-fable-5-1`); Codex supports `astra` / `sol` / `luna` for `gpt-6-astra` / `gpt-6.1-sol` / `gpt-6-luna` respectively, `terra` for `gpt-5.6-terra` (GPT-6 has no Terra), and `6` for `gpt-6-astra`; older GPT-5.6 models stay reachable by full id such as `gpt-5.6-sol`. A trailing effort tier applies only to the current run; Codex also supports `ultra` (proactive multi-agent behavior with faster quota consumption)
 - Switching Codex accounts automatically syncs the provider metadata of historical sessions (rollout files + `state_5.sqlite`), so old sessions stay visible in `/resume` after switching between the official provider and a relay (same approach as [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync): visibility metadata only, session content untouched)
 - `claudex-switch <alias> -run --attribution-header false` temporarily sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0` for this Claude run only
-- Codex `-run` defaults to `--approve-for-me` (Auto permission mode); `--autoreview on|off` independently controls the Codex Stop multi-agent review hook without changing the permission mode
+- Codex `-run` defaults to `--approve-for-me` (Auto permission mode); `--autoreview on|off` independently controls completion review (the Codex Stop hook / the OpenCode V2 completion-review plugin) without changing the permission mode
 - `claudex-switch list` fetches remaining quota for all accounts in parallel, updates the Codex tier from the live rate-limit response, and updates the Claude tier from the freshest matching credentials. Claude OAuth / Codex ChatGPT accounts show the remaining percentage of the 5-hour and weekly windows (`5h 89% · wk 61%`), with expired tokens refreshed automatically and written back; API key accounts behind a one-api / new-api relay show the key-level balance, plus the account wallet balance once a console access token is configured (`key $47.34 left · acct $114.71 left`, see "Relay Account Balance" below). Pass `--no-usage` to skip network requests while still refreshing tiers from local credentials
 - Thin alias layer over provider-owned account profiles; switching synchronizes active provider auth/config and may update session-visibility metadata — see the caveats below
 - Checks the latest GitHub Release only on `claudex-switch --version` and auto-updates before showing version info for Bun and Homebrew installs
@@ -133,9 +133,10 @@ claudex-switch cx -run --model sol ultra # proactive multi-agent mode, consumes 
 # Disable the attribution header for this Claude run only
 claudex-switch holden -run --attribution-header false
 
-# Turn the multi-agent completion review off / on for this Codex session only
+# Turn completion review off / on for this Codex / OpenCode V2 session only
 claudex-switch cx -run --autoreview off
 claudex-switch cx -run --autoreview on
+claudex-switch opensatoshi -run --autoreview off
 
 # Add a new account
 claudex-switch add my-claude
@@ -234,7 +235,7 @@ requires_openai_auth = false
 | `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session or OpenCode TUI; Claude Code defaults to `--permission-mode auto`, Codex defaults to `--approve-for-me` (Auto), and OpenCode defaults to `--auto` |
 | `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5.5` / `sonnet5` / `fable` / `fable5.1`, Codex `astra` / `sol` / `terra` / `luna` / `6`; OpenCode Go uses `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
-| `claudex-switch <codex-alias> -run --autoreview <on\|off>` | Control the completion review hook for this Codex session only; it does not change the permission mode |
+| `claudex-switch <codex-or-opencode-alias> -run --autoreview <on\|off>` | Control completion review for this session only (Codex Stop hook; OpenCode V2 needs the completion-review plugin); it does not change the permission mode |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |

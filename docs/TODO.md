@@ -2,11 +2,11 @@
 
 ## Now
 
-待发 v1.18.4（PR 待合并）：V2 key 别名的 TUI 模型选择器列出完整 Go 目录，可切换模型。先合 PR #8 修复 main CI 契约断言，再合本 PR 并打 tag。
+本次版本 v1.19.0：OpenCode 别名的 `-run --autoreview on|off` 控制 cc_chats 的 OpenCode V2 completion-review 插件（与 Codex 同用 `CODEX_COMPLETION_REVIEW_DISABLED`）。
 
 ## Next
 
-- [ ] 用户升级 v1.18.3 后运行 `claudex-switch opensatoshi -run`，确认提示已更正默认模型为 `opencode-go/glm-5.3-flash`、TUI 选择器只剩小写 ID 且短请求成功（真实 HOME 有防护，本次未改动该别名）。
+- [ ] 用户升级 v1.18.4 后运行 `claudex-switch opensatoshi -run`，确认选择器列出全部 Go 模型、切换其他模型短请求成功（真实 HOME 有防护，本次未改动该别名）。
 - [ ] 用户在 v1.18.2 重试失败的第二账号 `add`，选择 Subscription 并授权它的 Go workspace，再 `-run` 发短请求、查 `/sessions`；真实订阅模型响应和计费仍待用户实测。已只读核对生产 Console 双 provider 结构与 `openlam42` 额度，并以真实 OpenCode 2.0.22 + 对应结构 fixture 验 Go 端点、OAuth 绑定、旧默认值转换和 A/B 隔离；不自行刷新已有账号。
 - [ ] 拿到第二账号 key 后，在隔离 HOME 用真实 key 走一次新 `add` 导入/验证流程，再 `-run` 发短请求并查 `/sessions` A/B 隔离；本机 `openlam42` 已导入真钥并验额度，但真 key `-run` 短测仍缺。
 - [ ] 在真实 HOME 上跑一次 `claudex-switch webconfig`，确认自己的账号列表和密钥显示无误（本次仅在隔离测试 HOME 中验证）。
@@ -15,7 +15,8 @@
 
 ## Done
 
-- [x] 2026-10-05：评审 PR #8（仅改 CI 契约脚本里非 Go 模型的报错断言，适配 v1.18.3 提前校验；两个 CI job 通过），可合并，但自动模式拦截了 agent 合并，留给用户。V2 选择器只显示历史模型：受管 provider 只暴露 overlay 列出的模型；真实 OpenCode 2.0.21 隔离实测 44 个目录 ID（含虚构 ID）均能通过启动检查，遂启动时并入在线 Go 目录（不写入历史）。282 项测试、1,180 断言、类型检查通过；真实 2.0.21 假 key 启动检查 43 个模型入选择器、耗时约 1.2 秒。
+- [x] 2026-10-06：`--autoreview` 扩至 OpenCode 别名，仅设/清本次启动的 `CODEX_COMPLETION_REVIEW_DISABLED`，Claude 仍拒绝。283 项测试、`bun run verify` 通过；真实 HOME 上用 `opensatoshi`（OpenCode 2.0.21 TUI）配假 reviewer 实测：`on` 时走完 CONTINUE→改文件→STOP，`off` 时显示 `Autoreview: off (this session)` 且不审。
+- [x] 2026-10-05：评审 PR #8（仅改 CI 契约脚本里非 Go 模型的报错断言，适配 v1.18.3 提前校验；两个 CI job 通过），经用户授权合并（`daa0e40`）；该提交 main CI 的 release guard 失败属未升版中间态。V2 选择器只显示历史模型：受管 provider 只暴露 overlay 列出的模型；真实 OpenCode 2.0.21 隔离实测 44 个目录 ID（含虚构 ID）均能通过启动检查，遂启动时并入在线 Go 目录（不写入历史）。282 项测试、1,180 断言、类型检查通过；真实 2.0.21 假 key 启动检查 43 个模型入选择器、耗时约 1.2 秒。PR #9 rebase 后两 CI job 通过，合并 `907c598` 并发布 v1.18.4：release workflow 成功、6 项资产、latest 为 v1.18.4、release guard 通过。
 - [x] 2026-10-05：合并远端 v1.17.0–v1.18.2 并解决 TODO 冲突；修复 key 型 Go 别名把显示名 `GLM-5.3-Flash` 当模型 ID 发给上游被拒的问题：`model`、`-run --model` 与已存默认值均按官方 Go 目录（与订阅路径共用抽取的 catalog 模块）解析，未知模型拒绝并列出可选；V2 历史去大小写重复。281 项测试、1,177 断言、类型 / 文档 / 构建通过；隔离 HOME 下打包 CLI 对真实目录验证显示名、含空格名转换及未知模型拒绝。
 - [x] 2026-10-04：修正 v1.18.0 把 Console OAuth integration `opencode` 误当 Go model provider 的错误，Go 使用 `opencode-go` 与原生 Go 端点，排除同名 Zen 模型；旧默认值显示和启动均转 Go，无需重新登录。277 项测试、1,163 断言、类型 / 文档 / 构建 / 发布守卫通过；原生 2.0.22 双 provider fixture 14 项验收通过，包括正常 Node 脚本入口无 SQLite 警告。PTY 检查发现 Bun 入口乱码，已恢复 Node；无 sqlite3 的 Node SQLite 回退也验证无实验性警告，其他警告仍保留。`openlam42` 真额度与截图相符，用户确认只看剩余，无须改显示；只读诊断未刷新或写入真实凭据。
 - [x] 2026-10-04：完成 OpenCode 浏览器订阅入口；273 项测试、1,144 断言、类型检查、文档检查、构建与发布守卫皆过；真实 OpenCode 2.0.22 在隔离 HOME 的 13 项模拟 Console 验收全过。覆盖 A/B 登录与额度、原生 token 轮换、绑定恢复、错误账号 / 无订阅 / 取消拒绝、刷新保留历史、打包 CLI list 和 -run；运行中 purge 保留账号，正常退出 / 启动失败均释放锁。版本升至 `1.18.0`，未读写真实账号。
