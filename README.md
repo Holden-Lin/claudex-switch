@@ -4,18 +4,7 @@
 
 claudex-switch 是一款本地 CLI 账号切换器与额度查看工具，管理 Claude Code、Codex 和 OpenCode Go 的已授权账号配置。它用别名选择对应的本地 profile / 凭据，并可启动相应 CLI；它不会创建供应商账号或绕过额度限制。
 
-```bash
-# 离线 JSON 清单需要 claudex-switch v1.14.0 或更高版本；v1.13.2 不支持
-if claudex-switch help 2>&1 | grep -q -- '--json'; then
-  claudex-switch list --json --no-usage
-else
-  printf '%s\n' '当前版本不支持 list --json；已发布的 v1.13.2 尚不支持此功能' >&2
-fi
-# 将 work 替换为现有别名；选择账号会按 provider 更新本地状态
-claudex-switch work
-# 启动对应 CLI；隔离边界因 provider 而异
-claudex-switch work -run
-```
+**第一次使用？** 先[安装](#安装)，再按[快速开始](#快速开始)选择 Claude Code、Codex 或 OpenCode Go，为你自己的两个账号创建别名。已有别名可直接用 `claudex-switch <alias> -run` 启动；各 CLI 的权限与隔离边界见下文。
 
 见[JSON 输出参考](./docs/list-json.md)、[使用场景](./docs/use-cases.md)、[常见问题](./docs/faq.md)与[本地 Codex skill 指南](./skills/claudex-switch/SKILL.md)。该 skill 文件只是仓库内的指南，不会因提交仓库而自动安装或被使用者的 agent 自动发现；需由使用者选择性安装到其 agent 支持的本地 skill 目录。
 
@@ -104,24 +93,60 @@ bun run build
 
 ## 快速开始
 
+### 1. 安装并确认命令可用
+
+先完成上面的[安装](#安装)。安装脚本可能安装 Bun，但不会替你安装 Claude Code、Codex 或 OpenCode；请先确保要用的 CLI 已安装并能在终端运行。OpenCode 浏览器订阅登录需要 OpenCode 2.x。
+
 ```bash
-# 导入已有的 Claude 和 Codex 账号
-claudex-switch import
+claudex-switch help
+# 只查看已安装版本，不触发自动升级
+CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch --version
+```
 
-# 查看所有账号（含剩余额度；5h/wk 为 5 小时 / 每周窗口的剩余百分比）
-claudex-switch list
-#   ── Claude ──
-#   ▸ work    oauth  Max   profile@example.invalid   5h 96% · wk 65%
-#     relay   api-key  YOUR_API_KEY  $47.34 left
-#   ── Codex ──
-#     cx      chatgpt  Plus  profile@example.invalid  gpt-5.4  5h 85% · wk 75%
+### 2. 选一个 CLI，添加两个账号
 
-# 切换到指定别名
-claudex-switch holden
+先用一个 CLI 完成下面的流程。别名只是你起的名字；真正选择 Claude Code、Codex 或 OpenCode 的位置是 `add` 里的账号类型菜单。
 
-# 切换账号并直接启动会话；Claude 默认 auto、Codex 默认 Approve for me、OpenCode 默认 --auto
-claudex-switch holden -run
+- Claude Code 订阅账号：选择 **Claude OAuth**
+- Codex 的 ChatGPT 账号：选择 **Codex ChatGPT**
+- OpenCode 2.x 的 Go 订阅：选择 **OpenCode Subscription — browser login (Go / Go Plus)**，登录后选择持有 Go 订阅的 workspace
+- 已有 API key：选择对应 CLI 的 API Key 项；OpenCode key 路径见 [Go 指南](./docs/use-cases/opencode-go.md)
 
+添加账号可能更新对应 CLI 的当前认证与配置。首次尝试前先退出已有会话；只添加你有权使用的账号，不要把凭据贴进 issue。
+
+逐条执行，完成每次浏览器授权后再继续。第二次请确认浏览器登录的是第二个账号；别名已存在时改用另一个名字，并同步替换后续命令。
+
+```bash
+claudex-switch add work
+claudex-switch add personal
+claudex-switch list --no-usage
+```
+
+列表应在所选 provider 分组下显示 `work` 和 `personal`。若没有显示，先解决添加失败再继续。`--no-usage` 跳过额度查询；看到别名不代表凭据、模型调用或额度已经验证。
+
+只有已用 `claude-switch` / `codex-auth` 保存过账号时，才可以用 `claudex-switch import` 代替添加。它扫描已有 Claude profiles 和 Codex registry，不会创建服务商账号，也不导入 OpenCode 账号；后续命令改用实际导入的别名。
+
+### 3. 顺序启动两个账号，确认切换
+
+`-run` 默认权限为 Claude 的 `auto`、Codex 的 `--approve-for-me`、OpenCode 的 `--auto`；请先检查权限规则，只在可信项目目录运行。
+
+```bash
+claudex-switch work -run
+# 退出这次 CLI 会话后，再运行下一条
+claudex-switch personal -run
+```
+
+完成标准：两个别名分别启动了预期 CLI，并在该 CLI 可用的账号/状态界面核对身份。Claude 可用 `/status`；其他 CLI 的入口以安装版本为准。若界面不显示可核对身份，不要把“窗口打开了”记作身份切换成功。真实模型请求可能消耗额度，需自行决定是否测试。
+
+Claude 的 `-run` 隔离账号凭据，但设置、hooks 和历史共享。Codex 的 `-run` 会修改全局认证/配置，切换后需重启 Codex 客户端，不能据此认定多个 Codex 账号并行隔离。OpenCode 必须使用 `<alias> -run` 启动；V1 共享常规历史，V2 别名使用私有历史。
+
+要管理另一个 CLI，重新用 `add` 创建不同别名并选择它的账号类型，例如 `claudex-switch add codex-work` 后选择 **Codex ChatGPT**。同一个别名始终指向一个 provider 的账号。
+
+### 更多用法
+
+下面的 `holden`、`cx`、`opensatoshi` 和 `satoshix` 都是占位别名；执行前替换为对应 provider 的真实别名。
+
+```bash
 # 指定本次模型，并保存为该账号下次运行的默认模型
 # Claude：裸数字走 Opus（5.5 → claude-opus-5-5）；sonnet5 / fable5.1 可显式选择系列；fable → 最新 Fable
 # Codex：astra → gpt-6-astra；sol → gpt-6.1-sol；luna → gpt-6-luna；terra → gpt-5.6-terra；6 → gpt-6-astra
