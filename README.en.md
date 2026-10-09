@@ -19,6 +19,12 @@ claudex-switch work -run
 
 See the [JSON output reference](./docs/list-json.md), [use cases](./docs/use-cases.md), [FAQ](./docs/faq.md), and [local Codex skill guide](./skills/claudex-switch/SKILL.md). The skill file is repository guidance only; committing it does not install or make it discoverable to consumer agents. Users must opt in by installing it into a skill directory supported by their agent.
 
+## 60-second walkthrough videos
+
+[中文视频（60 秒）](./docs/media/claudex-switch-explainer-zh-60s.mp4) · [English video (60 seconds)](./docs/media/claudex-switch-explainer-en-60s.mp4)
+
+These AI-assisted feature explainers are not live product recordings or benchmarks, and they do not show that the example commands were executed. Account aliases and commands are illustrative; quota screens are not real account results. Credential, history, and workspace isolation vary by provider, as described below. The project is source-available under the MIT License subject to the Commons Clause v1.0, and is not OSI open source; see [LICENSE](./LICENSE) and the [commercial licensing notes](./COMMERCIAL-LICENSING.md).
+
 ## Is claudex-switch a fit?
 
 - **Use it when** you manage multiple authorized Claude Code, Codex, or OpenCode Go accounts on one machine and want aliases, provider-reported quota visibility, or account-specific CLI launches

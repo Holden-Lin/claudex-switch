@@ -19,6 +19,12 @@ claudex-switch work -run
 
 见[JSON 输出参考](./docs/list-json.md)、[使用场景](./docs/use-cases.md)、[常见问题](./docs/faq.md)与[本地 Codex skill 指南](./skills/claudex-switch/SKILL.md)。该 skill 文件只是仓库内的指南，不会因提交仓库而自动安装或被使用者的 agent 自动发现；需由使用者选择性安装到其 agent 支持的本地 skill 目录。
 
+## 60 秒演示视频
+
+[中文视频（60 秒）](./docs/media/claudex-switch-explainer-zh-60s.mp4) · [English video (60 seconds)](./docs/media/claudex-switch-explainer-en-60s.mp4)
+
+这两支功能解说视频由 AI 辅助制作，不是实际产品操作录屏、实时基准测试，也不证明示例命令已经运行。账号别名与命令均为示例，额度画面不是实际账号结果。各 provider 的凭据、历史与工作区隔离边界不同，详见下文说明。项目采用 MIT License 并受 Commons Clause v1.0 限制，属于 source-available、非 OSI open source；见 [LICENSE](./LICENSE) 和[商业许可说明](./COMMERCIAL-LICENSING.md)。
+
 ## 适合谁使用
 
 - **适合**：你在本机维护多个自己有权使用的 Claude Code、Codex 或 OpenCode Go 账号，希望用别名切换、查看服务端剩余额度，或按账号启动 CLI
