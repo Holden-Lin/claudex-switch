@@ -4,20 +4,15 @@
 
 claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. It selects provider-specific local profiles and credentials by alias, then can launch the corresponding CLI; it does not create provider accounts or bypass quota limits.
 
-```bash
-# JSON inventory requires claudex-switch v1.14.0 or later; v1.13.2 does not support it
-if claudex-switch help 2>&1 | grep -q -- '--json'; then
-  claudex-switch list --json --no-usage
-else
-  printf '%s\n' 'This installed version does not support list --json' >&2
-fi
-# Replace work with an existing alias; selecting an account updates local provider state
-claudex-switch work
-# Launch the corresponding CLI; isolation differs by provider
-claudex-switch work -run
-```
+**New here?** [Install](#installation), then follow [Quick Start](#quick-start) to choose Claude Code, Codex, or OpenCode Go and create aliases for your own two accounts. If you already have aliases, launch with `claudex-switch <alias> -run`; permission and isolation boundaries differ by CLI, as described below.
 
 See the [JSON output reference](./docs/list-json.md), [use cases](./docs/use-cases.md), [FAQ](./docs/faq.md), and [local Codex skill guide](./skills/claudex-switch/SKILL.md). The skill file is repository guidance only; committing it does not install or make it discoverable to consumer agents. Users must opt in by installing it into a skill directory supported by their agent.
+
+## 60-second walkthrough videos
+
+[中文视频（60 秒）](./docs/media/claudex-switch-explainer-zh-60s.mp4) · [English video (60 seconds)](./docs/media/claudex-switch-explainer-en-60s.mp4)
+
+These AI-assisted feature explainers are not live product recordings or benchmarks, and they do not show that the example commands were executed. Account aliases and commands are illustrative; quota screens are not real account results. Credential, history, and workspace isolation vary by provider, as described below. The project is source-available under the MIT License subject to the Commons Clause v1.0, and is not OSI open source; see [LICENSE](./LICENSE) and the [commercial licensing notes](./COMMERCIAL-LICENSING.md).
 
 ## Is claudex-switch a fit?
 
@@ -98,24 +93,60 @@ bun run build
 
 ## Quick Start
 
+### 1. Install and check the command
+
+Complete [Installation](#installation) above. The installer may install Bun, but it does not install Claude Code, Codex, or OpenCode for you. Make sure your chosen CLI is installed and available in your terminal. OpenCode browser subscription login requires OpenCode 2.x.
+
 ```bash
-# Import existing Claude and Codex accounts
-claudex-switch import
+claudex-switch help
+# Show the installed version without triggering an automatic upgrade
+CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch --version
+```
 
-# List all accounts (with remaining quota; 5h/wk = remaining % of the 5-hour / weekly window)
-claudex-switch list
-#   ── Claude ──
-#   ▸ work    oauth  Max   profile@example.invalid   5h 96% · wk 65%
-#     relay   api-key  YOUR_API_KEY  $47.34 left
-#   ── Codex ──
-#     cx      chatgpt  Plus  profile@example.invalid  gpt-5.4  5h 85% · wk 75%
+### 2. Choose one CLI and add two accounts
 
-# Switch by alias
-claudex-switch holden
+Start with one CLI. An alias is a name you choose; the account-type menu inside `add` selects Claude Code, Codex, or OpenCode.
 
-# Switch and start a session; Claude defaults to auto, Codex to Approve for me, and OpenCode to --auto
-claudex-switch holden -run
+- Claude Code subscription: choose **Claude OAuth**
+- ChatGPT account for Codex: choose **Codex ChatGPT**
+- Go subscription for OpenCode 2.x: choose **OpenCode Subscription — browser login (Go / Go Plus)**, then select the workspace that owns Go
+- Existing API key: choose the matching CLI's API Key entry; see the [Go guide](./docs/use-cases/opencode-go.md) for the OpenCode key path
 
+Adding an account can update that CLI's active authentication and configuration. Exit existing sessions before your first attempt. Add only accounts you are authorized to use, and never paste credentials into an issue.
+
+Run each command separately and finish its browser authorization before continuing. Confirm that the second login uses your second account. If an alias already exists, choose another name and replace it in the commands below too.
+
+```bash
+claudex-switch add work
+claudex-switch add personal
+claudex-switch list --no-usage
+```
+
+The list should show `work` and `personal` under the chosen provider. Resolve any failed add before continuing. `--no-usage` skips quota requests; an alias in the list does not verify credentials, model calls, or available quota.
+
+Use `claudex-switch import` instead only if you already saved accounts with `claude-switch` / `codex-auth`. It scans existing Claude profiles and the Codex registry; it does not create provider accounts or import OpenCode accounts. Use the actual imported aliases in subsequent commands.
+
+### 3. Launch both accounts in sequence and check the switch
+
+Default launch permissions are Claude's `auto`, Codex's `--approve-for-me`, and OpenCode's `--auto`. Review your permission rules first and run only in a trusted project directory.
+
+```bash
+claudex-switch work -run
+# Exit this CLI session before running the next command
+claudex-switch personal -run
+```
+
+Done means both aliases launched the expected CLI and you checked the identity in its available account/status view. Claude supports `/status`; other CLIs' views depend on the installed version. If a view does not expose an identity you can check, do not count an open window as a verified account switch. A live model request may consume quota; decide separately whether to test one.
+
+Claude `-run` isolates credentials while settings, hooks, and history stay shared. Codex `-run` changes global auth/config; restart Codex clients after switching, and do not infer parallel account isolation. Always launch OpenCode with `<alias> -run`; V1 shares normal history, while V2 uses private per-alias history.
+
+For another CLI, use `add` with a different alias and choose that CLI's account type: for example, `claudex-switch add codex-work`, then **Codex ChatGPT**. Each alias points to one provider account.
+
+### More examples
+
+`holden`, `cx`, `opensatoshi`, and `satoshix` below are placeholder aliases. Replace each with a real alias for the corresponding provider before running it.
+
+```bash
 # Select the model and save it as this account's default for the next run
 # Claude: bare versions → Opus (5.5 → claude-opus-5-5); series forms include sonnet5 and fable5.1; fable → latest Fable
 # Codex: astra → gpt-6-astra; sol → gpt-6.1-sol; luna → gpt-6-luna; terra → gpt-5.6-terra; 6 → gpt-6-astra
