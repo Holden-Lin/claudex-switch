@@ -4,7 +4,11 @@
 
 本次版本 v1.19.0：OpenCode 别名的 `-run --autoreview on|off` 控制 cc_chats 的 OpenCode V2 completion-review 插件（与 Codex 同用 `CODEX_COMPLETION_REVIEW_DISABLED`）。
 
+本仓已修 OpenCode V2 启动校验对 agent 清单的就绪竞态（`verifyEffectiveOpenCodeRouting` 改为轮询 `/api/agent`，超时仍 fail-closed），待随下次发布生效。
+
 ## Next
+
+- [ ] 修复版装好后，在用户日常目录重试 `claudex-switch openlam42 -run`，确认不再出现 "configured default agent is unavailable in this location"（本机复现：私有 server 启动约 2 秒内 `/api/agent` 可 200 返空表）。
 
 - [ ] 用户升级 v1.18.4 后运行 `claudex-switch opensatoshi -run`，确认选择器列出全部 Go 模型、切换其他模型短请求成功（真实 HOME 有防护，本次未改动该别名）。
 - [ ] 用户在 v1.18.2 重试失败的第二账号 `add`，选择 Subscription 并授权它的 Go workspace，再 `-run` 发短请求、查 `/sessions`；真实订阅模型响应和计费仍待用户实测。已只读核对生产 Console 双 provider 结构与 `openlam42` 额度，并以真实 OpenCode 2.0.22 + 对应结构 fixture 验 Go 端点、OAuth 绑定、旧默认值转换和 A/B 隔离；不自行刷新已有账号。

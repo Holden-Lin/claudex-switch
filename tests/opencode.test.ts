@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setSystemTime, spyOn, test } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
@@ -35,6 +35,7 @@ import {
   mapOpenCodeGoModelForV2,
   prepareOpenCodeV2RunEnvironment,
   syncOpenCodeV2CredentialToPrivateDatabase,
+  verifyEffectiveOpenCodeRouting,
 } from "../src/providers/opencode/runtime";
 import { parseOpenCodeVersion } from "../src/providers/opencode/version";
 import { matchOpenCodeGoModel, resolveOpenCodeGoModel } from "../src/providers/opencode/catalog";
@@ -691,6 +692,78 @@ describe("OpenCode Go profiles", () => {
       ),
     ).rejects.toThrow("default agent \"plan\" selects another provider");
     expect(methods.some((path) => path.endsWith("/connect/key"))).toBe(false);
+  });
+
+  test("retries the agent inventory until the effective default agent appears", async () => {
+    let agentReads = 0;
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(input.toString());
+      if (url.pathname === "/api/config") {
+        return new Response(JSON.stringify([{ type: "document", info: { default_agent: "build" } }]), {
+          status: 200,
+        });
+      }
+      if (url.pathname === "/api/agent") {
+        agentReads += 1;
+        // OpenCode answers before the location's agent inventory is ready.
+        return new Response(
+          locationResponse(
+            agentReads === 1
+              ? []
+              : [{ id: "build", name: "Build", mode: "primary", permissions: [] }],
+          ),
+          { status: 200 },
+        );
+      }
+      if (url.pathname === "/api/model") {
+        return new Response(
+          locationResponse([{ providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "kimi-k3" }]),
+          { status: 200 },
+        );
+      }
+      throw new Error(`Unexpected loopback fixture request: ${url.pathname}`);
+    };
+
+    await verifyEffectiveOpenCodeRouting(
+      fetcher,
+      "http://127.0.0.1:41987",
+      "fake-password",
+      ["opencode-go/kimi-k3"],
+    );
+    expect(agentReads).toBe(2);
+  });
+
+  test("fails closed when the effective default agent never becomes available", async () => {
+    let agentReads = 0;
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(input.toString());
+      if (url.pathname === "/api/config") {
+        return new Response(JSON.stringify([{ type: "document", info: { default_agent: "build" } }]), {
+          status: 200,
+        });
+      }
+      if (url.pathname === "/api/agent") {
+        agentReads += 1;
+        // Jump past the readiness deadline so the timeout path stays fast.
+        setSystemTime(Date.now() + 11_000);
+        return new Response(locationResponse([]), { status: 200 });
+      }
+      throw new Error(`Unexpected loopback fixture request: ${url.pathname}`);
+    };
+
+    try {
+      await expect(
+        verifyEffectiveOpenCodeRouting(
+          fetcher,
+          "http://127.0.0.1:41987",
+          "fake-password",
+          ["opencode-go/kimi-k3"],
+        ),
+      ).rejects.toThrow("configured default agent is unavailable in this location");
+      expect(agentReads).toBe(1);
+    } finally {
+      setSystemTime();
+    }
   });
 
   test("cleans only previously tracked claudex credentials and retains manual connections", async () => {

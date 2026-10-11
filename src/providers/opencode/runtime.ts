@@ -534,16 +534,30 @@ export async function verifyEffectiveOpenCodeRouting(
   validateConfig?.(configEntries);
   const defaultAgentId = configuredDefaultAgent(configEntries);
 
-  const agentResponse = await fetchOpenCodeApi(fetcher, baseUrl, "/api/agent", password, {
-    method: "GET",
-  });
-  if (!agentResponse.ok) throw new Error("Could not verify OpenCode V2's selected agent.");
-  const agentData = locationData(await responseJson(agentResponse));
-  if (!Array.isArray(agentData)) {
-    throw new Error("OpenCode V2 returned an unexpected agent inventory.");
+  // The location's agent inventory is populated asynchronously after the
+  // private server boots; an early query can return an empty list even though
+  // the effective default agent appears moments later. Poll until it is
+  // present with its permission set, then keep failing closed if it never
+  // arrives.
+  let agent: JsonRecord | undefined;
+  const agentTimeoutAt = Date.now() + 10_000;
+  while (Date.now() < agentTimeoutAt) {
+    const agentResponse = await fetchOpenCodeApi(fetcher, baseUrl, "/api/agent", password, {
+      method: "GET",
+    });
+    if (!agentResponse.ok) throw new Error("Could not verify OpenCode V2's selected agent.");
+    const agentData = locationData(await responseJson(agentResponse));
+    if (!Array.isArray(agentData)) {
+      throw new Error("OpenCode V2 returned an unexpected agent inventory.");
+    }
+    const candidate = agentData.find((item) => isRecord(item) && item.id === defaultAgentId);
+    if (isRecord(candidate) && Array.isArray(candidate.permissions)) {
+      agent = candidate;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  const agent = agentData.find((item) => isRecord(item) && item.id === defaultAgentId);
-  if (!isRecord(agent) || !Array.isArray(agent.permissions)) {
+  if (!agent) {
     throw new Error("OpenCode V2's configured default agent is unavailable in this location.");
   }
   if (agent.model !== undefined) {

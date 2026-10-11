@@ -5,15 +5,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2034,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2179,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -7496,17 +7509,26 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
   const configEntries = await responseJson(configResponse);
   validateConfig?.(configEntries);
   const defaultAgentId = configuredDefaultAgent(configEntries);
-  const agentResponse = await fetchOpenCodeApi(fetcher, baseUrl2, "/api/agent", password, {
-    method: "GET"
-  });
-  if (!agentResponse.ok)
-    throw new Error("Could not verify OpenCode V2's selected agent.");
-  const agentData = locationData(await responseJson(agentResponse));
-  if (!Array.isArray(agentData)) {
-    throw new Error("OpenCode V2 returned an unexpected agent inventory.");
+  let agent;
+  const agentTimeoutAt = Date.now() + 1e4;
+  while (Date.now() < agentTimeoutAt) {
+    const agentResponse = await fetchOpenCodeApi(fetcher, baseUrl2, "/api/agent", password, {
+      method: "GET"
+    });
+    if (!agentResponse.ok)
+      throw new Error("Could not verify OpenCode V2's selected agent.");
+    const agentData = locationData(await responseJson(agentResponse));
+    if (!Array.isArray(agentData)) {
+      throw new Error("OpenCode V2 returned an unexpected agent inventory.");
+    }
+    const candidate = agentData.find((item) => isRecord2(item) && item.id === defaultAgentId);
+    if (isRecord2(candidate) && Array.isArray(candidate.permissions)) {
+      agent = candidate;
+      break;
+    }
+    await new Promise((resolve2) => setTimeout(resolve2, 100));
   }
-  const agent = agentData.find((item) => isRecord2(item) && item.id === defaultAgentId);
-  if (!isRecord2(agent) || !Array.isArray(agent.permissions)) {
+  if (!agent) {
     throw new Error("OpenCode V2's configured default agent is unavailable in this location.");
   }
   if (agent.model !== undefined) {
@@ -11199,7 +11221,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.19.0",
+  version: "1.19.1",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
