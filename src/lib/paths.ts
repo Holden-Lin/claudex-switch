@@ -26,6 +26,10 @@ export const RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
 // into ~/.claude/settings.json. Switching accounts clears exactly those and
 // leaves every env entry the user added by hand untouched.
 export const MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
+// Last known quota per account. `list` renders from it instantly; a detached
+// `list --refresh-cache` process is the only writer and does the network work.
+export const USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
+export const USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
 export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 export const CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 export const OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");

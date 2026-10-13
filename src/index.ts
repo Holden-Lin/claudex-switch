@@ -11,7 +11,7 @@ import { readOpenCodeState } from "./providers/opencode/profiles";
 import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { isRunFlag, runAliasSession } from "./commands/run";
-import { list, type ListOptions } from "./commands/list";
+import { list, refreshUsageCache, type ListOptions } from "./commands/list";
 import { remove } from "./commands/remove";
 import { rename } from "./commands/rename";
 import { purge } from "./commands/purge";
@@ -35,7 +35,7 @@ const HELP = `
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
-    claudex-switch list [--json] [--no-usage]  List accounts with remaining quota
+    claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
     claudex-switch rename <from> <to>  Rename an alias
     claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
@@ -126,20 +126,23 @@ function enforceRepoLocalHomeSafety(
 function parseListOptions(args: string[]): ListOptions | null {
   let json = false;
   let usage = true;
+  let cached = false;
   for (const arg of args) {
     if (arg === "--json") {
       json = true;
     } else if (arg === "--no-usage") {
       usage = false;
+    } else if (arg === "--cached") {
+      cached = true;
     } else {
       console.error(
-        "Unsupported list option. Supported options are --json and --no-usage.",
+        "Unsupported list option. Supported options are --json, --no-usage and --cached.",
       );
       process.exitCode = 2;
       return null;
     }
   }
-  return { json, usage };
+  return { json, usage, cached, background: true };
 }
 
 async function interactivePicker(): Promise<void> {
@@ -262,6 +265,11 @@ async function main(): Promise<void> {
 
       case "list":
       case "ls":
+        if (args.length === 1 && args[0] === "--refresh-cache") {
+          // Internal: the detached quota refresher started by `list`.
+          await refreshUsageCache();
+          break;
+        }
         {
           const options = parseListOptions(args);
           if (!options) break;

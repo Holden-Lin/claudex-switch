@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { stripVTControlCharacters } from "util";
 import { loadAliases } from "../alias/store";
 import {
   readFreshestOAuthCredentials,
@@ -10,6 +11,18 @@ import {
   claudeProfileDataFile,
 } from "../lib/paths";
 import { readJson } from "../lib/fs";
+import {
+  acquireRefreshLock,
+  formatAge,
+  isRefreshRunning,
+  nextCacheEntry,
+  quotaFromCache,
+  readUsageCache,
+  spawnBackgroundRefresh,
+  usageCacheMtime,
+  writeUsageCache,
+  type UsageCache,
+} from "../lib/usage-cache";
 import { loadRegistry, saveRegistry } from "../providers/codex/registry";
 import { resolveCodexModel } from "../providers/codex/config";
 import {
@@ -41,6 +54,7 @@ import {
 } from "../lib/ui";
 import type {
   AliasEntry,
+  Provider,
   OAuthAccount,
   AccountInfo,
   CodexRegistryAccount,
@@ -51,6 +65,17 @@ import type {
 export interface ListOptions {
   usage?: boolean;
   json?: boolean;
+  /** Render cached quota only and refresh it in the background (shell startup). */
+  cached?: boolean;
+  /**
+   * Fetch quota in a detached `list --refresh-cache` process (the CLI).
+   * Without it the refresh runs inline before rendering (tests, embedding).
+   */
+  background?: boolean;
+  /** How long a human `list` waits for the background refresh. */
+  waitMs?: number;
+  /** Starts the detached refresher; injectable for tests. */
+  spawnRefresh?: () => void;
   codexUsageFetcher?: typeof fetchCodexUsage;
   openCodeUsageFetcher?: typeof fetchOpenCodeUsage;
 }
@@ -63,6 +88,8 @@ type ListAccountStatus =
 
 interface ListAccountInfo extends AccountInfo {
   status: ListAccountStatus;
+  /** When the shown quota was fetched, if it came from an earlier refresh. */
+  quotaAt?: number | null;
 }
 
 export interface JsonListAccount {
@@ -137,18 +164,139 @@ export async function list(options: ListOptions = {}): Promise<void> {
     return;
   }
 
-  // Separate by provider
-  const claudeAliases = validAliases.filter(
-    (a) => a.target.provider === "claude",
-  );
-  const codexAliases = validAliases.filter(
-    (a) => a.target.provider === "codex",
-  );
-  const openCodeAliases = validAliases.filter(
-    (a) => a.target.provider === "opencode",
+  const ctx = await loadListContext(validAliases, offlineJson);
+
+  if (options.json) {
+    // Machine output keeps its live contract: one inline fetch per account.
+    const infos = await Promise.all(
+      ctx.entries.map((entry) => accountInfo(ctx, entry, withUsage, options, true)),
+    );
+    if (!offlineJson) await persistDisplayedCodexPlans(ctx.entries, infos, ctx.codexReg);
+    const result: JsonListResult = {
+      schemaVersion: 1,
+      accounts: infos.map(toJsonListAccount).sort(compareJsonAccounts),
+    };
+    console.log(JSON.stringify(result));
+    return;
+  }
+
+  // Everything below renders from local files only; quota comes from the
+  // usage cache so a slow or dead endpoint never blocks the terminal.
+  const baseInfos = await Promise.all(
+    ctx.entries.map((entry) => accountInfo(ctx, entry, false, options, false)),
   );
 
-  // Load provider states
+  if (!withUsage) {
+    // With usage on, the refresher persists the live plan instead; persisting
+    // the token plan here too would make the two flip-flop.
+    await persistDisplayedCodexPlans(ctx.entries, baseInfos, ctx.codexReg);
+    printLines(renderLines(baseInfos, false));
+    return;
+  }
+
+  if (!options.background) {
+    await refreshUsageCache(options);
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, await readUsageCache()), false));
+    return;
+  }
+
+  const spawnRefresh = options.spawnRefresh ?? spawnBackgroundRefresh;
+  if (options.cached) {
+    const cache = await readUsageCache();
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, cache), false));
+    await startBackgroundRefreshIfIdle(cache, spawnRefresh);
+    return;
+  }
+
+  const startedAt = Date.now();
+  spawnRefresh();
+  await renderWhileRefreshing(
+    ctx.entries,
+    baseInfos,
+    startedAt,
+    options.waitMs ?? DEFAULT_WAIT_MS,
+  );
+}
+
+/**
+ * The only network path for human output. Runs detached from the terminal
+ * (`list --refresh-cache`) so token refreshes always run to completion, and
+ * writes each account's result as soon as it arrives.
+ */
+export async function refreshUsageCache(
+  options: Pick<ListOptions, "codexUsageFetcher" | "openCodeUsageFetcher"> = {},
+): Promise<boolean> {
+  const release = await acquireRefreshLock();
+  if (!release) return false;
+  try {
+    const ctx = await loadListContext((await loadAliases()).aliases, false);
+    const cache = await readUsageCache();
+    const keys = new Set(ctx.entries.map(cacheKey));
+    cache.entries = Object.fromEntries(
+      Object.entries(cache.entries).filter(([key]) => keys.has(key)),
+    );
+    cache.refreshStartedAt = Date.now();
+
+    let writes: Promise<void> = writeUsageCache(cache);
+    const save = (): Promise<void> => {
+      writes = writes.catch(() => {}).then(() => writeUsageCache(cache));
+      return writes;
+    };
+
+    const infos = await Promise.all(
+      ctx.entries.map(async (entry) => {
+        const info = await accountInfo(ctx, entry, true, options, false);
+        if (info.status === "configured") {
+          const key = cacheKey(entry);
+          cache.entries[key] = nextCacheEntry(
+            cache.entries[key],
+            {
+              usage: info.usage,
+              balance: info.balance,
+              note: info.usageNote,
+              plan:
+                info.provider === "codex" && info.authMode === "chatgpt"
+                  ? info.plan
+                  : null,
+            },
+            Date.now(),
+          );
+          await save().catch(() => {});
+        }
+        return info;
+      }),
+    );
+    await persistDisplayedCodexPlans(ctx.entries, infos, ctx.codexReg);
+
+    cache.refreshFinishedAt = Date.now();
+    await save();
+    return true;
+  } finally {
+    await release();
+  }
+}
+
+const DEFAULT_WAIT_MS = 2_000;
+const POLL_MS = 100;
+// Opening several shells at once should not start several refreshes.
+const CACHED_REFRESH_MIN_INTERVAL_MS = 30_000;
+
+interface ListContext {
+  /** Display order: Claude, Codex, OpenCode. */
+  entries: AliasEntry[];
+  claudeActive: string | null;
+  openCodeActive: string | null;
+  codexReg: Awaited<ReturnType<typeof loadRegistry>> | null;
+  codexUsage: boolean;
+}
+
+async function loadListContext(
+  aliases: AliasEntry[],
+  offlineJson: boolean,
+): Promise<ListContext> {
+  const byProvider = (provider: string) =>
+    aliases.filter((a) => a.target.provider === provider);
+
   const claudeState = await readState();
   const openCodeState = await readOpenCodeState();
   let codexReg = null;
@@ -158,83 +306,184 @@ export async function list(options: ListOptions = {}): Promise<void> {
   } catch {
     // No codex registry
   }
-  const codexUsage = withUsage && codexReg?.api?.usage !== false;
 
-  // All account lookups (and their usage requests) run in parallel so the
-  // list renders after the slowest single account, not the sum of all.
-  const [claudeInfos, codexInfos, openCodeInfos] = await Promise.all([
-    Promise.all(
-      claudeAliases.map((entry) =>
-        getClaudeAccountInfo(entry, claudeState.active, withUsage),
-      ),
-    ),
-    Promise.all(
-      codexAliases.map((entry) =>
-        getCodexAccountInfo(
-          entry,
-          codexReg,
-          codexUsage,
-          options.codexUsageFetcher ?? fetchCodexUsage,
-          options.json === true,
-        ),
-      ),
-    ),
-    Promise.all(
-      openCodeAliases.map((entry) =>
-        getOpenCodeAccountInfo(
-          entry,
-          openCodeState.active,
-          withUsage,
-          options.openCodeUsageFetcher ?? fetchOpenCodeUsage,
-        ),
-      ),
-    ),
-  ]);
-  if (!offlineJson) {
-    await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
+  return {
+    entries: [
+      ...byProvider("claude"),
+      ...byProvider("codex"),
+      ...byProvider("opencode"),
+    ],
+    claudeActive: claudeState.active,
+    openCodeActive: openCodeState.active,
+    codexReg,
+    codexUsage: codexReg?.api?.usage !== false,
+  };
+}
+
+function accountInfo(
+  ctx: ListContext,
+  entry: AliasEntry,
+  withUsage: boolean,
+  options: ListOptions,
+  inspectCredentials: boolean,
+): Promise<ListAccountInfo> {
+  switch (entry.target.provider) {
+    case "claude":
+      return getClaudeAccountInfo(entry, ctx.claudeActive, withUsage);
+    case "codex":
+      return getCodexAccountInfo(
+        entry,
+        ctx.codexReg,
+        withUsage && ctx.codexUsage,
+        options.codexUsageFetcher ?? fetchCodexUsage,
+        inspectCredentials,
+      );
+    default:
+      return getOpenCodeAccountInfo(
+        entry,
+        ctx.openCodeActive,
+        withUsage,
+        options.openCodeUsageFetcher ?? fetchOpenCodeUsage,
+      );
   }
+}
 
-  if (options.json) {
-    const result: JsonListResult = {
-      schemaVersion: 1,
-      accounts: [...claudeInfos, ...codexInfos, ...openCodeInfos]
-        .map(toJsonListAccount)
-        .sort(compareJsonAccounts),
+function cacheKey(entry: AliasEntry): string {
+  const target = entry.target;
+  switch (target.provider) {
+    case "claude":
+      return `claude:${target.profileName}`;
+    case "codex":
+      return `codex:${target.accountKey}`;
+    default:
+      return `opencode:${target.profileId}`;
+  }
+}
+
+function withCachedQuota(
+  entries: AliasEntry[],
+  baseInfos: ListAccountInfo[],
+  cache: UsageCache,
+): ListAccountInfo[] {
+  return baseInfos.map((info, index) => {
+    const entry = entries[index];
+    if (!entry || info.status !== "configured") return info;
+    const quota = quotaFromCache(cache.entries[cacheKey(entry)]);
+    if (!quota) return info;
+    return {
+      ...info,
+      usage: quota.usage,
+      balance: quota.balance,
+      usageNote: quota.note ?? info.usageNote,
+      plan:
+        info.provider === "codex" && info.authMode === "chatgpt" && quota.plan
+          ? quota.plan
+          : info.plan,
+      quotaAt: quota.dataAt,
     };
-    console.log(JSON.stringify(result));
-    return;
+  });
+}
+
+async function startBackgroundRefreshIfIdle(
+  cache: UsageCache,
+  spawnRefresh: () => void,
+): Promise<void> {
+  const last = Math.max(cache.refreshStartedAt ?? 0, cache.refreshFinishedAt ?? 0);
+  if (Date.now() - last < CACHED_REFRESH_MIN_INTERVAL_MS) return;
+  if (await isRefreshRunning()) return;
+  spawnRefresh();
+}
+
+/**
+ * Show cached quota at once, then redraw in place as the background refresh
+ * lands each account. Gives up after `waitMs`; the refresh keeps going and the
+ * next `list` shows its results.
+ */
+async function renderWhileRefreshing(
+  entries: AliasEntry[],
+  baseInfos: ListAccountInfo[],
+  startedAt: number,
+  waitMs: number,
+): Promise<void> {
+  let cache = await readUsageCache();
+  const finished = () => (cache.refreshFinishedAt ?? 0) >= startedAt;
+  const current = (refreshing: boolean) =>
+    renderLines(withCachedQuota(entries, baseInfos, cache), refreshing);
+
+  const initial = current(true);
+  const live =
+    process.stdout.isTTY === true &&
+    visualLineCount(initial) < (process.stdout.rows || 24);
+  let drawn = live ? redraw(initial, 0) : 0;
+
+  let lastMtime = await usageCacheMtime();
+  while (!finished() && Date.now() - startedAt < waitMs) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    const mtime = await usageCacheMtime();
+    if (mtime === lastMtime) continue;
+    lastMtime = mtime;
+    cache = await readUsageCache();
+    if (live) drawn = redraw(current(!finished()), drawn);
   }
 
-  blank();
-  console.log(header("  Accounts"));
+  if (live) redraw(current(false), drawn);
+  else printLines(current(false));
+}
 
-  if (claudeInfos.length > 0) {
-    blank();
-    sectionHeader("Claude");
-    renderSection(claudeInfos);
-  }
+function redraw(lines: string[], previousLineCount: number): number {
+  const clear = previousLineCount > 0 ? `\x1b[${previousLineCount}A\x1b[0J` : "";
+  process.stdout.write(`${clear}${lines.join("\n")}\n`);
+  return visualLineCount(lines);
+}
 
-  if (codexInfos.length > 0) {
-    blank();
-    sectionHeader("Codex");
-    renderSection(codexInfos);
-  }
-
-  if (openCodeInfos.length > 0) {
-    blank();
-    sectionHeader("OpenCode");
-    renderSection(openCodeInfos);
-  }
-
-  const anyUsage = [...claudeInfos, ...codexInfos, ...openCodeInfos].some(
-    (info) => info.usage,
+function visualLineCount(lines: string[]): number {
+  const columns = process.stdout.columns || 80;
+  return lines.reduce(
+    (total, line) =>
+      total + Math.max(1, Math.ceil(stripVTControlCharacters(line).length / columns)),
+    0,
   );
-  if (anyUsage) {
-    blank();
-    hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
-  }
+}
 
-  blank();
+function printLines(lines: string[]): void {
+  console.log(lines.join("\n"));
+}
+
+/** Render the account table as lines, reusing the console-based UI helpers. */
+function renderLines(infos: ListAccountInfo[], refreshing: boolean): string[] {
+  const lines: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    lines.push(...args.map(String).join(" ").split("\n"));
+  };
+  try {
+    blank();
+    console.log(header("  Accounts"));
+
+    const sections: Array<[string, Provider]> = [
+      ["Claude", "claude"],
+      ["Codex", "codex"],
+      ["OpenCode", "opencode"],
+    ];
+    for (const [title, provider] of sections) {
+      const sectionInfos = infos.filter((info) => info.provider === provider);
+      if (sectionInfos.length === 0) continue;
+      blank();
+      sectionHeader(title);
+      renderSection(sectionInfos);
+    }
+
+    if (infos.some((info) => info.usage)) {
+      blank();
+      hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
+    }
+    if (refreshing) hint("refreshing quota…");
+
+    blank();
+  } finally {
+    console.log = originalLog;
+  }
+  return lines;
 }
 
 async function getOpenCodeAccountInfo(
@@ -289,7 +538,7 @@ async function getOpenCodeAccountInfo(
   return info;
 }
 
-function renderSection(infos: AccountInfo[]): void {
+function renderSection(infos: ListAccountInfo[]): void {
   const maxAliasLen = Math.max(...infos.map((info) => info.alias.length));
 
   for (const info of infos) {
@@ -311,7 +560,11 @@ function renderSection(infos: AccountInfo[]): void {
     const usage = formatUsage(info.usage, info.usageNote);
     const balance = formatBalance(info.balance);
     const quota = usage || balance;
-    const quotaStr = quota ? `  ${quota}` : "";
+    const age =
+      quota && info.quotaAt && Date.now() - info.quotaAt >= 60_000
+        ? chalk.dim(` · ${formatAge(Date.now() - info.quotaAt)}`)
+        : "";
+    const quotaStr = quota ? `  ${quota}${age}` : "";
 
     console.log(
       `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}${quotaStr}`,

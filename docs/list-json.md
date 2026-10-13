@@ -55,7 +55,7 @@ The `accounts` array contains one record per alias:
 
 `--json --no-usage` does not switch accounts, contact quota / billing endpoints, refresh credentials, synchronize the active Codex auth snapshot, or normalize / persist Codex registry tiers. It can read local account files and provider auth stores to build the inventory. It omits email fields, credential fields, raw endpoints, and provider error text. Alias values are chosen by the user and should still be treated as private account metadata.
 
-Without `--no-usage`, JSON mode performs the same live usage work as human-readable `list`: requests supported provider / relay endpoints and may refresh OAuth credentials or persist account metadata. It still does not switch the active account.
+Without `--no-usage`, JSON mode performs the live usage work inline (human-readable `list` hands the same work to a background refresher and renders from its cache): requests supported provider / relay endpoints and may refresh OAuth credentials or persist account metadata. It still does not switch the active account.
 
 `usage: null` means not requested or unavailable; never interpret it as 0% used, 0% remaining, or proof that login is invalid. `status` describes local account configuration, not service availability or quota. Use `schemaVersion` to reject or explicitly handle incompatible output in automation; don't infer future fields.
 

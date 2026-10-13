@@ -15,6 +15,12 @@ import {
   setActiveOpenCodeProfile,
 } from "../src/providers/opencode/profiles";
 import { makeJwt, resetTestHome, TEST_HOME } from "./helpers";
+import { refreshUsageCache } from "../src/commands/list";
+import {
+  quotaFromCache,
+  readUsageCache,
+  writeUsageCache,
+} from "../src/lib/usage-cache";
 import type {
   AliasRegistry,
   CodexAuthFile,
@@ -702,5 +708,141 @@ describe("list", () => {
 
     expect(output()).not.toContain("left");
     expect(output()).toContain("relay");
+  });
+
+  describe("usage cache", () => {
+    const usage = (fiveHourUsedPercent: number) => ({
+      usage: {
+        fiveHourUsedPercent,
+        fiveHourResetsAt: null,
+        weeklyUsedPercent: 40,
+        weeklyResetsAt: null,
+      },
+      note: null,
+    });
+
+    async function seedCodexAccount(): Promise<void> {
+      await saveAliases(codexAliases);
+      await saveRegistry(createRegistry());
+      await writeCodexAuthFile(makeCodexTokens());
+    }
+
+    async function ageCache(ms: number): Promise<void> {
+      const cache = await readUsageCache();
+      for (const entry of Object.values(cache.entries)) {
+        if (entry.dataAt) entry.dataAt -= ms;
+        entry.checkedAt -= ms;
+      }
+      cache.refreshStartedAt = (cache.refreshStartedAt ?? 0) - ms;
+      cache.refreshFinishedAt = (cache.refreshFinishedAt ?? 0) - ms;
+      await writeUsageCache(cache);
+    }
+
+    test("--cached renders the last refresh without network and starts a background refresh", async () => {
+      await seedCodexAccount();
+      await refreshUsageCache({ codexUsageFetcher: async () => usage(25) });
+      await ageCache(5 * 60_000);
+      const calls = mockFetch(() => null);
+      let spawned = 0;
+
+      await list({
+        cached: true,
+        background: true,
+        spawnRefresh: () => spawned++,
+        codexUsageFetcher: async () => {
+          throw new Error("must not fetch");
+        },
+      });
+
+      expect(calls).toEqual([]);
+      expect(output()).toContain("5h 75%");
+      expect(output()).toContain("5m ago");
+      expect(spawned).toBe(1);
+    });
+
+    test("--cached does not start another refresh right after one", async () => {
+      await seedCodexAccount();
+      await refreshUsageCache({ codexUsageFetcher: async () => usage(25) });
+      let spawned = 0;
+
+      await list({ cached: true, background: true, spawnRefresh: () => spawned++ });
+
+      expect(spawned).toBe(0);
+      expect(output()).toContain("5h 75%");
+      expect(output()).not.toContain("ago");
+    });
+
+    test("a failed refresh keeps the last good quota and shows its age", async () => {
+      await seedCodexAccount();
+      await refreshUsageCache({ codexUsageFetcher: async () => usage(25) });
+      await ageCache(2 * 3600_000);
+      await refreshUsageCache({
+        codexUsageFetcher: async () => ({ usage: null, note: "usage n/a" }),
+      });
+
+      await list({ cached: true, background: true, spawnRefresh: () => {} });
+
+      expect(output()).toContain("5h 75%");
+      expect(output()).toContain("2h ago");
+    });
+
+    test("an expired login replaces the cached quota with the note", async () => {
+      await seedCodexAccount();
+      await refreshUsageCache({ codexUsageFetcher: async () => usage(25) });
+      await refreshUsageCache({
+        codexUsageFetcher: async () => ({ usage: null, note: "login expired" }),
+      });
+
+      await list({ cached: true, background: true, spawnRefresh: () => {} });
+
+      expect(output()).toContain("login expired");
+      expect(output()).not.toContain("5h 75%");
+    });
+
+    test("list shows quota landed by the background refresh within the wait", async () => {
+      await seedCodexAccount();
+
+      await list({
+        background: true,
+        waitMs: 5_000,
+        spawnRefresh: () => {
+          void refreshUsageCache({ codexUsageFetcher: async () => usage(10) });
+        },
+      });
+
+      expect(output()).toContain("5h 90%");
+      expect(output()).not.toContain("refreshing");
+    });
+
+    test("list stops waiting at the deadline and shows the cached quota", async () => {
+      await seedCodexAccount();
+      await refreshUsageCache({ codexUsageFetcher: async () => usage(25) });
+      await ageCache(10 * 60_000);
+      const started = Date.now();
+
+      await list({ background: true, waitMs: 300, spawnRefresh: () => {} });
+
+      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(output()).toContain("5h 75%");
+      expect(output()).toContain("10m ago");
+    });
+
+    test("only one refresher runs at a time", async () => {
+      await seedCodexAccount();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const first = refreshUsageCache({
+        codexUsageFetcher: async () => {
+          await gate;
+          return usage(25);
+        },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(await refreshUsageCache({ codexUsageFetcher: async () => usage(50) })).toBe(false);
+      release();
+      expect(await first).toBe(true);
+      expect(quotaFromCache(Object.values((await readUsageCache()).entries)[0])?.usage?.fiveHourUsedPercent).toBe(25);
+    });
   });
 });

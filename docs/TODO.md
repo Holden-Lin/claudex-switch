@@ -2,12 +2,11 @@
 
 ## Now
 
-本次版本 v1.19.0：OpenCode 别名的 `-run --autoreview on|off` 控制 cc_chats 的 OpenCode V2 completion-review 插件（与 Codex 同用 `CODEX_COMPLETION_REVIEW_DISABLED`）。
-
-本仓已修 OpenCode V2 启动校验对 agent 清单的就绪竞态（`verifyEffectiveOpenCodeRouting` 改为轮询 `/api/agent`，超时仍 fail-closed），随 v1.19.1 发布。
+本次版本 v1.20.0：`list` 不再被网络卡住。额度先从本地缓存瞬间显示，联网刷新交给后台 detached 进程（`list --refresh-cache`，带锁，token 轮换可完整跑完）；手动 `list` 在原处逐行刷新、最多等 2 秒，没赶上的保留上次值并标 `· Nm ago`；`list --cached` 只读缓存（实测 0.15 秒），供 `~/.zshrc` 开 shell 用。`--json` 维持原有实时合同。
 
 ## Next
 
+- [ ] 用户在 Warp 里新开 tab，确认不再卡在 "starting zsh..."（本机只在 zsh 子进程里测到启动 0.3 秒，Warp 本身未测）。
 - [ ] 修复版装好后，在用户日常目录重试 `claudex-switch openlam42 -run`，确认不再出现 "configured default agent is unavailable in this location"（本机复现：私有 server 启动约 2 秒内 `/api/agent` 可 200 返空表）。
 
 - [ ] 用户升级 v1.18.4 后运行 `claudex-switch opensatoshi -run`，确认选择器列出全部 Go 模型、切换其他模型短请求成功（真实 HOME 有防护，本次未改动该别名）。
@@ -19,6 +18,7 @@
 
 ## Done
 
+- [x] 2026-10-13：修复 zsh 启动偶发 10–33 秒（`.zshrc` 里的 `claudex-switch list` 被个别额度接口 4–10 秒超时拖住）。改为缓存 + 后台刷新，版本升至 `1.20.0`。292 项测试、类型检查、文档检查、构建通过；真实 HOME 上 `--cached` 0.15 秒出全量额度、缓存 0600 且无密钥；带尺寸 PTY 下手动 `list` 先出缓存帧、8 次原地重绘、1.8 秒结束；临时 zshrc 副本启动 0.30 秒（原 1.3–33 秒）。
 - [x] 2026-10-11：修复 OpenCode V2 启动校验对 agent 清单的就绪竞态（agent 校验改轮询、超时仍 fail-closed），随 v1.19.1 发布；285 项测试、类型检查、构建通过，真实 2.0.22 探针复现空表；默认与定版 installer 双验证通过。详见 req_changelog 2026-10-11 条。
 - [x] 2026-10-06：`--autoreview` 扩至 OpenCode 别名，仅设/清本次启动的 `CODEX_COMPLETION_REVIEW_DISABLED`，Claude 仍拒绝。283 项测试、`bun run verify` 通过；真实 HOME 上用 `opensatoshi`（OpenCode 2.0.21 TUI）配假 reviewer 实测：`on` 时走完 CONTINUE→改文件→STOP，`off` 时显示 `Autoreview: off (this session)` 且不审。
 - [x] 2026-10-05：评审 PR #8（仅改 CI 契约脚本里非 Go 模型的报错断言，适配 v1.18.3 提前校验；两个 CI job 通过），经用户授权合并（`daa0e40`）；该提交 main CI 的 release guard 失败属未升版中间态。V2 选择器只显示历史模型：受管 provider 只暴露 overlay 列出的模型；真实 OpenCode 2.0.21 隔离实测 44 个目录 ID（含虚构 ID）均能通过启动检查，遂启动时并入在线 Go 目录（不写入历史）。282 项测试、1,180 断言、类型检查通过；真实 2.0.21 假 key 启动检查 43 个模型入选择器、耗时约 1.2 秒。PR #9 rebase 后两 CI job 通过，合并 `907c598` 并发布 v1.18.4：release workflow 成功、6 项资产、latest 为 v1.18.4、release guard 通过。

@@ -29,7 +29,7 @@ claudex-switch 是一款本地 CLI 账号切换器与额度查看工具，管理
 - 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
 - Codex `-run` 默认使用 `--approve-for-me`（Auto 权限模式）；`--autoreview on|off` 独立控制完成评审（Codex Stop hook / OpenCode V2 completion-review 插件），不改 permission mode
-- `claudex-switch list` 并行拉取并显示所有账号的剩余额度，同时以服务端额度响应更新 Codex 订阅等级、以最新匹配凭据更新 Claude 等级：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。加 `--no-usage` 可跳过网络请求，但仍会从本地凭据更新等级
+- `claudex-switch list` 并行拉取并显示所有账号的剩余额度，同时以服务端额度响应更新 Codex 订阅等级、以最新匹配凭据更新 Claude 等级：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61%`），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。额度先从本地缓存（`~/.claudex-switch/usage-cache.json`）瞬间显示，同时由一个后台进程联网刷新，刷新结果在原处逐行更新，最多等 2 秒；没赶上的账号保留上次的值并标出时间（如 `· 12m ago`），某个接口卡住也不会拖住终端。`--cached` 只读缓存、约 0.15 秒返回，刷新在后台进行、下次显示，适合放在 `~/.zshrc` 里开 shell 时展示。加 `--no-usage` 可跳过网络请求，但仍会从本地凭据更新等级
 - 用薄别名层引用 provider 专属账号档案；切换会按 provider 同步当前认证 / 配置，历史会话可见性元数据也可能更新，详见下文注意事项
 - 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
 - `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
@@ -302,7 +302,7 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
-| `claudex-switch list` | 列出所有账号、认证类型、默认模型和剩余额度（5h / 每周窗口，one-api 中转显示余额）；`--no-usage` 跳过额度拉取 |
+| `claudex-switch list` | 列出所有账号、认证类型、默认模型和剩余额度（5h / 每周窗口，one-api 中转显示余额）；`--cached` 只读缓存、后台刷新（适合 shell 启动）；`--no-usage` 跳过额度拉取 |
 | `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置；支持同一套模型缩写 |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |

@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2048,6 +2034,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2192,7 +2179,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3480,6 +3467,8 @@ var CLAUDEX_DIR = join(HOME, ".claudex-switch");
 var ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
 var RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
 var MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
+var USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
+var USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
 var CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 var CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 var OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");
@@ -9878,6 +9867,9 @@ function setOptionalEnv(env2, key, value) {
   delete env2[key];
 }
 
+// src/commands/list.ts
+import { stripVTControlCharacters as stripVTControlCharacters2 } from "util";
+
 // src/providers/claude/usage.ts
 var USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 var TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
@@ -10010,8 +10002,134 @@ async function refreshOAuthToken(creds) {
   }
 }
 
-// src/providers/codex/app-server.ts
+// src/lib/usage-cache.ts
 import { spawn as spawn8 } from "child_process";
+import { mkdir as mkdir12, open as open3, readFile as readFile8, rename as rename6, stat as stat4, unlink as unlink3, writeFile as writeFile8 } from "fs/promises";
+var LOCK_STALE_MS = 2 * 60000;
+var TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
+function emptyUsageCache() {
+  return { version: 1, refreshStartedAt: null, refreshFinishedAt: null, entries: {} };
+}
+async function readUsageCache() {
+  try {
+    const parsed = JSON.parse(await readFile8(USAGE_CACHE_FILE, "utf-8"));
+    if (parsed?.version !== 1 || !parsed.entries || typeof parsed.entries !== "object") {
+      return emptyUsageCache();
+    }
+    return parsed;
+  } catch {
+    return emptyUsageCache();
+  }
+}
+async function writeUsageCache(cache) {
+  await mkdir12(CLAUDEX_DIR, { recursive: true });
+  const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
+  await writeFile8(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
+  await rename6(tmp, USAGE_CACHE_FILE);
+}
+async function usageCacheMtime() {
+  try {
+    return (await stat4(USAGE_CACHE_FILE)).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+function nextCacheEntry(previous, result, now) {
+  if (result.usage || result.balance) {
+    return {
+      usage: result.usage,
+      balance: result.balance,
+      plan: result.plan ?? previous?.plan ?? null,
+      dataAt: now,
+      note: null,
+      checkedAt: now
+    };
+  }
+  return {
+    usage: previous?.usage ?? null,
+    balance: previous?.balance ?? null,
+    plan: result.plan ?? previous?.plan ?? null,
+    dataAt: previous?.dataAt ?? null,
+    note: result.note,
+    checkedAt: now
+  };
+}
+function quotaFromCache(entry) {
+  if (!entry)
+    return null;
+  const latestOk = entry.note === null && entry.dataAt === entry.checkedAt;
+  const hasData = Boolean(entry.usage || entry.balance);
+  if (latestOk || hasData && (entry.note === null || TRANSIENT_NOTES.has(entry.note))) {
+    return {
+      usage: entry.usage,
+      balance: entry.balance,
+      note: null,
+      plan: entry.plan,
+      dataAt: entry.dataAt
+    };
+  }
+  return { usage: null, balance: null, note: entry.note, plan: entry.plan, dataAt: null };
+}
+function formatAge(ms) {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60)
+    return `${Math.max(1, minutes)}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48)
+    return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+async function acquireRefreshLock() {
+  await mkdir12(CLAUDEX_DIR, { recursive: true });
+  for (let attempt = 0;attempt < 2; attempt++) {
+    try {
+      const handle = await open3(USAGE_REFRESH_LOCK, "wx", 384);
+      await handle.writeFile(`${process.pid} ${Date.now()}
+`);
+      await handle.close();
+      return async () => {
+        await unlink3(USAGE_REFRESH_LOCK).catch(() => {});
+      };
+    } catch {
+      if (!await isRefreshLockStale())
+        return null;
+      await unlink3(USAGE_REFRESH_LOCK).catch(() => {});
+    }
+  }
+  return null;
+}
+async function isRefreshRunning() {
+  try {
+    await stat4(USAGE_REFRESH_LOCK);
+  } catch {
+    return false;
+  }
+  return !await isRefreshLockStale();
+}
+async function isRefreshLockStale() {
+  try {
+    return Date.now() - (await stat4(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
+  } catch {
+    return true;
+  }
+}
+function spawnBackgroundRefresh() {
+  const args = ["list", "--refresh-cache"];
+  const script = process.argv[1];
+  const compiled = !script || script.startsWith("/$bunfs/") || /^[A-Za-z]:[\\/]~BUN[\\/]/.test(script);
+  try {
+    const child = spawn8(process.execPath, compiled ? args : [script, ...args], {
+      detached: true,
+      stdio: "ignore",
+      env: process.env
+    });
+    child.on("error", () => {});
+    child.unref();
+  } catch {}
+}
+
+// src/providers/codex/app-server.ts
+import { spawn as spawn9 } from "child_process";
 import { createInterface as createInterface2 } from "readline";
 var REQUEST_TIMEOUT_MS = 1e4;
 var MAX_CONCURRENT_SERVERS = 3;
@@ -10036,7 +10154,7 @@ async function acquireServerSlot() {
     serverWaiters.shift()?.();
   };
 }
-async function readCodexRateLimits(auth, spawnAppServer = spawn8) {
+async function readCodexRateLimits(auth, spawnAppServer = spawn9) {
   const release = await acquireServerSlot();
   let codexHome = null;
   try {
@@ -10262,9 +10380,82 @@ async function list(options = {}) {
     blank();
     return;
   }
-  const claudeAliases = validAliases.filter((a) => a.target.provider === "claude");
-  const codexAliases = validAliases.filter((a) => a.target.provider === "codex");
-  const openCodeAliases = validAliases.filter((a) => a.target.provider === "opencode");
+  const ctx = await loadListContext(validAliases, offlineJson);
+  if (options.json) {
+    const infos = await Promise.all(ctx.entries.map((entry) => accountInfo(ctx, entry, withUsage, options, true)));
+    if (!offlineJson)
+      await persistDisplayedCodexPlans(ctx.entries, infos, ctx.codexReg);
+    const result = {
+      schemaVersion: 1,
+      accounts: infos.map(toJsonListAccount).sort(compareJsonAccounts)
+    };
+    console.log(JSON.stringify(result));
+    return;
+  }
+  const baseInfos = await Promise.all(ctx.entries.map((entry) => accountInfo(ctx, entry, false, options, false)));
+  if (!withUsage) {
+    await persistDisplayedCodexPlans(ctx.entries, baseInfos, ctx.codexReg);
+    printLines(renderLines(baseInfos, false));
+    return;
+  }
+  if (!options.background) {
+    await refreshUsageCache(options);
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, await readUsageCache()), false));
+    return;
+  }
+  const spawnRefresh = options.spawnRefresh ?? spawnBackgroundRefresh;
+  if (options.cached) {
+    const cache = await readUsageCache();
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, cache), false));
+    await startBackgroundRefreshIfIdle(cache, spawnRefresh);
+    return;
+  }
+  const startedAt = Date.now();
+  spawnRefresh();
+  await renderWhileRefreshing(ctx.entries, baseInfos, startedAt, options.waitMs ?? DEFAULT_WAIT_MS);
+}
+async function refreshUsageCache(options = {}) {
+  const release = await acquireRefreshLock();
+  if (!release)
+    return false;
+  try {
+    const ctx = await loadListContext((await loadAliases()).aliases, false);
+    const cache = await readUsageCache();
+    const keys = new Set(ctx.entries.map(cacheKey));
+    cache.entries = Object.fromEntries(Object.entries(cache.entries).filter(([key]) => keys.has(key)));
+    cache.refreshStartedAt = Date.now();
+    let writes = writeUsageCache(cache);
+    const save = () => {
+      writes = writes.catch(() => {}).then(() => writeUsageCache(cache));
+      return writes;
+    };
+    const infos = await Promise.all(ctx.entries.map(async (entry) => {
+      const info2 = await accountInfo(ctx, entry, true, options, false);
+      if (info2.status === "configured") {
+        const key = cacheKey(entry);
+        cache.entries[key] = nextCacheEntry(cache.entries[key], {
+          usage: info2.usage,
+          balance: info2.balance,
+          note: info2.usageNote,
+          plan: info2.provider === "codex" && info2.authMode === "chatgpt" ? info2.plan : null
+        }, Date.now());
+        await save().catch(() => {});
+      }
+      return info2;
+    }));
+    await persistDisplayedCodexPlans(ctx.entries, infos, ctx.codexReg);
+    cache.refreshFinishedAt = Date.now();
+    await save();
+    return true;
+  } finally {
+    await release();
+  }
+}
+var DEFAULT_WAIT_MS = 2000;
+var POLL_MS = 100;
+var CACHED_REFRESH_MIN_INTERVAL_MS = 30000;
+async function loadListContext(aliases, offlineJson) {
+  const byProvider = (provider) => aliases.filter((a) => a.target.provider === provider);
   const claudeState = await readState2();
   const openCodeState = await readOpenCodeState();
   let codexReg = null;
@@ -10273,46 +10464,137 @@ async function list(options = {}) {
     if (!offlineJson)
       await syncActiveAuthSnapshot(codexReg);
   } catch {}
-  const codexUsage = withUsage && codexReg?.api?.usage !== false;
-  const [claudeInfos, codexInfos, openCodeInfos] = await Promise.all([
-    Promise.all(claudeAliases.map((entry) => getClaudeAccountInfo(entry, claudeState.active, withUsage))),
-    Promise.all(codexAliases.map((entry) => getCodexAccountInfo(entry, codexReg, codexUsage, options.codexUsageFetcher ?? fetchCodexUsage, options.json === true))),
-    Promise.all(openCodeAliases.map((entry) => getOpenCodeAccountInfo(entry, openCodeState.active, withUsage, options.openCodeUsageFetcher ?? fetchOpenCodeUsage)))
-  ]);
-  if (!offlineJson) {
-    await persistDisplayedCodexPlans(codexAliases, codexInfos, codexReg);
+  return {
+    entries: [
+      ...byProvider("claude"),
+      ...byProvider("codex"),
+      ...byProvider("opencode")
+    ],
+    claudeActive: claudeState.active,
+    openCodeActive: openCodeState.active,
+    codexReg,
+    codexUsage: codexReg?.api?.usage !== false
+  };
+}
+function accountInfo(ctx, entry, withUsage, options, inspectCredentials) {
+  switch (entry.target.provider) {
+    case "claude":
+      return getClaudeAccountInfo(entry, ctx.claudeActive, withUsage);
+    case "codex":
+      return getCodexAccountInfo(entry, ctx.codexReg, withUsage && ctx.codexUsage, options.codexUsageFetcher ?? fetchCodexUsage, inspectCredentials);
+    default:
+      return getOpenCodeAccountInfo(entry, ctx.openCodeActive, withUsage, options.openCodeUsageFetcher ?? fetchOpenCodeUsage);
   }
-  if (options.json) {
-    const result = {
-      schemaVersion: 1,
-      accounts: [...claudeInfos, ...codexInfos, ...openCodeInfos].map(toJsonListAccount).sort(compareJsonAccounts)
+}
+function cacheKey(entry) {
+  const target = entry.target;
+  switch (target.provider) {
+    case "claude":
+      return `claude:${target.profileName}`;
+    case "codex":
+      return `codex:${target.accountKey}`;
+    default:
+      return `opencode:${target.profileId}`;
+  }
+}
+function withCachedQuota(entries, baseInfos, cache) {
+  return baseInfos.map((info2, index) => {
+    const entry = entries[index];
+    if (!entry || info2.status !== "configured")
+      return info2;
+    const quota = quotaFromCache(cache.entries[cacheKey(entry)]);
+    if (!quota)
+      return info2;
+    return {
+      ...info2,
+      usage: quota.usage,
+      balance: quota.balance,
+      usageNote: quota.note ?? info2.usageNote,
+      plan: info2.provider === "codex" && info2.authMode === "chatgpt" && quota.plan ? quota.plan : info2.plan,
+      quotaAt: quota.dataAt
     };
-    console.log(JSON.stringify(result));
+  });
+}
+async function startBackgroundRefreshIfIdle(cache, spawnRefresh) {
+  const last = Math.max(cache.refreshStartedAt ?? 0, cache.refreshFinishedAt ?? 0);
+  if (Date.now() - last < CACHED_REFRESH_MIN_INTERVAL_MS)
     return;
+  if (await isRefreshRunning())
+    return;
+  spawnRefresh();
+}
+async function renderWhileRefreshing(entries, baseInfos, startedAt, waitMs) {
+  let cache = await readUsageCache();
+  const finished = () => (cache.refreshFinishedAt ?? 0) >= startedAt;
+  const current = (refreshing) => renderLines(withCachedQuota(entries, baseInfos, cache), refreshing);
+  const initial = current(true);
+  const live = process.stdout.isTTY === true && visualLineCount(initial) < (process.stdout.rows || 24);
+  let drawn = live ? redraw(initial, 0) : 0;
+  let lastMtime = await usageCacheMtime();
+  while (!finished() && Date.now() - startedAt < waitMs) {
+    await new Promise((resolve2) => setTimeout(resolve2, POLL_MS));
+    const mtime = await usageCacheMtime();
+    if (mtime === lastMtime)
+      continue;
+    lastMtime = mtime;
+    cache = await readUsageCache();
+    if (live)
+      drawn = redraw(current(!finished()), drawn);
   }
-  blank();
-  console.log(header("  Accounts"));
-  if (claudeInfos.length > 0) {
+  if (live)
+    redraw(current(false), drawn);
+  else
+    printLines(current(false));
+}
+function redraw(lines, previousLineCount) {
+  const clear = previousLineCount > 0 ? `\x1B[${previousLineCount}A\x1B[0J` : "";
+  process.stdout.write(`${clear}${lines.join(`
+`)}
+`);
+  return visualLineCount(lines);
+}
+function visualLineCount(lines) {
+  const columns = process.stdout.columns || 80;
+  return lines.reduce((total, line) => total + Math.max(1, Math.ceil(stripVTControlCharacters2(line).length / columns)), 0);
+}
+function printLines(lines) {
+  console.log(lines.join(`
+`));
+}
+function renderLines(infos, refreshing) {
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (...args) => {
+    lines.push(...args.map(String).join(" ").split(`
+`));
+  };
+  try {
     blank();
-    sectionHeader("Claude");
-    renderSection(claudeInfos);
-  }
-  if (codexInfos.length > 0) {
+    console.log(header("  Accounts"));
+    const sections = [
+      ["Claude", "claude"],
+      ["Codex", "codex"],
+      ["OpenCode", "opencode"]
+    ];
+    for (const [title, provider] of sections) {
+      const sectionInfos = infos.filter((info2) => info2.provider === provider);
+      if (sectionInfos.length === 0)
+        continue;
+      blank();
+      sectionHeader(title);
+      renderSection(sectionInfos);
+    }
+    if (infos.some((info2) => info2.usage)) {
+      blank();
+      hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
+    }
+    if (refreshing)
+      hint("refreshing quota…");
     blank();
-    sectionHeader("Codex");
-    renderSection(codexInfos);
+  } finally {
+    console.log = originalLog;
   }
-  if (openCodeInfos.length > 0) {
-    blank();
-    sectionHeader("OpenCode");
-    renderSection(openCodeInfos);
-  }
-  const anyUsage = [...claudeInfos, ...codexInfos, ...openCodeInfos].some((info2) => info2.usage);
-  if (anyUsage) {
-    blank();
-    hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
-  }
-  blank();
+  return lines;
 }
 async function getOpenCodeAccountInfo(entry, activeProfile, withUsage, usageFetcher) {
   if (entry.target.provider !== "opencode") {
@@ -10369,7 +10651,8 @@ function renderSection(infos) {
     const usage = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage || balance;
-    const quotaStr = quota ? `  ${quota}` : "";
+    const age = quota && info2.quotaAt && Date.now() - info2.quotaAt >= 60000 ? source_default.dim(` · ${formatAge(Date.now() - info2.quotaAt)}`) : "";
+    const quotaStr = quota ? `  ${quota}${age}` : "";
     console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model2}${quotaStr}`);
   }
 }
@@ -10659,7 +10942,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename6(currentAlias, nextAlias) {
+async function rename7(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -10690,7 +10973,7 @@ async function rename6(currentAlias, nextAlias) {
 }
 
 // src/accounts/purge.ts
-import { unlink as unlink3 } from "fs/promises";
+import { unlink as unlink4 } from "fs/promises";
 async function planPurge(aliasName) {
   const reg = await loadAliases();
   const entry = findAlias(reg, aliasName);
@@ -10720,7 +11003,7 @@ async function purgeAccount(aliasName) {
       }
       const authFile = codexAccountAuthFile(entry.target.accountKey);
       if (await fileExists(authFile)) {
-        await unlink3(authFile);
+        await unlink4(authFile);
       }
     } catch {}
   }
@@ -10913,7 +11196,7 @@ async function importCodexAccounts(reg) {
 }
 
 // src/commands/refresh.ts
-import { spawn as spawn9 } from "child_process";
+import { spawn as spawn10 } from "child_process";
 async function refresh(aliasOrName) {
   blank();
   const aliasReg = await loadAliases();
@@ -11201,7 +11484,7 @@ async function runLoginCommand(command, args) {
   const browserScript = createPrivateBrowserScript();
   const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
-    const proc = spawn9(command, args, { stdio: "inherit", env: env2 });
+    const proc = spawn10(command, args, { stdio: "inherit", env: env2 });
     return await new Promise((resolve2, reject) => {
       proc.on("close", resolve2);
       proc.on("error", reject);
@@ -11221,7 +11504,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.19.1",
+  version: "1.20.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -13527,7 +13810,7 @@ var HELP = `
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
-    claudex-switch list [--json] [--no-usage]  List accounts with remaining quota
+    claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
     claudex-switch rename <from> <to>  Rename an alias
     claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
@@ -13600,18 +13883,21 @@ function enforceRepoLocalHomeSafety(command, machineReadable = false) {
 function parseListOptions(args) {
   let json = false;
   let usage = true;
+  let cached = false;
   for (const arg of args) {
     if (arg === "--json") {
       json = true;
     } else if (arg === "--no-usage") {
       usage = false;
+    } else if (arg === "--cached") {
+      cached = true;
     } else {
-      console.error("Unsupported list option. Supported options are --json and --no-usage.");
+      console.error("Unsupported list option. Supported options are --json, --no-usage and --cached.");
       process.exitCode = 2;
       return null;
     }
   }
-  return { json, usage };
+  return { json, usage, cached, background: true };
 }
 async function interactivePicker() {
   const aliasReg = await loadAliases();
@@ -13700,6 +13986,10 @@ async function main() {
         break;
       case "list":
       case "ls":
+        if (args.length === 1 && args[0] === "--refresh-cache") {
+          await refreshUsageCache();
+          break;
+        }
         {
           const options = parseListOptions(args);
           if (!options)
@@ -13740,7 +14030,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename6(args[0], args[1]);
+        await rename7(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {
