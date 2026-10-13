@@ -31,6 +31,9 @@ export const MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 export const USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
 export const USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
 export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
+// Codex / OpenCode account -> the unaliased Claude profile that
+// `<alias> --run --cliproxy claudecode` launches through a managed proxy.
+export const CLI_PROXY_API_LINKS_FILE = join(CLAUDEX_DIR, "cliproxy-links.json");
 export const CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 export const OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");
 export const OPENCODE_STATE_FILE = join(CLAUDEX_DIR, "opencode", "state.json");

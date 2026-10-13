@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { CLI_PROXY_API_UPSTREAMS } from "../providers/cliproxyapi/upstreams";
 import { loadAliases, findAlias } from "../alias/store";
 import { switchProfile, profileExists } from "../providers/claude/profiles";
 import { readCredentials } from "../providers/claude/credentials";
@@ -111,7 +112,9 @@ async function switchClaude(
   if (data.type === "api-key" && data.apiKey) {
     label = chalk.dim(maskKey(data.apiKey));
   } else if (data.type === "local-cliproxyapi") {
-    label = chalk.dim("CLIProxyAPI · local ChatGPT login");
+    label = chalk.dim(
+      `CLIProxyAPI · local ${CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label} login`,
+    );
   } else {
     const creds = await readCredentials(
       claudeProfileCredentials(profileName),

@@ -33,6 +33,7 @@ const HELP = `
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
+    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on a Codex / OpenCode Go alias (or "agy" for Antigravity) via a local CLIProxyAPI
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -41,7 +42,7 @@ const HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
-    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account
+    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account (or the one a --cliproxy alias uses)
     claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
@@ -220,6 +221,18 @@ async function main(): Promise<void> {
         error("--autoreview can only be used with -run or --run.");
         hint(
           `Example: ${chalk.cyan("claudex-switch cx -run --autoreview off")}`,
+        );
+        blank();
+        process.exit(1);
+      }
+    }
+
+    if (args.includes("--cliproxy") && !jsonListCommand) {
+      const runFlag = command === "use" ? args[1] : args[0];
+      if (!isRunFlag(runFlag)) {
+        error("--cliproxy can only be used with -run or --run.");
+        hint(
+          `Example: ${chalk.cyan("claudex-switch cx -run --cliproxy claudecode")}`,
         );
         blank();
         process.exit(1);

@@ -3,6 +3,12 @@ import { spawn, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
 import { use } from "./use";
 import { updateDefaultModel } from "./model";
+import {
+  CLIPROXY_CLIENT_NAMES,
+  UserFacingError,
+  isClaudeCodeClient,
+  resolveCLIProxyClaudeEntry,
+} from "./cliproxy";
 import { blank, error, hint, info } from "../lib/ui";
 import {
   isModelEffort,
@@ -30,6 +36,7 @@ import {
   prepareLocalCLIProxyAPIClaudeSettings,
   resolveManagedLocalCLIProxyAPIDefaultModel,
   resolveManagedLocalCLIProxyAPIModel,
+  stopStaleManagedCLIProxyAPI,
   type ManagedCLIProxyAPILease,
 } from "../providers/cliproxyapi/managed";
 import {
@@ -86,6 +93,7 @@ type RunArgumentOptions = {
   effortOverride?: string;
   headerEnabled?: boolean;
   autoreviewOverride?: boolean;
+  cliproxyClient?: string;
 };
 
 export function isRunFlag(value?: string): boolean {
@@ -144,7 +152,9 @@ export async function runAliasSession(
   openCodeCredentialSync?: OpenCodeV2CredentialSync,
 ): Promise<number> {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
-  const entry = await resolveAliasOrExit(aliasOrName);
+  const entry = runOptions.cliproxyClient
+    ? await resolveCLIProxyEntryOrExit(aliasOrName)
+    : await resolveAliasOrExit(aliasOrName);
   if (
     runOptions.autoreviewOverride !== undefined &&
     entry.target.provider !== "codex" &&
@@ -340,6 +350,10 @@ export async function runAliasSession(
       );
       secureStorageDir = context.secureStorageDir;
       configDir = context.configDir;
+      await stopStaleManagedCLIProxyAPI({
+        profileId: profile.profileId,
+        binaryPath: profile.binaryPath,
+      });
       // Acquire the lease before startup so a simultaneous purge/refresh
       // cannot remove the account while this launch is preparing its private
       // settings file. The lease is released when the real Claude process
@@ -565,8 +579,24 @@ async function resolveAliasOrExit(aliasOrName: string): Promise<AliasEntry> {
   process.exit(1);
 }
 
+// `<alias> --run --cliproxy claudecode`: run Claude Code on a Codex / OpenCode
+// Go / Antigravity account through a managed local CLIProxyAPI.
+async function resolveCLIProxyEntryOrExit(aliasOrName: string): Promise<AliasEntry> {
+  try {
+    return await resolveCLIProxyClaudeEntry(aliasOrName);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    if (err instanceof UserFacingError) {
+      for (const line of err.hints) hint(line);
+    }
+    blank();
+    process.exit(1);
+  }
+}
+
 function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
   const forwardedArgs: string[] = [];
+  let cliproxyClient: string | undefined;
   let modelOverride: string | undefined;
   let effortOverride: string | undefined;
   let headerEnabled: boolean | undefined;
@@ -619,6 +649,23 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
       continue;
     }
 
+    if (arg === "--cliproxy") {
+      const nextValue = args[index + 1]?.trim();
+      if (!nextValue || !isClaudeCodeClient(nextValue)) {
+        error(
+          nextValue
+            ? `--cliproxy currently supports: ${CLIPROXY_CLIENT_NAMES}`
+            : "Missing client after --cliproxy.",
+        );
+        hint(`Example: ${chalk.cyan("claudex-switch cx -run --cliproxy claudecode")}`);
+        blank();
+        process.exit(1);
+      }
+      cliproxyClient = "claudecode";
+      index += 1;
+      continue;
+    }
+
     if (arg === "--autoreview") {
       const nextValue = args[index + 1]?.trim().toLowerCase();
       if (nextValue !== "on" && nextValue !== "off") {
@@ -644,6 +691,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
     effortOverride,
     headerEnabled,
     autoreviewOverride,
+    cliproxyClient,
   };
 }
 

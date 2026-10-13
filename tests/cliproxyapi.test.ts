@@ -41,7 +41,7 @@ import {
   purgeManagedCLIProxyAPI,
   resolveLocalCLIProxyAPIModel,
   resolveManagedLocalCLIProxyAPIModel,
-  runManagedCLIProxyAPICodexLogin,
+  runManagedCLIProxyAPILogin,
   stopManagedCLIProxyAPI,
   verifyManagedCLIProxyAPILive,
 } from "../src/providers/cliproxyapi/managed";
@@ -199,13 +199,13 @@ describe("managed local CLIProxyAPI", () => {
   test("keeps one staged Codex auth and rejects a different refreshed identity", async () => {
     const profile = makeProfile();
     await initializeManagedCLIProxyAPI(profile.profileId);
-    const initial = await runManagedCLIProxyAPICodexLogin(profile);
+    const initial = await runManagedCLIProxyAPILogin(profile);
     expect(initial.success).toBe(true);
     expect(initial.identity).toBeTruthy();
     expect(await hasManagedCLIProxyAPILogin(profile.profileId)).toBe(true);
 
     process.env.CLAUDEX_FAKE_AUTH_SUB = "different-fixture-user";
-    const mismatch = await runManagedCLIProxyAPICodexLogin(
+    const mismatch = await runManagedCLIProxyAPILogin(
       profile,
       undefined,
       initial.identity!,
@@ -223,7 +223,7 @@ describe("managed local CLIProxyAPI", () => {
     await initializeManagedCLIProxyAPI(profile.profileId);
     const server = await listenOnCallbackPort();
     try {
-      await expect(runManagedCLIProxyAPICodexLogin(profile)).rejects.toThrow(
+      await expect(runManagedCLIProxyAPILogin(profile)).rejects.toThrow(
         "localhost:1455",
       );
     } finally {
@@ -236,7 +236,7 @@ describe("managed local CLIProxyAPI", () => {
   test("refuses purge while a run lease is active, then removes only its profile", async () => {
     const profile = makeProfile();
     await initializeManagedCLIProxyAPI(profile.profileId);
-    expect((await runManagedCLIProxyAPICodexLogin(profile)).success).toBe(true);
+    expect((await runManagedCLIProxyAPILogin(profile)).success).toBe(true);
     await ensureManagedCLIProxyAPI(profile);
     const lease = await acquireManagedCLIProxyAPILease(profile);
     await expect(purgeManagedCLIProxyAPI(profile)).rejects.toThrow(
@@ -260,7 +260,7 @@ describe("managed local CLIProxyAPI", () => {
     // it, and the alias has to survive so the account stays reachable.
     const profile = makeProfile();
     await initializeManagedCLIProxyAPI(profile.profileId);
-    expect((await runManagedCLIProxyAPICodexLogin(profile)).success).toBe(true);
+    expect((await runManagedCLIProxyAPILogin(profile)).success).toBe(true);
     await ensureManagedCLIProxyAPI(profile);
     await saveAliases({
       version: 1,
@@ -321,7 +321,7 @@ describe("managed local CLIProxyAPI", () => {
     const name = `cliproxy-${profile.profileId}`;
     await saveLocalProfile(name, profile);
     await initializeManagedCLIProxyAPI(profile.profileId);
-    expect((await runManagedCLIProxyAPICodexLogin(profile)).success).toBe(true);
+    expect((await runManagedCLIProxyAPILogin(profile)).success).toBe(true);
     await saveAliases({
       version: 1,
       aliases: [
@@ -377,7 +377,7 @@ describe("managed local CLIProxyAPI", () => {
     const name = `cliproxy-${profile.profileId}`;
     await saveLocalProfile(name, profile);
     await initializeManagedCLIProxyAPI(profile.profileId);
-    const login = await runManagedCLIProxyAPICodexLogin(profile);
+    const login = await runManagedCLIProxyAPILogin(profile);
     expect(login.success).toBe(true);
     await ensureManagedCLIProxyAPI(profile);
     await stopManagedCLIProxyAPI(profile);

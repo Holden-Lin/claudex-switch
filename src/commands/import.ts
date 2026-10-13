@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { readdir } from "fs/promises";
 import { CLAUDE_PROFILES_DIR } from "../lib/paths";
+import { linkedClaudeProfileNames } from "../providers/cliproxyapi/links";
 import { fileExists } from "../lib/fs";
 import {
   loadAliases,
@@ -54,10 +55,13 @@ async function importClaudeProfiles(
   let imported = 0;
   let skipped = 0;
   const entries = await readdir(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  // Profiles behind `--cliproxy` belong to their Codex / OpenCode alias.
+  const linked = await linkedClaudeProfileNames();
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const name = entry.name;
+    if (linked.has(name)) continue;
     const target = { provider: "claude" as const, profileName: name };
     const existing = findAliasByTarget(reg, target);
 

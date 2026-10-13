@@ -37,12 +37,18 @@ import {
   type LocalCLIProxyAPISettings,
 } from "../claude/settings";
 import type { LocalCLIProxyAPIProfileData } from "../../types";
+import {
+  CLI_PROXY_API_UPSTREAMS,
+  OPENCODE_GO_ANTHROPIC_BASE_URL,
+  OPENCODE_GO_OPENAI_BASE_URL,
+  isOpenCodeGoMessagesModel,
+  parseUpstream,
+  type CLIProxyAPIModelMap,
+  type CLIProxyAPIUpstream,
+} from "./upstreams";
 
 export const CLI_PROXY_API_DEFAULTS = {
-  fableModel: "gpt-6-astra",
-  sonnetModel: "gpt-5.6-terra",
-  opusModel: "gpt-5.6-terra",
-  haikuModel: "gpt-6-luna",
+  ...CLI_PROXY_API_UPSTREAMS.codex.defaults,
   subagentModel: "claudex-terra-max",
 } as const;
 
@@ -51,6 +57,11 @@ const ENV_FABLE_MODEL = "CLAUDEX_CLIPROXYAPI_FABLE_MODEL";
 const ENV_SONNET_MODEL = "CLAUDEX_CLIPROXYAPI_SONNET_MODEL";
 const ENV_OPUS_MODEL = "CLAUDEX_CLIPROXYAPI_OPUS_MODEL";
 const ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
+// Absent in .env files written before other upstreams existed (= codex).
+const ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
+// API-key upstreams (OpenCode Go): the upstream key and the models to expose.
+const ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
+const ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
 // Older accounts had the then-default Luna written into their .env. That
 // value was never a user choice, so read it as "use the current default".
 const LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
@@ -59,18 +70,20 @@ const LOCK_TIMEOUT_MS = 20_000;
 const ORPHAN_LOCK_GRACE_MS = 60_000;
 const LOCK_HEARTBEAT_MS = 10_000;
 const LOOPBACK_HOST = "127.0.0.1";
-// CLIProxyAPI v7.2.x accepts `-oauth-callback-port`, but its Codex authorize
-// URL still hard-codes this redirect URI. Do not pass a misleading random
-// flag: preflight the actual port and serialize login attempts globally.
-const CODEX_OAUTH_CALLBACK_PORT = 1455;
 const PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
-interface ManagedEnv {
+interface ManagedEnv extends CLIProxyAPIModelMap {
   apiKey: string;
-  fableModel: string;
-  sonnetModel: string;
-  opusModel: string;
-  haikuModel: string;
+  upstream: CLIProxyAPIUpstream;
+  upstreamKey: string | null;
+  upstreamModels: string[];
+}
+
+export interface ManagedCLIProxyAPISetup {
+  upstream: CLIProxyAPIUpstream;
+  models?: CLIProxyAPIModelMap;
+  upstreamKey?: string;
+  upstreamModels?: string[];
 }
 
 interface ManagedRuntimeState {
@@ -128,6 +141,12 @@ export interface ManagedCLIProxyAPILoginResult {
   success: boolean;
   identity: string | null;
   identityMismatch: boolean;
+}
+
+/** Non-secret account the login must belong to (a linked Codex alias). */
+export interface ExpectedCLIProxyAPIAccount {
+  accountId?: string | null;
+  email?: string | null;
 }
 
 type SpawnCommand = typeof spawn;
@@ -221,31 +240,55 @@ function parseManagedEnv(content: string): ManagedEnv {
     values[line.slice(0, separator)] = line.slice(separator + 1);
   }
 
+  const upstream = parseUpstream(values[ENV_UPSTREAM]?.trim());
+  const defaults = CLI_PROXY_API_UPSTREAMS[upstream].defaults;
+  const upstreamKey = values[ENV_UPSTREAM_KEY]?.trim() || null;
+  if (upstream === "opencode-go" && !upstreamKey) {
+    throw new Error(`Managed CLIProxyAPI configuration is missing ${ENV_UPSTREAM_KEY}`);
+  }
   return {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
-    fableModel: values[ENV_FABLE_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.fableModel,
-    sonnetModel: values[ENV_SONNET_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.sonnetModel,
-    opusModel: values[ENV_OPUS_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.opusModel,
-    haikuModel: currentHaikuModel(values[ENV_HAIKU_MODEL]),
+    upstream,
+    upstreamKey,
+    upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "")
+      .split(",")
+      .map((model) => model.trim())
+      .filter(Boolean),
+    fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
+    sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
+    opusModel: values[ENV_OPUS_MODEL]?.trim() || defaults.opusModel,
+    haikuModel: currentHaikuModel(upstream, values[ENV_HAIKU_MODEL]),
   };
 }
 
-function currentHaikuModel(value: string | undefined): string {
+function currentHaikuModel(upstream: CLIProxyAPIUpstream, value: string | undefined): string {
   const model = value?.trim();
-  if (!model || model === LEGACY_HAIKU_DEFAULT) {
-    return CLI_PROXY_API_DEFAULTS.haikuModel;
+  const fallback = CLI_PROXY_API_UPSTREAMS[upstream].defaults.haikuModel;
+  if (!model || (upstream === "codex" && model === LEGACY_HAIKU_DEFAULT)) {
+    return fallback;
   }
   return model;
 }
 
-function renderManagedEnv(apiKey: string): string {
+function renderManagedEnv(
+  apiKey: string,
+  setup: ManagedCLIProxyAPISetup = { upstream: "codex" },
+): string {
+  const models = setup.models ?? CLI_PROXY_API_UPSTREAMS[setup.upstream].defaults;
   return [
     "# Managed by claudex-switch. Keep this directory private.",
     `${ENV_CLIENT_KEY}=${apiKey}`,
-    `${ENV_FABLE_MODEL}=${CLI_PROXY_API_DEFAULTS.fableModel}`,
-    `${ENV_SONNET_MODEL}=${CLI_PROXY_API_DEFAULTS.sonnetModel}`,
-    `${ENV_OPUS_MODEL}=${CLI_PROXY_API_DEFAULTS.opusModel}`,
-    `${ENV_HAIKU_MODEL}=${CLI_PROXY_API_DEFAULTS.haikuModel}`,
+    // Codex files keep their original shape; the marker is only needed to
+    // tell the newer upstreams apart.
+    ...(setup.upstream === "codex" ? [] : [`${ENV_UPSTREAM}=${setup.upstream}`]),
+    ...(setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : []),
+    ...(setup.upstreamModels?.length
+      ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`]
+      : []),
+    `${ENV_FABLE_MODEL}=${models.fableModel}`,
+    `${ENV_SONNET_MODEL}=${models.sonnetModel}`,
+    `${ENV_OPUS_MODEL}=${models.opusModel}`,
+    `${ENV_HAIKU_MODEL}=${models.haikuModel}`,
     "",
   ].join("\n");
 }
@@ -258,21 +301,32 @@ function yaml(value: string): string {
 
 function renderRuntimeConfig(
   authDir: string,
-  apiKey: string,
+  managed: Pick<ManagedEnv, "apiKey" | "upstream" | "upstreamKey" | "upstreamModels" | keyof CLIProxyAPIModelMap>,
   port: number,
 ): string {
-  return [
+  const header = [
     `host: ${yaml(LOOPBACK_HOST)}`,
     `port: ${port}`,
     `auth-dir: ${yaml(authDir)}`,
     "api-keys:",
-    `  - ${yaml(apiKey)}`,
+    `  - ${yaml(managed.apiKey)}`,
     "remote-management:",
     "  allow-remote: false",
     '  secret-key: ""',
     "  disable-control-panel: true",
     "logging-to-file: false",
     "usage-statistics-enabled: false",
+  ];
+  if (managed.upstream === "antigravity") {
+    return [...header, ""].join("\n");
+  }
+  if (managed.upstream === "opencode-go") {
+    return [...header, ...renderOpenCodeGoUpstream(managed), ""].join("\n");
+  }
+  // Codex: byte-for-byte what earlier releases generated, so doctor does not
+  // report drift for existing accounts.
+  return [
+    ...header,
     "oauth-model-alias:",
     "  codex:",
     `    - name: ${yaml("gpt-5.6-terra")}`,
@@ -289,12 +343,72 @@ function renderRuntimeConfig(
   ].join("\n");
 }
 
+// OpenCode Go answers most models over OpenAI chat completions and a few only
+// over Anthropic Messages, so each model is routed to the provider entry that
+// speaks its wire format. CLIProxyAPI translates Claude Code's requests.
+function renderOpenCodeGoUpstream(
+  managed: Pick<ManagedEnv, "upstreamKey" | "upstreamModels" | keyof CLIProxyAPIModelMap>,
+): string[] {
+  const key = managed.upstreamKey ?? "";
+  const models = [
+    ...new Set([
+      managed.fableModel,
+      managed.opusModel,
+      managed.sonnetModel,
+      managed.haikuModel,
+      ...managed.upstreamModels,
+    ]),
+  ];
+  const chat = models.filter((model) => !isOpenCodeGoMessagesModel(model));
+  const messages = models.filter(isOpenCodeGoMessagesModel);
+  const modelLines = (list: string[], indent: string) =>
+    list.flatMap((model) => [
+      `${indent}- name: ${yaml(model)}`,
+      `${indent}  alias: ${yaml(model)}`,
+    ]);
+  // Go rejects requests without a stable per-conversation id
+  // (`x-opencode-session`, used for cache-friendly routing). Claude Code sends
+  // one per session; "$" makes CLIProxyAPI copy it from the incoming request.
+  const sessionHeader = [
+    "    headers:",
+    `      ${yaml("x-opencode-session")}: ${yaml("$X-Claude-Code-Session-Id")}`,
+  ];
+  const lines: string[] = [];
+  if (chat.length > 0) {
+    lines.push(
+      "openai-compatibility:",
+      `  - name: ${yaml("opencode-go")}`,
+      `    base-url: ${yaml(OPENCODE_GO_OPENAI_BASE_URL)}`,
+      ...sessionHeader,
+      "    api-key-entries:",
+      `      - api-key: ${yaml(key)}`,
+      "    models:",
+      ...modelLines(chat, "      "),
+    );
+  }
+  if (messages.length > 0) {
+    lines.push(
+      "claude-api-key:",
+      `  - api-key: ${yaml(key)}`,
+      `    base-url: ${yaml(OPENCODE_GO_ANTHROPIC_BASE_URL)}`,
+      ...sessionHeader,
+      // CLIProxyAPI sends Bearer to a custom base-url; Go's Messages route
+      // reads the key from x-api-key like Anthropic's own API.
+      `      ${yaml("x-api-key")}: ${yaml(key)}`,
+      "    models:",
+      ...modelLines(messages, "      "),
+    );
+  }
+  return lines;
+}
+
 export function createManagedCLIProxyAPIProfileId(): string {
   return randomUUID();
 }
 
 export async function initializeManagedCLIProxyAPI(
   profileId: string,
+  setup: ManagedCLIProxyAPISetup = { upstream: "codex" },
 ): Promise<void> {
   const paths = profilePaths(profileId);
   await mkdirPrivate(paths.dir);
@@ -303,7 +417,40 @@ export async function initializeManagedCLIProxyAPI(
   // the same alias. A losing process must use the winner's key, never replace
   // a key already accepted by a daemon.
   const apiKey = randomBytes(32).toString("base64url");
-  await writePrivateOnce(paths.envFile, renderManagedEnv(apiKey));
+  await writePrivateOnce(paths.envFile, renderManagedEnv(apiKey, setup));
+}
+
+/**
+ * Rewrite the private .env with new model mappings or upstream key while
+ * keeping its generated client key. Callers stop an idle daemon first when the
+ * change affects runtime.yaml; a running one keeps its loaded config.
+ */
+export async function updateManagedCLIProxyAPISetup(
+  profileId: string,
+  patch: Partial<Omit<ManagedCLIProxyAPISetup, "upstream">>,
+): Promise<void> {
+  const paths = profilePaths(profileId);
+  const current = await readExistingManagedEnv(profileId);
+  await writePrivate(
+    paths.envFile,
+    renderManagedEnv(current.apiKey, {
+      upstream: current.upstream,
+      models: patch.models ?? current,
+      upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
+      upstreamModels: patch.upstreamModels ?? current.upstreamModels,
+    }),
+  );
+}
+
+export async function readManagedCLIProxyAPIUpstream(
+  profileId: string,
+): Promise<{ upstream: CLIProxyAPIUpstream; upstreamKey: string | null } | null> {
+  try {
+    const config = await readManagedEnv(profileId);
+    return { upstream: config.upstream, upstreamKey: config.upstreamKey };
+  } catch {
+    return null;
+  }
 }
 
 async function readManagedEnv(profileId: string): Promise<ManagedEnv> {
@@ -336,7 +483,7 @@ async function writeRuntimeConfig(
   const config = await readManagedEnv(profileId);
   await writePrivate(
     paths.configFile,
-    renderRuntimeConfig(paths.authDir, config.apiKey, port),
+    renderRuntimeConfig(paths.authDir, config, port),
   );
   return config;
 }
@@ -355,7 +502,7 @@ async function isExpectedRuntimeConfig(
     // We generate this small YAML document ourselves. Exact reconstruction
     // validates the host, auth-dir, literal local key and payload override as
     // a coherent config without introducing a YAML parser just for doctor.
-    return raw === renderRuntimeConfig(paths.authDir, managed.apiKey, port);
+    return raw === renderRuntimeConfig(paths.authDir, managed, port);
   } catch {
     return false;
   }
@@ -374,7 +521,7 @@ export async function getLocalCLIProxyAPISettings(
     sonnetModel: config.sonnetModel,
     opusModel: config.opusModel,
     haikuModel: config.haikuModel,
-    subagentModel: CLI_PROXY_API_DEFAULTS.subagentModel,
+    subagentModel: config.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.subagentModel : null,
   };
 }
 
@@ -396,8 +543,10 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
     ANTHROPIC_DEFAULT_SONNET_MODEL: config.sonnetModel,
     ANTHROPIC_DEFAULT_OPUS_MODEL: config.opusModel,
     ANTHROPIC_DEFAULT_HAIKU_MODEL: config.haikuModel,
-    CLAUDE_CODE_SUBAGENT_MODEL: config.subagentModel,
-    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1",
+    // Empty values also neutralize a subagent pin left in the global settings
+    // by a ChatGPT-backed account when this upstream does not use one.
+    CLAUDE_CODE_SUBAGENT_MODEL: config.subagentModel ?? "",
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: config.subagentModel ? "1" : "",
   };
   // A global ~/.claude/settings.json can contain a short-lived OAuth token or
   // cloud-provider selector. Empty values in this higher-precedence settings
@@ -499,6 +648,29 @@ async function probeProxy(port: number, apiKey: string): Promise<boolean> {
   }
 }
 
+/** Model ids the running proxy exposes (for picking an upstream's defaults). */
+export async function listManagedCLIProxyAPIModels(
+  runtime: ManagedCLIProxyAPIRuntime,
+): Promise<string[]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`${runtime.baseUrl}/v1/models`, {
+      headers: credentialHeaders(runtime.apiKey),
+      signal: controller.signal,
+    });
+    if (!response.ok) return [];
+    const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
+    return (body.data ?? [])
+      .map((model) => model.id)
+      .filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function verifyManagedCLIProxyAPILive(
   runtime: ManagedCLIProxyAPIRuntime,
   model: string,
@@ -515,6 +687,8 @@ export async function verifyManagedCLIProxyAPILive(
         ...credentialHeaders(runtime.apiKey),
         "content-type": "application/json",
         "anthropic-version": "2023-06-01",
+        // What Claude Code itself sends; OpenCode Go requires a session id.
+        "X-Claude-Code-Session-Id": randomUUID(),
       },
       body: JSON.stringify({
         model,
@@ -765,6 +939,9 @@ function proxyProcessEnvironment(): NodeJS.ProcessEnv {
     "CODEX_ACCESS_TOKEN",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "OPENCODE_API_KEY",
   ]) {
     delete env[key];
   }
@@ -925,10 +1102,10 @@ export async function acquireManagedCLIProxyAPILease(
 
   return withStartupLock(profile.profileId, async () => {
     const paths = profilePaths(profile.profileId);
-    await readExistingManagedEnv(profile.profileId);
+    const managed = await readExistingManagedEnv(profile.profileId);
     if (!(await hasManagedCLIProxyAPILogin(profile.profileId))) {
       throw new Error(
-        "No valid CLIProxyAPI ChatGPT login is available. Run `claudex-switch refresh <alias>` before starting Claude Code.",
+        `No valid CLIProxyAPI ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`,
       );
     }
     await mkdirPrivate(paths.sessionsDir);
@@ -1002,58 +1179,103 @@ function decodeJwtPayload(token: unknown): Record<string, unknown> | null {
   }
 }
 
-async function inspectAuthDirectory(
+async function readSingleAuthFile(
   authDir: string,
-): Promise<{ valid: boolean; identity: string | null }> {
+  authType: string,
+): Promise<Record<string, unknown> | null> {
   const files = await authFiles(authDir);
   // One account per managed proxy prevents upstream round-robin across the
-  // user's ChatGPT accounts. Treat any additional credential JSON as an error.
-  if (files.length !== 1) return { valid: false, identity: null };
-
+  // user's accounts. Treat any additional credential JSON as an error.
+  if (files.length !== 1) return null;
   try {
-    // This is programmatic validation of a file generated in this managed auth
-    // directory. Values are reduced to a one-way fingerprint and never logged,
-    // saved verbatim, or copied into another auth store.
+    // Programmatic validation of a file generated in this managed auth
+    // directory. Values are reduced to a one-way fingerprint or compared with
+    // non-secret registry fields; they are never logged or copied elsewhere.
     const parsed = JSON.parse(await readFile(files[0]!, "utf-8")) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { valid: false, identity: null };
-    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     const auth = parsed as Record<string, unknown>;
     if (
-      auth.type !== "codex" ||
+      auth.type !== authType ||
       typeof auth.access_token !== "string" ||
       !auth.access_token.trim()
     ) {
-      return { valid: false, identity: null };
+      return null;
     }
-    const values = [
-      ...collectIdentityValues(auth),
-      ...collectIdentityValues(decodeJwtPayload(auth.id_token)),
-    ].sort();
-    if (values.length === 0) return { valid: false, identity: null };
-    return {
-      valid: true,
-      identity: createHash("sha256").update(values.join("\n")).digest("hex"),
-    };
+    return auth;
   } catch {
-    return { valid: false, identity: null };
+    return null;
   }
+}
+
+async function inspectAuthDirectory(
+  authDir: string,
+  authType: string,
+): Promise<{ valid: boolean; identity: string | null }> {
+  const auth = await readSingleAuthFile(authDir, authType);
+  if (!auth) return { valid: false, identity: null };
+  const values = [
+    ...collectIdentityValues(auth),
+    ...collectIdentityValues(decodeJwtPayload(auth.id_token)),
+  ].sort();
+  if (values.length === 0) return { valid: false, identity: null };
+  return {
+    valid: true,
+    identity: createHash("sha256").update(values.join("\n")).digest("hex"),
+  };
+}
+
+function stagedAccountMatches(
+  auth: Record<string, unknown>,
+  expected: ExpectedCLIProxyAPIAccount,
+): boolean {
+  const claims = decodeJwtPayload(auth.id_token);
+  const openai = claims?.["https://api.openai.com/auth"];
+  const nestedId =
+    openai && typeof openai === "object" && !Array.isArray(openai)
+      ? (openai as Record<string, unknown>).chatgpt_account_id
+      : undefined;
+  const accountId = [auth.account_id, auth.chatgpt_account_id, nestedId].find(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+  const email = [auth.email, claims?.email].find(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+  if (expected.accountId && accountId) return expected.accountId === accountId;
+  if (expected.email && email) return expected.email.toLowerCase() === email.toLowerCase();
+  return false;
 }
 
 export async function hasManagedCLIProxyAPILogin(
   profileId: string,
 ): Promise<boolean> {
-  return (await inspectAuthDirectory(profilePaths(profileId).authDir)).valid;
+  let managed: ManagedEnv;
+  try {
+    managed = await readManagedEnv(profileId);
+  } catch {
+    // Pre-upstream callers checked only the auth dir; keep that for a missing
+    // .env so status still distinguishes "no login" from "invalid env".
+    return (await inspectAuthDirectory(profilePaths(profileId).authDir, "codex")).valid;
+  }
+  const spec = CLI_PROXY_API_UPSTREAMS[managed.upstream];
+  if (!spec.authType) return Boolean(managed.upstreamKey);
+  return (await inspectAuthDirectory(profilePaths(profileId).authDir, spec.authType)).valid;
 }
 
-export async function runManagedCLIProxyAPICodexLogin(
+export async function runManagedCLIProxyAPILogin(
   profile: ManagedCLIProxyAPIProfile,
   spawnCommand: SpawnCommand = spawn,
   expectedIdentity?: string,
+  expectedAccount?: ExpectedCLIProxyAPIAccount,
 ): Promise<ManagedCLIProxyAPILoginResult> {
   assertProfileId(profile.profileId);
   const paths = profilePaths(profile.profileId);
   await mkdirPrivate(CLI_PROXY_API_DIR);
+  const upstream = (await readExistingManagedEnv(profile.profileId)).upstream;
+  const spec = CLI_PROXY_API_UPSTREAMS[upstream];
+  if (!spec.loginFlag || !spec.authType) {
+    throw new Error(`${spec.label} accounts use an API key and have no CLIProxyAPI login.`);
+  }
+  const { loginFlag, authType, callbackPort } = spec;
 
   return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
@@ -1065,16 +1287,16 @@ export async function runManagedCLIProxyAPICodexLogin(
     const stagingAuthDir = join(paths.dir, `.login-${randomUUID()}`);
     const loginConfig = join(paths.dir, "login-runtime.yaml");
     const apiPort = await findAvailablePort();
-    if (!(await portIsAvailable(CODEX_OAUTH_CALLBACK_PORT))) {
+    if (callbackPort && !(await portIsAvailable(callbackPort))) {
       throw new Error(
-        `CLIProxyAPI Codex OAuth needs localhost:${CODEX_OAUTH_CALLBACK_PORT}, but that callback port is already in use. Stop the process using it and retry.`,
+        `CLIProxyAPI ${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`,
       );
     }
     await mkdirPrivate(stagingAuthDir);
     const config = await readExistingManagedEnv(profile.profileId);
     await writePrivate(
       loginConfig,
-      renderRuntimeConfig(stagingAuthDir, config.apiKey, apiPort),
+      renderRuntimeConfig(stagingAuthDir, config, apiPort),
     );
 
     const shimDir = createOpenShimDir();
@@ -1087,7 +1309,7 @@ export async function runManagedCLIProxyAPICodexLogin(
         [
           "-config",
           loginConfig,
-          "-codex-login",
+          loginFlag,
         ],
         { stdio: "inherit", cwd: paths.dir, env },
       );
@@ -1095,11 +1317,17 @@ export async function runManagedCLIProxyAPICodexLogin(
         proc.on("close", resolveCode);
         proc.on("error", reject);
       });
-      const staged = await inspectAuthDirectory(stagingAuthDir);
+      const staged = await inspectAuthDirectory(stagingAuthDir, authType);
       if (exitCode !== 0 || !staged.valid || !staged.identity) {
         return { success: false, identity: null, identityMismatch: false };
       }
-      if (expectedIdentity && staged.identity !== expectedIdentity) {
+      const stagedAuth = expectedAccount
+        ? await readSingleAuthFile(stagingAuthDir, authType)
+        : null;
+      if (
+        (expectedIdentity && staged.identity !== expectedIdentity) ||
+        (expectedAccount && (!stagedAuth || !stagedAccountMatches(stagedAuth, expectedAccount)))
+      ) {
         // Do this before touching the active auth directory. A different login
         // must not silently turn this one-account proxy into another account.
         return {
@@ -1243,6 +1471,32 @@ export async function stopManagedCLIProxyAPI(
   return withStartupLock(profile.profileId, () =>
     stopManagedCLIProxyAPIUnlocked(profile),
   );
+}
+
+/**
+ * Stop an idle daemon whose runtime.yaml no longer matches what this release
+ * generates from the private .env (a newer template or a changed upstream
+ * key), so the next ensure starts it with the current config. A daemon that
+ * still serves a session is left alone.
+ */
+export async function stopStaleManagedCLIProxyAPI(
+  profile: ManagedCLIProxyAPIProfile,
+): Promise<boolean> {
+  assertProfileId(profile.profileId);
+  return withStartupLock(profile.profileId, async () => {
+    if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) return false;
+    const paths = profilePaths(profile.profileId);
+    let managed: ManagedEnv;
+    try {
+      managed = await readManagedEnv(profile.profileId);
+    } catch {
+      return false;
+    }
+    const state = await readState(profile.profileId);
+    if (!state || !isPidAlive(state.pid)) return false;
+    if (await isExpectedRuntimeConfig(paths, state, managed)) return false;
+    return stopManagedCLIProxyAPIUnlocked(profile);
+  });
 }
 
 export async function restartManagedCLIProxyAPI(

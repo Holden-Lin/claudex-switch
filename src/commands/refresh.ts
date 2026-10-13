@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import chalk from "chalk";
+import { CLI_PROXY_API_UPSTREAMS } from "../providers/cliproxyapi/upstreams";
 import { findAlias, loadAliases, updateAlias } from "../alias/store";
 import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser";
 import { readJson } from "../lib/fs";
@@ -15,7 +16,7 @@ import {
   switchProfile,
   updateLocalCLIProxyAPIProfileIdentity,
 } from "../providers/claude/profiles";
-import { runManagedCLIProxyAPICodexLogin } from "../providers/cliproxyapi/managed";
+import { runManagedCLIProxyAPILogin } from "../providers/cliproxyapi/managed";
 import {
   decodeIdToken,
   removeAccountAuthFile,
@@ -268,7 +269,13 @@ async function refreshLocalCLIProxyAPI(
     process.exit(1);
   }
 
-  info(`Opening CLIProxyAPI's own ChatGPT login for ${chalk.bold(alias)}...`);
+  const upstream = CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"];
+  if (!upstream.loginFlag) {
+    error(`${upstream.label} uses the key of its own alias; refresh that alias instead.`);
+    blank();
+    process.exit(1);
+  }
+  info(`Opening CLIProxyAPI's own ${upstream.label} login for ${chalk.bold(alias)}...`);
   blank();
 
   let login;
@@ -276,7 +283,7 @@ async function refreshLocalCLIProxyAPI(
     // The manager logs into a staging auth directory, checks that exactly one
     // valid Codex credential belongs to the same fingerprint, stops only an
     // idle verified daemon, then atomically replaces the active auth dir.
-    login = await runManagedCLIProxyAPICodexLogin(
+    login = await runManagedCLIProxyAPILogin(
       { profileId: profile.profileId, binaryPath: profile.binaryPath },
       undefined,
       profile.authIdentity,
@@ -290,8 +297,8 @@ async function refreshLocalCLIProxyAPI(
   if (!login?.success || !login.identity) {
     error(
       login?.identityMismatch
-        ? "ChatGPT login completed for a different account; the existing local account was left unchanged."
-        : "CLIProxyAPI ChatGPT login failed or was cancelled; the existing local account was left unchanged.",
+        ? `${upstream.label} login completed for a different account; the existing local account was left unchanged.`
+        : `CLIProxyAPI ${upstream.label} login failed or was cancelled; the existing local account was left unchanged.`,
     );
     blank();
     process.exit(1);

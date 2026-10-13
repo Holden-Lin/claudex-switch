@@ -70,7 +70,7 @@ import {
   findCLIProxyAPIBinary,
   initializeManagedCLIProxyAPI,
   installCLIProxyAPIWithHomebrew,
-  runManagedCLIProxyAPICodexLogin,
+  runManagedCLIProxyAPILogin,
 } from "../providers/cliproxyapi/managed";
 import {
   createOpenCodeGoProfile,
@@ -430,7 +430,7 @@ async function addLocalCLIProxyAPI(alias: string): Promise<void> {
     await initializeManagedCLIProxyAPI(profileId);
     info("Opening CLIProxyAPI's own ChatGPT login in your browser...");
     blank();
-    const login = await runManagedCLIProxyAPICodexLogin({
+    const login = await runManagedCLIProxyAPILogin({
       profileId,
       binaryPath,
     });
@@ -477,7 +477,7 @@ async function addLocalCLIProxyAPI(alias: string): Promise<void> {
   }
 }
 
-async function resolveCLIProxyAPIBinaryForAdd(): Promise<string | null> {
+export async function resolveCLIProxyAPIBinaryForAdd(): Promise<string | null> {
   const existing = findCLIProxyAPIBinary();
   if (existing) return existing;
 

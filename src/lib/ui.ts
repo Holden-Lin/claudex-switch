@@ -28,6 +28,10 @@ export function error(text: string): void {
   console.error(`  ${icons.error} ${chalk.red(text)}`);
 }
 
+export function warn(text: string): void {
+  console.log(`  ${chalk.yellow("⚠")} ${chalk.yellow(text)}`);
+}
+
 export function info(text: string): void {
   console.log(`  ${icons.info} ${text}`);
 }

@@ -3470,6 +3470,7 @@ var MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 var USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
 var USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
 var CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
+var CLI_PROXY_API_LINKS_FILE = join(CLAUDEX_DIR, "cliproxy-links.json");
 var CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
 var OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");
 var OPENCODE_STATE_FILE = join(CLAUDEX_DIR, "opencode", "state.json");
@@ -4062,8 +4063,8 @@ async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
   setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
-  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
-  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", "1");
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel ?? undefined);
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
   setTopLevelModel(settings, config.model);
   await commitManagedEnv(settings, env2, extraEnv);
 }
@@ -4291,12 +4292,99 @@ function openExternalUrl(url, privateWindow = false) {
   }
 }
 
+// src/providers/cliproxyapi/upstreams.ts
+var CLI_PROXY_API_UPSTREAMS = {
+  codex: {
+    label: "ChatGPT",
+    loginFlag: "-codex-login",
+    callbackPort: 1455,
+    authType: "codex",
+    defaults: {
+      fableModel: "gpt-6-astra",
+      sonnetModel: "gpt-5.6-terra",
+      opusModel: "gpt-5.6-terra",
+      haikuModel: "gpt-6-luna"
+    }
+  },
+  antigravity: {
+    label: "Antigravity",
+    loginFlag: "-antigravity-login",
+    callbackPort: 51121,
+    authType: "antigravity",
+    defaults: {
+      fableModel: "claude-opus-5-5",
+      sonnetModel: "claude-sonnet-5-5",
+      opusModel: "claude-opus-5-5",
+      haikuModel: "gemini-3.8-flash"
+    }
+  },
+  "opencode-go": {
+    label: "OpenCode Go",
+    loginFlag: null,
+    callbackPort: null,
+    authType: null,
+    defaults: {
+      fableModel: "kimi-k3",
+      sonnetModel: "glm-5.3",
+      opusModel: "kimi-k3",
+      haikuModel: "deepseek-v4-flash"
+    }
+  }
+};
+function parseUpstream(value) {
+  return value === "antigravity" || value === "opencode-go" ? value : "codex";
+}
+var OPENCODE_GO_OPENAI_BASE_URL = "https://opencode.ai/zen/go/v1";
+var OPENCODE_GO_ANTHROPIC_BASE_URL = "https://opencode.ai/zen/go";
+function isOpenCodeGoMessagesModel(model) {
+  return /^(minimax-|qwen|claude-)/i.test(model);
+}
+function versionKey(id) {
+  return (id.match(/\d+/g) ?? []).map(Number);
+}
+function newest(ids) {
+  return [...ids].sort((a, b) => {
+    const va = versionKey(a);
+    const vb = versionKey(b);
+    for (let i = 0;i < Math.max(va.length, vb.length); i++) {
+      const diff = (vb[i] ?? -1) - (va[i] ?? -1);
+      if (diff !== 0)
+        return diff;
+    }
+    return a.length - b.length;
+  })[0];
+}
+function pickAntigravityModels(ids) {
+  const opus = newest(ids.filter((id) => /^claude-opus-/i.test(id)));
+  const sonnet = newest(ids.filter((id) => /^claude-sonnet-/i.test(id)));
+  const flash = newest(ids.filter((id) => /^gemini-.*flash/i.test(id) && !/(image|lite)/i.test(id)));
+  const strongest = opus ?? sonnet;
+  if (!strongest)
+    return null;
+  return {
+    fableModel: strongest,
+    opusModel: strongest,
+    sonnetModel: sonnet ?? strongest,
+    haikuModel: flash ?? sonnet ?? strongest
+  };
+}
+function pickOpenCodeGoModels(catalog) {
+  const defaults = CLI_PROXY_API_UPSTREAMS["opencode-go"].defaults;
+  if (!catalog || catalog.size === 0)
+    return defaults;
+  const ids = [...catalog];
+  const pick = (preferred, family) => catalog.has(preferred) ? preferred : newest(ids.filter((id) => family.test(id))) ?? preferred;
+  return {
+    fableModel: pick(defaults.fableModel, /^kimi-/),
+    opusModel: pick(defaults.opusModel, /^kimi-/),
+    sonnetModel: pick(defaults.sonnetModel, /^glm-(?!.*flash)/),
+    haikuModel: pick(defaults.haikuModel, /^deepseek-.*flash$/)
+  };
+}
+
 // src/providers/cliproxyapi/managed.ts
 var CLI_PROXY_API_DEFAULTS = {
-  fableModel: "gpt-6-astra",
-  sonnetModel: "gpt-5.6-terra",
-  opusModel: "gpt-5.6-terra",
-  haikuModel: "gpt-6-luna",
+  ...CLI_PROXY_API_UPSTREAMS.codex.defaults,
   subagentModel: "claudex-terra-max"
 };
 var ENV_CLIENT_KEY = "CLAUDEX_CLIPROXYAPI_CLIENT_API_KEY";
@@ -4304,13 +4392,15 @@ var ENV_FABLE_MODEL = "CLAUDEX_CLIPROXYAPI_FABLE_MODEL";
 var ENV_SONNET_MODEL = "CLAUDEX_CLIPROXYAPI_SONNET_MODEL";
 var ENV_OPUS_MODEL = "CLAUDEX_CLIPROXYAPI_OPUS_MODEL";
 var ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
+var ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
+var ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
+var ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
 var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 var STARTUP_TIMEOUT_MS = 12000;
 var LOCK_TIMEOUT_MS = 20000;
 var ORPHAN_LOCK_GRACE_MS = 60000;
 var LOCK_HEARTBEAT_MS = 1e4;
 var LOOPBACK_HOST = "127.0.0.1";
-var CODEX_OAUTH_CALLBACK_PORT = 1455;
 var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 function assertProfileId(profileId) {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
@@ -4378,29 +4468,43 @@ function parseManagedEnv(content) {
       continue;
     values[line.slice(0, separator)] = line.slice(separator + 1);
   }
+  const upstream = parseUpstream(values[ENV_UPSTREAM]?.trim());
+  const defaults = CLI_PROXY_API_UPSTREAMS[upstream].defaults;
+  const upstreamKey = values[ENV_UPSTREAM_KEY]?.trim() || null;
+  if (upstream === "opencode-go" && !upstreamKey) {
+    throw new Error(`Managed CLIProxyAPI configuration is missing ${ENV_UPSTREAM_KEY}`);
+  }
   return {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
-    fableModel: values[ENV_FABLE_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.fableModel,
-    sonnetModel: values[ENV_SONNET_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.sonnetModel,
-    opusModel: values[ENV_OPUS_MODEL]?.trim() || CLI_PROXY_API_DEFAULTS.opusModel,
-    haikuModel: currentHaikuModel(values[ENV_HAIKU_MODEL])
+    upstream,
+    upstreamKey,
+    upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "").split(",").map((model) => model.trim()).filter(Boolean),
+    fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
+    sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
+    opusModel: values[ENV_OPUS_MODEL]?.trim() || defaults.opusModel,
+    haikuModel: currentHaikuModel(upstream, values[ENV_HAIKU_MODEL])
   };
 }
-function currentHaikuModel(value) {
+function currentHaikuModel(upstream, value) {
   const model = value?.trim();
-  if (!model || model === LEGACY_HAIKU_DEFAULT) {
-    return CLI_PROXY_API_DEFAULTS.haikuModel;
+  const fallback = CLI_PROXY_API_UPSTREAMS[upstream].defaults.haikuModel;
+  if (!model || upstream === "codex" && model === LEGACY_HAIKU_DEFAULT) {
+    return fallback;
   }
   return model;
 }
-function renderManagedEnv(apiKey) {
+function renderManagedEnv(apiKey, setup = { upstream: "codex" }) {
+  const models = setup.models ?? CLI_PROXY_API_UPSTREAMS[setup.upstream].defaults;
   return [
     "# Managed by claudex-switch. Keep this directory private.",
     `${ENV_CLIENT_KEY}=${apiKey}`,
-    `${ENV_FABLE_MODEL}=${CLI_PROXY_API_DEFAULTS.fableModel}`,
-    `${ENV_SONNET_MODEL}=${CLI_PROXY_API_DEFAULTS.sonnetModel}`,
-    `${ENV_OPUS_MODEL}=${CLI_PROXY_API_DEFAULTS.opusModel}`,
-    `${ENV_HAIKU_MODEL}=${CLI_PROXY_API_DEFAULTS.haikuModel}`,
+    ...setup.upstream === "codex" ? [] : [`${ENV_UPSTREAM}=${setup.upstream}`],
+    ...setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : [],
+    ...setup.upstreamModels?.length ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`] : [],
+    `${ENV_FABLE_MODEL}=${models.fableModel}`,
+    `${ENV_SONNET_MODEL}=${models.sonnetModel}`,
+    `${ENV_OPUS_MODEL}=${models.opusModel}`,
+    `${ENV_HAIKU_MODEL}=${models.haikuModel}`,
     ""
   ].join(`
 `);
@@ -4408,19 +4512,30 @@ function renderManagedEnv(apiKey) {
 function yaml(value) {
   return JSON.stringify(value);
 }
-function renderRuntimeConfig(authDir, apiKey, port) {
-  return [
+function renderRuntimeConfig(authDir, managed, port) {
+  const header = [
     `host: ${yaml(LOOPBACK_HOST)}`,
     `port: ${port}`,
     `auth-dir: ${yaml(authDir)}`,
     "api-keys:",
-    `  - ${yaml(apiKey)}`,
+    `  - ${yaml(managed.apiKey)}`,
     "remote-management:",
     "  allow-remote: false",
     '  secret-key: ""',
     "  disable-control-panel: true",
     "logging-to-file: false",
-    "usage-statistics-enabled: false",
+    "usage-statistics-enabled: false"
+  ];
+  if (managed.upstream === "antigravity") {
+    return [...header, ""].join(`
+`);
+  }
+  if (managed.upstream === "opencode-go") {
+    return [...header, ...renderOpenCodeGoUpstream(managed), ""].join(`
+`);
+  }
+  return [
+    ...header,
     "oauth-model-alias:",
     "  codex:",
     `    - name: ${yaml("gpt-5.6-terra")}`,
@@ -4437,15 +4552,63 @@ function renderRuntimeConfig(authDir, apiKey, port) {
   ].join(`
 `);
 }
+function renderOpenCodeGoUpstream(managed) {
+  const key = managed.upstreamKey ?? "";
+  const models = [
+    ...new Set([
+      managed.fableModel,
+      managed.opusModel,
+      managed.sonnetModel,
+      managed.haikuModel,
+      ...managed.upstreamModels
+    ])
+  ];
+  const chat = models.filter((model) => !isOpenCodeGoMessagesModel(model));
+  const messages = models.filter(isOpenCodeGoMessagesModel);
+  const modelLines = (list, indent) => list.flatMap((model) => [
+    `${indent}- name: ${yaml(model)}`,
+    `${indent}  alias: ${yaml(model)}`
+  ]);
+  const sessionHeader = [
+    "    headers:",
+    `      ${yaml("x-opencode-session")}: ${yaml("$X-Claude-Code-Session-Id")}`
+  ];
+  const lines = [];
+  if (chat.length > 0) {
+    lines.push("openai-compatibility:", `  - name: ${yaml("opencode-go")}`, `    base-url: ${yaml(OPENCODE_GO_OPENAI_BASE_URL)}`, ...sessionHeader, "    api-key-entries:", `      - api-key: ${yaml(key)}`, "    models:", ...modelLines(chat, "      "));
+  }
+  if (messages.length > 0) {
+    lines.push("claude-api-key:", `  - api-key: ${yaml(key)}`, `    base-url: ${yaml(OPENCODE_GO_ANTHROPIC_BASE_URL)}`, ...sessionHeader, `      ${yaml("x-api-key")}: ${yaml(key)}`, "    models:", ...modelLines(messages, "      "));
+  }
+  return lines;
+}
 function createManagedCLIProxyAPIProfileId() {
   return randomUUID();
 }
-async function initializeManagedCLIProxyAPI(profileId) {
+async function initializeManagedCLIProxyAPI(profileId, setup = { upstream: "codex" }) {
   const paths = profilePaths(profileId);
   await mkdirPrivate(paths.dir);
   await mkdirPrivate(paths.authDir);
   const apiKey = randomBytes(32).toString("base64url");
-  await writePrivateOnce(paths.envFile, renderManagedEnv(apiKey));
+  await writePrivateOnce(paths.envFile, renderManagedEnv(apiKey, setup));
+}
+async function updateManagedCLIProxyAPISetup(profileId, patch) {
+  const paths = profilePaths(profileId);
+  const current = await readExistingManagedEnv(profileId);
+  await writePrivate(paths.envFile, renderManagedEnv(current.apiKey, {
+    upstream: current.upstream,
+    models: patch.models ?? current,
+    upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
+    upstreamModels: patch.upstreamModels ?? current.upstreamModels
+  }));
+}
+async function readManagedCLIProxyAPIUpstream(profileId) {
+  try {
+    const config = await readManagedEnv(profileId);
+    return { upstream: config.upstream, upstreamKey: config.upstreamKey };
+  } catch {
+    return null;
+  }
 }
 async function readManagedEnv(profileId) {
   const paths = profilePaths(profileId);
@@ -4466,7 +4629,7 @@ async function readExistingManagedEnv(profileId) {
 async function writeRuntimeConfig(profileId, port) {
   const paths = profilePaths(profileId);
   const config = await readManagedEnv(profileId);
-  await writePrivate(paths.configFile, renderRuntimeConfig(paths.authDir, config.apiKey, port));
+  await writePrivate(paths.configFile, renderRuntimeConfig(paths.authDir, config, port));
   return config;
 }
 async function isExpectedRuntimeConfig(paths, state, managed) {
@@ -4478,7 +4641,7 @@ async function isExpectedRuntimeConfig(paths, state, managed) {
     const port = state?.port ?? Number(configuredPort);
     if (!Number.isInteger(port) || port < 1 || port > 65535)
       return false;
-    return raw === renderRuntimeConfig(paths.authDir, managed.apiKey, port);
+    return raw === renderRuntimeConfig(paths.authDir, managed, port);
   } catch {
     return false;
   }
@@ -4493,7 +4656,7 @@ async function getLocalCLIProxyAPISettings(profile, runtime) {
     sonnetModel: config.sonnetModel,
     opusModel: config.opusModel,
     haikuModel: config.haikuModel,
-    subagentModel: CLI_PROXY_API_DEFAULTS.subagentModel
+    subagentModel: config.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.subagentModel : null
   };
 }
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime) {
@@ -4508,8 +4671,8 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime) {
     ANTHROPIC_DEFAULT_SONNET_MODEL: config.sonnetModel,
     ANTHROPIC_DEFAULT_OPUS_MODEL: config.opusModel,
     ANTHROPIC_DEFAULT_HAIKU_MODEL: config.haikuModel,
-    CLAUDE_CODE_SUBAGENT_MODEL: config.subagentModel,
-    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1"
+    CLAUDE_CODE_SUBAGENT_MODEL: config.subagentModel ?? "",
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: config.subagentModel ? "1" : ""
   };
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env2[key] = "";
@@ -4576,6 +4739,24 @@ async function probeProxy(port, apiKey) {
     clearTimeout(timeout);
   }
 }
+async function listManagedCLIProxyAPIModels(runtime) {
+  const controller = new AbortController;
+  const timeout = setTimeout(() => controller.abort(), 1e4);
+  try {
+    const response = await fetch(`${runtime.baseUrl}/v1/models`, {
+      headers: credentialHeaders(runtime.apiKey),
+      signal: controller.signal
+    });
+    if (!response.ok)
+      return [];
+    const body = await response.json();
+    return (body.data ?? []).map((model) => model.id).filter((id) => typeof id === "string");
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 async function verifyManagedCLIProxyAPILive(runtime, model) {
   const controller = new AbortController;
   const timeout = setTimeout(() => controller.abort(), 20000);
@@ -4585,7 +4766,8 @@ async function verifyManagedCLIProxyAPILive(runtime, model) {
       headers: {
         ...credentialHeaders(runtime.apiKey),
         "content-type": "application/json",
-        "anthropic-version": "2023-06-01"
+        "anthropic-version": "2023-06-01",
+        "X-Claude-Code-Session-Id": randomUUID()
       },
       body: JSON.stringify({
         model,
@@ -4782,7 +4964,10 @@ function proxyProcessEnvironment() {
     "CODEX_API_KEY",
     "CODEX_ACCESS_TOKEN",
     "ANTHROPIC_API_KEY",
-    "ANTHROPIC_AUTH_TOKEN"
+    "ANTHROPIC_AUTH_TOKEN",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "OPENCODE_API_KEY"
   ]) {
     delete env2[key];
   }
@@ -4886,9 +5071,9 @@ async function acquireManagedCLIProxyAPILease(profile) {
   assertProfileId(profile.profileId);
   return withStartupLock(profile.profileId, async () => {
     const paths = profilePaths(profile.profileId);
-    await readExistingManagedEnv(profile.profileId);
+    const managed = await readExistingManagedEnv(profile.profileId);
     if (!await hasManagedCLIProxyAPILogin(profile.profileId)) {
-      throw new Error("No valid CLIProxyAPI ChatGPT login is available. Run `claudex-switch refresh <alias>` before starting Claude Code.");
+      throw new Error(`No valid CLIProxyAPI ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`);
     }
     await mkdirPrivate(paths.sessionsDir);
     const leasePath = join4(paths.sessionsDir, `${randomUUID()}.json`);
@@ -4952,41 +5137,73 @@ function decodeJwtPayload(token) {
     return null;
   }
 }
-async function inspectAuthDirectory(authDir) {
+async function readSingleAuthFile(authDir, authType) {
   const files = await authFiles(authDir);
   if (files.length !== 1)
-    return { valid: false, identity: null };
+    return null;
   try {
     const parsed = JSON.parse(await readFile2(files[0], "utf-8"));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { valid: false, identity: null };
-    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return null;
     const auth = parsed;
-    if (auth.type !== "codex" || typeof auth.access_token !== "string" || !auth.access_token.trim()) {
-      return { valid: false, identity: null };
+    if (auth.type !== authType || typeof auth.access_token !== "string" || !auth.access_token.trim()) {
+      return null;
     }
-    const values = [
-      ...collectIdentityValues(auth),
-      ...collectIdentityValues(decodeJwtPayload(auth.id_token))
-    ].sort();
-    if (values.length === 0)
-      return { valid: false, identity: null };
-    return {
-      valid: true,
-      identity: createHash2("sha256").update(values.join(`
-`)).digest("hex")
-    };
+    return auth;
   } catch {
-    return { valid: false, identity: null };
+    return null;
   }
 }
-async function hasManagedCLIProxyAPILogin(profileId) {
-  return (await inspectAuthDirectory(profilePaths(profileId).authDir)).valid;
+async function inspectAuthDirectory(authDir, authType) {
+  const auth = await readSingleAuthFile(authDir, authType);
+  if (!auth)
+    return { valid: false, identity: null };
+  const values = [
+    ...collectIdentityValues(auth),
+    ...collectIdentityValues(decodeJwtPayload(auth.id_token))
+  ].sort();
+  if (values.length === 0)
+    return { valid: false, identity: null };
+  return {
+    valid: true,
+    identity: createHash2("sha256").update(values.join(`
+`)).digest("hex")
+  };
 }
-async function runManagedCLIProxyAPICodexLogin(profile, spawnCommand = spawn, expectedIdentity) {
+function stagedAccountMatches(auth, expected) {
+  const claims = decodeJwtPayload(auth.id_token);
+  const openai = claims?.["https://api.openai.com/auth"];
+  const nestedId = openai && typeof openai === "object" && !Array.isArray(openai) ? openai.chatgpt_account_id : undefined;
+  const accountId = [auth.account_id, auth.chatgpt_account_id, nestedId].find((value) => typeof value === "string" && value.length > 0);
+  const email = [auth.email, claims?.email].find((value) => typeof value === "string" && value.length > 0);
+  if (expected.accountId && accountId)
+    return expected.accountId === accountId;
+  if (expected.email && email)
+    return expected.email.toLowerCase() === email.toLowerCase();
+  return false;
+}
+async function hasManagedCLIProxyAPILogin(profileId) {
+  let managed;
+  try {
+    managed = await readManagedEnv(profileId);
+  } catch {
+    return (await inspectAuthDirectory(profilePaths(profileId).authDir, "codex")).valid;
+  }
+  const spec = CLI_PROXY_API_UPSTREAMS[managed.upstream];
+  if (!spec.authType)
+    return Boolean(managed.upstreamKey);
+  return (await inspectAuthDirectory(profilePaths(profileId).authDir, spec.authType)).valid;
+}
+async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expectedIdentity, expectedAccount) {
   assertProfileId(profile.profileId);
   const paths = profilePaths(profile.profileId);
   await mkdirPrivate(CLI_PROXY_API_DIR);
+  const upstream = (await readExistingManagedEnv(profile.profileId)).upstream;
+  const spec = CLI_PROXY_API_UPSTREAMS[upstream];
+  if (!spec.loginFlag || !spec.authType) {
+    throw new Error(`${spec.label} accounts use an API key and have no CLIProxyAPI login.`);
+  }
+  const { loginFlag, authType, callbackPort } = spec;
   return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
       throw new Error("A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before refreshing the login.");
@@ -4994,12 +5211,12 @@ async function runManagedCLIProxyAPICodexLogin(profile, spawnCommand = spawn, ex
     const stagingAuthDir = join4(paths.dir, `.login-${randomUUID()}`);
     const loginConfig = join4(paths.dir, "login-runtime.yaml");
     const apiPort = await findAvailablePort();
-    if (!await portIsAvailable(CODEX_OAUTH_CALLBACK_PORT)) {
-      throw new Error(`CLIProxyAPI Codex OAuth needs localhost:${CODEX_OAUTH_CALLBACK_PORT}, but that callback port is already in use. Stop the process using it and retry.`);
+    if (callbackPort && !await portIsAvailable(callbackPort)) {
+      throw new Error(`CLIProxyAPI ${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`);
     }
     await mkdirPrivate(stagingAuthDir);
     const config = await readExistingManagedEnv(profile.profileId);
-    await writePrivate(loginConfig, renderRuntimeConfig(stagingAuthDir, config.apiKey, apiPort));
+    await writePrivate(loginConfig, renderRuntimeConfig(stagingAuthDir, config, apiPort));
     const shimDir = createOpenShimDir();
     const env2 = proxyProcessEnvironment();
     if (shimDir)
@@ -5008,17 +5225,18 @@ async function runManagedCLIProxyAPICodexLogin(profile, spawnCommand = spawn, ex
       const proc = spawnCommand(profile.binaryPath, [
         "-config",
         loginConfig,
-        "-codex-login"
+        loginFlag
       ], { stdio: "inherit", cwd: paths.dir, env: env2 });
       const exitCode = await new Promise((resolveCode, reject) => {
         proc.on("close", resolveCode);
         proc.on("error", reject);
       });
-      const staged = await inspectAuthDirectory(stagingAuthDir);
+      const staged = await inspectAuthDirectory(stagingAuthDir, authType);
       if (exitCode !== 0 || !staged.valid || !staged.identity) {
         return { success: false, identity: null, identityMismatch: false };
       }
-      if (expectedIdentity && staged.identity !== expectedIdentity) {
+      const stagedAuth = expectedAccount ? await readSingleAuthFile(stagingAuthDir, authType) : null;
+      if (expectedIdentity && staged.identity !== expectedIdentity || expectedAccount && (!stagedAuth || !stagedAccountMatches(stagedAuth, expectedAccount))) {
         return {
           success: false,
           identity: staged.identity,
@@ -5073,6 +5291,9 @@ async function inspectManagedCLIProxyAPI(profile, options = {}) {
     port: state?.port ?? null
   };
 }
+async function hasActiveManagedCLIProxyAPI(profile) {
+  return managedCLIProxyAPIHasActiveLeases(profile.profileId);
+}
 async function waitForProcessExit(pid, timeoutMs = 5000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
@@ -5111,6 +5332,26 @@ async function stopManagedCLIProxyAPIUnlocked(profile) {
 }
 async function stopManagedCLIProxyAPI(profile) {
   return withStartupLock(profile.profileId, () => stopManagedCLIProxyAPIUnlocked(profile));
+}
+async function stopStaleManagedCLIProxyAPI(profile) {
+  assertProfileId(profile.profileId);
+  return withStartupLock(profile.profileId, async () => {
+    if (await managedCLIProxyAPIHasActiveLeases(profile.profileId))
+      return false;
+    const paths = profilePaths(profile.profileId);
+    let managed;
+    try {
+      managed = await readManagedEnv(profile.profileId);
+    } catch {
+      return false;
+    }
+    const state = await readState(profile.profileId);
+    if (!state || !isPidAlive(state.pid))
+      return false;
+    if (await isExpectedRuntimeConfig(paths, state, managed))
+      return false;
+    return stopManagedCLIProxyAPIUnlocked(profile);
+  });
 }
 async function restartManagedCLIProxyAPI(profile) {
   await stopManagedCLIProxyAPI(profile);
@@ -5196,6 +5437,9 @@ function success(text) {
 }
 function error(text) {
   console.error(`  ${icons.error} ${source_default.red(text)}`);
+}
+function warn(text) {
+  console.log(`  ${source_default.yellow("⚠")} ${source_default.yellow(text)}`);
 }
 function info(text) {
   console.log(`  ${icons.info} ${text}`);
@@ -5445,6 +5689,10 @@ async function addLocalCLIProxyAPIProfile(name, config) {
   await writeProfileData(name, config);
   await activateProfile(name, config);
   await writeState2({ active: name });
+}
+async function saveLocalCLIProxyAPIProfile(name, config) {
+  await ensureDir2(claudeProfileDir(name));
+  await writeProfileData(name, config);
 }
 async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
   const current = await readProfileData(name);
@@ -8494,7 +8742,7 @@ async function addLocalCLIProxyAPI(alias) {
     await initializeManagedCLIProxyAPI(profileId);
     info("Opening CLIProxyAPI's own ChatGPT login in your browser...");
     blank();
-    const login = await runManagedCLIProxyAPICodexLogin({
+    const login = await runManagedCLIProxyAPILogin({
       profileId,
       binaryPath
     });
@@ -9202,7 +9450,7 @@ async function switchClaude(alias, profileName) {
   if (data.type === "api-key" && data.apiKey) {
     label = source_default.dim(maskKey(data.apiKey));
   } else if (data.type === "local-cliproxyapi") {
-    label = source_default.dim("CLIProxyAPI · local ChatGPT login");
+    label = source_default.dim(`CLIProxyAPI · local ${CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label} login`);
   } else {
     const creds = await readCredentials(claudeProfileCredentials(profileName));
     label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
@@ -9416,6 +9664,264 @@ async function model(aliasOrName, defaultModel) {
   blank();
 }
 
+// src/providers/cliproxyapi/links.ts
+import { mkdir as mkdir12 } from "fs/promises";
+function linkKey(target) {
+  return target.provider === "codex" ? `codex:${target.accountKey}` : `opencode:${target.profileId}`;
+}
+async function readLinks() {
+  const file = await readJson(CLI_PROXY_API_LINKS_FILE, null);
+  if (file?.version !== 1 || !file.links || typeof file.links !== "object") {
+    return { version: 1, links: {} };
+  }
+  return file;
+}
+async function writeLinks(file) {
+  await mkdir12(CLAUDEX_DIR, { recursive: true });
+  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE, file);
+}
+async function getLinkedClaudeProfile(target) {
+  return (await readLinks()).links[linkKey(target)] ?? null;
+}
+async function setLinkedClaudeProfile(target, profileName) {
+  const file = await readLinks();
+  file.links[linkKey(target)] = profileName;
+  await writeLinks(file);
+}
+async function removeLinkedClaudeProfile(target) {
+  const file = await readLinks();
+  if (!(linkKey(target) in file.links))
+    return;
+  delete file.links[linkKey(target)];
+  await writeLinks(file);
+}
+async function linkedClaudeProfileNames() {
+  return new Set(Object.values((await readLinks()).links));
+}
+async function purgeLinkedClaudeProfile(target) {
+  const linked = await getLinkedClaudeProfile(target);
+  if (!linked)
+    return;
+  if (await profileExists(linked))
+    await removeProfile(linked);
+  await removeLinkedClaudeProfile(target);
+}
+
+// src/commands/cliproxy.ts
+var CLAUDE_CODE_CLIENTS = new Set(["claudecode", "claude-code", "claude"]);
+var CLIPROXY_CLIENT_NAMES = "claudecode";
+var ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
+function isClaudeCodeClient(value) {
+  return CLAUDE_CODE_CLIENTS.has(value.toLowerCase());
+}
+async function resolveCLIProxyClaudeEntry(aliasOrName, options = {}) {
+  const entry = findAlias(await loadAliases(), aliasOrName);
+  if (!entry) {
+    if (ANTIGRAVITY_KEYWORDS.has(aliasOrName.toLowerCase())) {
+      return createAntigravityAlias(aliasOrName, options);
+    }
+    throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
+      `Use a Codex or OpenCode Go alias, or ${source_default.cyan("agy")} for Antigravity.`
+    ]);
+  }
+  if (entry.target.provider === "claude") {
+    const data = await profileExists(entry.target.profileName) ? await getProfileData(entry.target.profileName) : null;
+    if (data?.type === "local-cliproxyapi")
+      return entry;
+    throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
+      `Run ${source_default.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`
+    ]);
+  }
+  const target = entry.target;
+  const linked = await getLinkedClaudeProfile(target);
+  if (linked && await profileExists(linked)) {
+    const data = await getProfileData(linked);
+    if (data.type === "local-cliproxyapi") {
+      if (target.provider === "codex") {
+        await ensureCodexLinkLogin(entry.alias, target, data, linked);
+      } else {
+        await syncOpenCodeGoKey(target.profileId, data);
+      }
+      return claudeEntry(entry.alias, linked);
+    }
+  }
+  const profileName = target.provider === "codex" ? await createCodexLink(entry.alias, target, options) : await createOpenCodeGoLink(entry.alias, target, options);
+  return claudeEntry(entry.alias, profileName);
+}
+
+class UserFacingError extends Error {
+  hints;
+  constructor(message, hints = []) {
+    super(message);
+    this.hints = hints;
+  }
+}
+function claudeEntry(alias, profileName) {
+  return { alias, target: { provider: "claude", profileName }, createdAt: Date.now() };
+}
+async function requireBinary(options) {
+  const binaryPath = await (options.resolveBinary ?? resolveCLIProxyAPIBinaryForAdd)();
+  if (!binaryPath) {
+    throw new UserFacingError("CLIProxyAPI was not installed or no valid executable was selected.", [
+      "Install it with Homebrew on macOS, or provide an existing cli-proxy-api path."
+    ]);
+  }
+  return binaryPath;
+}
+async function createManagedProfile(binaryPath, setup, login, save) {
+  const profileId = createManagedCLIProxyAPIProfileId();
+  const profileName = `cliproxy-${profileId}`;
+  const profile = {
+    type: "local-cliproxyapi",
+    profileId,
+    binaryPath,
+    defaultModel: setup.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.fableModel : "fable",
+    upstream: setup.upstream
+  };
+  let saved = false;
+  try {
+    await initializeManagedCLIProxyAPI(profileId, setup);
+    const identity = login ? await login(profileId) : undefined;
+    if (identity)
+      profile.authIdentity = identity;
+    await saveLocalCLIProxyAPIProfile(profileName, profile);
+    saved = true;
+    await save(profileName, profile);
+    return { profileName, profile };
+  } catch (err) {
+    try {
+      if (saved)
+        await removeProfile(profileName);
+      else
+        await cleanupFailedManagedCLIProxyAPI(profileId);
+    } catch {}
+    throw err;
+  }
+}
+async function loginOrThrow(profileId, binaryPath, label, expectedAccount) {
+  const login = await runManagedCLIProxyAPILogin({ profileId, binaryPath }, undefined, undefined, expectedAccount);
+  if (login.identityMismatch) {
+    throw new UserFacingError(`${label} login completed for a different account; nothing was changed.`, [
+      "Log in with the same account as the alias and retry."
+    ]);
+  }
+  if (!login.success || !login.identity) {
+    throw new UserFacingError(`CLIProxyAPI ${label} login failed or was cancelled.`);
+  }
+  return login.identity;
+}
+async function codexAccountFor(target) {
+  const account = findAccountByKey(await loadRegistry(), target.accountKey);
+  if (!account)
+    throw new UserFacingError("Codex account not found in registry.");
+  if (account.auth_mode === "apikey") {
+    throw new UserFacingError("--cliproxy needs a ChatGPT-login Codex account; this one uses an API key.");
+  }
+  return account;
+}
+async function createCodexLink(alias, target, options) {
+  const account = await codexAccountFor(target);
+  const binaryPath = await requireBinary(options);
+  info(`First use: Claude Code needs its own ChatGPT login for ${source_default.bold(alias)} (once).`);
+  hint("Sharing the Codex login would make each side invalidate the other's refresh token.");
+  blank();
+  const expected = { accountId: account.chatgpt_account_id, email: account.email };
+  const { profileName } = await createManagedProfile(binaryPath, { upstream: "codex" }, (profileId) => loginOrThrow(profileId, binaryPath, "ChatGPT", expected), (name) => setLinkedClaudeProfile(target, name));
+  success(`Linked ${source_default.bold(alias)} to Claude Code`);
+  return profileName;
+}
+async function ensureCodexLinkLogin(alias, target, profile, profileName) {
+  if (await hasManagedCLIProxyAPILogin(profile.profileId))
+    return;
+  const account = await codexAccountFor(target);
+  info(`Claude Code's ChatGPT login for ${source_default.bold(alias)} is missing; logging in again...`);
+  blank();
+  const identity = await loginOrThrow(profile.profileId, profile.binaryPath, "ChatGPT", {
+    accountId: account.chatgpt_account_id,
+    email: account.email
+  });
+  await updateLocalCLIProxyAPIProfileIdentity(profileName, identity);
+}
+async function goKeyOrThrow(alias, profileId) {
+  const go = await getOpenCodeProfileData(profileId);
+  if (go.console) {
+    throw new UserFacingError(`${alias} is an OpenCode subscription login without a static API key.`, [
+      "Create a Go API key in the OpenCode console and add it as an OpenCode Go API Key alias."
+    ]);
+  }
+  const key = await readOpenCodeGoApiKey(profileId);
+  if (!key) {
+    throw new UserFacingError(`${alias} has no saved OpenCode Go key.`, [
+      `Run ${source_default.cyan(`claudex-switch refresh ${alias}`)} first.`
+    ]);
+  }
+  return key;
+}
+async function createOpenCodeGoLink(alias, target, options) {
+  const key = await goKeyOrThrow(alias, target.profileId);
+  const binaryPath = await requireBinary(options);
+  const catalog = await fetchOpenCodeGoCatalogIds();
+  const models = pickOpenCodeGoModels(catalog);
+  const { profileName } = await createManagedProfile(binaryPath, {
+    upstream: "opencode-go",
+    models,
+    upstreamKey: key,
+    upstreamModels: catalog ? [...catalog].sort() : []
+  }, null, (name) => setLinkedClaudeProfile(target, name));
+  success(`Linked ${source_default.bold(alias)} to Claude Code`);
+  printMapping(models);
+  return profileName;
+}
+async function syncOpenCodeGoKey(goProfileId, profile) {
+  const key = await readOpenCodeGoApiKey(goProfileId);
+  const current = await readManagedCLIProxyAPIUpstream(profile.profileId);
+  if (!key || !current || current.upstreamKey === key)
+    return;
+  const managed = { profileId: profile.profileId, binaryPath: profile.binaryPath };
+  if (await hasActiveManagedCLIProxyAPI(managed)) {
+    warn("The OpenCode Go key changed; running Claude Code sessions keep the old key until they end.");
+    return;
+  }
+  await updateManagedCLIProxyAPISetup(profile.profileId, { upstreamKey: key });
+}
+async function createAntigravityAlias(alias, options) {
+  const rejection = checkAlias(await loadAliases(), alias);
+  if (rejection)
+    throw new UserFacingError(describeAliasRejection(rejection, alias));
+  blank();
+  warn("Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.");
+  hint("Consider logging in with a Google account you can afford to lose Antigravity access on.");
+  const accepted = await (options.confirmRisk ?? (() => esm_default2({ message: "Continue with Antigravity via CLIProxyAPI?", default: false })))();
+  if (!accepted)
+    throw new UserFacingError("Cancelled; nothing was created.");
+  const binaryPath = await requireBinary(options);
+  info("Opening CLIProxyAPI's own Antigravity login in your browser...");
+  blank();
+  const { profileName, profile } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
+  let models = CLI_PROXY_API_UPSTREAMS.antigravity.defaults;
+  try {
+    const runtime = await ensureManagedCLIProxyAPI({ profileId: profile.profileId, binaryPath });
+    const picked = pickAntigravityModels(await listManagedCLIProxyAPIModels(runtime));
+    if (picked) {
+      models = picked;
+      await updateManagedCLIProxyAPISetup(profile.profileId, { models });
+    } else {
+      warn("Could not read Antigravity's model list; using default mappings.");
+    }
+  } catch (err) {
+    warn(`Could not start the proxy to read models: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  success(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
+  printMapping(models);
+  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
+}
+function printMapping(models) {
+  hint(`opus/default → ${models.opusModel} · sonnet → ${models.sonnetModel} · haiku → ${models.haikuModel}`);
+}
+function upstreamLabel(upstream) {
+  return CLI_PROXY_API_UPSTREAMS[upstream ?? "codex"].label;
+}
+
 // src/commands/run.ts
 var RUN_FLAGS = new Set(["-run", "--run"]);
 var HEADER_FLAGS = new Set(["--attribution-header"]);
@@ -9458,7 +9964,7 @@ function requestsUnsafeOpenCodeV2Target(args) {
 }
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn7, openCodeVersionDetector = detectOpenCodeVersion, openCodeCredentialSync) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
-  const entry = await resolveAliasOrExit(aliasOrName);
+  const entry = runOptions.cliproxyClient ? await resolveCLIProxyEntryOrExit(aliasOrName) : await resolveAliasOrExit(aliasOrName);
   if (runOptions.autoreviewOverride !== undefined && entry.target.provider !== "codex" && entry.target.provider !== "opencode") {
     error("--autoreview is only supported for Codex and OpenCode sessions.");
     blank();
@@ -9576,6 +10082,10 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       const context = await prepareIsolatedLocalCLIProxyAPIRun(claudeProfileName);
       secureStorageDir = context.secureStorageDir;
       configDir = context.configDir;
+      await stopStaleManagedCLIProxyAPI({
+        profileId: profile.profileId,
+        binaryPath: profile.binaryPath
+      });
       localLease = await acquireManagedCLIProxyAPILease({
         profileId: profile.profileId,
         binaryPath: profile.binaryPath
@@ -9719,8 +10229,22 @@ async function resolveAliasOrExit(aliasOrName) {
   blank();
   process.exit(1);
 }
+async function resolveCLIProxyEntryOrExit(aliasOrName) {
+  try {
+    return await resolveCLIProxyClaudeEntry(aliasOrName);
+  } catch (err) {
+    error(err instanceof Error ? err.message : String(err));
+    if (err instanceof UserFacingError) {
+      for (const line of err.hints)
+        hint(line);
+    }
+    blank();
+    process.exit(1);
+  }
+}
 function parseRunArgumentOptions(args) {
   const forwardedArgs = [];
+  let cliproxyClient;
   let modelOverride;
   let effortOverride;
   let headerEnabled;
@@ -9758,6 +10282,18 @@ function parseRunArgumentOptions(args) {
       index += 1;
       continue;
     }
+    if (arg === "--cliproxy") {
+      const nextValue = args[index + 1]?.trim();
+      if (!nextValue || !isClaudeCodeClient(nextValue)) {
+        error(nextValue ? `--cliproxy currently supports: ${CLIPROXY_CLIENT_NAMES}` : "Missing client after --cliproxy.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx -run --cliproxy claudecode")}`);
+        blank();
+        process.exit(1);
+      }
+      cliproxyClient = "claudecode";
+      index += 1;
+      continue;
+    }
     if (arg === "--autoreview") {
       const nextValue = args[index + 1]?.trim().toLowerCase();
       if (nextValue !== "on" && nextValue !== "off") {
@@ -9777,7 +10313,8 @@ function parseRunArgumentOptions(args) {
     modelOverride,
     effortOverride,
     headerEnabled,
-    autoreviewOverride
+    autoreviewOverride,
+    cliproxyClient
   };
 }
 function applyAutoreview(baseEnv, override) {
@@ -10004,7 +10541,7 @@ async function refreshOAuthToken(creds) {
 
 // src/lib/usage-cache.ts
 import { spawn as spawn8 } from "child_process";
-import { mkdir as mkdir12, open as open3, readFile as readFile8, rename as rename6, stat as stat4, unlink as unlink3, writeFile as writeFile8 } from "fs/promises";
+import { mkdir as mkdir13, open as open3, readFile as readFile8, rename as rename6, stat as stat4, unlink as unlink3, writeFile as writeFile8 } from "fs/promises";
 var LOCK_STALE_MS = 2 * 60000;
 var TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
 function emptyUsageCache() {
@@ -10022,7 +10559,7 @@ async function readUsageCache() {
   }
 }
 async function writeUsageCache(cache) {
-  await mkdir12(CLAUDEX_DIR, { recursive: true });
+  await mkdir13(CLAUDEX_DIR, { recursive: true });
   const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
   await writeFile8(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
   await rename6(tmp, USAGE_CACHE_FILE);
@@ -10080,7 +10617,7 @@ function formatAge(ms) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 async function acquireRefreshLock() {
-  await mkdir12(CLAUDEX_DIR, { recursive: true });
+  await mkdir13(CLAUDEX_DIR, { recursive: true });
   for (let attempt = 0;attempt < 2; attempt++) {
     try {
       const handle = await open3(USAGE_REFRESH_LOCK, "wx", 384);
@@ -10476,7 +11013,27 @@ async function loadListContext(aliases, offlineJson) {
     codexUsage: codexReg?.api?.usage !== false
   };
 }
-function accountInfo(ctx, entry, withUsage, options, inspectCredentials) {
+async function accountInfo(ctx, entry, withUsage, options, inspectCredentials) {
+  const info2 = await providerAccountInfo(ctx, entry, withUsage, options, inspectCredentials);
+  if (entry.target.provider !== "claude") {
+    info2.linkedClient = await linkedClaudeCodeStatus(entry.target);
+  }
+  return info2;
+}
+async function linkedClaudeCodeStatus(target) {
+  const profileName = await getLinkedClaudeProfile(target);
+  if (!profileName)
+    return null;
+  const data = await readJson(claudeProfileDataFile(profileName), null);
+  if (data?.type !== "local-cliproxyapi")
+    return null;
+  const status = await inspectManagedCLIProxyAPI({
+    profileId: data.profileId,
+    binaryPath: data.binaryPath
+  });
+  return `claudecode: ${!status.loggedIn ? "login required" : status.running ? "running" : "stopped"}`;
+}
+function providerAccountInfo(ctx, entry, withUsage, options, inspectCredentials) {
   switch (entry.target.provider) {
     case "claude":
       return getClaudeAccountInfo(entry, ctx.claudeActive, withUsage);
@@ -10647,13 +11204,14 @@ function renderSection(infos) {
     const plan = formatPlan(info2.plan);
     const email = info2.email ? source_default.dim(info2.email) : "";
     const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
+    const linkedClient = info2.linkedClient ? `  ${source_default.dim(`· ${info2.linkedClient}`)}` : "";
     const model2 = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
     const usage = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage || balance;
     const age = quota && info2.quotaAt && Date.now() - info2.quotaAt >= 60000 ? source_default.dim(` · ${formatAge(Date.now() - info2.quotaAt)}`) : "";
     const quotaStr = quota ? `  ${quota}${age}` : "";
-    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model2}${quotaStr}`);
+    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${linkedClient}${model2}${quotaStr}`);
   }
 }
 async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
@@ -10684,7 +11242,14 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
         profileId: profileData.profileId,
         binaryPath: profileData.binaryPath
       });
-      info2.apiProvider = status.loggedIn ? !status.environmentValid ? "CLIProxyAPI · invalid private env" : !status.configured ? "CLIProxyAPI · invalid config" : status.running ? "CLIProxyAPI · running" : "CLIProxyAPI · stopped" : "CLIProxyAPI · login required";
+      const upstream = profileData.upstream ?? "codex";
+      const prefix = upstream === "codex" ? "CLIProxyAPI" : `CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[upstream].label}`;
+      info2.apiProvider = status.loggedIn ? !status.environmentValid ? `${prefix} · invalid private env` : !status.configured ? `${prefix} · invalid config` : status.running ? `${prefix} · running` : `${prefix} · stopped` : `${prefix} · login required`;
+      if (upstream !== "codex") {
+        try {
+          info2.defaultModel = await resolveManagedLocalCLIProxyAPIDefaultModel(profileData);
+        } catch {}
+      }
       info2.usageNote = "quota unavailable";
       if (!status.loggedIn)
         info2.status = "login-required";
@@ -10988,6 +11553,9 @@ async function planPurge(aliasName) {
 async function purgeAccount(aliasName) {
   const plan = await planPurge(aliasName);
   const { entry } = plan;
+  if (entry.target.provider !== "claude") {
+    await purgeLinkedClaudeProfile(entry.target);
+  }
   if (entry.target.provider === "claude") {
     if (await profileExists(entry.target.profileName)) {
       await removeProfile(entry.target.profileName);
@@ -11115,10 +11683,13 @@ async function importClaudeProfiles(reg) {
   let imported = 0;
   let skipped = 0;
   const entries = await readdir4(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
       continue;
     const name = entry.name;
+    if (linked.has(name))
+      continue;
     const target = { provider: "claude", profileName: name };
     const existing = findAliasByTarget(reg, target);
     if (existing) {
@@ -11365,18 +11936,24 @@ async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
     blank();
     process.exit(1);
   }
-  info(`Opening CLIProxyAPI's own ChatGPT login for ${source_default.bold(alias)}...`);
+  const upstream = CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"];
+  if (!upstream.loginFlag) {
+    error(`${upstream.label} uses the key of its own alias; refresh that alias instead.`);
+    blank();
+    process.exit(1);
+  }
+  info(`Opening CLIProxyAPI's own ${upstream.label} login for ${source_default.bold(alias)}...`);
   blank();
   let login;
   try {
-    login = await runManagedCLIProxyAPICodexLogin({ profileId: profile.profileId, binaryPath: profile.binaryPath }, undefined, profile.authIdentity);
+    login = await runManagedCLIProxyAPILogin({ profileId: profile.profileId, binaryPath: profile.binaryPath }, undefined, profile.authIdentity);
   } catch (err) {
     error(err instanceof Error ? err.message : String(err));
     blank();
     process.exit(1);
   }
   if (!login?.success || !login.identity) {
-    error(login?.identityMismatch ? "ChatGPT login completed for a different account; the existing local account was left unchanged." : "CLIProxyAPI ChatGPT login failed or was cancelled; the existing local account was left unchanged.");
+    error(login?.identityMismatch ? `${upstream.label} login completed for a different account; the existing local account was left unchanged.` : `CLIProxyAPI ${upstream.label} login failed or was cancelled; the existing local account was left unchanged.`);
     blank();
     process.exit(1);
   }
@@ -11504,7 +12081,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.20.0",
+  version: "1.21.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -13191,7 +13768,7 @@ async function describeClaudeAccount(entry, activeProfile, linkedAliases) {
     return {
       ...base,
       type: "local-cliproxyapi",
-      label: "本机 CLIProxyAPI",
+      label: (data.upstream ?? "codex") === "codex" ? "本机 CLIProxyAPI" : `本机 CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[data.upstream].label}`,
       email: null,
       fields: {
         defaultModel: data.defaultModel ?? "",
@@ -13705,15 +14282,16 @@ async function doctor(aliasOrName, options = {}) {
     fail(`Alias "${aliasOrName}" not found.`);
     return;
   }
-  if (entry.target.provider !== "claude") {
-    fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
+  const profileName = entry.target.provider === "claude" ? entry.target.profileName : await getLinkedClaudeProfile(entry.target);
+  if (!profileName) {
+    fail(`Doctor checks local CLIProxyAPI accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`);
     return;
   }
-  if (!await profileExists(entry.target.profileName)) {
-    fail(`Claude profile "${entry.target.profileName}" no longer exists.`);
+  if (!await profileExists(profileName)) {
+    fail(`Claude profile "${profileName}" no longer exists.`);
     return;
   }
-  const profile = await getProfileData(entry.target.profileName);
+  const profile = await getProfileData(profileName);
   if (profile.type !== "local-cliproxyapi") {
     fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
     return;
@@ -13726,7 +14304,8 @@ async function doctor(aliasOrName, options = {}) {
     probe: true
   });
   info(`CLIProxyAPI binary: ${status.installed ? "available" : "not found"}`);
-  info(`ChatGPT login: ${status.loggedIn ? "available" : "required"}`);
+  const upstream = upstreamLabel(profile.upstream);
+  info(`${upstream} ${profile.upstream === "opencode-go" ? "key" : "login"}: ${status.loggedIn ? "available" : "required"}`);
   info(`Managed daemon: ${status.running ? `running on 127.0.0.1:${status.port}` : "stopped"}`);
   info(`Managed environment: ${status.environmentValid ? "valid" : "invalid or missing"}`);
   info(`Managed configuration: ${status.configured ? "valid" : "missing or needs rebuild"}`);
@@ -13777,12 +14356,13 @@ async function doctor(aliasOrName, options = {}) {
   }
   if (options.live) {
     const liveRuntime = runtime ?? await ensureManagedCLIProxyAPI(managedProfile);
-    const lunaModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
-    if (!await verifyManagedCLIProxyAPILive(liveRuntime, lunaModel)) {
-      fail(`Luna (${lunaModel}) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
+    const liveModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
+    const liveName = (profile.upstream ?? "codex") === "codex" ? `Luna (${liveModel})` : liveModel;
+    if (!await verifyManagedCLIProxyAPILive(liveRuntime, liveModel)) {
+      fail(`${liveName} live verification failed. The local proxy is reachable, but this ${upstream} account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
       return;
     }
-    success(`${source_default.bold(entry.alias)} Luna (${lunaModel}) live verification passed`);
+    success(`${source_default.bold(entry.alias)} ${liveName} live verification passed`);
     blank();
     return;
   }
@@ -13808,6 +14388,7 @@ var HELP = `
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
+    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on a Codex / OpenCode Go alias (or "agy" for Antigravity) via a local CLIProxyAPI
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -13816,7 +14397,7 @@ var HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
-    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account
+    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account (or the one a --cliproxy alias uses)
     claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
@@ -13949,6 +14530,15 @@ async function main() {
       if (!isRunFlag(runFlag)) {
         error("--autoreview can only be used with -run or --run.");
         hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
+        blank();
+        process.exit(1);
+      }
+    }
+    if (args.includes("--cliproxy") && !jsonListCommand) {
+      const runFlag = command === "use" ? args[1] : args[0];
+      if (!isRunFlag(runFlag)) {
+        error("--cliproxy can only be used with -run or --run.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx -run --cliproxy claudecode")}`);
         blank();
         process.exit(1);
       }

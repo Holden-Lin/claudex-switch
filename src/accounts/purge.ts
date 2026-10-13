@@ -14,6 +14,7 @@ import {
   removeAccountFromRegistry,
   saveRegistry,
 } from "../providers/codex/registry";
+import { purgeLinkedClaudeProfile } from "../providers/cliproxyapi/links";
 import type { AliasEntry } from "../types";
 
 // Purging deletes an account *and* every alias pointing at it, including its
@@ -52,6 +53,12 @@ export async function planPurge(aliasName: string): Promise<PurgePlan> {
 export async function purgeAccount(aliasName: string): Promise<PurgePlan> {
   const plan = await planPurge(aliasName);
   const { entry } = plan;
+
+  if (entry.target.provider !== "claude") {
+    // The Claude Code side of `--cliproxy` goes first: a running session there
+    // refuses the purge before the upstream account is touched.
+    await purgeLinkedClaudeProfile(entry.target);
+  }
 
   if (entry.target.provider === "claude") {
     if (await profileExists(entry.target.profileName)) {

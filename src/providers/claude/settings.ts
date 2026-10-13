@@ -24,7 +24,9 @@ export interface LocalCLIProxyAPISettings {
   sonnetModel: string;
   opusModel: string;
   haikuModel: string;
-  subagentModel: string;
+  // Only the ChatGPT upstream pins subagents to a private max-effort alias;
+  // other upstreams let subagents follow the four tier mappings.
+  subagentModel: string | null;
 }
 
 export const CLAUDE_ENV_KEYS = [
@@ -266,8 +268,8 @@ export async function applyLocalCLIProxyAPIConfig(
   setEnvValue(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
   setEnvValue(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
   setEnvValue(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
-  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
-  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", "1");
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel ?? undefined);
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
 
   setTopLevelModel(settings, config.model);
   await commitManagedEnv(settings, env, extraEnv);

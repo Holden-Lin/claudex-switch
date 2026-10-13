@@ -2,10 +2,13 @@
 
 ## Now
 
-本次版本 v1.20.0：`list` 不再被网络卡住。额度先从本地缓存瞬间显示，联网刷新交给后台 detached 进程（`list --refresh-cache`，带锁，token 轮换可完整跑完）；手动 `list` 在原处逐行刷新、最多等 2 秒，没赶上的保留上次值并标 `· Nm ago`；`list --cached` 只读缓存（实测 0.15 秒），供 `~/.zshrc` 开 shell 用。`--json` 维持原有实时合同。
+本次版本 v1.21.0：`<alias> --run --cliproxy claudecode` 让 Claude Code 直接用已有 Codex（ChatGPT 登录）/ OpenCode Go key 别名的额度，`agy` 关键字接 Antigravity（先风险确认）。不需要另外 add：Codex 首次自动单独登录一次并核对同账号，Go 每次从别名读 key，Antigravity 首次建 `agy` 别名并按登录后的真实模型列表映射。本机 CLIProxyAPI 泛化为多上游，ChatGPT 账号的生成配置逐字节不变。
 
 ## Next
 
+- [ ] 用户首次运行 `claudex-switch holdenx --run --cliproxy claudecode`（或 satoshix）完成浏览器登录，确认同账号核对通过、Claude Code 能对话（本次只用 fake 二进制验证；真实 OAuth 需本人操作）。
+- [ ] 用户决定是否接 Antigravity：运行 `claudex-switch agy --run --cliproxy claudecode`，确认风险提示后登录，核对 `list`/`.env` 里选出的真实模型 ID 和一次短对话（本次未做真实登录）。
+- [ ] 反向客户端：`--cliproxy codex|opencode`（让 Codex / OpenCode 经 CLIProxyAPI 用 Antigravity、OpenCode Go 等上游；Codex 需走代理的 Responses 接口）。Claude 订阅借给其它工具违反 Anthropic 条款，不做。
 - [ ] 用户在 Warp 里新开 tab，确认不再卡在 "starting zsh..."（本机只在 zsh 子进程里测到启动 0.3 秒，Warp 本身未测）。
 - [ ] 修复版装好后，在用户日常目录重试 `claudex-switch openlam42 -run`，确认不再出现 "configured default agent is unavailable in this location"（本机复现：私有 server 启动约 2 秒内 `/api/agent` 可 200 返空表）。
 
@@ -18,6 +21,7 @@
 
 ## Done
 
+- [x] 2026-10-13：新增 `--cliproxy claudecode`（参考 magpie），本机 CLIProxyAPI 支持 Codex / OpenCode Go / Antigravity 三种上游，版本升至 `1.21.0`。304 项测试、类型检查、文档检查、构建通过；新增 12 项覆盖首次登录与复用、换错账号零残留、Codex 配置逐字节不变、Go 双 wire、key 轮换空闲重启、purge 租约保护等。真实 `openlam42`（Go key）经代理用 `claude -p` 实测 kimi-k3（chat）、minimax-m3（Messages）、glm-5.3 / kimi-k3 工具调用、`doctor --live` 均通过；首次实测暴露的 `x-opencode-session` 与 Messages 路由 `x-api-key` 要求已修。Codex / Antigravity 真实浏览器登录未测。
 - [x] 2026-10-13：修复 zsh 启动偶发 10–33 秒（`.zshrc` 里的 `claudex-switch list` 被个别额度接口 4–10 秒超时拖住）。改为缓存 + 后台刷新，版本升至 `1.20.0`。292 项测试、类型检查、文档检查、构建通过；真实 HOME 上 `--cached` 0.15 秒出全量额度、缓存 0600 且无密钥；带尺寸 PTY 下手动 `list` 先出缓存帧、8 次原地重绘、1.8 秒结束；临时 zshrc 副本启动 0.30 秒（原 1.3–33 秒）。
 - [x] 2026-10-11：修复 OpenCode V2 启动校验对 agent 清单的就绪竞态（agent 校验改轮询、超时仍 fail-closed），随 v1.19.1 发布；285 项测试、类型检查、构建通过，真实 2.0.22 探针复现空表；默认与定版 installer 双验证通过。详见 req_changelog 2026-10-11 条。
 - [x] 2026-10-06：`--autoreview` 扩至 OpenCode 别名，仅设/清本次启动的 `CODEX_COMPLETION_REVIEW_DISABLED`，Claude 仍拒绝。283 项测试、`bun run verify` 通过；真实 HOME 上用 `opensatoshi`（OpenCode 2.0.21 TUI）配假 reviewer 实测：`on` 时走完 CONTINUE→改文件→STOP，`off` 时显示 `Autoreview: off (this session)` 且不审。

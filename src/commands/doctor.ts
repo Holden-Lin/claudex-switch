@@ -1,6 +1,8 @@
 import chalk from "chalk";
 import { findAlias, loadAliases } from "../alias/store";
 import { blank, error, hint, info, success } from "../lib/ui";
+import { getLinkedClaudeProfile } from "../providers/cliproxyapi/links";
+import { upstreamLabel } from "./cliproxy";
 import {
   getProfileData,
   profileExists,
@@ -33,16 +35,24 @@ export async function doctor(
     fail(`Alias "${aliasOrName}" not found.`);
     return;
   }
-  if (entry.target.provider !== "claude") {
-    fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
+  // A Codex / OpenCode alias is diagnosed through the proxy its
+  // `--cliproxy claudecode` runs use.
+  const profileName =
+    entry.target.provider === "claude"
+      ? entry.target.profileName
+      : await getLinkedClaudeProfile(entry.target);
+  if (!profileName) {
+    fail(
+      `Doctor checks local CLIProxyAPI accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`,
+    );
     return;
   }
-  if (!(await profileExists(entry.target.profileName))) {
-    fail(`Claude profile "${entry.target.profileName}" no longer exists.`);
+  if (!(await profileExists(profileName))) {
+    fail(`Claude profile "${profileName}" no longer exists.`);
     return;
   }
 
-  const profile = await getProfileData(entry.target.profileName);
+  const profile = await getProfileData(profileName);
   if (profile.type !== "local-cliproxyapi") {
     fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
     return;
@@ -59,7 +69,8 @@ export async function doctor(
   info(
     `CLIProxyAPI binary: ${status.installed ? "available" : "not found"}`,
   );
-  info(`ChatGPT login: ${status.loggedIn ? "available" : "required"}`);
+  const upstream = upstreamLabel(profile.upstream);
+  info(`${upstream} ${profile.upstream === "opencode-go" ? "key" : "login"}: ${status.loggedIn ? "available" : "required"}`);
   info(
     `Managed daemon: ${status.running ? `running on 127.0.0.1:${status.port}` : "stopped"}`,
   );
@@ -120,12 +131,14 @@ export async function doctor(
 
   if (options.live) {
     const liveRuntime = runtime ?? await ensureManagedCLIProxyAPI(managedProfile);
-    const lunaModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
-    if (!(await verifyManagedCLIProxyAPILive(liveRuntime, lunaModel))) {
-      fail(`Luna (${lunaModel}) live verification failed. The local proxy is reachable, but this ChatGPT account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
+    const liveModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
+    // The ChatGPT haiku tier is Luna; keep its familiar name in messages.
+    const liveName = (profile.upstream ?? "codex") === "codex" ? `Luna (${liveModel})` : liveModel;
+    if (!(await verifyManagedCLIProxyAPILive(liveRuntime, liveModel))) {
+      fail(`${liveName} live verification failed. The local proxy is reachable, but this ${upstream} account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
       return;
     }
-    success(`${chalk.bold(entry.alias)} Luna (${lunaModel}) live verification passed`);
+    success(`${chalk.bold(entry.alias)} ${liveName} live verification passed`);
     blank();
     return;
   }

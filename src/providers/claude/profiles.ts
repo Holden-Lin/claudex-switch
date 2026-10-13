@@ -328,6 +328,16 @@ export async function addLocalCLIProxyAPIProfile(
   await writeState({ active: name });
 }
 
+// Profiles behind `<alias> --run --cliproxy claudecode` are reached through a
+// link, not an alias, and must never become the globally active account.
+export async function saveLocalCLIProxyAPIProfile(
+  name: string,
+  config: LocalCLIProxyAPIProfileData,
+): Promise<void> {
+  await ensureDir(claudeProfileDir(name));
+  await writeProfileData(name, config);
+}
+
 export async function updateLocalCLIProxyAPIProfileIdentity(
   name: string,
   authIdentity: string,

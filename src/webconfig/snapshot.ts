@@ -36,6 +36,7 @@ import type {
   WebConfigChangeResult,
   WebConfigSnapshot,
 } from "../types";
+import { CLI_PROXY_API_UPSTREAMS } from "../providers/cliproxyapi/upstreams";
 
 export async function buildSnapshot(): Promise<WebConfigSnapshot> {
   const aliasReg = await loadAliases();
@@ -131,7 +132,10 @@ async function describeClaudeAccount(
     return {
       ...base,
       type: "local-cliproxyapi",
-      label: "本机 CLIProxyAPI",
+      label:
+        (data.upstream ?? "codex") === "codex"
+          ? "本机 CLIProxyAPI"
+          : `本机 CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[data.upstream!].label}`,
       email: null,
       fields: {
         defaultModel: data.defaultModel ?? "",

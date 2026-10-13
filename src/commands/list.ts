@@ -32,7 +32,12 @@ import {
 } from "../providers/codex/auth";
 import { fetchCodexUsage } from "../providers/codex/usage";
 import { fetchRelayBalance } from "../lib/oneapi";
-import { inspectManagedCLIProxyAPI } from "../providers/cliproxyapi/managed";
+import {
+  inspectManagedCLIProxyAPI,
+  resolveManagedLocalCLIProxyAPIDefaultModel,
+} from "../providers/cliproxyapi/managed";
+import { getLinkedClaudeProfile } from "../providers/cliproxyapi/links";
+import { CLI_PROXY_API_UPSTREAMS } from "../providers/cliproxyapi/upstreams";
 import {
   getOpenCodeProfileData,
   hasOpenCodeGoCredential,
@@ -88,6 +93,8 @@ type ListAccountStatus =
 
 interface ListAccountInfo extends AccountInfo {
   status: ListAccountStatus;
+  /** Status of the Claude Code proxy behind `--cliproxy claudecode`, if linked. */
+  linkedClient?: string | null;
   /** When the shown quota was fetched, if it came from an earlier refresh. */
   quotaAt?: number | null;
 }
@@ -320,7 +327,36 @@ async function loadListContext(
   };
 }
 
-function accountInfo(
+async function accountInfo(
+  ctx: ListContext,
+  entry: AliasEntry,
+  withUsage: boolean,
+  options: ListOptions,
+  inspectCredentials: boolean,
+): Promise<ListAccountInfo> {
+  const info = await providerAccountInfo(ctx, entry, withUsage, options, inspectCredentials);
+  if (entry.target.provider !== "claude") {
+    info.linkedClient = await linkedClaudeCodeStatus(entry.target);
+  }
+  return info;
+}
+
+// Local only (state file + ps); never probes the proxy or its upstream.
+async function linkedClaudeCodeStatus(
+  target: Extract<AliasEntry["target"], { provider: "codex" | "opencode" }>,
+): Promise<string | null> {
+  const profileName = await getLinkedClaudeProfile(target);
+  if (!profileName) return null;
+  const data = await readJson<ProfileData | null>(claudeProfileDataFile(profileName), null);
+  if (data?.type !== "local-cliproxyapi") return null;
+  const status = await inspectManagedCLIProxyAPI({
+    profileId: data.profileId,
+    binaryPath: data.binaryPath,
+  });
+  return `claudecode: ${!status.loggedIn ? "login required" : status.running ? "running" : "stopped"}`;
+}
+
+function providerAccountInfo(
   ctx: ListContext,
   entry: AliasEntry,
   withUsage: boolean,
@@ -554,6 +590,9 @@ function renderSection(infos: ListAccountInfo[]): void {
     const apiProvider = info.apiProvider
       ? `  ${chalk.dim(info.apiProvider)}`
       : "";
+    const linkedClient = info.linkedClient
+      ? `  ${chalk.dim(`· ${info.linkedClient}`)}`
+      : "";
     const model = info.defaultModel
       ? `  ${chalk.dim(info.defaultModel)}`
       : "";
@@ -567,7 +606,7 @@ function renderSection(infos: ListAccountInfo[]): void {
     const quotaStr = quota ? `  ${quota}${age}` : "";
 
     console.log(
-      `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${model}${quotaStr}`,
+      `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${linkedClient}${model}${quotaStr}`,
     );
   }
 }
@@ -612,15 +651,28 @@ async function getClaudeAccountInfo(
         profileId: profileData.profileId,
         binaryPath: profileData.binaryPath,
       });
+      // ChatGPT rows keep their original label; newer upstreams name theirs.
+      const upstream = profileData.upstream ?? "codex";
+      const prefix =
+        upstream === "codex"
+          ? "CLIProxyAPI"
+          : `CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[upstream].label}`;
       info.apiProvider = status.loggedIn
         ? !status.environmentValid
-          ? "CLIProxyAPI · invalid private env"
+          ? `${prefix} · invalid private env`
           : !status.configured
-          ? "CLIProxyAPI · invalid config"
+          ? `${prefix} · invalid config`
           : status.running
-          ? "CLIProxyAPI · running"
-          : "CLIProxyAPI · stopped"
-        : "CLIProxyAPI · login required";
+          ? `${prefix} · running`
+          : `${prefix} · stopped`
+        : `${prefix} · login required`;
+      if (upstream !== "codex") {
+        try {
+          info.defaultModel = await resolveManagedLocalCLIProxyAPIDefaultModel(profileData);
+        } catch {
+          // Keep the stored value; status above already flags a broken env.
+        }
+      }
       info.usageNote = "quota unavailable";
       if (!status.loggedIn) info.status = "login-required";
     } else if (profileData.type === "api-key" && profileData.apiKey) {

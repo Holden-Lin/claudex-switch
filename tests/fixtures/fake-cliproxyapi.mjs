@@ -35,7 +35,7 @@ function yamlScalar(key) {
 const authDir = yamlScalar("auth-dir");
 const port = Number(yamlScalar("port"));
 
-if (args.includes("-codex-login")) {
+if (args.includes("-codex-login") || args.includes("-antigravity-login")) {
   if (process.env.CLAUDEX_FAKE_LOGIN_EXIT) {
     process.exit(Number(process.env.CLAUDEX_FAKE_LOGIN_EXIT));
   }
@@ -43,9 +43,26 @@ if (args.includes("-codex-login")) {
     console.error("missing auth-dir");
     process.exit(2);
   }
-  const sub = process.env.CLAUDEX_FAKE_AUTH_SUB ?? "fixture-user";
-  const idToken = `x.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.`;
   await mkdir(authDir, { recursive: true });
+  if (args.includes("-antigravity-login")) {
+    await writeFile(
+      join(authDir, "antigravity-fixture.json"),
+      JSON.stringify({
+        type: "antigravity",
+        access_token: "fixture-access-token",
+        email: process.env.CLAUDEX_FAKE_AUTH_EMAIL ?? "fixture@example.com",
+      }),
+    );
+    process.exit(0);
+  }
+  const sub = process.env.CLAUDEX_FAKE_AUTH_SUB ?? "fixture-user";
+  const claims = { sub };
+  if (process.env.CLAUDEX_FAKE_CHATGPT_ACCOUNT_ID) {
+    claims["https://api.openai.com/auth"] = {
+      chatgpt_account_id: process.env.CLAUDEX_FAKE_CHATGPT_ACCOUNT_ID,
+    };
+  }
+  const idToken = `x.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.`;
   await writeFile(
     join(authDir, "auth.json"),
     JSON.stringify({
@@ -68,7 +85,9 @@ const server = Bun.serve({
   fetch(request) {
     const path = new URL(request.url).pathname;
     if (path === "/v1/models") {
-      return Response.json({ object: "list", data: [] });
+      // Optional fixture catalog, e.g. what a logged-in Antigravity lists.
+      const ids = (process.env.CLAUDEX_FAKE_MODELS ?? "").split(",").filter(Boolean);
+      return Response.json({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
     }
     if (path === "/v1/messages") {
       return Response.json({

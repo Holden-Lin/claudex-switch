@@ -257,6 +257,30 @@ env_key = "OPENAI_API_KEY"
 requires_openai_auth = false
 ```
 
+### Run Claude Code on an existing Codex / OpenCode Go / Antigravity account (`--cliproxy`)
+
+No extra `add` is needed: with Claude Code and CLIProxyAPI installed, an existing alias's quota can drive Claude Code.
+
+```bash
+claudex-switch cx --run --cliproxy claudecode         # Codex (ChatGPT login) alias
+claudex-switch openlam42 --run --cliproxy claudecode  # OpenCode Go API-key alias
+claudex-switch agy --run --cliproxy claudecode        # Antigravity: first use creates an alias named agy
+claudex-switch cx --run --cliproxy claudecode --model terra   # saved as cx's default model in Claude Code
+```
+
+- **The alias is the quota source.** Claude Code is only the client; the alias's own use (`cx -run` for Codex, etc.) is unchanged and never switched.
+- **Codex**: the first use opens a browser once for a separate ChatGPT login for Claude Code, reused afterwards. It must be the same ChatGPT account, or it is rejected and nothing is kept. It does not share the Codex login because ChatGPT rotates refresh tokens on every refresh, so sharing would sign one side out. ChatGPT-login Codex accounts only.
+- **OpenCode Go**: no interaction. The key is read from the Go alias on every launch, so a changed key is followed automatically. GLM / Kimi / DeepSeek speak OpenAI chat and MiniMax / Qwen speak Anthropic Messages on Go; the proxy translates both and adds the session id Go requires. Browser-subscription Go aliases have no static key; create one in the OpenCode console and add a key-based alias.
+- **Antigravity**: when `agy` / `antigravity` is not an existing alias, a risk notice comes first: Google suspended Antigravity access for accounts used through third-party proxies in February 2026, and its terms still forbid it. Only after you confirm does CLIProxyAPI's own Google login open (agy's existing login is not read); the real model ids are then read from the logged-in proxy. Prefer a Google account you can afford to lose Antigravity access on.
+
+| Upstream | default / `opus` | `sonnet` | `haiku` |
+|---|---|---|---|
+| Codex | `gpt-6-astra` / `gpt-5.6-terra` | `gpt-5.6-terra` | `gpt-6-luna` |
+| OpenCode Go | `kimi-k3` | `glm-5.3` | `deepseek-v4-flash` |
+| Antigravity | newest `claude-opus-*` | newest `claude-sonnet-*` | newest `gemini-*-flash` |
+
+`list` tags the upstream row with `· claudecode: running|stopped`. `doctor <upstream-alias> [--live]` checks its proxy. `purge` of the upstream alias also deletes that proxy, and refuses (deleting nothing) while a session uses it; `remove` deletes only the alias.
+
 ## Commands
 
 | Command | Description |
@@ -267,6 +291,7 @@ requires_openai_auth = false
 | `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5.5` / `sonnet5` / `fable` / `fable5.1`, Codex `astra` / `sol` / `terra` / `luna` / `6`; OpenCode Go uses `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch <codex-or-opencode-alias> -run --autoreview <on\|off>` | Control completion review for this session only (Codex Stop hook; OpenCode V2 needs the completion-review plugin); it does not change the permission mode |
+| `claudex-switch <alias> -run --cliproxy claudecode [--model <model>]` | Run Claude Code on a Codex / OpenCode Go alias (or `agy` for Antigravity) through a local CLIProxyAPI, set up automatically on first use |
 | `claudex-switch add <alias>` | Add a new account |
 | `claudex-switch use <alias>` | Switch to an account |
 | `claudex-switch use <alias> -run` | Explicit form of `claudex-switch <alias> -run` |

@@ -289,6 +289,30 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 
 普通启动会自动确保代理可用，不会安装系统常驻服务。`list` 对该类型显示本机状态和 `quota unavailable`，不把进程存在当作账号额度验证。详见[设计、配置与验收说明](docs/local-cliproxyapi.md)。
 
+### 用已有的 Codex / OpenCode Go / Antigravity 账号跑 Claude Code（`--cliproxy`）
+
+不需要另外 `add`：只要装了 Claude Code 和 CLIProxyAPI，就可以直接用已有别名的额度跑 Claude Code。
+
+```bash
+claudex-switch cx --run --cliproxy claudecode         # Codex（ChatGPT 登录）别名
+claudex-switch openlam42 --run --cliproxy claudecode  # OpenCode Go API Key 别名
+claudex-switch agy --run --cliproxy claudecode        # Antigravity：首次使用会建一个名为 agy 的别名
+claudex-switch cx --run --cliproxy claudecode --model terra   # 保存为 cx 在 Claude Code 里的默认模型
+```
+
+- **别名就是额度来源**。Claude Code 只是客户端；这个别名原来的用法（`cx -run` 启动 Codex 等）不受影响，也不会被切换。
+- **Codex**：第一次使用时自动打开浏览器，为 Claude Code 单独登录一次 ChatGPT，之后一直复用。登录的必须是同一个 ChatGPT 账号，否则拒绝，且不留任何文件。不和 Codex 共用登录，是因为 ChatGPT 的 refresh token 每次刷新都会作废旧的，共用会把其中一边踢下线。只支持 ChatGPT 登录的 Codex 账号。
+- **OpenCode Go**：零交互。每次启动都读取 Go 别名里的 key，key 换了会自动跟上。Go 的 GLM / Kimi / DeepSeek 等模型走 OpenAI 格式，MiniMax / Qwen 走 Anthropic 格式，都由代理翻译，并按 Go 的要求附上会话 ID。浏览器订阅登录的 Go 别名没有固定 key，需要先在 OpenCode 控制台创建 key，再添加一个 key 型别名。
+- **Antigravity**：`agy` / `antigravity` 不是已有别名时，会先显示风险提示：Google 曾在 2026 年 2 月停用经第三方代理使用 Antigravity OAuth 的账号，条款至今仍禁止这种用法。确认后才会打开 CLIProxyAPI 自己的 Google 登录（不读取 agy 的现有登录），并从登录后的代理读取真实模型 ID。建议用非主力 Google 账号。
+
+| 上游 | 默认 / `opus` | `sonnet` | `haiku` |
+|---|---|---|---|
+| Codex | `gpt-6-astra` / `gpt-5.6-terra` | `gpt-5.6-terra` | `gpt-6-luna` |
+| OpenCode Go | `kimi-k3` | `glm-5.3` | `deepseek-v4-flash` |
+| Antigravity | 最新 `claude-opus-*` | 最新 `claude-sonnet-*` | 最新 `gemini-*-flash` |
+
+`list` 会在上游别名那一行显示 `· claudecode: running|stopped`。`doctor <上游别名> [--live]` 诊断它对应的代理。`purge` 上游别名时会一并删除这个代理；有会话正在用它时会拒绝，而且什么都不删。`remove` 只删别名，保留代理。
+
 ## 命令
 
 | 命令 | 说明 |
@@ -299,6 +323,7 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 | `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5.5` / `sonnet5` / `fable` / `fable5.1`，Codex `astra` / `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch <codex或opencode-alias> -run --autoreview <on\|off>` | 仅控制这次会话的完成评审（Codex Stop hook；OpenCode V2 需装 completion-review 插件），与 permission mode 无关；省略则沿用当前环境 |
+| `claudex-switch <alias> -run --cliproxy claudecode [--model <model>]` | 用 Codex / OpenCode Go 别名（或 `agy` 表示 Antigravity）的额度跑 Claude Code，经本机 CLIProxyAPI 转换；首次使用时自动完成设置 |
 | `claudex-switch add <alias>` | 添加新账号 |
 | `claudex-switch use <alias>` | 切换到指定别名 |
 | `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
@@ -306,7 +331,7 @@ claudex-switch model chatgpt fable      # 恢复默认主模型
 | `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置；支持同一套模型缩写 |
 | `claudex-switch rename <old> <new>` | 重命名别名 |
 | `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
-| `claudex-switch doctor <alias> [--live] [--restart]` | 诊断本机 CLIProxyAPI 账号；可显式发送 Luna 测试请求或重启其代理 |
+| `claudex-switch doctor <alias> [--live] [--restart]` | 诊断本机 CLIProxyAPI 账号（或 `--cliproxy` 别名对应的代理）；可显式发送 haiku 档测试请求或重启其代理 |
 | `claudex-switch webconfig [--port <n>] [--no-open]` | 打开本机网页，批量查看和修改所有账号的配置 |
 | `claudex-switch current` | 显示当前活跃账号 |
 | `claudex-switch remove <alias>` | 只删除别名，不删除底层账号 |
