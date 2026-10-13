@@ -69,6 +69,21 @@ export async function use(aliasOrName: string): Promise<AliasEntry> {
 }
 
 async function switchOpenCode(alias: string, profileId: string): Promise<void> {
+  await ensureOpenCodeProfileReady(alias, profileId);
+  await setActiveOpenCodeProfile(profileId);
+  success(
+    `Selected ${chalk.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`,
+  );
+  hint(
+    `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`,
+  );
+  blank();
+}
+
+export async function ensureOpenCodeProfileReady(
+  alias: string,
+  profileId: string,
+): Promise<void> {
   if (!(await openCodeProfileExists(profileId))) {
     error("OpenCode Go profile no longer exists.");
     hint("The underlying profile may have been purged.");
@@ -83,14 +98,6 @@ async function switchOpenCode(alias: string, profileId: string): Promise<void> {
   }
 
   await getOpenCodeProfileData(profileId);
-  await setActiveOpenCodeProfile(profileId);
-  success(
-    `Selected ${chalk.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`,
-  );
-  hint(
-    `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`,
-  );
-  blank();
 }
 
 async function switchClaude(

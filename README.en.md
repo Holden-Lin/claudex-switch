@@ -18,7 +18,7 @@ These AI-assisted feature explainers are not live product recordings or benchmar
 
 - **Use it when** you manage multiple authorized Claude Code, Codex, or OpenCode Go accounts on one machine and want aliases, provider-reported quota visibility, or account-specific CLI launches
 - **Choose another approach when** you need fully separate workspaces, settings, and histories for each identity, centralized team credential management, or a way around provider login, terms, or usage limits
-- **Know the differences**: Claude `-run` isolates that session's account credentials, while settings, hooks, and history remain shared; Codex `-run` first changes the global Codex auth/config; OpenCode Go V1 and V2 use different credential and history paths, described below
+- **Know the differences**: Claude `-run` isolates that session's account credentials, while settings, hooks, and history remain shared; Codex `-run` leaves the default account alone: a non-default account runs in a private `CODEX_HOME` that isolates only its login, while history, config, and hooks stay shared; OpenCode Go V1 and V2 use different credential and history paths, described below
 
 ## Features
 
@@ -138,7 +138,7 @@ claudex-switch personal -run
 
 Done means both aliases launched the expected CLI and you checked the identity in its available account/status view. Claude supports `/status`; other CLIs' views depend on the installed version. If a view does not expose an identity you can check, do not count an open window as a verified account switch. A live model request may consume quota; decide separately whether to test one.
 
-Claude `-run` isolates credentials while settings, hooks, and history stay shared. Codex `-run` changes global auth/config; restart Codex clients after switching, and do not infer parallel account isolation. Always launch OpenCode with `<alias> -run`; V1 shares normal history, while V2 uses private per-alias history.
+Claude `-run` isolates credentials while settings, hooks, and history stay shared. Codex `-run` never changes global auth/config: the default account runs on `~/.codex`, any other uses `~/.claudex-switch/codex-run/<account>` as `CODEX_HOME`, where only `auth.json` (plus `config.toml` when the provider differs) is private and everything else links back to `~/.codex`. Official and relay sessions see each other in `/resume` only after a global switch syncs them. Always launch OpenCode with `<alias> -run`; V1 shares normal history, while V2 uses private per-alias history.
 
 For another CLI, use `add` with a different alias and choose that CLI's account type: for example, `claudex-switch add codex-work`, then **Codex ChatGPT**. Each alias points to one provider account.
 
@@ -287,7 +287,7 @@ claudex-switch cx --run --cliproxy claudecode --model terra   # saved as cx's de
 |---|---|
 | `claudex-switch` | Interactive account picker |
 | `claudex-switch <alias>` | Switch to alias (shortcut for `use`) |
-| `claudex-switch <alias> -run` | Switch and start a Claude Code / Codex session or OpenCode TUI; Claude Code defaults to `--permission-mode auto`, Codex defaults to `--approve-for-me` (Auto), and OpenCode defaults to `--auto` |
+| `claudex-switch <alias> -run` | Start a Claude Code / Codex session or OpenCode TUI on that account without changing the default account; Claude Code defaults to `--permission-mode auto`, Codex defaults to `--approve-for-me` (Auto), and OpenCode defaults to `--auto` |
 | `claudex-switch <alias> -run --model <model>` | Start with the selected model and save it as this account's default for the next run; shorthand: Claude `5.5` / `sonnet5` / `fable` / `fable5.1`, Codex `astra` / `sol` / `terra` / `luna` / `6`; OpenCode Go uses `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | Set or remove `CLAUDE_CODE_ATTRIBUTION_HEADER` for this Claude `-run` session only |
 | `claudex-switch <codex-or-opencode-alias> -run --autoreview <on\|off>` | Control completion review for this session only (Codex Stop hook; OpenCode V2 needs the completion-review plugin); it does not change the permission mode |

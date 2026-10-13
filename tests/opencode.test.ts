@@ -29,6 +29,7 @@ import {
   openCodeSetupEnvironment,
   OPENCODE_V2_MANAGED_PROVIDER_ID,
   readOpenCodeState,
+  setActiveOpenCodeProfile,
 } from "../src/providers/opencode/profiles";
 import {
   buildOpenCodeV2Config,
@@ -239,6 +240,7 @@ describe("OpenCode Go profiles", () => {
     const previousDataHome = process.env.XDG_DATA_HOME;
     process.env.OPENCODE_AUTH_CONTENT = '{"opencode-go":{"type":"api","key":"wrong"}}';
     process.env.XDG_DATA_HOME = "/tmp/opencode-shared-sessions";
+    await setActiveOpenCodeProfile("default-profile");
     try {
       const calls: SpawnCall[] = [];
       const exitCode = await runAliasSession(
@@ -267,7 +269,8 @@ describe("OpenCode Go profiles", () => {
         type: "go",
         defaultModel: "opencode-go/kimi-k3",
       });
-      expect(await readOpenCodeState()).toEqual({ active: PROFILE_ID });
+      // -run leaves the default account alone.
+      expect(await readOpenCodeState()).toEqual({ active: "default-profile" });
     } finally {
       if (previous === undefined) delete process.env.OPENCODE_AUTH_CONTENT;
       else process.env.OPENCODE_AUTH_CONTENT = previous;

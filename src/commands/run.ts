@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { spawn, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
-import { use } from "./use";
+import { ensureOpenCodeProfileReady } from "./use";
 import { updateDefaultModel } from "./model";
 import {
   CLIPROXY_CLIENT_NAMES,
@@ -43,7 +43,15 @@ import {
   readAccountAuth,
   syncActiveAuthSnapshot,
 } from "../providers/codex/auth";
-import { repairCodexStringifiedArrays } from "../providers/codex/config";
+import {
+  repairCodexStringifiedArrays,
+  resolveCodexModel,
+} from "../providers/codex/config";
+import {
+  finishCodexRunHome,
+  isDefaultCodexAccount,
+  prepareCodexRunHome,
+} from "../providers/codex/run-home";
 import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 import {
   getOpenCodeProfileData,
@@ -65,6 +73,7 @@ import {
 import type {
   AliasEntry,
   ClaudeApiProfileConfig,
+  CodexRegistryAccount,
   CustomEnv,
   ProfileData,
 } from "../types";
@@ -278,17 +287,20 @@ export async function runAliasSession(
   const isolatedLocalCLIProxyAPI =
     isClaude && profile?.type === "local-cliproxyapi";
 
-  // Claude sessions run isolated from the global account state: API-key
-  // profiles get their config via env vars, OAuth profiles get a per-profile
-  // credential store. Neither touches (or is touched by) the active account,
-  // so switching accounts can never flip a running session. Codex switches
-  // globally. OpenCode V1 injects the selected key per process. OpenCode V2
+  // No run changes the global default account. Claude sessions run isolated
+  // from the global account state: API-key profiles get their config via env
+  // vars, OAuth profiles get a per-profile credential store. Neither touches
+  // (or is touched by) the active account, so switching accounts can never
+  // flip a running session. A Codex account that is already the default runs
+  // on ~/.codex; any other gets a private CODEX_HOME sharing everything but
+  // its login. OpenCode V1 injects the selected key per process. OpenCode V2
   // uses a private standalone server and a managed provider ID while retaining
   // an alias-private SQLite session database. V2 preflights the launch
   // directory and rejects CLI directory/session overrides; in-app navigation
   // can still select sessions created in another project under this alias.
+  let codexHome: string | undefined;
+  let codexRunAccount: CodexRegistryAccount | undefined;
   if (entry.target.provider === "codex") {
-    await use(aliasOrName);
     try {
       if (await repairCodexStringifiedArrays()) {
         info("Repaired stringified arrays in ~/.codex/config.toml");
@@ -296,8 +308,32 @@ export async function runAliasSession(
     } catch {
       // Best effort; codex will surface config errors itself.
     }
-  } else if (isOpenCode) {
-    await use(aliasOrName);
+    const reg = await loadRegistry();
+    const account = findAccountByKey(reg, entry.target.accountKey);
+    if (!account) {
+      error("Codex account not found in registry.");
+      hint("The account may have been removed by codex-auth.");
+      blank();
+      return 1;
+    }
+    if (!(await isDefaultCodexAccount(reg, account))) {
+      try {
+        codexHome = await prepareCodexRunHome(account);
+        codexRunAccount = account;
+      } catch (err) {
+        error(err instanceof Error ? err.message : String(err));
+        hint(`Run ${chalk.cyan(`claudex-switch refresh ${aliasOrName}`)} to log in again.`);
+        blank();
+        return 1;
+      }
+      // The shared config keeps the default account's model.
+      resolvedModel ??= resolveCodexModel(
+        account.default_model,
+        account.auth_mode === "apikey" ? account.api_provider?.model : null,
+      );
+    }
+  } else if (isOpenCode && openCodeProfileId) {
+    await ensureOpenCodeProfileReady(aliasOrName, openCodeProfileId);
   }
 
   let secureStorageDir: string | undefined;
@@ -443,7 +479,13 @@ export async function runAliasSession(
     blank();
     return 1;
   }
-  const env = applyAutoreview(baseEnv, runOptions.autoreviewOverride);
+  const env = applyAutoreview(
+    codexHome ? { ...(baseEnv ?? process.env), CODEX_HOME: codexHome } : baseEnv,
+    runOptions.autoreviewOverride,
+  );
+  if (codexHome) {
+    info(`Default Codex account unchanged; this session uses ${chalk.dim(codexHome)}`);
+  }
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
   // Codex reads the env in its Stop hook; OpenCode V2 in the cc_chats
@@ -502,6 +544,12 @@ export async function runAliasSession(
             await syncIsolatedOAuthSnapshot(claudeProfileName);
           } catch {
             // Best effort; the isolated store remains authoritative.
+          }
+        } else if (codexRunAccount) {
+          try {
+            await finishCodexRunHome(codexRunAccount);
+          } catch {
+            // Best effort; the run home keeps the refreshed login for next time.
           }
         } else if (entry.target.provider === "codex") {
           try {

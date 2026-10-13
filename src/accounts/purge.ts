@@ -1,4 +1,4 @@
-import { unlink } from "fs/promises";
+import { rm, unlink } from "fs/promises";
 import {
   findAlias,
   findAliasesByTarget,
@@ -6,7 +6,7 @@ import {
   removeAliasesByTarget,
 } from "../alias/store";
 import { fileExists } from "../lib/fs";
-import { codexAccountAuthFile } from "../lib/paths";
+import { codexAccountAuthFile, codexRunHome } from "../lib/paths";
 import { profileExists, removeProfile } from "../providers/claude/profiles";
 import { removeOpenCodeProfile } from "../providers/opencode/profiles";
 import {
@@ -81,6 +81,11 @@ export async function purgeAccount(aliasName: string): Promise<PurgePlan> {
       if (await fileExists(authFile)) {
         await unlink(authFile);
       }
+      // Removes the links themselves, never the shared ~/.codex entries.
+      await rm(codexRunHome(entry.target.accountKey), {
+        recursive: true,
+        force: true,
+      });
     } catch {
       // Registry may not exist
     }

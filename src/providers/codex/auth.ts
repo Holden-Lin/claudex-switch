@@ -101,7 +101,7 @@ async function writeRawAuthFile(path: string, content: string): Promise<void> {
   }
 }
 
-function normalizeAuthForCodexCli(authData: CodexAuthFile): CodexAuthFile {
+export function normalizeAuthForCodexCli(authData: CodexAuthFile): CodexAuthFile {
   if (authData.auth_mode !== "apikey") return authData;
   return {
     auth_mode: "apikey",

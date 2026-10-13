@@ -8,21 +8,25 @@ import {
 } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
-import { mkdir, readFile, stat, writeFile } from "fs/promises";
-import { dirname } from "path";
+import { lstat, mkdir, readFile, readlink, stat, writeFile } from "fs/promises";
+import { dirname, join } from "path";
 import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
 import {
   CLAUDE_JSON,
   CODEX_AUTH_FILE,
   CODEX_CONFIG_FILE,
+  CODEX_DIR,
   CREDENTIALS_FILE,
   SETTINGS_FILE,
   claudeProfileClaudeSettingsFile,
   claudeProfileConfigJson,
   claudeProfileDir,
   claudeProfileConfigDir,
+  codexRunHome,
 } from "../src/lib/paths";
+import { fileExists } from "../src/lib/fs";
+import { purgeAccount } from "../src/accounts/purge";
 import { readJson } from "../src/lib/fs";
 import {
   readCredentials,
@@ -40,7 +44,7 @@ import {
   saveAccountAuth,
 } from "../src/providers/codex/auth";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
-import { makeJwt, resetTestHome } from "./helpers";
+import { fileMode, makeJwt, resetTestHome } from "./helpers";
 import type {
   AliasRegistry,
   CodexAuthFile,
@@ -90,6 +94,20 @@ function createRegistry(accountKey: string): CodexRegistry {
         last_local_rollout: null,
       },
     ],
+  };
+}
+
+function codexChatGptAuth(userId: string, accountId: string): CodexAuthFile {
+  return {
+    auth_mode: "chatgpt",
+    OPENAI_API_KEY: null,
+    tokens: {
+      id_token: makeJwt({ sub: userId }),
+      access_token: makeJwt({ sub: userId }),
+      refresh_token: "refresh-token",
+      account_id: accountId,
+    },
+    last_refresh: "2026-04-28T00:00:00.000Z",
   };
 }
 
@@ -663,10 +681,13 @@ describe("run alias session", () => {
     expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-6.1-sol");
 
     await runAliasSession("cx", [], createSpawn(calls));
-    expect(calls[1]?.args).toEqual(["--approve-for-me"]);
-    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toContain(
-      'model = "gpt-6.1-sol"',
-    );
+    expect(calls[1]?.args).toEqual([
+      "--approve-for-me",
+      "--model",
+      "gpt-6.1-sol",
+    ]);
+    // A non-default account never rewrites the shared config.
+    expect(await fileExists(CODEX_CONFIG_FILE)).toBe(false);
   });
 
   test("overrides Codex autoreview only in the launched session", async () => {
@@ -721,12 +742,14 @@ describe("run alias session", () => {
       expect(calls).toHaveLength(3);
       expect(calls[0]?.args).toEqual([
         "--approve-for-me",
+        "--model",
+        "gpt-5.4",
         "--continue",
       ]);
       expect(calls[0]?.env?.[envName]).toBeUndefined();
       expect(calls[1]?.env?.[envName]).toBe("1");
       // With no override, spawn inherits the caller environment as before.
-      expect(calls[2]?.env).toBeUndefined();
+      expect(calls[2]?.env?.[envName]).toBe("1");
       expect(process.env[envName]).toBe("1");
     } finally {
       if (originalEnvValue === undefined) delete process.env[envName];
@@ -1070,9 +1093,10 @@ describe("run alias session", () => {
     ).toEqual(oauthCreds);
   });
 
-  test("runs Codex with Approve for me after switching", async () => {
+  test("runs a non-default Codex account in a private CODEX_HOME without switching", async () => {
     const accountKey = "user-1::acct-1";
-    const aliases: AliasRegistry = {
+    const defaultKey = "user-2::acct-2";
+    await saveAliases({
       version: 1,
       aliases: [
         {
@@ -1081,53 +1105,115 @@ describe("run alias session", () => {
           createdAt: 1,
         },
       ],
-    };
-    await saveAliases(aliases);
-    await saveRegistry(createRegistry(accountKey));
+    });
+    const registry = createRegistry(accountKey);
+    registry.active_account_key = defaultKey;
+    registry.accounts.push({
+      ...registry.accounts[0]!,
+      account_key: defaultKey,
+      chatgpt_account_id: "acct-2",
+      chatgpt_user_id: "user-2",
+      email: "main@example.com",
+      alias: "main",
+    });
+    await saveRegistry(registry);
 
-    const auth: CodexAuthFile = {
-      auth_mode: "chatgpt",
-      OPENAI_API_KEY: null,
-      tokens: {
-        id_token: makeJwt({ sub: "user-1" }),
-        access_token: makeJwt({ sub: "user-1" }),
-        refresh_token: "refresh-token",
-        account_id: "acct-1",
-      },
-      last_refresh: "2026-04-28T00:00:00.000Z",
-    };
+    const auth = codexChatGptAuth("user-1", "acct-1");
     await saveAccountAuth(accountKey, auth);
+    const defaultAuth = JSON.stringify(codexChatGptAuth("user-2", "acct-2"), null, 2);
+    const defaultConfig = 'model = "gpt-default"\ncli_auth_credentials_store = "file"\n';
+    await mkdir(join(CODEX_DIR, "sessions"), { recursive: true });
+    await writeFile(join(CODEX_DIR, "sessions", "old.jsonl"), "{}\n");
+    await writeFile(CODEX_AUTH_FILE, defaultAuth);
+    await writeFile(CODEX_CONFIG_FILE, defaultConfig);
 
     const calls: SpawnCall[] = [];
     const exitCode = await runAliasSession(
       "cx",
       ["--model", "gpt-5"],
-      createSpawn(calls),
+      (command, args, options) => {
+        calls.push({ command, args, stdio: options.stdio, env: options.env });
+        const proc = new EventEmitter();
+        queueMicrotask(async () => {
+          // Codex created this only in the run home: a first-ever history file.
+          await writeFile(join(codexRunHome(accountKey), "history.jsonl"), "{}\n");
+          proc.emit("close", 0);
+        });
+        return proc as ChildProcess;
+      },
     );
 
     expect(exitCode).toBe(0);
-    expect(calls).toEqual([
-      {
-        command: "codex",
-        args: [
-          "--approve-for-me",
-          "--model",
-          "gpt-5",
-        ],
-        stdio: "inherit",
-        env: undefined,
-      },
-    ]);
-    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
-    expect(config).toContain('model = "gpt-5"');
-    expect(config).not.toContain("model_provider =");
+    const home = codexRunHome(accountKey);
+    expect(calls[0]?.command).toBe("codex");
+    expect(calls[0]?.args).toEqual(["--approve-for-me", "--model", "gpt-5"]);
+    expect(calls[0]?.env?.CODEX_HOME).toBe(home);
 
-    const registry = await loadRegistry();
-    expect(registry.active_account_key).toBe(accountKey);
-    expect(registry.accounts[0]?.default_model).toBe("gpt-5");
+    // The default account is untouched.
+    expect((await loadRegistry()).active_account_key).toBe(defaultKey);
+    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(defaultAuth);
+    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toBe(defaultConfig);
+    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-5");
+
+    // Only the login is private; history and config are shared.
+    expect(JSON.parse(await readFile(join(home, "auth.json"), "utf-8"))).toEqual(auth);
+    expect(fileMode((await stat(join(home, "auth.json"))).mode)).toBe(0o600);
+    expect(await readlink(join(home, "sessions"))).toBe(join(CODEX_DIR, "sessions"));
+    expect(await readlink(join(home, "config.toml"))).toBe(CODEX_CONFIG_FILE);
+    expect(await fileExists(join(home, "accounts"))).toBe(false);
+    expect(await readFile(join(CODEX_DIR, "history.jsonl"), "utf-8")).toBe("{}\n");
+    expect((await lstat(join(home, "history.jsonl"))).isSymbolicLink()).toBe(true);
+
+    // Purging the account removes its run home, never the shared entries.
+    await purgeAccount("cx");
+    expect(await fileExists(home)).toBe(false);
+    expect(await readFile(join(CODEX_DIR, "sessions", "old.jsonl"), "utf-8")).toBe("{}\n");
+    expect(await fileExists(join(CODEX_DIR, "history.jsonl"))).toBe(true);
   });
 
-  test("saves Codex token rotation back to the account after a run", async () => {
+  test("runs the default Codex account on ~/.codex and saves its token rotation", async () => {
+    const accountKey = "user-1::acct-1";
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "cx",
+          target: { provider: "codex", accountKey },
+          createdAt: 1,
+        },
+      ],
+    });
+    const registry = createRegistry(accountKey);
+    registry.active_account_key = accountKey;
+    await saveRegistry(registry);
+    const oldAuth = codexChatGptAuth("user-1", "acct-1");
+    const refreshedAuth: CodexAuthFile = {
+      ...oldAuth,
+      tokens: { ...oldAuth.tokens, refresh_token: "refresh-new" },
+      last_refresh: "2026-08-02T00:00:00.000Z",
+    };
+    await saveAccountAuth(accountKey, oldAuth);
+    await writeFile(CODEX_AUTH_FILE, JSON.stringify(oldAuth, null, 2));
+
+    const calls: SpawnCall[] = [];
+    const exitCode = await runAliasSession("cx", [], (command, args, options) => {
+      calls.push({ command, args, stdio: options.stdio, env: options.env });
+      const proc = new EventEmitter();
+      queueMicrotask(async () => {
+        await writeFile(CODEX_AUTH_FILE, JSON.stringify(refreshedAuth, null, 2));
+        proc.emit("close", 0);
+      });
+      return proc as ChildProcess;
+    });
+
+    expect(exitCode).toBe(0);
+    expect(calls[0]?.args).toEqual(["--approve-for-me"]);
+    expect(calls[0]?.env).toBeUndefined();
+    expect(await fileExists(codexRunHome(accountKey))).toBe(false);
+    expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
+  });
+
+  test("saves Codex token rotation from a private run home", async () => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -1140,17 +1226,7 @@ describe("run alias session", () => {
       ],
     });
     await saveRegistry(createRegistry(accountKey));
-    const oldAuth: CodexAuthFile = {
-      auth_mode: "chatgpt",
-      OPENAI_API_KEY: null,
-      tokens: {
-        id_token: makeJwt({ sub: "user-1" }),
-        access_token: "access-old",
-        refresh_token: "refresh-old",
-        account_id: "acct-1",
-      },
-      last_refresh: "2026-04-28T00:00:00.000Z",
-    };
+    const oldAuth = codexChatGptAuth("user-1", "acct-1");
     const refreshedAuth: CodexAuthFile = {
       ...oldAuth,
       tokens: {
@@ -1165,7 +1241,10 @@ describe("run alias session", () => {
     const exitCode = await runAliasSession("cx", [], () => {
       const proc = new EventEmitter();
       queueMicrotask(async () => {
-        await writeFile(CODEX_AUTH_FILE, JSON.stringify(refreshedAuth, null, 2));
+        await writeFile(
+          join(codexRunHome(accountKey), "auth.json"),
+          JSON.stringify(refreshedAuth, null, 2),
+        );
         proc.emit("close", 0);
       });
       return proc as ChildProcess;
@@ -1173,6 +1252,7 @@ describe("run alias session", () => {
 
     expect(exitCode).toBe(0);
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
+    expect(await fileExists(CODEX_AUTH_FILE)).toBe(false);
   });
 
   test("maps -model and saves it as the Codex account default", async () => {
@@ -1214,14 +1294,12 @@ describe("run alias session", () => {
       "--continue",
     ]);
 
-    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
-    expect(config).toContain('model = "gpt-5-mini"');
     expect((await loadRegistry()).accounts[0]?.default_model).toBe(
       "gpt-5-mini",
     );
   });
 
-  test("activates a custom Codex provider before running an api key alias", async () => {
+  test("routes an api key alias through its relay in a private config", async () => {
     const accountKey = "apikey::custom";
     const aliases: AliasRegistry = {
       version: 1,
@@ -1281,14 +1359,27 @@ describe("run alias session", () => {
       last_refresh: "2026-04-28T00:00:00.000Z",
     });
 
+    const sharedConfig = 'model = "gpt-default"\napproval_policy = "never"\n';
+    await mkdir(CODEX_DIR, { recursive: true });
+    await writeFile(CODEX_CONFIG_FILE, sharedConfig);
+
     const calls: SpawnCall[] = [];
     const exitCode = await runAliasSession("custom-cx", [], createSpawn(calls));
 
     expect(exitCode).toBe(0);
     expect(calls[0]?.command).toBe("codex");
+    expect(calls[0]?.args).toEqual(["--approve-for-me", "--model", "gpt-5.4"]);
     expect(calls[0]?.env?.OPENAI_API_KEY).toBe("sk-test");
+    expect(calls[0]?.env?.CODEX_HOME).toBe(codexRunHome(accountKey));
+    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toBe(sharedConfig);
 
-    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    // The relay routing lives only in the run home's private config.
+    const configPath = join(codexRunHome(accountKey), "config.toml");
+    expect((await lstat(configPath)).isSymbolicLink()).toBe(false);
+    expect(fileMode((await stat(configPath)).mode)).toBe(0o600);
+    const config = await readFile(configPath, "utf-8");
+    expect(config).toContain('model = "gpt-default"');
+    expect(config).toContain('approval_policy = "never"');
     expect(config).toContain('model_provider = "admin"');
     expect(config).toContain("[model_providers.admin]");
     expect(config).toContain('base_url = "https://newapi.hybaliez.com/v1"');

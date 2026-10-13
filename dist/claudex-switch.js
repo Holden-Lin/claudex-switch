@@ -3443,7 +3443,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join11, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname7, join as join12, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -3555,10 +3555,15 @@ function openCodeProfileAuthFile(profileId) {
 function openCodeProfileDataFile(profileId) {
   return join(openCodeProfileDir(profileId), "profile.json");
 }
-function codexAccountAuthFile(accountKey) {
+function codexAccountFileKey(accountKey) {
   const needsEncoding = !accountKey || accountKey === "." || accountKey === ".." || [...accountKey].some((ch) => !/[a-zA-Z0-9\-_.]/.test(ch));
-  const fileKey = needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
-  return join(CODEX_ACCOUNTS_DIR, `${fileKey}.auth.json`);
+  return needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
+}
+function codexAccountAuthFile(accountKey) {
+  return join(CODEX_ACCOUNTS_DIR, `${codexAccountFileKey(accountKey)}.auth.json`);
+}
+function codexRunHome(accountKey) {
+  return join(CLAUDEX_DIR, "codex-run", codexAccountFileKey(accountKey));
 }
 
 // src/lib/fs.ts
@@ -6324,8 +6329,7 @@ function renderCodexConfig(config) {
 `)}
 `;
 }
-async function activateCodexOfficialProvider(defaultModel) {
-  const config = await fileExists(CODEX_CONFIG_FILE) ? await readCodexConfig() : {};
+function applyOfficialProvider(config, defaultModel) {
   delete config.model_provider;
   delete config.openai_base_url;
   config.model = resolveCodexModel(defaultModel);
@@ -6340,13 +6344,11 @@ async function activateCodexOfficialProvider(defaultModel) {
       delete config.model_providers;
     }
   }
-  await writeCodexConfig(config);
 }
-async function activateCodexCustomProvider(provider, apiKey, defaultModel) {
+function applyCustomProvider(config, provider, apiKey, defaultModel) {
   if (provider.type !== "custom" || !provider.name || !provider.base_url || !provider.env_key) {
     throw new Error("Invalid Codex custom provider config");
   }
-  const config = await readCodexConfig();
   const providers = isSimpleTable(config.model_providers) ? config.model_providers : {};
   config.model_providers = providers;
   config.model_provider = provider.name;
@@ -6363,14 +6365,30 @@ async function activateCodexCustomProvider(provider, apiKey, defaultModel) {
     providerConfig.env_key = provider.env_key;
   }
   providers[provider.name] = providerConfig;
-  await writeCodexConfig(config);
+}
+function applyProvider(config, provider, apiKey, defaultModel) {
+  if (!provider || provider.type === "official") {
+    applyOfficialProvider(config, defaultModel);
+  } else {
+    applyCustomProvider(config, provider, apiKey, defaultModel);
+  }
 }
 async function applyCodexApiProvider(provider, apiKey, defaultModel) {
-  if (!provider || provider.type === "official") {
-    await activateCodexOfficialProvider(defaultModel);
-    return;
+  const config = await readCodexConfig();
+  applyProvider(config, provider, apiKey, defaultModel);
+  await writeCodexConfig(config);
+}
+async function renderCodexRunConfig(provider, apiKey) {
+  const original = await readCodexConfig();
+  const config = cloneConfig(original);
+  applyProvider(config, provider, apiKey);
+  if (original.model === undefined) {
+    delete config.model;
+  } else {
+    config.model = original.model;
   }
-  await activateCodexCustomProvider(provider, apiKey, defaultModel);
+  const rendered = renderCodexConfig(config);
+  return rendered === renderCodexConfig(original) ? null : rendered;
 }
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
@@ -9420,6 +9438,13 @@ async function use(aliasOrName) {
   return entry;
 }
 async function switchOpenCode(alias, profileId) {
+  await ensureOpenCodeProfileReady(alias, profileId);
+  await setActiveOpenCodeProfile(profileId);
+  success(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
+  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
+  blank();
+}
+async function ensureOpenCodeProfileReady(alias, profileId) {
   if (!await openCodeProfileExists(profileId)) {
     error("OpenCode Go profile no longer exists.");
     hint("The underlying profile may have been purged.");
@@ -9433,10 +9458,6 @@ async function switchOpenCode(alias, profileId) {
     process.exit(1);
   }
   await getOpenCodeProfileData(profileId);
-  await setActiveOpenCodeProfile(profileId);
-  success(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
-  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
-  blank();
 }
 async function switchClaude(alias, profileName) {
   if (!await profileExists(profileName)) {
@@ -9922,6 +9943,124 @@ function upstreamLabel(upstream) {
   return CLI_PROXY_API_UPSTREAMS[upstream ?? "codex"].label;
 }
 
+// src/providers/codex/run-home.ts
+import {
+  chmod as chmod10,
+  lstat as lstat2,
+  mkdir as mkdir13,
+  readdir as readdir4,
+  readlink as readlink2,
+  rename as rename6,
+  symlink as symlink2,
+  unlink as unlink3,
+  writeFile as writeFile8
+} from "fs/promises";
+import { join as join11 } from "path";
+var AUTH_FILE = "auth.json";
+var CONFIG_FILE = "config.toml";
+var PRIVATE_ENTRIES = new Set([AUTH_FILE, CONFIG_FILE, "accounts"]);
+async function isDefaultCodexAccount(reg, account) {
+  if (reg.active_account_key !== account.account_key)
+    return false;
+  const active = await readActiveAuth();
+  if (!active)
+    return false;
+  if (account.auth_mode === "chatgpt") {
+    return authMatchesAccount(active, account);
+  }
+  const snapshot = await readAccountAuth(account.account_key);
+  return active.auth_mode === "apikey" && Boolean(active.OPENAI_API_KEY) && active.OPENAI_API_KEY === snapshot?.OPENAI_API_KEY;
+}
+async function prepareCodexRunHome(account) {
+  const home = codexRunHome(account.account_key);
+  await mkdir13(home, { recursive: true, mode: 448 });
+  await chmod10(home, 448);
+  await mkdir13(CODEX_DIR, { recursive: true });
+  await syncCodexRunAuth(account);
+  const auth = await readAccountAuth(account.account_key);
+  if (!auth) {
+    throw new Error(`Auth file not found for account: ${account.account_key}`);
+  }
+  await writeFile8(join11(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
+  await chmod10(join11(home, AUTH_FILE), 384);
+  const privateConfig = await renderCodexRunConfig(account.auth_mode === "apikey" ? account.api_provider : null, auth.auth_mode === "apikey" ? auth.OPENAI_API_KEY ?? undefined : undefined);
+  const configPath = join11(home, CONFIG_FILE);
+  await removeEntry(configPath);
+  if (privateConfig === null) {
+    if (await fileExists(join11(CODEX_DIR, CONFIG_FILE))) {
+      await linkEntry(join11(CODEX_DIR, CONFIG_FILE), configPath);
+    }
+  } else {
+    await writeFile8(configPath, privateConfig, { mode: 384 });
+    await chmod10(configPath, 384);
+  }
+  await linkSharedEntries(home);
+  return home;
+}
+async function syncCodexRunAuth(account) {
+  if (account.auth_mode !== "chatgpt")
+    return;
+  const runAuth = await readJson(join11(codexRunHome(account.account_key), AUTH_FILE), null);
+  if (!runAuth || !authMatchesAccount(runAuth, account))
+    return;
+  const snapshot = await readAccountAuth(account.account_key);
+  if (snapshot && sameAuthCredentialVersion(runAuth, snapshot))
+    return;
+  if (snapshot?.last_refresh && (!runAuth.last_refresh || runAuth.last_refresh < snapshot.last_refresh)) {
+    return;
+  }
+  await saveAccountAuth(account.account_key, runAuth);
+}
+async function finishCodexRunHome(account) {
+  await syncCodexRunAuth(account);
+  await linkSharedEntries(codexRunHome(account.account_key));
+}
+async function linkSharedEntries(home) {
+  for (const entry of await readdir4(home, { withFileTypes: true })) {
+    if (PRIVATE_ENTRIES.has(entry.name) || entry.isSymbolicLink())
+      continue;
+    const shared = join11(CODEX_DIR, entry.name);
+    if (await exists(shared))
+      continue;
+    try {
+      await rename6(join11(home, entry.name), shared);
+    } catch {}
+  }
+  for (const entry of await readdir4(CODEX_DIR, { withFileTypes: true })) {
+    if (PRIVATE_ENTRIES.has(entry.name))
+      continue;
+    await linkEntry(join11(CODEX_DIR, entry.name), join11(home, entry.name));
+  }
+}
+async function linkEntry(source, destination) {
+  try {
+    const stat4 = await lstat2(destination);
+    if (!stat4.isSymbolicLink())
+      return;
+    if (await readlink2(destination) === source)
+      return;
+    await unlink3(destination);
+  } catch {}
+  const sourceStat = await lstat2(source);
+  const type = sourceStat.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
+  try {
+    await symlink2(source, destination, type);
+  } catch {}
+}
+async function removeEntry(path) {
+  try {
+    await unlink3(path);
+  } catch {}
+}
+async function exists(path) {
+  try {
+    await lstat2(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // src/commands/run.ts
 var RUN_FLAGS = new Set(["-run", "--run"]);
 var HEADER_FLAGS = new Set(["--attribution-header"]);
@@ -10042,15 +10181,36 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   const isolatedClaudeApi = profile?.type === "api-key";
   const isolatedClaudeOAuth = isClaude && profile?.type === "oauth";
   const isolatedLocalCLIProxyAPI = isClaude && profile?.type === "local-cliproxyapi";
+  let codexHome;
+  let codexRunAccount;
   if (entry.target.provider === "codex") {
-    await use(aliasOrName);
     try {
       if (await repairCodexStringifiedArrays()) {
         info("Repaired stringified arrays in ~/.codex/config.toml");
       }
     } catch {}
-  } else if (isOpenCode) {
-    await use(aliasOrName);
+    const reg = await loadRegistry();
+    const account = findAccountByKey(reg, entry.target.accountKey);
+    if (!account) {
+      error("Codex account not found in registry.");
+      hint("The account may have been removed by codex-auth.");
+      blank();
+      return 1;
+    }
+    if (!await isDefaultCodexAccount(reg, account)) {
+      try {
+        codexHome = await prepareCodexRunHome(account);
+        codexRunAccount = account;
+      } catch (err) {
+        error(err instanceof Error ? err.message : String(err));
+        hint(`Run ${source_default.cyan(`claudex-switch refresh ${aliasOrName}`)} to log in again.`);
+        blank();
+        return 1;
+      }
+      resolvedModel ??= resolveCodexModel(account.default_model, account.auth_mode === "apikey" ? account.api_provider?.model : null);
+    }
+  } else if (isOpenCode && openCodeProfileId) {
+    await ensureOpenCodeProfileReady(aliasOrName, openCodeProfileId);
   }
   let secureStorageDir;
   let configDir;
@@ -10144,7 +10304,10 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     blank();
     return 1;
   }
-  const env2 = applyAutoreview(baseEnv, runOptions.autoreviewOverride);
+  const env2 = applyAutoreview(codexHome ? { ...baseEnv ?? process.env, CODEX_HOME: codexHome } : baseEnv, runOptions.autoreviewOverride);
+  if (codexHome) {
+    info(`Default Codex account unchanged; this session uses ${source_default.dim(codexHome)}`);
+  }
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   if (entry.target.provider === "codex" || entry.target.provider === "opencode") {
     const inheritedState = process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
@@ -10182,6 +10345,10 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         if (isolatedClaudeOAuth && claudeProfileName) {
           try {
             await syncIsolatedOAuthSnapshot(claudeProfileName);
+          } catch {}
+        } else if (codexRunAccount) {
+          try {
+            await finishCodexRunHome(codexRunAccount);
           } catch {}
         } else if (entry.target.provider === "codex") {
           try {
@@ -10541,7 +10708,7 @@ async function refreshOAuthToken(creds) {
 
 // src/lib/usage-cache.ts
 import { spawn as spawn8 } from "child_process";
-import { mkdir as mkdir13, open as open3, readFile as readFile8, rename as rename6, stat as stat4, unlink as unlink3, writeFile as writeFile8 } from "fs/promises";
+import { mkdir as mkdir14, open as open3, readFile as readFile8, rename as rename7, stat as stat4, unlink as unlink4, writeFile as writeFile9 } from "fs/promises";
 var LOCK_STALE_MS = 2 * 60000;
 var TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
 function emptyUsageCache() {
@@ -10559,10 +10726,10 @@ async function readUsageCache() {
   }
 }
 async function writeUsageCache(cache) {
-  await mkdir13(CLAUDEX_DIR, { recursive: true });
+  await mkdir14(CLAUDEX_DIR, { recursive: true });
   const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
-  await writeFile8(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
-  await rename6(tmp, USAGE_CACHE_FILE);
+  await writeFile9(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
+  await rename7(tmp, USAGE_CACHE_FILE);
 }
 async function usageCacheMtime() {
   try {
@@ -10617,7 +10784,7 @@ function formatAge(ms) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 async function acquireRefreshLock() {
-  await mkdir13(CLAUDEX_DIR, { recursive: true });
+  await mkdir14(CLAUDEX_DIR, { recursive: true });
   for (let attempt = 0;attempt < 2; attempt++) {
     try {
       const handle = await open3(USAGE_REFRESH_LOCK, "wx", 384);
@@ -10625,12 +10792,12 @@ async function acquireRefreshLock() {
 `);
       await handle.close();
       return async () => {
-        await unlink3(USAGE_REFRESH_LOCK).catch(() => {});
+        await unlink4(USAGE_REFRESH_LOCK).catch(() => {});
       };
     } catch {
       if (!await isRefreshLockStale())
         return null;
-      await unlink3(USAGE_REFRESH_LOCK).catch(() => {});
+      await unlink4(USAGE_REFRESH_LOCK).catch(() => {});
     }
   }
   return null;
@@ -11507,7 +11674,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename7(currentAlias, nextAlias) {
+async function rename8(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -11538,7 +11705,7 @@ async function rename7(currentAlias, nextAlias) {
 }
 
 // src/accounts/purge.ts
-import { unlink as unlink4 } from "fs/promises";
+import { rm as rm9, unlink as unlink5 } from "fs/promises";
 async function planPurge(aliasName) {
   const reg = await loadAliases();
   const entry = findAlias(reg, aliasName);
@@ -11571,8 +11738,12 @@ async function purgeAccount(aliasName) {
       }
       const authFile = codexAccountAuthFile(entry.target.accountKey);
       if (await fileExists(authFile)) {
-        await unlink4(authFile);
+        await unlink5(authFile);
       }
+      await rm9(codexRunHome(entry.target.accountKey), {
+        recursive: true,
+        force: true
+      });
     } catch {}
   }
   await removeAliasesByTarget(entry.target);
@@ -11651,7 +11822,7 @@ async function current() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir4 } from "fs/promises";
+import { readdir as readdir5 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -11682,7 +11853,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir4(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir5(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
@@ -12081,7 +12252,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.21.0",
+  version: "1.22.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -14431,7 +14602,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join11(root, "package.json");
+  const packageFile = join12(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
@@ -14620,7 +14791,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename7(args[0], args[1]);
+        await rename8(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {

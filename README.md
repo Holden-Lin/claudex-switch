@@ -18,13 +18,13 @@ claudex-switch 是一款本地 CLI 账号切换器与额度查看工具，管理
 
 - **适合**：你在本机维护多个自己有权使用的 Claude Code、Codex 或 OpenCode Go 账号，希望用别名切换、查看服务端剩余额度，或按账号启动 CLI
 - **不适合**：你需要跨账号完全隔离的工作区 / 设置 / 历史记录、集中管理团队凭据，或想绕过服务商的登录、使用条款或额度限制
-- **重要区别**：Claude `-run` 为该次会话隔离账号凭据，但设置、hooks 和历史仍共享；Codex `-run` 会先切换全局 Codex 认证 / 配置；OpenCode Go 的 V1 / V2 运行和历史边界不同，详见下文指南
+- **重要区别**：Claude `-run` 为该次会话隔离账号凭据，但设置、hooks 和历史仍共享；Codex `-run` 不切换默认账号，非默认账号在私有 `CODEX_HOME` 里只隔离登录，历史 / 配置 / hooks 仍共享；OpenCode Go 的 V1 / V2 运行和历史边界不同，详见下文指南
 
 ## 特点
 
 - 统一管理 Claude Code、Codex 和 OpenCode Go 三套账号体系
 - 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
-- `claudex-switch <alias> -run` 切换账号后直接启动会话；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto：保留 workspace-write sandbox，由自动 reviewer 审核越界请求），OpenCode 默认使用 `--auto`
+- `claudex-switch <alias> -run` 用该账号直接启动会话，不改变默认账号（默认账号只由 `claudex-switch <alias>` 切换）；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto：保留 workspace-write sandbox，由自动 reviewer 审核越界请求），OpenCode 默认使用 `--auto`
 - `claudex-switch <alias> -run --model <model> [effort]` 会使用指定模型启动，并把它保存为该账号下次运行的默认模型；Claude 裸数字仍指 Opus（如 `5.5` → `claude-opus-5-5`），另支持 `sonnet5`、`fable5.1` 等系列名，裸 `fable` 指最新 Fable（`claude-fable-5-1`）；Codex 支持 `astra` / `sol` / `luna`（分别对应 `gpt-6-astra` / `gpt-6.1-sol` / `gpt-6-luna`）、`terra`（GPT-6 无 Terra，仍指 `gpt-5.6-terra`）和 `6`（对应 `gpt-6-astra`），旧版 GPT-5.6 可写全名如 `gpt-5.6-sol`。模型后可紧跟 effort 档位（如 `--model 5 max`），effort 只作用于本次运行；Codex 也支持 `ultra`（会启用更主动的多代理行为，额度消耗更快）
 - 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
 - `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
@@ -138,7 +138,7 @@ claudex-switch personal -run
 
 完成标准：两个别名分别启动了预期 CLI，并在该 CLI 可用的账号/状态界面核对身份。Claude 可用 `/status`；其他 CLI 的入口以安装版本为准。若界面不显示可核对身份，不要把“窗口打开了”记作身份切换成功。真实模型请求可能消耗额度，需自行决定是否测试。
 
-Claude 的 `-run` 隔离账号凭据，但设置、hooks 和历史共享。Codex 的 `-run` 会修改全局认证/配置，切换后需重启 Codex 客户端，不能据此认定多个 Codex 账号并行隔离。OpenCode 必须使用 `<alias> -run` 启动；V1 共享常规历史，V2 别名使用私有历史。
+Claude 的 `-run` 隔离账号凭据，但设置、hooks 和历史共享。Codex 的 `-run` 不改全局认证 / 配置：默认账号直接用 `~/.codex`，其他账号用 `~/.claudex-switch/codex-run/<账号>` 作 `CODEX_HOME`，其中只有 `auth.json`（provider 不同时还有 `config.toml`）是私有的，其余链接回 `~/.codex`。官方与中转 provider 的会话在 `/resume` 里只互相可见于全局切换同步之后。OpenCode 必须使用 `<alias> -run` 启动；V1 共享常规历史，V2 别名使用私有历史。
 
 要管理另一个 CLI，重新用 `add` 创建不同别名并选择它的账号类型，例如 `claudex-switch add codex-work` 后选择 **Codex ChatGPT**。同一个别名始终指向一个 provider 的账号。
 
@@ -319,7 +319,7 @@ claudex-switch cx --run --cliproxy claudecode --model terra   # 保存为 cx 在
 |---|---|
 | `claudex-switch` | 交互式账号选择器 |
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
-| `claudex-switch <alias> -run` | 切换账号并启动对应 Claude Code / Codex 会话或 OpenCode TUI；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto），OpenCode 默认使用 `--auto` |
+| `claudex-switch <alias> -run` | 用该账号启动对应 Claude Code / Codex 会话或 OpenCode TUI，不改变默认账号；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto），OpenCode 默认使用 `--auto` |
 | `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5.5` / `sonnet5` / `fable` / `fable5.1`，Codex `astra` / `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch <codex或opencode-alias> -run --autoreview <on\|off>` | 仅控制这次会话的完成评审（Codex Stop hook；OpenCode V2 需装 completion-review 插件），与 permission mode 无关；省略则沿用当前环境 |

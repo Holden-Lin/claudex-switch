@@ -154,12 +154,10 @@ function renderCodexConfig(config: CodexTomlConfig): string {
   return `${lines.join("\n")}\n`;
 }
 
-export async function activateCodexOfficialProvider(
+function applyOfficialProvider(
+  config: CodexTomlConfig,
   defaultModel?: string | null,
-): Promise<void> {
-  const config = (await fileExists(CODEX_CONFIG_FILE))
-    ? await readCodexConfig()
-    : {};
+): void {
   delete config.model_provider;
   // A top-level openai_base_url rewrites the built-in OpenAI provider itself
   // (relay setup guides sometimes add it), so ChatGPT-auth traffic would still
@@ -179,15 +177,14 @@ export async function activateCodexOfficialProvider(
       delete config.model_providers;
     }
   }
-
-  await writeCodexConfig(config);
 }
 
-export async function activateCodexCustomProvider(
+function applyCustomProvider(
+  config: CodexTomlConfig,
   provider: CodexApiProviderConfig,
   apiKey?: string,
   defaultModel?: string | null,
-): Promise<void> {
+): void {
   if (
     provider.type !== "custom" ||
     !provider.name ||
@@ -197,7 +194,6 @@ export async function activateCodexCustomProvider(
     throw new Error("Invalid Codex custom provider config");
   }
 
-  const config = await readCodexConfig();
   const providers = isSimpleTable(config.model_providers)
     ? config.model_providers
     : {};
@@ -216,7 +212,36 @@ export async function activateCodexCustomProvider(
     providerConfig.env_key = provider.env_key;
   }
   providers[provider.name] = providerConfig;
+}
 
+function applyProvider(
+  config: CodexTomlConfig,
+  provider: CodexApiProviderConfig | null | undefined,
+  apiKey?: string,
+  defaultModel?: string | null,
+): void {
+  if (!provider || provider.type === "official") {
+    applyOfficialProvider(config, defaultModel);
+  } else {
+    applyCustomProvider(config, provider, apiKey, defaultModel);
+  }
+}
+
+export async function activateCodexOfficialProvider(
+  defaultModel?: string | null,
+): Promise<void> {
+  const config = await readCodexConfig();
+  applyOfficialProvider(config, defaultModel);
+  await writeCodexConfig(config);
+}
+
+export async function activateCodexCustomProvider(
+  provider: CodexApiProviderConfig,
+  apiKey?: string,
+  defaultModel?: string | null,
+): Promise<void> {
+  const config = await readCodexConfig();
+  applyCustomProvider(config, provider, apiKey, defaultModel);
   await writeCodexConfig(config);
 }
 
@@ -225,11 +250,32 @@ export async function applyCodexApiProvider(
   apiKey?: string,
   defaultModel?: string | null,
 ): Promise<void> {
-  if (!provider || provider.type === "official") {
-    await activateCodexOfficialProvider(defaultModel);
-    return;
+  const config = await readCodexConfig();
+  applyProvider(config, provider, apiKey, defaultModel);
+  await writeCodexConfig(config);
+}
+
+/**
+ * The global config with an account's provider routing applied, for a private
+ * `-run` CODEX_HOME. Returns null when the routing already matches
+ * ~/.codex/config.toml, so the caller can share that file (and keep the trust
+ * and model edits Codex makes in-session). The model is left as is because
+ * the launcher passes it on the command line.
+ */
+export async function renderCodexRunConfig(
+  provider: CodexApiProviderConfig | null | undefined,
+  apiKey?: string,
+): Promise<string | null> {
+  const original = await readCodexConfig();
+  const config = cloneConfig(original);
+  applyProvider(config, provider, apiKey);
+  if (original.model === undefined) {
+    delete config.model;
+  } else {
+    config.model = original.model;
   }
-  await activateCodexCustomProvider(provider, apiKey, defaultModel);
+  const rendered = renderCodexConfig(config);
+  return rendered === renderCodexConfig(original) ? null : rendered;
 }
 
 // An older buggy serializer (a parseToml that treated every array as a string)

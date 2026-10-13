@@ -174,14 +174,23 @@ export function openCodeProfileDataFile(profileId: string): string {
 }
 
 // Codex account helpers - matches codex-auth's file naming convention
-export function codexAccountAuthFile(accountKey: string): string {
+function codexAccountFileKey(accountKey: string): string {
   const needsEncoding =
     !accountKey ||
     accountKey === "." ||
     accountKey === ".." ||
     [...accountKey].some((ch) => !/[a-zA-Z0-9\-_.]/.test(ch));
-  const fileKey = needsEncoding
+  return needsEncoding
     ? Buffer.from(accountKey).toString("base64url")
     : accountKey;
-  return join(CODEX_ACCOUNTS_DIR, `${fileKey}.auth.json`);
+}
+
+export function codexAccountAuthFile(accountKey: string): string {
+  return join(CODEX_ACCOUNTS_DIR, `${codexAccountFileKey(accountKey)}.auth.json`);
+}
+
+// Private CODEX_HOME for `<alias> -run` of an account that isn't the global
+// default, so the launch never rewrites ~/.codex/auth.json.
+export function codexRunHome(accountKey: string): string {
+  return join(CLAUDEX_DIR, "codex-run", codexAccountFileKey(accountKey));
 }

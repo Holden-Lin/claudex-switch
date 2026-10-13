@@ -2,10 +2,11 @@
 
 ## Now
 
-本次版本 v1.21.0：`<alias> --run --cliproxy claudecode` 让 Claude Code 直接用已有 Codex（ChatGPT 登录）/ OpenCode Go key 别名的额度，`agy` 关键字接 Antigravity（先风险确认）。不需要另外 add：Codex 首次自动单独登录一次并核对同账号，Go 每次从别名读 key，Antigravity 首次建 `agy` 别名并按登录后的真实模型列表映射。本机 CLIProxyAPI 泛化为多上游，ChatGPT 账号的生成配置逐字节不变。
+本次版本 v1.22.0：`<alias> -run` 不再切走默认账号，默认账号只由 `claudex-switch <alias>` 切换。Codex 非默认账号以 `~/.claudex-switch/codex-run/<账号>` 作 `CODEX_HOME` 启动，只私有 `auth.json`（provider 不同时加私有 `config.toml`），其余链接回 `~/.codex`，结束时回写刷新的 token；默认账号直接用 `~/.codex`。OpenCode `-run` 不再改 active 标记。
 
 ## Next
 
+- [ ] 用户升级 v1.22.0 后，在默认 Codex 账号之外运行一次 `claudex-switch <另一个codex别名> -run`，在 Codex 里 `/status` 核对身份，退出后 `claudex-switch list` 确认默认账号未变、裸 `codex` 仍是原账号（本次仅在隔离 HOME 用真实 `codex login status` 验证）。
 - [ ] 用户首次运行 `claudex-switch holdenx --run --cliproxy claudecode`（或 satoshix）完成浏览器登录，确认同账号核对通过、Claude Code 能对话（本次只用 fake 二进制验证；真实 OAuth 需本人操作）。
 - [ ] 用户决定是否接 Antigravity：运行 `claudex-switch agy --run --cliproxy claudecode`，确认风险提示后登录，核对 `list`/`.env` 里选出的真实模型 ID 和一次短对话（本次未做真实登录）。
 - [ ] 反向客户端：`--cliproxy codex|opencode`（让 Codex / OpenCode 经 CLIProxyAPI 用 Antigravity、OpenCode Go 等上游；Codex 需走代理的 Responses 接口）。Claude 订阅借给其它工具违反 Anthropic 条款，不做。
@@ -21,6 +22,7 @@
 
 ## Done
 
+- [x] 2026-10-13：`<alias> -run` 保留默认账号（Codex 私有 `CODEX_HOME`、OpenCode 不改 active 标记），版本升至 `1.22.0`。305 项测试、类型检查、文档检查、构建通过；新增用例覆盖非默认账号隔离启动（全局 auth/config/active 不变、仅 auth 私有、sessions/config 链接、首次生成条目回收到 `~/.codex`）、默认账号直连 `~/.codex` 并回写 token、私有 home 的 token 回写、中转 provider 私有 config、purge 只删链接不删共享会话。隔离 HOME 下打包 CLI + 真实 codex 0.162.1 `login status` 在私有 `CODEX_HOME` 中识别登录，全局文件哈希不变。
 - [x] 2026-10-13：新增 `--cliproxy claudecode`（参考 magpie），本机 CLIProxyAPI 支持 Codex / OpenCode Go / Antigravity 三种上游，版本升至 `1.21.0`。304 项测试、类型检查、文档检查、构建通过；新增 12 项覆盖首次登录与复用、换错账号零残留、Codex 配置逐字节不变、Go 双 wire、key 轮换空闲重启、purge 租约保护等。真实 `openlam42`（Go key）经代理用 `claude -p` 实测 kimi-k3（chat）、minimax-m3（Messages）、glm-5.3 / kimi-k3 工具调用、`doctor --live` 均通过；首次实测暴露的 `x-opencode-session` 与 Messages 路由 `x-api-key` 要求已修。Codex / Antigravity 真实浏览器登录未测。
 - [x] 2026-10-13：修复 zsh 启动偶发 10–33 秒（`.zshrc` 里的 `claudex-switch list` 被个别额度接口 4–10 秒超时拖住）。改为缓存 + 后台刷新，版本升至 `1.20.0`。292 项测试、类型检查、文档检查、构建通过；真实 HOME 上 `--cached` 0.15 秒出全量额度、缓存 0600 且无密钥；带尺寸 PTY 下手动 `list` 先出缓存帧、8 次原地重绘、1.8 秒结束；临时 zshrc 副本启动 0.30 秒（原 1.3–33 秒）。
 - [x] 2026-10-11：修复 OpenCode V2 启动校验对 agent 清单的就绪竞态（agent 校验改轮询、超时仍 fail-closed），随 v1.19.1 发布；285 项测试、类型检查、构建通过，真实 2.0.22 探针复现空表；默认与定版 installer 双验证通过。详见 req_changelog 2026-10-11 条。
