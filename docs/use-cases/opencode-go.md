@@ -23,11 +23,14 @@ macOS 优先在支持的浏览器中打开隐私窗口；若仍登录到旧账�
 claudex-switch go-first -run
 claudex-switch go-second -run
 claudex-switch go-second -run --model opencode-go/kimi-k3
+claudex-switch go-second -run run --format json "总结这个仓库" # V2 无交互一次性运行
 claudex-switch model go-second opencode-go/minimax-m3
 claudex-switch refresh go-second
 ```
 
 订阅模型使用 `opencode-go/<model>`；Console 的 OAuth integration 是 `opencode`，但 Go 模型 provider 是 `opencode-go`，`opencode/<model>` 属于 Zen 路由。v1.18.0 误存的 `opencode/` 默认值和旧命令参数会在启动时转为 Go 路由，无需重新登录。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `-run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
+
+V2 支持无交互一次性运行（`run` 子命令）：在当前目录以该别名的私有 standalone 服务、受管 Go 模型和已同步 key 执行 `opencode run`，消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，`--format json` 输出事件流；目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数仍被拒绝。
 
 OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 负责续期和写回。`refresh` 在临时私有数据库中重新登录、验证订阅，再通过 OpenCode 支持的本地凭据接口替换；必须是同一账号和 workspace。取消、登录错误账号、无订阅或验证失败会保留原 profile；成功刷新保留已有会话。
 

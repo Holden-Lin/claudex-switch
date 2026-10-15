@@ -10101,6 +10101,78 @@ function requestsUnsafeOpenCodeV2Target(args) {
   }
   return false;
 }
+var OPENCODE_V2_RUN_VALUE_FLAGS = new Set([
+  "--format",
+  "--title",
+  "--file",
+  "-f"
+]);
+var OPENCODE_V2_RUN_BOOLEAN_FLAGS = new Set([
+  "--auto",
+  "--print-logs",
+  "--thinking"
+]);
+var OPENCODE_V2_RUN_RESUME_FLAGS = new Set([
+  "--continue",
+  "-c",
+  "--session",
+  "-s",
+  "--fork"
+]);
+function isOpenCodeV2HeadlessRun(args) {
+  return args[0] === "run";
+}
+function validateOpenCodeV2RunArgs(args) {
+  for (let index = 0;index < args.length; index += 1) {
+    const arg = args[index];
+    if (OPENCODE_V2_RUN_VALUE_FLAGS.has(arg)) {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("-")) {
+        return {
+          ok: false,
+          message: `Missing value after ${arg}.`,
+          hint: "Pass a value after the headless run flag, or remove the flag."
+        };
+      }
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--format=") || arg.startsWith("--title=") || arg.startsWith("--file=")) {
+      continue;
+    }
+    if (OPENCODE_V2_RUN_BOOLEAN_FLAGS.has(arg))
+      continue;
+    if (OPENCODE_V2_RUN_RESUME_FLAGS.has(arg) || arg.startsWith("--session=") || arg.startsWith("--fork=") || /^-s.+/.test(arg)) {
+      return {
+        ok: false,
+        message: "OpenCode V2 headless runs cannot resume or fork a session through CLI arguments.",
+        hint: "Start a fresh run from the intended project directory; the alias preflight only covers the current directory."
+      };
+    }
+    if (arg === "-m" || /^-m.+/.test(arg)) {
+      return {
+        ok: false,
+        message: "OpenCode V2 aliases control the standalone server, config, and model selection.",
+        hint: "Remove -m; use -run --model opencode-go/<model> to select a Go model."
+      };
+    }
+    if (arg === "--agent" || arg.startsWith("--agent=")) {
+      return {
+        ok: false,
+        message: "OpenCode V2 headless runs cannot switch agents through CLI arguments.",
+        hint: "Set the intended agent as this project's default; the alias preflights its default agent."
+      };
+    }
+    if (arg.startsWith("-")) {
+      return {
+        ok: false,
+        message: `Unsupported OpenCode V2 headless run argument: ${arg}.`,
+        hint: "Supported: the message, --format, --thinking, --title, --file, and --print-logs."
+      };
+    }
+  }
+  return { ok: true };
+}
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn7, openCodeVersionDetector = detectOpenCodeVersion, openCodeCredentialSync) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = runOptions.cliproxyClient ? await resolveCLIProxyEntryOrExit(aliasOrName) : await resolveAliasOrExit(aliasOrName);
@@ -10137,19 +10209,29 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     blank();
     return 1;
   }
-  if (isOpenCode && openCodeVersion?.major === 2 && requestsRemoteOpenCodeServer(runOptions.forwardedArgs)) {
+  const isOpenCodeV2 = isOpenCode && openCodeVersion?.major === 2;
+  const openCodeV2HeadlessRun = isOpenCodeV2 && isOpenCodeV2HeadlessRun(runOptions.forwardedArgs);
+  if (isOpenCodeV2 && requestsRemoteOpenCodeServer(runOptions.forwardedArgs)) {
     error("OpenCode V2 account aliases cannot connect to a remote server.");
     hint("Remove --server so the selected key stays with the private standalone OpenCode process.");
     blank();
     return 1;
   }
-  if (isOpenCode && openCodeVersion?.major === 2 && requestsUnsafeOpenCodeV2Override(runOptions.forwardedArgs)) {
+  if (isOpenCodeV2 && requestsUnsafeOpenCodeV2Override(runOptions.forwardedArgs)) {
     error("OpenCode V2 aliases control the standalone server, config, and model selection.");
     hint("Remove --attach, --config, --standalone, or --model=<value>; use -run --model opencode-go/<model> to select a Go model.");
     blank();
     return 1;
   }
-  if (isOpenCode && openCodeVersion?.major === 2 && requestsUnsafeOpenCodeV2Target(runOptions.forwardedArgs)) {
+  if (openCodeV2HeadlessRun) {
+    const runArgsCheck = validateOpenCodeV2RunArgs(runOptions.forwardedArgs.slice(1));
+    if (!runArgsCheck.ok) {
+      error(runArgsCheck.message);
+      hint(runArgsCheck.hint);
+      blank();
+      return 1;
+    }
+  } else if (isOpenCodeV2 && requestsUnsafeOpenCodeV2Target(runOptions.forwardedArgs)) {
     error("OpenCode V2 aliases cannot target another directory or resume a session through CLI arguments.");
     hint("Run claudex-switch from the intended project directory and start a fresh alias session. Use /sessions only with the same managed alias; in-app project switching isn't preflighted.");
     blank();
@@ -10267,17 +10349,18 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   const command = isClaude ? "claude" : isOpenCode ? "opencode" : "codex";
   const defaultPermissionArgs = isClaude ? ["--permission-mode", "auto"] : isOpenCode ? ["--auto"] : ["--approve-for-me"];
-  const isOpenCodeV2 = isOpenCode && openCodeVersion?.major === 2;
   const effortArgs = runOptions.effortOverride ? isClaude ? ["--effort", runOptions.effortOverride] : isOpenCode ? [] : ["-c", `model_reasoning_effort=${runOptions.effortOverride}`] : [];
+  const openCodeV2ManagedArgs = openCodeV2HeadlessRun ? ["run", "--standalone"] : isOpenCodeV2 ? ["--standalone"] : [];
+  const spawnForwardedArgs = openCodeV2HeadlessRun ? runOptions.forwardedArgs.slice(1) : runOptions.forwardedArgs;
   const args = [
-    ...isOpenCodeV2 ? ["--standalone"] : [],
+    ...openCodeV2ManagedArgs,
     ...isolatedClaudeApi ? ["--bare"] : [],
     ...defaultPermissionArgs,
     ...!isOpenCodeV2 && resolvedModel ? ["--model", resolvedModel] : [],
     ...effortArgs,
     ...localSettingsFile ? ["--settings", localSettingsFile] : [],
     ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
-    ...runOptions.forwardedArgs
+    ...spawnForwardedArgs
   ];
   let baseEnv;
   let releaseOpenCode;

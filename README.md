@@ -238,11 +238,14 @@ claudex-switch add go-work
 
 claudex-switch go-work -run
 claudex-switch go-work -run --model opencode-go/kimi-k3
+claudex-switch go-work -run run --format json "总结这个项目" # V2 无交互一次性运行
 claudex-switch model go-work opencode-go/deepseek-v4-flash
 claudex-switch refresh go-work # V1 使用专属 TUI；V2 提示输入新 key
 ```
 
 V1 正常启动会通过 `OPENCODE_AUTH_CONTENT` 注入别名凭据并保留 OpenCode 常规数据目录，因此 Go 别名共享 `/resume` 历史。V2 使用 `--standalone` 私有服务，为每个别名设置独立的 XDG 数据、状态、缓存和 SQLite 数据库，并覆盖继承的 `OPENCODE_DB`；历史不会跨别名共享，也不会自动导入常规 OpenCode 历史。V2 的 key 经 OpenCode 支持的本地集成 API 同步进该别名的私有 SQLite 凭据库，启动前同步失败则拒绝打开 TUI。启动前会检查当前目录的有效 Go 模型、默认 agent 和模型库存；发现其他 provider 模型或不兼容的默认 agent 时会拒绝启动。它不会改写当前 agent 的 permission/system 设置。使用 TUI 内 `/connect` 可临时更改该别名私有数据库中的活动凭据；它不会更改 claudex 保存的 key，下次用 claudex 启动时会重新同步。OpenCode 的其他环境变量 / 配置仍可能按其正常行为继承。网络隔离 CI fixture 会启动固定版本的 OpenCode v2.0.6 私有服务和真实构建版 claudex-switch CLI，验证真实启动配置、凭据同步 / 清理、别名数据库隔离、手动 `/connect` 后下次启动恢复 claudex 保存凭据、刷新后下次启动使用新凭据、策略 / 模型 fail-closed，以及日志不含 key。PATH shim 将版本与服务命令转交给 OpenCode，只拦截最终 `--standalone` TUI 启动，因此交互 TUI、交互式 add/refresh 提示、会话导航 / 恢复和真实模型调用仍未验收。
+
+OpenCode V2 另支持无交互一次性运行：`claudex-switch <alias> -run run [--format json] "<提示词>"` 会在当前目录以该别名的私有 standalone 服务、受管 Go 模型和已同步 key 执行 `opencode run`；消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数仍被拒绝。`--format json` 便于脚本读取事件流。
 
 V2 新增 / 刷新会先向 OpenCode Go 验证 key：401（无效 key）或 403（无 Go 订阅）会报错并要求重试；网络不可达时提示后仍保存，无效 key 要到首次实际调用时才报错。显式选择导入本机凭据时，claudex 只从本机 OpenCode 的 SQLite 数据库读取 `opencode-go` 凭据写入该别名的私有 profile，不会静默导出其它 provider 凭据。key 不会通过 argv 或子进程环境传入；它会写入 claudex 的私有 profile，并在启动前通过仅绑定本机回环地址的 API 写入对应别名的 SQLite 凭据库。TUI 内 `/connect` 明确切换的是当前别名的私有 OpenCode 凭据，不会更新 claudex key；下次 claudex 启动会重新同步该 key。只在可信工作区运行，并留意默认 `--auto` 会自动批准未明确拒绝的权限。`claudex-switch list` 用保存的 claudex Go key 查询服务端额度；手动 `/connect` 不会改变显示的额度身份。Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；始终用 `<alias> -run` 启动。
 
@@ -321,6 +324,7 @@ claudex-switch cx --run --cliproxy claudecode --model terra   # 保存为 cx 在
 | `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
 | `claudex-switch <alias> -run` | 用该账号启动对应 Claude Code / Codex 会话或 OpenCode TUI，不改变默认账号；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto），OpenCode 默认使用 `--auto` |
 | `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5.5` / `sonnet5` / `fable` / `fable5.1`，Codex `astra` / `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
+| `claudex-switch <opencode-v2-alias> -run run [--format json] "<prompt>"` | V2 无交互一次性运行 `opencode run`：当前目录、该别名的私有 standalone 服务与受管 Go 模型；消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，目录、resume/session、`--model` / `-m`、`--agent`、`--server` 仍被拒绝 |
 | `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
 | `claudex-switch <codex或opencode-alias> -run --autoreview <on\|off>` | 仅控制这次会话的完成评审（Codex Stop hook；OpenCode V2 需装 completion-review 插件），与 permission mode 无关；省略则沿用当前环境 |
 | `claudex-switch <alias> -run --cliproxy claudecode [--model <model>]` | 用 Codex / OpenCode Go 别名（或 `agy` 表示 Antigravity）的额度跑 Claude Code，经本机 CLIProxyAPI 转换；首次使用时自动完成设置 |

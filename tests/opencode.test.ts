@@ -973,6 +973,179 @@ describe("OpenCode Go profiles", () => {
     expect(config.enabled_providers).toEqual([OPENCODE_V2_MANAGED_PROVIDER_ID]);
   });
 
+  test("runs a V2 headless one-shot in the current directory with the managed account and model", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-v2-headless-key" });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-v2-headless",
+          target: { provider: "opencode", profileId: PROFILE_ID },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    let synced: { profileId: string; key: string; env: NodeJS.ProcessEnv } | undefined;
+    const exitCode = await runAliasSession(
+      "go-v2-headless",
+      ["--model", "opencode-go/kimi-k3", "run", "--format", "json", "summarize this project"],
+      createSpawn(calls),
+      () => ({ major: 2, minor: 0, patch: 21, raw: "v2.0.21" }),
+      async (profileId, key, env) => {
+        synced = { profileId, key, env: { ...env } };
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.command).toBe("opencode");
+    // `run` must precede the standalone/auto flags: OpenCode's root parser
+    // rejects root flags placed before a subcommand.
+    expect(calls[0]?.args).toEqual([
+      "run",
+      "--standalone",
+      "--auto",
+      "--format",
+      "json",
+      "summarize this project",
+    ]);
+    expect(synced).toMatchObject({ profileId: PROFILE_ID, key: "fake-v2-headless-key" });
+    expect(calls[0]?.env?.OPENCODE_DB).toBe(openCodeProfileV2DatabaseFile(PROFILE_ID));
+    expect(calls[0]?.env?.OPENCODE_API_KEY).toBeUndefined();
+    expect(calls[0]?.env?.OPENCODE_CONFIG_CONTENT).not.toContain("fake-v2-headless-key");
+    const config = JSON.parse(calls[0]?.env?.OPENCODE_CONFIG_CONTENT ?? "{}");
+    expect(config.model).toBe(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/kimi-k3`);
+    expect((await getOpenCodeProfileData(PROFILE_ID)).defaultModel).toBe(
+      "opencode-go/kimi-k3",
+    );
+  });
+
+  test("forwards supported V2 headless run flags and message positionals", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-v2-headless-flags" });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-v2-headless-flags",
+          target: { provider: "opencode", profileId: PROFILE_ID },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const calls: SpawnCall[] = [];
+    const exitCode = await runAliasSession(
+      "go-v2-headless-flags",
+      [
+        "--model",
+        "opencode-go/kimi-k3",
+        "run",
+        "--format=json",
+        "--thinking",
+        "--title",
+        "Nightly review",
+        "--file",
+        "./notes.md",
+        "--auto",
+        "--print-logs",
+        "review",
+        "the",
+        "diff",
+      ],
+      createSpawn(calls),
+      () => ({ major: 2, minor: 0, patch: 21, raw: "v2.0.21" }),
+      async () => {},
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toEqual([
+      "run",
+      "--standalone",
+      "--auto",
+      "--format=json",
+      "--thinking",
+      "--title",
+      "Nightly review",
+      "--file",
+      "./notes.md",
+      "--auto",
+      "--print-logs",
+      "review",
+      "the",
+      "diff",
+    ]);
+  });
+
+  test("refuses unsafe V2 headless run arguments before syncing or launching", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-v2-headless-guard" });
+    await saveAliases({
+      version: 1,
+      aliases: [
+        {
+          alias: "go-v2-headless-guard",
+          target: { provider: "opencode", profileId: PROFILE_ID },
+          createdAt: 1,
+        },
+      ],
+    });
+
+    const blockedArgs = [
+      // Session targeting stays refused: the preflight only covers this
+      // directory, and sessions may belong to another project under the alias.
+      ["run", "--continue"],
+      ["run", "-c"],
+      ["run", "--session", "existing-session"],
+      ["run", "-s", "existing-session"],
+      ["run", "--session=existing-session"],
+      ["run", "-sexisting-session"],
+      ["run", "--fork"],
+      // The alias owns the model, agent, and server selection.
+      ["run", "-m", "anthropic/claude-sonnet"],
+      ["run", "-m=anthropic/claude-sonnet"],
+      ["run", "--model=anthropic/claude-sonnet"],
+      ["run", "-model=anthropic/claude-sonnet"],
+      ["run", "--agent", "plan"],
+      ["run", "--agent=plan"],
+      ["run", "--standalone"],
+      ["run", "--standalone=false"],
+      ["run", "--server", "https://remote.example"],
+      ["run", "--attach", "http://remote"],
+      ["run", "--config", "/tmp/custom.json"],
+      // Unknown or malformed run arguments fail closed.
+      ["run", "--prompt", "hello"],
+      ["run", "--future-option"],
+      ["run", "--format"],
+      ["run", "-f"],
+      // A flag-like token is not a value for the preceding flag, matching
+      // OpenCode's own parser.
+      ["run", "--format", "-m", "x"],
+      ["run", "--title", "-x", "hello"],
+      // `run` must be the first forwarded token; the TUI path still rejects a
+      // directory positional.
+      ["--auto", "run", "hello"],
+      ["/tmp/another-project"],
+    ];
+    for (const args of blockedArgs) {
+      const calls: SpawnCall[] = [];
+      let syncCalls = 0;
+      const exitCode = await runAliasSession(
+        "go-v2-headless-guard",
+        args,
+        createSpawn(calls),
+        () => ({ major: 2, minor: 0, patch: 21, raw: "v2.0.21" }),
+        async () => {
+          syncCalls += 1;
+        },
+      );
+      expect(exitCode).toBe(1);
+      expect(calls).toHaveLength(0);
+      expect(syncCalls).toBe(0);
+    }
+  });
+
   test("V2 --autoreview toggles the completion-review plugin only for this launch", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-v2-run-key" });
     await saveAliases({
