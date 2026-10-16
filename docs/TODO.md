@@ -2,7 +2,7 @@
 
 ## Now
 
-本次版本 v1.23.0：OpenCode V2 别名支持无交互一次性 `opencode run`（`claudex-switch <alias> -run run [--format json] "<提示词>"`，只放行消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs`）。受管 V2 会话在起始模型窗口 < 500,000 token 时禁用自动压缩（只写本次受管配置 `compaction.auto=false`，不改用户全局 `opencode.jsonc`；≥ 500,000 保留用户设置；禁用后写满窗口报错、不再压缩）。`<alias> -run` 仍保留默认账号：Codex 非默认账号以 `~/.claudex-switch/codex-run/<账号>` 作 `CODEX_HOME` 启动，OpenCode 不改 active 标记。
+本次版本 v1.23.1：修复 v1.23.0 的“小窗口模型禁用自动压缩后写满报错”代价。受管 V2 会话在起始模型（选中模型 + 默认 agent 模型）有效窗口 < 500,000 token 时保持自动压缩开启，只在本次受管配置里写入会话级 `compaction.buffer`（约窗口 10%、不低于 OpenCode 自身 16,000 token 下限），压缩在约 90% 窗口处触发；基准取 OpenCode 触发公式 `limit.input || limit.context`，元数据缺失按 OpenCode 200K 回退；不改用户全局 `opencode.jsonc`，窗口 ≥ 500,000 保留用户设置；用户自带更小但仍满足 OpenCode 最小余量的 buffer 维持不变。
 
 ## Next
 
@@ -21,6 +21,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-16：修复 v1.23.0 的“小窗口模型写满报错、不再压缩”代价，随 v1.23.1 发布。受管 V2 会话在起始模型有效窗口（`limit.input || limit.context`，与 OpenCode 触发公式一致；元数据缺失按 OpenCode 200K 回退）< 500,000 token 时保持自动压缩开启，写入会话级 `compaction.buffer`（约窗口 10%、不低于 OpenCode 自身 16,000 token 下限），压缩在约 90% 窗口处触发；用户自带更小但仍 ≥ OpenCode 最小余量的 buffer 维持不变；不改用户全局 `opencode.jsonc`，≥ 500,000 保留用户设置。311 项测试、1,414 断言、类型检查、文档检查、构建、发布守卫通过；3 项新/改测试在 v1.23.0 源码上失败、修复后全过。隔离 HOME + 真实 OpenCode 2.0.29 冒烟（shipped 代码生成受管内容 + 全局 `reserved=500000`）：`/api/config` 文档序为文件 `{buffer:500000}` → 内容 `{auto:true,buffer:20000}`，有效 `buffer=20000`、`auto=true`，200k 模型触发点 180000（90%）。触发点与合并公式取证：v2.0.29 bundle 字节偏移 120846611（常量）/120850886（compact）/120861715（`im()`）/120585507（`reserved`→`buffer` 归一化）/120863136（按文档序应用）。
 
 - [x] 2026-10-16：查清并修复免费模型“无限自动压缩”，随 OpenCode V2 无交互 `run` 一起发布 v1.23.0。根因：2026-10-15 window 11 的会话 `ses_ebfdf4ea0ffevgBrO4d1Rsn4pK` 使用 `opencode/deepseek-v4.1-flash-free`（窗口 200,000），用户全局 `compaction.reserved=500000`，OpenCode 自动压缩触发点 `窗口 − reserved` ≤ 0，首条消息 27ms 后即触发压缩（session DB 记录 status=failed / reason=auto / compaction.interrupted；OpenCode 2.0.21 代码 SessionCompaction.compact 的 `im()` 触发点）。修复：受管 V2 会话在起始模型（选中模型 + 默认 agent 模型）窗口 < 500,000 token 时把 `compaction.auto=false` 写进本次 `OPENCODE_CONFIG_CONTENT`，不改用户全局配置；≥ 500,000 保留用户设置；写满窗口改为报错、不再压缩。311 项测试、1,402 断言、类型检查、文档检查、构建通过；隔离 HOME + 真实 OpenCode 2.0.21 冒烟：minimax-m2.7（204,800）与无元数据的 omen-alpha（200,000 回退）捕获到 `compaction.auto=false` 与提示行，kimi-k3（1,048,576）配置内容不含 compaction、保留用户设置；真实私有 server 合并结果为文件 `{buffer:500000}` + 内容 `{auto:false}`。
 - [x] 2026-10-15：OpenCode V2 别名支持无交互一次性 `opencode run`（`claudex-switch <alias> -run run [--format json] "<提示词>"`）：`run` 与 `--standalone --auto` 置于子命令位置（根解析器拒绝子命令前的根 flag），只放行消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs`，仍拒绝目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数；308 项测试、1,385 断言、类型检查、文档检查、构建通过。隔离 HOME 下验证：固定版 OpenCode v2.0.6 的 `run` 参数集与 `run --standalone --auto` 布局均可解析（假 provider 仅失败在模型路由），真实 2.0.21 上构建版 CLI 的 `serve` 凭据同步与最终 `run --standalone --auto` 启动参数、私有库 / 配置环境经 shim 捕获核对，全局库哨兵未动。

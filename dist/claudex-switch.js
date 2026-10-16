@@ -12438,7 +12438,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.23.0",
+  version: "1.23.1",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
