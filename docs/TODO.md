@@ -2,7 +2,7 @@
 
 ## Now
 
-本次版本 v1.23.1：修复 v1.23.0 的“小窗口模型禁用自动压缩后写满报错”代价。受管 V2 会话在起始模型（选中模型 + 默认 agent 模型）有效窗口 < 500,000 token 时保持自动压缩开启，只在本次受管配置里写入会话级 `compaction.buffer`（约窗口 10%、不低于 OpenCode 自身 16,000 token 下限），压缩在约 90% 窗口处触发；基准取 OpenCode 触发公式 `limit.input || limit.context`，元数据缺失按 OpenCode 200K 回退；不改用户全局 `opencode.jsonc`，窗口 ≥ 500,000 保留用户设置；用户自带更小但仍满足 OpenCode 最小余量的 buffer 维持不变。
+本次版本 v1.23.2：OpenCode V2 的 key / Console 订阅别名可在 `/models` 选择原生免费模型（包括 DeepSeek V4.1 Flash Free）；Go 路由与账号隔离保留，订阅账号隐藏原生付费及价格未知模型，用户显式禁用规则保留。压缩余量兼顾可切换的免费模型，防止从大窗口 Go 模型切换后无限压缩。
 
 ## Next
 
@@ -21,6 +21,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-16：修复 OpenCode V2 别名看不到免费模型，随 v1.23.2 发布。免费资格按全部输入 / 输出 / 缓存价格档位为零判断，Go 凭据与原生免费路由分离；保留显式禁用规则，并为可切换的小窗口免费模型设置会话压缩余量。315 项测试、1,433 断言、类型 / 文档检查、构建、发布守卫通过；真实 OpenCode 2.0.30 + 临时 HOME + 假 Go key：构建版 CLI → TUI `/models` 搜索并选择 DeepSeek V4.1 Flash Free → 实际对话显示 `TUI_FREE_OK`；独立无交互免费调用返回 `FREE_MODEL_OK`。真实 OpenCode + 假 Console 完整验收通过，含免费可见、付费过滤、A/B 账号隔离及 token 续期。
 
 - [x] 2026-10-16：修复 v1.23.0 的“小窗口模型写满报错、不再压缩”代价，随 v1.23.1 发布。受管 V2 会话在起始模型有效窗口（`limit.input || limit.context`，与 OpenCode 触发公式一致；元数据缺失按 OpenCode 200K 回退）< 500,000 token 时保持自动压缩开启，写入会话级 `compaction.buffer`（约窗口 10%、不低于 OpenCode 自身 16,000 token 下限），压缩在约 90% 窗口处触发；用户自带更小但仍 ≥ OpenCode 最小余量的 buffer 维持不变；不改用户全局 `opencode.jsonc`，≥ 500,000 保留用户设置。311 项测试、1,414 断言、类型检查、文档检查、构建、发布守卫通过；3 项新/改测试在 v1.23.0 源码上失败、修复后全过。隔离 HOME + 真实 OpenCode 2.0.29 冒烟（shipped 代码生成受管内容 + 全局 `reserved=500000`）：`/api/config` 文档序为文件 `{buffer:500000}` → 内容 `{auto:true,buffer:20000}`，有效 `buffer=20000`、`auto=true`，200k 模型触发点 180000（90%）。触发点与合并公式取证：v2.0.29 bundle 字节偏移 120846611（常量）/120850886（compact）/120861715（`im()`）/120585507（`reserved`→`buffer` 归一化）/120863136（按文档序应用）。
 

@@ -7,7 +7,7 @@ import type { OpenCodeGoProfileData, UsageFetchResult, UsageInfo } from "../../t
 import { readOpenCodeConsoleCredentials, type OpenCodeConsoleCredential } from "./native";
 import { fetchOpenCodeGoCatalogIds } from "./catalog";
 import { OPENCODE_GO_PROVIDER_ID, createOpenCodeProfileId, getOpenCodeProfileData, removeOpenCodeProfile, saveOpenCodeConsoleProfile } from "./profiles";
-import { acquireProfileLock, applyManagedCompactionPolicy, fetchOpenCodeApi, locationData, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer, type OpenCodeCompactionGuard } from "./runtime";
+import { acquireProfileLock, applyManagedCompactionPolicy, fetchOpenCodeApi, isOpenCodeFreeModel, locationData, OPENCODE_FREE_PROVIDER_ID, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer, type OpenCodeCompactionGuard } from "./runtime";
 
 type JsonRecord = Record<string, unknown>;
 class ConsoleReconnectError extends Error {}
@@ -201,6 +201,22 @@ export function buildOpenCodeConsoleConfig(source: string | undefined, model: st
     selectedOverrides[id] = allowed.has(id) ? previous : { ...previous, disabled: true };
   }
   config.providers = { ...providers, [OPENCODE_GO_PROVIDER_ID]: { ...provider, models: selectedOverrides } };
+  // Console OAuth also unlocks paid native models. Keep only zero-priced
+  // native models alongside Go, preserving explicit user model disables.
+  const native = providers[OPENCODE_FREE_PROVIDER_ID] ?? {};
+  if (!record(native)) throw new Error("Invalid native OpenCode provider configuration.");
+  validateConsoleProvider(native);
+  const nativeOverrides = native.models ?? {};
+  if (!record(nativeOverrides)) throw new Error("Invalid native OpenCode model configuration.");
+  const free = new Set(models.filter(isOpenCodeFreeModel).map((item) => String(item.id)));
+  const nativeIds = new Set([...Object.keys(nativeOverrides), ...models.filter((item) => item.providerID === OPENCODE_FREE_PROVIDER_ID).map((item) => String(item.id))]);
+  const nativeModels: JsonRecord = {};
+  for (const id of nativeIds) {
+    const previous = nativeOverrides[id] ?? {};
+    if (!record(previous)) throw new Error("Invalid native OpenCode model override.");
+    nativeModels[id] = free.has(id) ? previous : { ...previous, disabled: true };
+  }
+  (config.providers as JsonRecord)[OPENCODE_FREE_PROVIDER_ID] = { ...native, models: nativeModels };
   config.model = selected;
   return restrictOpenCodeProviders(config, OPENCODE_GO_PROVIDER_ID);
 }

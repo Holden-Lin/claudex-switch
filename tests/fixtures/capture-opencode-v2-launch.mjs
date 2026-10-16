@@ -59,6 +59,7 @@ const capture = {
   cacheHome: process.env.XDG_CACHE_HOME,
   model: config.model,
   providerIds: Object.keys(config.providers || {}).sort(),
+  enabledProviders: config.enabled_providers,
   modelIds,
 };
 

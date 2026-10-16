@@ -25,6 +25,15 @@ type SpawnCommand = typeof spawn;
 type FetchFunction = typeof fetch;
 
 const OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
+export const OPENCODE_FREE_PROVIDER_ID = "opencode";
+
+/** Check every price tier; names containing "free" are not a price guarantee. */
+export function isOpenCodeFreeModel(model: JsonRecord): boolean {
+  return model.providerID === OPENCODE_FREE_PROVIDER_ID &&
+    Array.isArray(model.cost) && model.cost.length > 0 &&
+    model.cost.every((tier) => isRecord(tier) && tier.input === 0 && tier.output === 0 &&
+      (tier.cache === undefined || isRecord(tier.cache) && Object.values(tier.cache).every((price) => price === 0)));
+}
 
 export interface PreparedOpenCodeRunEnvironment {
   env: NodeJS.ProcessEnv;
@@ -139,7 +148,7 @@ export function buildOpenCodeV2Config(
 }
 
 export function restrictOpenCodeProviders(config: JsonRecord, providerId: string): JsonRecord {
-  // Keep managed OpenCode Go as the only provider available to this alias run.
+  // Keep the selected Go account and native public models available.
   // User permission rules are otherwise preserved by the merged config.
   const experimentalValue = config.experimental;
   if (experimentalValue !== undefined && !isRecord(experimentalValue)) {
@@ -199,14 +208,6 @@ export function restrictOpenCodeProviders(config: JsonRecord, providerId: string
       policy.action !== "provider.use" ||
       policy.effect !== "deny",
   );
-  experimental.policies = [
-    ...userNonDenies,
-    denyOtherProviders,
-    allowManagedProvider,
-    ...userDenies,
-  ];
-  config.experimental = experimental;
-
   const disabledProviders = stringArray(config.disabled_providers, "disabled_providers");
   const enabledProviders = stringArray(config.enabled_providers, "enabled_providers");
   if (disabledProviders.includes(providerId)) {
@@ -219,7 +220,19 @@ export function restrictOpenCodeProviders(config: JsonRecord, providerId: string
       "OpenCode V2 configuration does not enable claudex-switch's managed Go provider; refusing to override the allowlist.",
     );
   }
-  config.enabled_providers = [providerId];
+  const freeDenied = disabledProviders.includes(OPENCODE_FREE_PROVIDER_ID) ||
+    (config.enabled_providers !== undefined && !enabledProviders.includes(OPENCODE_FREE_PROVIDER_ID)) ||
+    userDenies.some((policy) => isRecord(policy) && typeof policy.resource === "string" &&
+      providerPatternMatches(policy.resource, OPENCODE_FREE_PROVIDER_ID));
+  experimental.policies = [
+    ...userNonDenies,
+    denyOtherProviders,
+    allowManagedProvider,
+    ...(!freeDenied ? [{ action: "provider.use", resource: OPENCODE_FREE_PROVIDER_ID, effect: "allow" }] : []),
+    ...userDenies,
+  ];
+  config.experimental = experimental;
+  config.enabled_providers = freeDenied ? [providerId] : [providerId, OPENCODE_FREE_PROVIDER_ID];
   if (config.disabled_providers !== undefined) config.disabled_providers = disabledProviders;
 
   return config;
@@ -570,6 +583,8 @@ export type OpenCodeV2CompactionRouting = {
    */
   windows: Map<string, number>;
   agentModelId?: string;
+  /** Native free models can be selected later in the same TUI session. */
+  freeModelIds?: string[];
 };
 
 // Managed sessions keep auto-compaction on for windows below the reserved
@@ -612,8 +627,8 @@ export type OpenCodeCompactionGuard = {
 
 /**
  * Keep auto-compaction on in the managed config content when the smallest
- * model window this session starts with (the selected model and the default
- * agent's model) is below the reserved budget the user configures (500,000
+ * model window this session can use (the selected model, the default agent's
+ * model, and native free models) is below the reserved budget (500,000
  * tokens). A session-only buffer is written so compaction fires at about 90%
  * of that window (buffer ≈ 10%, floored at OpenCode's own 16,000-token
  * minimum so the trigger stays > 0 and the compaction request still fits).
@@ -632,7 +647,7 @@ export function applyManagedCompactionPolicy(
   if (!routing.auto) return { configContent };
   let smallest: { id: string; window: number } | undefined;
   const checked = new Set(
-    [selectedModelId, routing.agentModelId].filter(
+    [selectedModelId, routing.agentModelId, ...(routing.freeModelIds ?? [])].filter(
       (value): value is string => value !== undefined,
     ),
   );
@@ -724,16 +739,17 @@ export async function verifyEffectiveOpenCodeRouting(
     if (!isRecord(agent.model) || typeof agent.model.providerID !== "string" || typeof agent.model.id !== "string") {
       throw new Error("OpenCode V2's default agent has an invalid model setting.");
     }
-    if (agent.model.providerID !== providerId) {
+    if (agent.model.providerID !== providerId && agent.model.providerID !== OPENCODE_FREE_PROVIDER_ID) {
       throw new Error(
-        `OpenCode V2 default agent "${defaultAgentId}" selects another provider. Set its model to this alias's Go model or choose a Go-compatible default agent.`,
+        `OpenCode V2 default agent "${defaultAgentId}" selects another provider. Set its model to this alias's Go model or a native free OpenCode model.`,
       );
     }
-    agentModelId = agent.model.id;
+    agentModelId = agent.model.providerID === OPENCODE_FREE_PROVIDER_ID
+      ? `${OPENCODE_FREE_PROVIDER_ID}/${agent.model.id}` : agent.model.id;
     const managedModelIds = managedModels.map((model) =>
       model.slice(model.indexOf("/") + 1),
     );
-    if (!managedModelIds.includes(agentModelId)) {
+    if (agent.model.providerID === providerId && !managedModelIds.includes(agentModelId)) {
       throw new Error(
         `OpenCode V2 default agent "${defaultAgentId}" selects a Go model not in this alias's private model history.`,
       );
@@ -767,11 +783,12 @@ export async function verifyEffectiveOpenCodeRouting(
     }
     const models: Array<{ providerID: string; id: string; context?: number }> = [];
     const windows = new Map<string, number>();
+    const freeModelIds: string[] = [];
     for (const item of modelData) {
       if (!isRecord(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
-      if (providerId === OPENCODE_GO_PROVIDER_ID && item.enabled === false) continue;
+      if (item.enabled === false) continue;
       // OpenCode's compaction trigger uses `limit.input || limit.context`;
       // store that basis so the managed buffer tracks the real trigger.
       const basis =
@@ -780,16 +797,29 @@ export async function verifyEffectiveOpenCodeRouting(
           : isRecord(item.limit) && typeof item.limit.context === "number" && item.limit.context > 0
             ? item.limit.context
             : undefined;
+      // Free models keep their native provider and never use the selected Go
+      // credential. Do not include them in the Go inventory equality check.
+      if (item.providerID === OPENCODE_FREE_PROVIDER_ID) {
+        if (!isOpenCodeFreeModel(item)) {
+          throw new Error("OpenCode V2 exposes a paid or unpriced native OpenCode model; refusing this Go alias launch.");
+        }
+        const id = `${OPENCODE_FREE_PROVIDER_ID}/${item.id}`;
+        freeModelIds.push(id);
+        windows.set(id, basis ?? OPENCODE_COMPACTION_FALLBACK_WINDOW);
+        continue;
+      }
       models.push({ providerID: item.providerID, id: item.id, context: basis });
       if (basis !== undefined) windows.set(item.id, basis);
     }
-    const signature = JSON.stringify(
-      models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
-    );
+    const signature = JSON.stringify({
+      go: models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
+      free: freeModelIds.toSorted().map((id) => [id, windows.get(id)]),
+    });
     const onlyManaged = models.every((model) => model.providerID === providerId);
     const actual = new Set(models.map((model) => model.id));
     const sameInventory =
       onlyManaged &&
+      (!agentModelId?.startsWith(`${OPENCODE_FREE_PROVIDER_ID}/`) || freeModelIds.includes(agentModelId)) &&
       actual.size === expected.size &&
       [...expected].every((id) => actual.has(id));
     lastUnexpectedProvider = !onlyManaged;
@@ -801,6 +831,7 @@ export async function verifyEffectiveOpenCodeRouting(
         buffer: compaction.buffer,
         windows,
         agentModelId,
+        freeModelIds,
       };
     }
     await new Promise((resolve) => setTimeout(resolve, 150));

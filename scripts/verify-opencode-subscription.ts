@@ -178,11 +178,16 @@ try {
   const prepared = await consoleProvider.prepareOpenCodeConsoleRun(profileA);
   const config = JSON.parse(prepared.env.OPENCODE_CONFIG_CONTENT!);
   assert.equal(config.model, "opencode-go/minimax-m3");
-  assert.deepEqual(config.enabled_providers, ["opencode-go"]);
+  assert.deepEqual(config.enabled_providers, ["opencode-go", "opencode"]);
   assert.equal(config.providers["opencode-go"].models["zen-copy"].disabled, true);
   try {
     await runtime.withOpenCodePrivateServer(prepared.env, async (baseUrl, password) => {
-      await runtime.verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, ["opencode-go/minimax-m3"], "opencode-go");
+      const routing = await runtime.verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, ["opencode-go/minimax-m3"], "opencode-go");
+      assert(routing.freeModelIds?.length, "Console launch omitted native free models");
+      const inventory = await runtime.fetchOpenCodeApi(fetch, baseUrl, "/api/model", password);
+      const native = (runtime.locationData(await inventory.json()) as Record<string, unknown>[])
+        .filter((model) => model.providerID === "opencode" && model.enabled !== false);
+      assert(native.every(runtime.isOpenCodeFreeModel), "Console launch exposed a paid native model");
       const response = await runtime.fetchOpenCodeApi(fetch, baseUrl, "/api/provider/opencode-go", password);
       assert.equal(response.status, 200);
       const provider = runtime.locationData(await response.json()) as { integrationID: string; settings: { baseURL: string } };

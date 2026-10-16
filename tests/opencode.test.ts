@@ -34,6 +34,7 @@ import {
 import {
   applyManagedCompactionPolicy,
   buildOpenCodeV2Config,
+  isOpenCodeFreeModel,
   mapOpenCodeGoModelForV2,
   prepareOpenCodeV2RunEnvironment,
   syncOpenCodeV2CredentialToPrivateDatabase,
@@ -363,8 +364,61 @@ describe("OpenCode Go profiles", () => {
       userPolicies[1],
       { action: "provider.use", resource: "*", effect: "deny" },
       { action: "provider.use", resource: OPENCODE_V2_MANAGED_PROVIDER_ID, effect: "allow" },
+      { action: "provider.use", resource: "opencode", effect: "allow" },
       userPolicies[0],
     ]);
+  });
+
+  test("enables native free models without weakening explicit provider restrictions", () => {
+    const config = buildOpenCodeV2Config(undefined, "opencode-go/kimi-k3");
+    expect(config.enabled_providers).toEqual([OPENCODE_V2_MANAGED_PROVIDER_ID, "opencode"]);
+    for (const restriction of [
+      { disabled_providers: ["opencode"] },
+      { enabled_providers: [OPENCODE_V2_MANAGED_PROVIDER_ID] },
+      { experimental: { policies: [{ action: "provider.use", resource: "opencode", effect: "deny" }] } },
+    ]) {
+      const restricted = buildOpenCodeV2Config(JSON.stringify(restriction), "opencode-go/kimi-k3");
+      expect(restricted.enabled_providers).toEqual([OPENCODE_V2_MANAGED_PROVIDER_ID]);
+    }
+  });
+
+  test("requires zero input, output and cache prices in every native model tier", () => {
+    const model = { providerID: "opencode", cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }] };
+    expect(isOpenCodeFreeModel(model)).toBe(true);
+    for (const changed of [
+      { providerID: "other" }, { cost: [] }, { cost: undefined },
+      { cost: [{ input: 0, output: 1 }] }, { cost: [{ input: 1, output: 0 }] },
+      { cost: [{ input: 0, output: 0, cache: { read: 1 } }] },
+      { cost: [{ input: 0, output: 0, cache: "unknown" }] },
+      { cost: [...model.cost, { input: 1, output: 1 }] },
+    ]) expect(isOpenCodeFreeModel({ ...model, ...changed })).toBe(false);
+  });
+
+  test("accepts native free models and protects their windows when switching from Go", async () => {
+    const free = { providerID: "opencode", id: "deepseek-v4.1-flash-free", enabled: true,
+      cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }], limit: { context: 200000 } };
+    let native = free;
+    const fetcher = (async (input: string | URL | Request) => {
+      const path = new URL(input.toString()).pathname;
+      if (path === "/api/config") return Response.json([{ type: "document", info: {} }]);
+      if (path === "/api/agent") return new Response(locationResponse([
+        { id: "build", permissions: [], model: { providerID: "opencode", id: free.id } },
+      ]));
+      return new Response(locationResponse([
+        { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "kimi-k3", limit: { context: 1048576 } }, native,
+      ]));
+    }) as typeof fetch;
+    const routing = await verifyEffectiveOpenCodeRouting(fetcher, "http://127.0.0.1:4096", "test", ["opencode-go/kimi-k3"]);
+    expect(routing.freeModelIds).toEqual(["opencode/deepseek-v4.1-flash-free"]);
+    expect(routing.agentModelId).toBe("opencode/deepseek-v4.1-flash-free");
+    // Even when the starting agent uses Go, switching to a small free model
+    // must not inherit the user's oversized reserved budget.
+    delete routing.agentModelId;
+    const applied = applyManagedCompactionPolicy("{}", routing, "kimi-k3");
+    expect(JSON.parse(applied.configContent).compaction).toEqual({ auto: true, buffer: 20000 });
+    native = { ...free, cost: [{ input: 0, output: 1, cache: { read: 0, write: 0 } }] };
+    await expect(verifyEffectiveOpenCodeRouting(fetcher, "http://127.0.0.1:4096", "test", ["opencode-go/kimi-k3"]))
+      .rejects.toThrow("paid or unpriced");
   });
 
   test("rejects invalid or colliding V2 config and fails closed without a Go model", () => {
@@ -770,6 +824,7 @@ describe("OpenCode Go profiles", () => {
       ["opencode-go/omen-alpha", "opencode-go/kimi-k3", "opencode-go/hy3"],
     );
     expect(routing).toEqual({
+      freeModelIds: [],
       auto: true,
       buffer: 500000,
       windows: new Map([["omen-alpha", 200000], ["kimi-k3", 1048576], ["hy3", 192000]]),
@@ -1141,7 +1196,7 @@ describe("OpenCode Go profiles", () => {
       resource: "*",
       effect: "deny",
     });
-    expect(config.enabled_providers).toEqual([OPENCODE_V2_MANAGED_PROVIDER_ID]);
+    expect(config.enabled_providers).toEqual([OPENCODE_V2_MANAGED_PROVIDER_ID, "opencode"]);
   });
 
   test("runs a V2 headless one-shot in the current directory with the managed account and model", async () => {

@@ -30,9 +30,11 @@ claudex-switch refresh go-second
 
 订阅模型使用 `opencode-go/<model>`；Console 的 OAuth integration 是 `opencode`，但 Go 模型 provider 是 `opencode-go`，`opencode/<model>` 属于 Zen 路由。v1.18.0 误存的 `opencode/` 默认值和旧命令参数会在启动时转为 Go 路由，无需重新登录。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `-run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
 
+V2 模型选择器同时保留原生 OpenCode 免费模型，例如 `opencode/deepseek-v4.1-flash-free`。Go 模型仍使用所选别名的凭据；免费模型保留原生路由，不改成 Go 模型。免费资格以本机 OpenCode 的全部价格档位为准（输入、输出与缓存价格均为零），不按名称判断；订阅账号会隐藏原生付费及价格未知模型。用户显式禁用的 provider / 模型不会重新启用。命令行默认模型仍选 Go，进入 TUI 后用 `/models` 切换免费模型。
+
 V2 支持无交互一次性运行（`run` 子命令）：在当前目录以该别名的私有 standalone 服务、受管 Go 模型和已同步 key 执行 `opencode run`，消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，`--format json` 输出事件流；目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数仍被拒绝。
 
-V2 受管会话按模型窗口处理自动压缩：窗口小于 500,000 token 的模型（包括元数据缺失、由 OpenCode 按 200K 回退解析的模型；基准取 OpenCode 触发公式 `limit.input || limit.context`）在该会话保持自动压缩开启，claudex 只在本次启动的受管配置里写入会话级 `compaction.buffer`（约窗口的 10%、不低于 OpenCode 自身的 16,000 token 下限），使压缩在约 90% 窗口处触发，不改用户全局 `opencode.jsonc`；窗口 ≥ 500,000 的模型保留用户自己的压缩设置（如 `compaction.reserved`）。用户自带 buffer 若小于计算值但仍有 OpenCode 的最小余量，则维持用户设置。此前免费模型“无限压缩”的根因是全局 `compaction.reserved`（500,000）不小于 200K 窗口模型的上下文窗口，OpenCode 的自动压缩触发点 `窗口 − buffer` ≤ 0，每轮都触发；v1.23.0 曾为这些模型关闭自动压缩，代价是窗口写满时报错而非压缩，现已改为 90% 缓冲方案。
+V2 受管会话按模型窗口处理自动压缩：窗口小于 500,000 token 的模型（包括元数据缺失、由 OpenCode 按 200K 回退解析的模型；基准取 OpenCode 触发公式 `limit.input || limit.context`）在该会话保持自动压缩开启，claudex 只在本次启动的受管配置里写入会话级 `compaction.buffer`（约窗口的 10%、不低于 OpenCode 自身的 16,000 token 下限），使压缩在约 90% 窗口处触发，不改用户全局 `opencode.jsonc`；压缩余量兼顾起始模型、默认 agent 模型及可切换的免费模型；只有这些模型的窗口均 ≥ 500,000 时才保留用户自己的压缩设置（如 `compaction.reserved`）。用户自带 buffer 若小于计算值但仍有 OpenCode 的最小余量，则维持用户设置。此前免费模型“无限压缩”的根因是全局 `compaction.reserved`（500,000）不小于 200K 窗口模型的上下文窗口，OpenCode 的自动压缩触发点 `窗口 − buffer` ≤ 0，每轮都触发；v1.23.0 曾为这些模型关闭自动压缩，代价是窗口写满时报错而非压缩，现已改为 90% 缓冲方案。
 
 OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 负责续期和写回。`refresh` 在临时私有数据库中重新登录、验证订阅，再通过 OpenCode 支持的本地凭据接口替换；必须是同一账号和 workspace。取消、登录错误账号、无订阅或验证失败会保留原 profile；成功刷新保留已有会话。
 
@@ -42,7 +44,7 @@ OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 
 
 `list` 查询绑定账号的 Console Go 状态，用该账号的 Bearer token 与 workspace ID 读取 5 小时、周、月窗口，显示剩余百分比。无订阅、需要重新授权、服务不可达或缺失的窗口分别显示状态 / 未知，不将缺失数据视为零用量。过期 token 的续期仍由原生 OpenCode 执行。`list --no-usage` 不联网、不续期；JSON 继续遵循 [既有输出合同](../list-json.md)，不包含账号邮箱或 token。
 
-启动前检查当前项目合并后的 provider、默认 agent 和模型库存；保留权限 / system 设置，拒绝自定义 Go provider 或模型路由覆盖，以及选用非 Go 模型的默认 agent。仅选择 Console 的 `opencode-go` 声明中与官方 Go 目录 ID 匹配的模型；同名 Zen 模型也不选入。Go 端点与授权沿用原生 Console 提供的配置。Console 自己的订阅计费和余额策略仍由服务端决定，本工具不更改 `useBalance` 设置。
+启动前检查当前项目合并后的 provider、默认 agent 和模型库存；保留权限 / system 设置，拒绝自定义 Go provider 或模型路由覆盖，以及选用 Go / 原生免费模型以外模型的默认 agent。仅选择 Console 的 `opencode-go` 声明中与官方 Go 目录 ID 匹配的模型；同名 Zen 模型也不选入。Go 端点与授权沿用原生 Console 提供的配置。Console 自己的订阅计费和余额策略仍由服务端决定，本工具不更改 `useBalance` 设置。
 
 TUI 内 `/connect` 可以改变当前别名私有库的活动凭据；`list` 始终查询 claudex 绑定的凭据，下次启动也会恢复该绑定。会话历史不跨别名共享，不自动导入原生 OpenCode 历史。V2 拒绝命令行目录与 resume/session 覆盖；从目标项目目录运行。TUI 的 `/sessions` 可选择同一别名库中其他项目的历史，跳转后的项目不再做启动前检查。
 

@@ -753,6 +753,7 @@ function assertProductCapture(fixture, profileId, capture) {
   assert(capture.cacheHome === join(expected.root, "v2-runtime", "cache"), "The launch used a non-private XDG cache root.");
   assert(capture.model === `${PROVIDER_ID}/${MODEL_ID}`, "The launch used an unexpected managed Go model.");
   assert(capture.providerIds.join(",") === PROVIDER_ID, "The launch exposed an unexpected provider inventory.");
+  assert(capture.enabledProviders.join(",") === `${PROVIDER_ID},opencode`, "The launch omitted native free models or enabled unrelated providers.");
   assert(capture.modelIds.includes(MODEL_ID), "The launch omitted the selected Go model from its private provider config.");
   assert(capture.args.includes("--standalone") && capture.args.includes("--auto"), "The launcher omitted the V2 standalone/auto flags.");
   assert(!capture.args.some((arg) => ["--server", "--attach", "--config", "--model"].includes(arg)), "The launcher forwarded an unsafe server/config/model override.");
