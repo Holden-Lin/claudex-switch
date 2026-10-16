@@ -62,6 +62,7 @@ import {
 import { resolveOpenCodeGoModel } from "../providers/opencode/catalog";
 import {
   prepareOpenCodeV2RunEnvironment,
+  type OpenCodeCompactionGuard,
   type OpenCodeV2CredentialSync,
 } from "../providers/opencode/runtime";
 import { normalizeOpenCodeConsoleModel, prepareOpenCodeConsoleRun } from "../providers/opencode/console";
@@ -558,6 +559,7 @@ export async function runAliasSession(
   ];
   let baseEnv: NodeJS.ProcessEnv | undefined;
   let releaseOpenCode: (() => Promise<void>) | undefined;
+  let openCodeCompactionGuard: OpenCodeCompactionGuard | undefined;
   try {
     if (openCodeProfile?.console && openCodeVersion?.major !== 2) {
       throw new Error("OpenCode subscription accounts require OpenCode 2.x.");
@@ -566,6 +568,7 @@ export async function runAliasSession(
       const prepared = await prepareOpenCodeConsoleRun(openCodeProfileId, resolvedModel);
       baseEnv = prepared.env;
       releaseOpenCode = prepared.release;
+      openCodeCompactionGuard = prepared.compactionGuard;
     } else if (isOpenCodeV2 && openCodeProfileId) {
       const prepared = await prepareOpenCodeV2RunEnvironment(
         openCodeProfileId,
@@ -573,6 +576,7 @@ export async function runAliasSession(
         openCodeCredentialSync,
       );
       baseEnv = prepared.env;
+      openCodeCompactionGuard = prepared.compactionGuard;
     } else {
       baseEnv = await getRunEnvironment(
         entry,
@@ -597,6 +601,11 @@ export async function runAliasSession(
   );
   if (codexHome) {
     info(`Default Codex account unchanged; this session uses ${chalk.dim(codexHome)}`);
+  }
+  if (openCodeCompactionGuard) {
+    info(
+      `OpenCode auto-compaction off for this session (model "${openCodeCompactionGuard.id}" window ${openCodeCompactionGuard.context} < 500000 tokens).`,
+    );
   }
 
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);

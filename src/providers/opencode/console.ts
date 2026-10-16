@@ -7,7 +7,7 @@ import type { OpenCodeGoProfileData, UsageFetchResult, UsageInfo } from "../../t
 import { readOpenCodeConsoleCredentials, type OpenCodeConsoleCredential } from "./native";
 import { fetchOpenCodeGoCatalogIds } from "./catalog";
 import { OPENCODE_GO_PROVIDER_ID, createOpenCodeProfileId, getOpenCodeProfileData, removeOpenCodeProfile, saveOpenCodeConsoleProfile } from "./profiles";
-import { acquireProfileLock, fetchOpenCodeApi, locationData, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer } from "./runtime";
+import { acquireProfileLock, applyManagedCompactionPolicy, fetchOpenCodeApi, locationData, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer, type OpenCodeCompactionGuard } from "./runtime";
 
 type JsonRecord = Record<string, unknown>;
 class ConsoleReconnectError extends Error {}
@@ -281,7 +281,7 @@ export async function loginOpenCodeConsole(profileId: string, previous?: OpenCod
 }
 
 /** Keep the native refresh writer exclusive until the TUI exits. */
-export async function prepareOpenCodeConsoleRun(profileId: string, selectedModel?: string): Promise<{ env: NodeJS.ProcessEnv; release: () => Promise<void> }> {
+export async function prepareOpenCodeConsoleRun(profileId: string, selectedModel?: string): Promise<{ env: NodeJS.ProcessEnv; release: () => Promise<void>; compactionGuard?: OpenCodeCompactionGuard }> {
   const env = await openCodeConsoleEnvironment(profileId);
   const release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account");
   try {
@@ -293,9 +293,12 @@ export async function prepareOpenCodeConsoleRun(profileId: string, selectedModel
     const latest = await readPinnedConsoleCredential(profileId, profile);
     await requireSubscription(latest);
     const available = await fetchOpenCodeConsoleGoModels(models, latest);
-    env.OPENCODE_CONFIG_CONTENT = JSON.stringify(buildOpenCodeConsoleConfig(source, selectedModel ?? profile.defaultModel ?? `${OPENCODE_GO_PROVIDER_ID}/${available[0]!.id}`, models, available));
+    const resolvedModel = normalizeOpenCodeConsoleModel(selectedModel ?? profile.defaultModel ?? `${OPENCODE_GO_PROVIDER_ID}/${available[0]!.id}`);
+    const serializedConfig = JSON.stringify(buildOpenCodeConsoleConfig(source, resolvedModel, models, available));
+    env.OPENCODE_CONFIG_CONTENT = serializedConfig;
+    let compactionGuard: OpenCodeCompactionGuard | undefined;
     await withOpenCodePrivateServer(env, async (baseUrl, password) => {
-      await verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, available.map((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}`), OPENCODE_GO_PROVIDER_ID, (entries) => {
+      const routing = await verifyEffectiveOpenCodeRouting(fetch, baseUrl, password, available.map((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}`), OPENCODE_GO_PROVIDER_ID, (entries) => {
         if (!Array.isArray(entries)) throw new Error("Invalid OpenCode effective configuration.");
         for (const entry of entries) {
           if (record(entry) && record(entry.info) && record(entry.info.providers) && record(entry.info.providers[OPENCODE_GO_PROVIDER_ID])) {
@@ -303,11 +306,20 @@ export async function prepareOpenCodeConsoleRun(profileId: string, selectedModel
           }
         }
       });
+      // Small-window models disable auto-compaction in this run's managed
+      // config content only; the user's own config is untouched.
+      const applied = applyManagedCompactionPolicy(
+        serializedConfig,
+        routing,
+        resolvedModel.slice(OPENCODE_GO_PROVIDER_ID.length + 1),
+      );
+      env.OPENCODE_CONFIG_CONTENT = applied.configContent;
+      compactionGuard = applied.guard;
       const response = await fetchOpenCodeApi(fetch, baseUrl, `/api/provider/${OPENCODE_GO_PROVIDER_ID}`, password);
       const provider = response.ok ? locationData(await response.json()) : null;
       if (!record(provider) || provider.integrationID !== "opencode") throw new Error("OpenCode Console is not using this alias's subscription integration.");
     });
-    return { env, release };
+    return { env, release, compactionGuard };
   } catch (error) { await release(); throw error; }
 }
 

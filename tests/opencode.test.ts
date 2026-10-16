@@ -32,6 +32,7 @@ import {
   setActiveOpenCodeProfile,
 } from "../src/providers/opencode/profiles";
 import {
+  applyManagedCompactionPolicy,
   buildOpenCodeV2Config,
   mapOpenCodeGoModelForV2,
   prepareOpenCodeV2RunEnvironment,
@@ -734,6 +735,115 @@ describe("OpenCode Go profiles", () => {
       ["opencode-go/kimi-k3"],
     );
     expect(agentReads).toBe(2);
+  });
+
+  test("resolves the effective compaction buffer and model windows for the launch policy", async () => {
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(input.toString());
+      if (url.pathname === "/api/config") {
+        return new Response(JSON.stringify([
+          { type: "document", path: "/home/.config/opencode/opencode.jsonc", info: { compaction: { reserved: 500000 } } },
+          { type: "document", info: { default_agent: "build", compaction: { buffer: 500000 } } },
+        ]), { status: 200 });
+      }
+      if (url.pathname === "/api/agent") {
+        return new Response(locationResponse([
+          { id: "build", name: "Build", mode: "primary", permissions: [], model: { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "omen-alpha" } },
+        ]), { status: 200 });
+      }
+      if (url.pathname === "/api/model") {
+        return new Response(locationResponse([
+          { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "omen-alpha", limit: { context: 200000, output: 32000 } },
+          { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "kimi-k3", limit: { context: 1048576, output: 131072 } },
+        ]), { status: 200 });
+      }
+      throw new Error(`Unexpected loopback fixture request: ${url.pathname}`);
+    };
+
+    const routing = await verifyEffectiveOpenCodeRouting(
+      fetcher,
+      "http://127.0.0.1:41987",
+      "fake-password",
+      ["opencode-go/omen-alpha", "opencode-go/kimi-k3"],
+    );
+    expect(routing).toEqual({
+      auto: true,
+      buffer: 500000,
+      contexts: new Map([["omen-alpha", 200000], ["kimi-k3", 1048576]]),
+      agentModelId: "omen-alpha",
+    });
+  });
+
+  test("disables managed auto-compaction below a 500k token window and keeps larger windows", () => {
+    const config = JSON.stringify({
+      model: `${OPENCODE_V2_MANAGED_PROVIDER_ID}/minimax-m2.7`,
+    });
+    const small = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 204800]]) },
+      "minimax-m2.7",
+    );
+    expect(small.guard).toEqual({ id: "minimax-m2.7", context: 204800 });
+    const smallConfig = JSON.parse(small.configContent);
+    expect(smallConfig.compaction).toEqual({ auto: false });
+    expect(smallConfig.model).toBe(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/minimax-m2.7`);
+
+    // Metadata-less models resolve to OpenCode's fallback window and are
+    // guarded the same way.
+    const fallback = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 200000]]) },
+      "minimax-m2.7",
+    );
+    expect(fallback.guard).toEqual({ id: "minimax-m2.7", context: 200000 });
+
+    // Windows at or above 500k keep the user's own compaction settings.
+    for (const context of [500000, 1048576]) {
+      const large = applyManagedCompactionPolicy(
+        config,
+        { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", context]]) },
+        "minimax-m2.7",
+      );
+      expect(large.guard).toBeUndefined();
+      expect(large.configContent).toBe(config);
+    }
+
+    // An unknown window or already-disabled auto-compaction is untouched.
+    expect(
+      applyManagedCompactionPolicy(config, { auto: true, buffer: 500000, contexts: new Map() }, "minimax-m2.7").guard,
+    ).toBeUndefined();
+    expect(
+      applyManagedCompactionPolicy(config, { auto: false, buffer: 500000, contexts: new Map([["minimax-m2.7", 204800]]) }, "minimax-m2.7").guard,
+    ).toBeUndefined();
+
+    // The default agent's smaller window constrains the session too.
+    const agent = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 1048576], ["omen-alpha", 200000]]), agentModelId: "omen-alpha" },
+      "minimax-m2.7",
+    );
+    expect(agent.guard).toEqual({ id: "omen-alpha", context: 200000 });
+  });
+
+  test("applies the small-window compaction guard to the V2 run environment", async () => {
+    await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-compaction-env-key" });
+    const prepared = await prepareOpenCodeV2RunEnvironment(
+      PROFILE_ID,
+      "opencode-go/minimax-m2.7",
+      async () => ({ auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 204800]]) }),
+    );
+    expect(prepared.compactionGuard).toEqual({ id: "minimax-m2.7", context: 204800 });
+    const config = JSON.parse(prepared.env.OPENCODE_CONFIG_CONTENT ?? "{}");
+    expect(config.compaction).toEqual({ auto: false });
+    expect(config.model).toBe(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/minimax-m2.7`);
+
+    const untouched = await prepareOpenCodeV2RunEnvironment(
+      PROFILE_ID,
+      "opencode-go/kimi-k3",
+      async () => ({ auto: true, buffer: 500000, contexts: new Map([["kimi-k3", 1048576]]) }),
+    );
+    expect(untouched.compactionGuard).toBeUndefined();
+    expect(JSON.parse(untouched.env.OPENCODE_CONFIG_CONTENT ?? "{}").compaction).toBeUndefined();
   });
 
   test("fails closed when the effective default agent never becomes available", async () => {

@@ -28,13 +28,15 @@ const OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 
 export interface PreparedOpenCodeRunEnvironment {
   env: NodeJS.ProcessEnv;
+  /** Set when auto-compaction was disabled for this session's model window. */
+  compactionGuard?: OpenCodeCompactionGuard;
 }
 
 export type OpenCodeV2CredentialSync = (
   profileId: string,
   key: string,
   env: NodeJS.ProcessEnv,
-) => Promise<void>;
+) => Promise<OpenCodeV2CompactionRouting | void>;
 
 export function mapOpenCodeGoModelForV2(model: string): string {
   const normalized = normalizeOpenCodeGoModel(model);
@@ -518,6 +520,99 @@ function configuredDefaultAgent(configEntries: unknown): string {
   return defaultAgent;
 }
 
+type EffectiveCompactionSettings = {
+  auto: boolean;
+  buffer?: number;
+};
+
+/** Later documents override earlier ones, matching OpenCode's config merge order. */
+function effectiveCompactionSettings(configEntries: unknown): EffectiveCompactionSettings {
+  if (!Array.isArray(configEntries)) {
+    throw new Error("Could not verify OpenCode V2's effective local configuration.");
+  }
+  let auto = true;
+  let buffer: number | undefined;
+  for (const entry of configEntries) {
+    if (!isRecord(entry) || entry.type !== "document" || !isRecord(entry.info)) continue;
+    const compaction = entry.info.compaction;
+    if (compaction === undefined) continue;
+    if (!isRecord(compaction)) {
+      throw new Error("OpenCode V2 has an invalid compaction setting.");
+    }
+    if (compaction.auto !== undefined) {
+      if (typeof compaction.auto !== "boolean") {
+        throw new Error("OpenCode V2 has an invalid compaction setting.");
+      }
+      auto = compaction.auto;
+    }
+    // OpenCode normalizes the deprecated `reserved` alias to `buffer`.
+    const value = compaction.buffer ?? compaction.reserved;
+    if (value !== undefined) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        throw new Error("OpenCode V2 has an invalid compaction buffer setting.");
+      }
+      buffer = value;
+    }
+  }
+  return { auto, buffer };
+}
+
+/**
+ * Session-scoped compaction state resolved from OpenCode's effective config,
+ * plus every managed model's resolved context window.
+ */
+export type OpenCodeV2CompactionRouting = {
+  auto: boolean;
+  buffer?: number;
+  contexts: Map<string, number>;
+  agentModelId?: string;
+};
+
+// Managed sessions disable auto-compaction for windows below the reserved
+// budget the user configures (500,000 tokens): OpenCode's trigger is
+// `context - buffer`, so a smaller window would compact on every turn.
+const OPENCODE_COMPACTION_WINDOW_FLOOR = 500_000;
+
+export type OpenCodeCompactionGuard = {
+  id: string;
+  context: number;
+};
+
+/**
+ * Disable auto-compaction in the managed config content when the smallest
+ * model window this session starts with (the selected model and the default
+ * agent's model) is below 500,000 tokens. The user's own OpenCode
+ * configuration is untouched, and larger windows keep its compaction
+ * settings. Returns the possibly rewritten content plus the applied guard.
+ */
+export function applyManagedCompactionPolicy(
+  configContent: string,
+  routing: OpenCodeV2CompactionRouting,
+  selectedModelId?: string,
+): { configContent: string; guard?: OpenCodeCompactionGuard } {
+  if (!routing.auto) return { configContent };
+  let smallest: OpenCodeCompactionGuard | undefined;
+  const checked = new Set(
+    [selectedModelId, routing.agentModelId].filter(
+      (value): value is string => value !== undefined,
+    ),
+  );
+  for (const id of checked) {
+    const context = routing.contexts.get(id);
+    // Unknown or non-positive windows never auto-compact in OpenCode's code.
+    if (context === undefined || context <= 0) continue;
+    if (!smallest || context < smallest.context) smallest = { id, context };
+  }
+  if (!smallest || smallest.context >= OPENCODE_COMPACTION_WINDOW_FLOOR) {
+    return { configContent };
+  }
+  const config = parseConfigContent(configContent);
+  const compaction = isRecord(config.compaction) ? { ...config.compaction } : {};
+  compaction.auto = false;
+  config.compaction = compaction;
+  return { configContent: JSON.stringify(config), guard: smallest };
+}
+
 export async function verifyEffectiveOpenCodeRouting(
   fetcher: FetchFunction,
   baseUrl: string,
@@ -525,7 +620,7 @@ export async function verifyEffectiveOpenCodeRouting(
   managedModels: string[],
   providerId = OPENCODE_V2_MANAGED_PROVIDER_ID,
   validateConfig?: (entries: unknown) => void,
-): Promise<void> {
+): Promise<OpenCodeV2CompactionRouting> {
   const configResponse = await fetchOpenCodeApi(fetcher, baseUrl, "/api/config", password, {
     method: "GET",
   });
@@ -533,6 +628,7 @@ export async function verifyEffectiveOpenCodeRouting(
   const configEntries = await responseJson(configResponse);
   validateConfig?.(configEntries);
   const defaultAgentId = configuredDefaultAgent(configEntries);
+  const compaction = effectiveCompactionSettings(configEntries);
 
   // The location's agent inventory is populated asynchronously after the
   // private server boots; an early query can return an empty list even though
@@ -560,6 +656,7 @@ export async function verifyEffectiveOpenCodeRouting(
   if (!agent) {
     throw new Error("OpenCode V2's configured default agent is unavailable in this location.");
   }
+  let agentModelId: string | undefined;
   if (agent.model !== undefined) {
     if (!isRecord(agent.model) || typeof agent.model.providerID !== "string" || typeof agent.model.id !== "string") {
       throw new Error("OpenCode V2's default agent has an invalid model setting.");
@@ -569,7 +666,7 @@ export async function verifyEffectiveOpenCodeRouting(
         `OpenCode V2 default agent "${defaultAgentId}" selects another provider. Set its model to this alias's Go model or choose a Go-compatible default agent.`,
       );
     }
-    const agentModelId = agent.model.id;
+    agentModelId = agent.model.id;
     const managedModelIds = managedModels.map((model) =>
       model.slice(model.indexOf("/") + 1),
     );
@@ -605,13 +702,19 @@ export async function verifyEffectiveOpenCodeRouting(
     if (!Array.isArray(modelData)) {
       throw new Error("OpenCode V2 returned an unexpected model inventory.");
     }
-    const models: Array<{ providerID: string; id: string }> = [];
+    const models: Array<{ providerID: string; id: string; context?: number }> = [];
+    const contexts = new Map<string, number>();
     for (const item of modelData) {
       if (!isRecord(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
       if (providerId === OPENCODE_GO_PROVIDER_ID && item.enabled === false) continue;
-      models.push({ providerID: item.providerID, id: item.id });
+      const context =
+        isRecord(item.limit) && typeof item.limit.context === "number"
+          ? item.limit.context
+          : undefined;
+      models.push({ providerID: item.providerID, id: item.id, context });
+      if (context !== undefined) contexts.set(item.id, context);
     }
     const signature = JSON.stringify(
       models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
@@ -625,7 +728,14 @@ export async function verifyEffectiveOpenCodeRouting(
     lastUnexpectedProvider = !onlyManaged;
     stablePolls = sameInventory && signature === previousSignature ? stablePolls + 1 : sameInventory ? 1 : 0;
     previousSignature = signature;
-    if (stablePolls >= 3) return;
+    if (stablePolls >= 3) {
+      return {
+        auto: compaction.auto,
+        buffer: compaction.buffer,
+        contexts,
+        agentModelId,
+      };
+    }
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   if (lastUnexpectedProvider) {
@@ -689,22 +799,22 @@ export async function syncOpenCodeV2CredentialToPrivateDatabase(
   env: NodeJS.ProcessEnv,
   spawnCommand: SpawnCommand = spawn,
   fetcher: FetchFunction = fetch,
-): Promise<void> {
+): Promise<OpenCodeV2CompactionRouting | void> {
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
   await mkdir(runtimeRoot, { recursive: true, mode: 0o700 });
   await chmod(runtimeRoot, 0o700);
   const credentialStateFile = openCodeProfileV2CredentialStateFile(profileId);
   const release = await acquireProfileLock(`${credentialStateFile}.lock`, "credential sync");
   try {
-    await syncLocked();
+    return await syncLocked();
   } finally {
     await release();
   }
 
-  async function syncLocked(): Promise<void> {
+  async function syncLocked(): Promise<OpenCodeV2CompactionRouting> {
     const ownedIds = await readOwnedCredentialIds(credentialStateFile);
     const label = `claudex-switch-${profileId}-${randomUUID()}`;
-    await withOpenCodePrivateServer(env, async (baseUrl, password) => {
+    return await withOpenCodePrivateServer(env, async (baseUrl, password) => {
       await waitForManagedIntegrationKeyMethod(fetcher, baseUrl, password);
 
       const config = parseConfigContent(env.OPENCODE_CONFIG_CONTENT);
@@ -722,7 +832,7 @@ export async function syncOpenCodeV2CredentialToPrivateDatabase(
       if (modelIds.length === 0) {
         throw new Error("OpenCode V2's managed Go model inventory is empty for this alias.");
       }
-      await verifyEffectiveOpenCodeRouting(
+      const routing = await verifyEffectiveOpenCodeRouting(
         fetcher,
         baseUrl,
         password,
@@ -808,6 +918,7 @@ export async function syncOpenCodeV2CredentialToPrivateDatabase(
           // Failed cleanup is retried next run; the active key was verified.
         }
       }
+      return routing;
     }, spawnCommand);
   }
 }
@@ -830,9 +941,13 @@ export async function prepareOpenCodeV2RunEnvironment(
     ...history,
     ...[...(catalog ?? [])].map((id) => `${OPENCODE_GO_PROVIDER_ID}/${id}`),
   ])];
-  const serializedConfig = JSON.stringify(
-    buildOpenCodeV2Config(sourceConfig, selectedModel, managedModels),
-  );
+  const managedConfig = buildOpenCodeV2Config(sourceConfig, selectedModel, managedModels);
+  const serializedConfig = JSON.stringify(managedConfig);
+  const selectedManagedModelId =
+    typeof managedConfig.model === "string" &&
+    managedConfig.model.startsWith(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/`)
+      ? managedConfig.model.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1)
+      : undefined;
 
   const privateRoot = openCodeProfileV2RuntimeDir(profileId);
   const dataHome = openCodeProfileV2DataHome(profileId);
@@ -866,6 +981,15 @@ export async function prepareOpenCodeV2RunEnvironment(
   env.XDG_CACHE_HOME = cacheHome;
   env.OPENCODE_CONFIG_CONTENT = serializedConfig;
   env.OPENCODE_DISABLE_MODELS_FETCH = "1";
-  await credentialSync(profileId, key, env);
-  return { env };
+  const routing = await credentialSync(profileId, key, env);
+  if (!routing) return { env };
+  // Small-window models disable auto-compaction in this run's managed config
+  // content only; the user's own OpenCode configuration is untouched.
+  const applied = applyManagedCompactionPolicy(
+    serializedConfig,
+    routing,
+    selectedManagedModelId,
+  );
+  env.OPENCODE_CONFIG_CONTENT = applied.configContent;
+  return { env, compactionGuard: applied.guard };
 }
