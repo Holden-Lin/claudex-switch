@@ -603,8 +603,12 @@ export async function runAliasSession(
     info(`Default Codex account unchanged; this session uses ${chalk.dim(codexHome)}`);
   }
   if (openCodeCompactionGuard) {
+    const { id, context, buffer, managed } = openCodeCompactionGuard;
+    const triggerPercent = Math.round(((context - buffer) / context) * 100);
     info(
-      `OpenCode auto-compaction off for this session (model "${openCodeCompactionGuard.id}" window ${openCodeCompactionGuard.context} < 500000 tokens).`,
+      managed
+        ? `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; session buffer ${buffer}, fires near ${triggerPercent}%).`
+        : `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; keeping your buffer ${buffer}, fires near ${triggerPercent}%).`,
     );
   }
 

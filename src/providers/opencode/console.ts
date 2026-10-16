@@ -306,8 +306,9 @@ export async function prepareOpenCodeConsoleRun(profileId: string, selectedModel
           }
         }
       });
-      // Small-window models disable auto-compaction in this run's managed
-      // config content only; the user's own config is untouched.
+      // Small-window models get a session-only ~90% compaction buffer in this
+      // run's managed config content only; the user's own config is
+      // untouched.
       const applied = applyManagedCompactionPolicy(
         serializedConfig,
         routing,

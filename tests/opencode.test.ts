@@ -755,6 +755,9 @@ describe("OpenCode Go profiles", () => {
         return new Response(locationResponse([
           { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "omen-alpha", limit: { context: 200000, output: 32000 } },
           { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "kimi-k3", limit: { context: 1048576, output: 131072 } },
+          // OpenCode's compaction trigger uses `limit.input || limit.context`,
+          // so a smaller input limit must win over the context window.
+          { providerID: OPENCODE_V2_MANAGED_PROVIDER_ID, id: "hy3", limit: { context: 256000, input: 192000, output: 128000 } },
         ]), { status: 200 });
       }
       throw new Error(`Unexpected loopback fixture request: ${url.pathname}`);
@@ -764,83 +767,141 @@ describe("OpenCode Go profiles", () => {
       fetcher,
       "http://127.0.0.1:41987",
       "fake-password",
-      ["opencode-go/omen-alpha", "opencode-go/kimi-k3"],
+      ["opencode-go/omen-alpha", "opencode-go/kimi-k3", "opencode-go/hy3"],
     );
     expect(routing).toEqual({
       auto: true,
       buffer: 500000,
-      contexts: new Map([["omen-alpha", 200000], ["kimi-k3", 1048576]]),
+      windows: new Map([["omen-alpha", 200000], ["kimi-k3", 1048576], ["hy3", 192000]]),
       agentModelId: "omen-alpha",
     });
   });
 
-  test("disables managed auto-compaction below a 500k token window and keeps larger windows", () => {
+  test("keeps auto-compaction on with a ~90% buffer below a 500k token window", () => {
     const config = JSON.stringify({
       model: `${OPENCODE_V2_MANAGED_PROVIDER_ID}/minimax-m2.7`,
     });
+
+    // A 200k window compacts at 90%: buffer 20000, trigger 180000.
     const small = applyManagedCompactionPolicy(
       config,
-      { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 204800]]) },
+      { auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", 200000]]) },
       "minimax-m2.7",
     );
-    expect(small.guard).toEqual({ id: "minimax-m2.7", context: 204800 });
+    expect(small.guard).toEqual({ id: "minimax-m2.7", context: 200000, buffer: 20000, managed: true });
     const smallConfig = JSON.parse(small.configContent);
-    expect(smallConfig.compaction).toEqual({ auto: false });
+    expect(smallConfig.compaction).toEqual({ auto: true, buffer: 20000 });
     expect(smallConfig.model).toBe(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/minimax-m2.7`);
+    expect(small.guard!.context - small.guard!.buffer).toBe(180000);
 
-    // Metadata-less models resolve to OpenCode's fallback window and are
-    // guarded the same way.
-    const fallback = applyManagedCompactionPolicy(
+    // The reported 204800-token window still keeps a 10% buffer.
+    const exact = applyManagedCompactionPolicy(
       config,
-      { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 200000]]) },
+      { auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", 204800]]) },
       "minimax-m2.7",
     );
-    expect(fallback.guard).toEqual({ id: "minimax-m2.7", context: 200000 });
+    expect(exact.guard).toEqual({ id: "minimax-m2.7", context: 204800, buffer: 20480, managed: true });
+    expect(JSON.parse(exact.configContent).compaction).toEqual({ auto: true, buffer: 20480 });
+
+    // A model whose input limit is smaller than its context window uses the
+    // input limit for both the guard and the buffer (19200 -> 90% of 192000).
+    const inputBound = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, windows: new Map([["hy3", 192000]]) },
+      "hy3",
+    );
+    expect(inputBound.guard).toEqual({ id: "hy3", context: 192000, buffer: 19200, managed: true });
+
+    // Small windows keep OpenCode's 16,000-token minimum buffer so the
+    // compaction request itself still fits (trigger stays > 0).
+    const tiny = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", 128000]]) },
+      "minimax-m2.7",
+    );
+    expect(tiny.guard).toEqual({ id: "minimax-m2.7", context: 128000, buffer: 16000, managed: true });
+
+    // Metadata-less models resolve to OpenCode's 200k fallback window and are
+    // managed the same way.
+    const fallbackMissing = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, windows: new Map() },
+      "minimax-m2.7",
+    );
+    expect(fallbackMissing.guard).toEqual({ id: "minimax-m2.7", context: 200000, buffer: 20000, managed: true });
+    const fallbackZero = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", 0]]) },
+      "minimax-m2.7",
+    );
+    expect(fallbackZero.guard).toEqual({ id: "minimax-m2.7", context: 200000, buffer: 20000, managed: true });
 
     // Windows at or above 500k keep the user's own compaction settings.
-    for (const context of [500000, 1048576]) {
+    for (const context of [500000, 524288, 1048576]) {
       const large = applyManagedCompactionPolicy(
         config,
-        { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", context]]) },
+        { auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", context]]) },
         "minimax-m2.7",
       );
       expect(large.guard).toBeUndefined();
       expect(large.configContent).toBe(config);
     }
 
-    // An unknown window or already-disabled auto-compaction is untouched.
+    // Sessions with auto-compaction disabled by the user are untouched.
     expect(
-      applyManagedCompactionPolicy(config, { auto: true, buffer: 500000, contexts: new Map() }, "minimax-m2.7").guard,
-    ).toBeUndefined();
-    expect(
-      applyManagedCompactionPolicy(config, { auto: false, buffer: 500000, contexts: new Map([["minimax-m2.7", 204800]]) }, "minimax-m2.7").guard,
-    ).toBeUndefined();
+      applyManagedCompactionPolicy(
+        config,
+        { auto: false, buffer: 500000, windows: new Map([["minimax-m2.7", 204800]]) },
+        "minimax-m2.7",
+      ).configContent,
+    ).toBe(config);
+
+    // A user buffer smaller than the computed one but still at least
+    // OpenCode's minimum margin compacts later and is kept as-is.
+    const kept = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 16000, windows: new Map([["minimax-m2.7", 204800]]) },
+      "minimax-m2.7",
+    );
+    expect(kept.guard).toEqual({ id: "minimax-m2.7", context: 204800, buffer: 16000, managed: false });
+    expect(kept.configContent).toBe(config);
+
+    // A user buffer below OpenCode's minimum margin would risk the
+    // compaction request not fitting; the managed 90% buffer replaces it.
+    const tooSmall = applyManagedCompactionPolicy(
+      config,
+      { auto: true, buffer: 1000, windows: new Map([["minimax-m2.7", 204800]]) },
+      "minimax-m2.7",
+    );
+    expect(tooSmall.guard).toEqual({ id: "minimax-m2.7", context: 204800, buffer: 20480, managed: true });
+    expect(JSON.parse(tooSmall.configContent).compaction).toEqual({ auto: true, buffer: 20480 });
 
     // The default agent's smaller window constrains the session too.
     const agent = applyManagedCompactionPolicy(
       config,
-      { auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 1048576], ["omen-alpha", 200000]]), agentModelId: "omen-alpha" },
+      { auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", 1048576], ["omen-alpha", 200000]]), agentModelId: "omen-alpha" },
       "minimax-m2.7",
     );
-    expect(agent.guard).toEqual({ id: "omen-alpha", context: 200000 });
+    expect(agent.guard).toEqual({ id: "omen-alpha", context: 200000, buffer: 20000, managed: true });
+    expect(JSON.parse(agent.configContent).compaction).toEqual({ auto: true, buffer: 20000 });
   });
 
-  test("applies the small-window compaction guard to the V2 run environment", async () => {
+  test("applies the small-window compaction buffer to the V2 run environment", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-compaction-env-key" });
     const prepared = await prepareOpenCodeV2RunEnvironment(
       PROFILE_ID,
       "opencode-go/minimax-m2.7",
-      async () => ({ auto: true, buffer: 500000, contexts: new Map([["minimax-m2.7", 204800]]) }),
+      async () => ({ auto: true, buffer: 500000, windows: new Map([["minimax-m2.7", 204800]]) }),
     );
-    expect(prepared.compactionGuard).toEqual({ id: "minimax-m2.7", context: 204800 });
+    expect(prepared.compactionGuard).toEqual({ id: "minimax-m2.7", context: 204800, buffer: 20480, managed: true });
     const config = JSON.parse(prepared.env.OPENCODE_CONFIG_CONTENT ?? "{}");
-    expect(config.compaction).toEqual({ auto: false });
+    expect(config.compaction).toEqual({ auto: true, buffer: 20480 });
     expect(config.model).toBe(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/minimax-m2.7`);
 
     const untouched = await prepareOpenCodeV2RunEnvironment(
       PROFILE_ID,
       "opencode-go/kimi-k3",
-      async () => ({ auto: true, buffer: 500000, contexts: new Map([["kimi-k3", 1048576]]) }),
+      async () => ({ auto: true, buffer: 500000, windows: new Map([["kimi-k3", 1048576]]) }),
     );
     expect(untouched.compactionGuard).toBeUndefined();
     expect(JSON.parse(untouched.env.OPENCODE_CONFIG_CONTENT ?? "{}").compaction).toBeUndefined();

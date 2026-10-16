@@ -28,7 +28,7 @@ const OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 
 export interface PreparedOpenCodeRunEnvironment {
   env: NodeJS.ProcessEnv;
-  /** Set when auto-compaction was disabled for this session's model window. */
+  /** Set when the session's small-window compaction buffer was managed. */
   compactionGuard?: OpenCodeCompactionGuard;
 }
 
@@ -559,31 +559,70 @@ function effectiveCompactionSettings(configEntries: unknown): EffectiveCompactio
 
 /**
  * Session-scoped compaction state resolved from OpenCode's effective config,
- * plus every managed model's resolved context window.
+ * plus every managed model's effective compaction window.
  */
 export type OpenCodeV2CompactionRouting = {
   auto: boolean;
   buffer?: number;
-  contexts: Map<string, number>;
+  /**
+   * Effective compaction window per model: OpenCode's trigger formula uses
+   * `limit.input || limit.context`, so entries store that basis.
+   */
+  windows: Map<string, number>;
   agentModelId?: string;
 };
 
-// Managed sessions disable auto-compaction for windows below the reserved
+// Managed sessions keep auto-compaction on for windows below the reserved
 // budget the user configures (500,000 tokens): OpenCode's trigger is
-// `context - buffer`, so a smaller window would compact on every turn.
+// `window - buffer`, so the user's larger reserved budget would either
+// compact on every turn or never fit. A session-only buffer makes compaction
+// fire at about 90% of the window instead.
 const OPENCODE_COMPACTION_WINDOW_FLOOR = 500_000;
+// OpenCode resolves models without limit metadata to this fallback window
+// itself (`cO` in the v2.0.29 bundle; /api/model reports context 200000).
+const OPENCODE_COMPACTION_FALLBACK_WINDOW = 200_000;
+// OpenCode's own minimum default compaction buffer (`G5`): windows of at
+// least 32,000 tokens always reserve this many tokens, even when 10% would
+// be smaller.
+const OPENCODE_MINIMUM_COMPACTION_BUFFER = 16_000;
+
+/**
+ * OpenCode's own default compaction buffer for a window: 10% of the window,
+ * never below its 16,000-token minimum for windows of at least 32,000
+ * tokens. Reproducing the formula keeps the ~90% trigger point while the
+ * 16,000-token floor leaves the same room for the compaction request itself
+ * that OpenCode reserves by default.
+ */
+function defaultCompactionBuffer(window: number): number {
+  const tenPercent = Math.floor(window * 0.1);
+  return window >= 2 * OPENCODE_MINIMUM_COMPACTION_BUFFER
+    ? Math.max(tenPercent, OPENCODE_MINIMUM_COMPACTION_BUFFER)
+    : tenPercent;
+}
 
 export type OpenCodeCompactionGuard = {
   id: string;
+  /** Effective compaction window (limit.input || limit.context) in tokens. */
   context: number;
+  /** Buffer this session compacts with (managed, or the user's own). */
+  buffer: number;
+  /** False when the user's own smaller buffer was kept as-is. */
+  managed: boolean;
 };
 
 /**
- * Disable auto-compaction in the managed config content when the smallest
+ * Keep auto-compaction on in the managed config content when the smallest
  * model window this session starts with (the selected model and the default
- * agent's model) is below 500,000 tokens. The user's own OpenCode
- * configuration is untouched, and larger windows keep its compaction
- * settings. Returns the possibly rewritten content plus the applied guard.
+ * agent's model) is below the reserved budget the user configures (500,000
+ * tokens). A session-only buffer is written so compaction fires at about 90%
+ * of that window (buffer ≈ 10%, floored at OpenCode's own 16,000-token
+ * minimum so the trigger stays > 0 and the compaction request still fits).
+ * A user buffer that is smaller than the computed one but still leaves at
+ * least OpenCode's minimum margin is kept (it compacts later than 90% but
+ * stays safe). Windows >= 500,000 and sessions with auto-compaction
+ * disabled keep the user's own settings. The user's own OpenCode
+ * configuration is untouched. Returns the possibly rewritten content plus
+ * the applied guard.
  */
 export function applyManagedCompactionPolicy(
   configContent: string,
@@ -591,26 +630,50 @@ export function applyManagedCompactionPolicy(
   selectedModelId?: string,
 ): { configContent: string; guard?: OpenCodeCompactionGuard } {
   if (!routing.auto) return { configContent };
-  let smallest: OpenCodeCompactionGuard | undefined;
+  let smallest: { id: string; window: number } | undefined;
   const checked = new Set(
     [selectedModelId, routing.agentModelId].filter(
       (value): value is string => value !== undefined,
     ),
   );
   for (const id of checked) {
-    const context = routing.contexts.get(id);
-    // Unknown or non-positive windows never auto-compact in OpenCode's code.
-    if (context === undefined || context <= 0) continue;
-    if (!smallest || context < smallest.context) smallest = { id, context };
+    const reported = routing.windows.get(id);
+    // OpenCode resolves models without limit metadata to a 200,000-token
+    // fallback window itself, so an unresolved entry behaves the same.
+    const window =
+      reported !== undefined && reported > 0
+        ? reported
+        : OPENCODE_COMPACTION_FALLBACK_WINDOW;
+    if (!smallest || window < smallest.window) smallest = { id, window };
   }
-  if (!smallest || smallest.context >= OPENCODE_COMPACTION_WINDOW_FLOOR) {
+  if (!smallest || smallest.window >= OPENCODE_COMPACTION_WINDOW_FLOOR) {
     return { configContent };
+  }
+  const target = defaultCompactionBuffer(smallest.window);
+  const configured = routing.buffer;
+  if (
+    configured !== undefined &&
+    configured > 0 &&
+    configured < target &&
+    configured >= Math.min(target, OPENCODE_MINIMUM_COMPACTION_BUFFER)
+  ) {
+    // The user's own buffer compacts later than the 90% target but still
+    // fires above zero and keeps at least OpenCode's own minimum margin;
+    // respect it instead of compacting earlier.
+    return {
+      configContent,
+      guard: { id: smallest.id, context: smallest.window, buffer: configured, managed: false },
+    };
   }
   const config = parseConfigContent(configContent);
   const compaction = isRecord(config.compaction) ? { ...config.compaction } : {};
-  compaction.auto = false;
+  compaction.auto = true;
+  compaction.buffer = target;
   config.compaction = compaction;
-  return { configContent: JSON.stringify(config), guard: smallest };
+  return {
+    configContent: JSON.stringify(config),
+    guard: { id: smallest.id, context: smallest.window, buffer: target, managed: true },
+  };
 }
 
 export async function verifyEffectiveOpenCodeRouting(
@@ -703,18 +766,22 @@ export async function verifyEffectiveOpenCodeRouting(
       throw new Error("OpenCode V2 returned an unexpected model inventory.");
     }
     const models: Array<{ providerID: string; id: string; context?: number }> = [];
-    const contexts = new Map<string, number>();
+    const windows = new Map<string, number>();
     for (const item of modelData) {
       if (!isRecord(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
       if (providerId === OPENCODE_GO_PROVIDER_ID && item.enabled === false) continue;
-      const context =
-        isRecord(item.limit) && typeof item.limit.context === "number"
-          ? item.limit.context
-          : undefined;
-      models.push({ providerID: item.providerID, id: item.id, context });
-      if (context !== undefined) contexts.set(item.id, context);
+      // OpenCode's compaction trigger uses `limit.input || limit.context`;
+      // store that basis so the managed buffer tracks the real trigger.
+      const basis =
+        isRecord(item.limit) && typeof item.limit.input === "number" && item.limit.input > 0
+          ? item.limit.input
+          : isRecord(item.limit) && typeof item.limit.context === "number" && item.limit.context > 0
+            ? item.limit.context
+            : undefined;
+      models.push({ providerID: item.providerID, id: item.id, context: basis });
+      if (basis !== undefined) windows.set(item.id, basis);
     }
     const signature = JSON.stringify(
       models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
@@ -732,7 +799,7 @@ export async function verifyEffectiveOpenCodeRouting(
       return {
         auto: compaction.auto,
         buffer: compaction.buffer,
-        contexts,
+        windows,
         agentModelId,
       };
     }
@@ -983,8 +1050,9 @@ export async function prepareOpenCodeV2RunEnvironment(
   env.OPENCODE_DISABLE_MODELS_FETCH = "1";
   const routing = await credentialSync(profileId, key, env);
   if (!routing) return { env };
-  // Small-window models disable auto-compaction in this run's managed config
-  // content only; the user's own OpenCode configuration is untouched.
+  // Small-window models get a session-only ~90% compaction buffer in this
+  // run's managed config content only; the user's own OpenCode configuration
+  // is untouched.
   const applied = applyManagedCompactionPolicy(
     serializedConfig,
     routing,

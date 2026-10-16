@@ -32,7 +32,7 @@ claudex-switch refresh go-second
 
 V2 支持无交互一次性运行（`run` 子命令）：在当前目录以该别名的私有 standalone 服务、受管 Go 模型和已同步 key 执行 `opencode run`，消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，`--format json` 输出事件流；目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数仍被拒绝。
 
-V2 受管会话按模型窗口处理自动压缩：窗口小于 500,000 token 的模型（包括元数据缺失、由 OpenCode 按 200K 回退解析的模型）在该会话禁用自动压缩——claudex 只在本次启动的受管配置里写 `compaction.auto=false`，不改用户全局 `opencode.jsonc`；窗口 ≥ 500,000 的模型保留用户自己的压缩设置（如 `compaction.reserved`）。禁用后上下文写满时请求会直接报错，而不是自动压缩。此前免费模型“无限压缩”的根因是全局 `compaction.reserved`（500,000）不小于 200K 窗口模型的上下文窗口，OpenCode 的自动压缩触发点 `窗口 − reserved` ≤ 0，每轮都触发。
+V2 受管会话按模型窗口处理自动压缩：窗口小于 500,000 token 的模型（包括元数据缺失、由 OpenCode 按 200K 回退解析的模型；基准取 OpenCode 触发公式 `limit.input || limit.context`）在该会话保持自动压缩开启，claudex 只在本次启动的受管配置里写入会话级 `compaction.buffer`（约窗口的 10%、不低于 OpenCode 自身的 16,000 token 下限），使压缩在约 90% 窗口处触发，不改用户全局 `opencode.jsonc`；窗口 ≥ 500,000 的模型保留用户自己的压缩设置（如 `compaction.reserved`）。用户自带 buffer 若小于计算值但仍有 OpenCode 的最小余量，则维持用户设置。此前免费模型“无限压缩”的根因是全局 `compaction.reserved`（500,000）不小于 200K 窗口模型的上下文窗口，OpenCode 的自动压缩触发点 `窗口 − buffer` ≤ 0，每轮都触发；v1.23.0 曾为这些模型关闭自动压缩，代价是窗口写满时报错而非压缩，现已改为 90% 缓冲方案。
 
 OAuth token 只保存在该别名的原生 OpenCode 数据库中，由 OpenCode 负责续期和写回。`refresh` 在临时私有数据库中重新登录、验证订阅，再通过 OpenCode 支持的本地凭据接口替换；必须是同一账号和 workspace。取消、登录错误账号、无订阅或验证失败会保留原 profile；成功刷新保留已有会话。
 

@@ -7787,26 +7787,43 @@ function effectiveCompactionSettings(configEntries) {
   return { auto, buffer };
 }
 var OPENCODE_COMPACTION_WINDOW_FLOOR = 500000;
+var OPENCODE_COMPACTION_FALLBACK_WINDOW = 200000;
+var OPENCODE_MINIMUM_COMPACTION_BUFFER = 16000;
+function defaultCompactionBuffer(window) {
+  const tenPercent = Math.floor(window * 0.1);
+  return window >= 2 * OPENCODE_MINIMUM_COMPACTION_BUFFER ? Math.max(tenPercent, OPENCODE_MINIMUM_COMPACTION_BUFFER) : tenPercent;
+}
 function applyManagedCompactionPolicy(configContent, routing, selectedModelId) {
   if (!routing.auto)
     return { configContent };
   let smallest;
   const checked = new Set([selectedModelId, routing.agentModelId].filter((value) => value !== undefined));
   for (const id of checked) {
-    const context = routing.contexts.get(id);
-    if (context === undefined || context <= 0)
-      continue;
-    if (!smallest || context < smallest.context)
-      smallest = { id, context };
+    const reported = routing.windows.get(id);
+    const window = reported !== undefined && reported > 0 ? reported : OPENCODE_COMPACTION_FALLBACK_WINDOW;
+    if (!smallest || window < smallest.window)
+      smallest = { id, window };
   }
-  if (!smallest || smallest.context >= OPENCODE_COMPACTION_WINDOW_FLOOR) {
+  if (!smallest || smallest.window >= OPENCODE_COMPACTION_WINDOW_FLOOR) {
     return { configContent };
+  }
+  const target = defaultCompactionBuffer(smallest.window);
+  const configured = routing.buffer;
+  if (configured !== undefined && configured > 0 && configured < target && configured >= Math.min(target, OPENCODE_MINIMUM_COMPACTION_BUFFER)) {
+    return {
+      configContent,
+      guard: { id: smallest.id, context: smallest.window, buffer: configured, managed: false }
+    };
   }
   const config = parseConfigContent(configContent);
   const compaction = isRecord2(config.compaction) ? { ...config.compaction } : {};
-  compaction.auto = false;
+  compaction.auto = true;
+  compaction.buffer = target;
   config.compaction = compaction;
-  return { configContent: JSON.stringify(config), guard: smallest };
+  return {
+    configContent: JSON.stringify(config),
+    guard: { id: smallest.id, context: smallest.window, buffer: target, managed: true }
+  };
 }
 async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, managedModels, providerId = OPENCODE_V2_MANAGED_PROVIDER_ID, validateConfig) {
   const configResponse = await fetchOpenCodeApi(fetcher, baseUrl2, "/api/config", password, {
@@ -7878,17 +7895,17 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
       throw new Error("OpenCode V2 returned an unexpected model inventory.");
     }
     const models = [];
-    const contexts = new Map;
+    const windows = new Map;
     for (const item of modelData) {
       if (!isRecord2(item) || typeof item.providerID !== "string" || typeof item.id !== "string") {
         throw new Error("OpenCode V2 returned an unexpected model inventory.");
       }
       if (providerId === OPENCODE_GO_PROVIDER_ID && item.enabled === false)
         continue;
-      const context = isRecord2(item.limit) && typeof item.limit.context === "number" ? item.limit.context : undefined;
-      models.push({ providerID: item.providerID, id: item.id, context });
-      if (context !== undefined)
-        contexts.set(item.id, context);
+      const basis = isRecord2(item.limit) && typeof item.limit.input === "number" && item.limit.input > 0 ? item.limit.input : isRecord2(item.limit) && typeof item.limit.context === "number" && item.limit.context > 0 ? item.limit.context : undefined;
+      models.push({ providerID: item.providerID, id: item.id, context: basis });
+      if (basis !== undefined)
+        windows.set(item.id, basis);
     }
     const signature = JSON.stringify(models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)));
     const onlyManaged = models.every((model) => model.providerID === providerId);
@@ -7901,7 +7918,7 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
       return {
         auto: compaction.auto,
         buffer: compaction.buffer,
-        contexts,
+        windows,
         agentModelId
       };
     }
@@ -10473,7 +10490,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     info(`Default Codex account unchanged; this session uses ${source_default.dim(codexHome)}`);
   }
   if (openCodeCompactionGuard) {
-    info(`OpenCode auto-compaction off for this session (model "${openCodeCompactionGuard.id}" window ${openCodeCompactionGuard.context} < 500000 tokens).`);
+    const { id, context, buffer, managed } = openCodeCompactionGuard;
+    const triggerPercent = Math.round((context - buffer) / context * 100);
+    info(managed ? `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; session buffer ${buffer}, fires near ${triggerPercent}%).` : `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; keeping your buffer ${buffer}, fires near ${triggerPercent}%).`);
   }
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   if (entry.target.provider === "codex" || entry.target.provider === "opencode") {
