@@ -2,7 +2,7 @@
 
 ## Now
 
-本次版本 v1.22.0：`<alias> -run` 不再切走默认账号，默认账号只由 `claudex-switch <alias>` 切换。Codex 非默认账号以 `~/.claudex-switch/codex-run/<账号>` 作 `CODEX_HOME` 启动，只私有 `auth.json`（provider 不同时加私有 `config.toml`），其余链接回 `~/.codex`，结束时回写刷新的 token；默认账号直接用 `~/.codex`。OpenCode `-run` 不再改 active 标记。
+本次版本 v1.23.0：OpenCode V2 别名支持无交互一次性 `opencode run`（`claudex-switch <alias> -run run [--format json] "<提示词>"`，只放行消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs`）。受管 V2 会话在起始模型窗口 < 500,000 token 时禁用自动压缩（只写本次受管配置 `compaction.auto=false`，不改用户全局 `opencode.jsonc`；≥ 500,000 保留用户设置；禁用后写满窗口报错、不再压缩）。`<alias> -run` 仍保留默认账号：Codex 非默认账号以 `~/.claudex-switch/codex-run/<账号>` 作 `CODEX_HOME` 启动，OpenCode 不改 active 标记。
 
 ## Next
 
@@ -22,6 +22,7 @@
 
 ## Done
 
+- [x] 2026-10-16：查清并修复免费模型“无限自动压缩”，随 OpenCode V2 无交互 `run` 一起发布 v1.23.0。根因：2026-10-15 window 11 的会话 `ses_ebfdf4ea0ffevgBrO4d1Rsn4pK` 使用 `opencode/deepseek-v4.1-flash-free`（窗口 200,000），用户全局 `compaction.reserved=500000`，OpenCode 自动压缩触发点 `窗口 − reserved` ≤ 0，首条消息 27ms 后即触发压缩（session DB 记录 status=failed / reason=auto / compaction.interrupted；OpenCode 2.0.21 代码 SessionCompaction.compact 的 `im()` 触发点）。修复：受管 V2 会话在起始模型（选中模型 + 默认 agent 模型）窗口 < 500,000 token 时把 `compaction.auto=false` 写进本次 `OPENCODE_CONFIG_CONTENT`，不改用户全局配置；≥ 500,000 保留用户设置；写满窗口改为报错、不再压缩。311 项测试、1,402 断言、类型检查、文档检查、构建通过；隔离 HOME + 真实 OpenCode 2.0.21 冒烟：minimax-m2.7（204,800）与无元数据的 omen-alpha（200,000 回退）捕获到 `compaction.auto=false` 与提示行，kimi-k3（1,048,576）配置内容不含 compaction、保留用户设置；真实私有 server 合并结果为文件 `{buffer:500000}` + 内容 `{auto:false}`。
 - [x] 2026-10-15：OpenCode V2 别名支持无交互一次性 `opencode run`（`claudex-switch <alias> -run run [--format json] "<提示词>"`）：`run` 与 `--standalone --auto` 置于子命令位置（根解析器拒绝子命令前的根 flag），只放行消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs`，仍拒绝目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数；308 项测试、1,385 断言、类型检查、文档检查、构建通过。隔离 HOME 下验证：固定版 OpenCode v2.0.6 的 `run` 参数集与 `run --standalone --auto` 布局均可解析（假 provider 仅失败在模型路由），真实 2.0.21 上构建版 CLI 的 `serve` 凭据同步与最终 `run --standalone --auto` 启动参数、私有库 / 配置环境经 shim 捕获核对，全局库哨兵未动。
 - [x] 2026-10-13：`<alias> -run` 保留默认账号（Codex 私有 `CODEX_HOME`、OpenCode 不改 active 标记），版本升至 `1.22.0`。305 项测试、类型检查、文档检查、构建通过；新增用例覆盖非默认账号隔离启动（全局 auth/config/active 不变、仅 auth 私有、sessions/config 链接、首次生成条目回收到 `~/.codex`）、默认账号直连 `~/.codex` 并回写 token、私有 home 的 token 回写、中转 provider 私有 config、purge 只删链接不删共享会话。隔离 HOME 下打包 CLI + 真实 codex 0.162.1 `login status` 在私有 `CODEX_HOME` 中识别登录，全局文件哈希不变。
 - [x] 2026-10-13：新增 `--cliproxy claudecode`（参考 magpie），本机 CLIProxyAPI 支持 Codex / OpenCode Go / Antigravity 三种上游，版本升至 `1.21.0`。304 项测试、类型检查、文档检查、构建通过；新增 12 项覆盖首次登录与复用、换错账号零残留、Codex 配置逐字节不变、Go 双 wire、key 轮换空闲重启、purge 租约保护等。真实 `openlam42`（Go key）经代理用 `claude -p` 实测 kimi-k3（chat）、minimax-m3（Messages）、glm-5.3 / kimi-k3 工具调用、`doctor --live` 均通过；首次实测暴露的 `x-opencode-session` 与 Messages 路由 `x-api-key` 要求已修。Codex / Antigravity 真实浏览器登录未测。
