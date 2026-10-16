@@ -1,0 +1,27 @@
+UTC: 2026-10-16T10:39:40.029Z
+OpenCode 2.0.30 + actual built CLI; isolated HOME: /tmp/cxs-glm-list-glibFp
+The final TUI was replaced with native models --standalone; real native servers and credentials sync ran.
+before: 48 models
+claudex-switch-opencode-go/deepseek-v4-pro
+claudex-switch-opencode-go/deepseek-v4.1-flash
+claudex-switch-opencode-go/glm-5.1
+claudex-switch-opencode-go/glm-5.2
+claudex-switch-opencode-go/glm-5.3
+claudex-switch-opencode-go/glm-5.3-flash
+claudex-switch-opencode-go/omen-alpha
+opencode/deepseek-v4.1-flash-free
+
+after: 49 models
+claudex-switch-opencode-go/deepseek-v4-pro
+claudex-switch-opencode-go/deepseek-v4.1-flash
+claudex-switch-opencode-go/glm-5.1
+claudex-switch-opencode-go/glm-5.2
+claudex-switch-opencode-go/glm-5.3
+claudex-switch-opencode-go/glm-5.3-flash
+claudex-switch-opencode-go/omen-alpha
+opencode/deepseek-v4.1-flash-free
+opencode/glm-5.3-flash-free
+opencode/ll-alpha-free
+
+Saved default before/after SHA-256: 0aa7b6bf34906c2d70e3424c555b8ce9fd0c53ac4199b89e54d5c04d143d9508 (equal)
+No model inference request; final processes exited 0.

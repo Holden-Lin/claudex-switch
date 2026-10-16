@@ -161,7 +161,8 @@ describe("OpenCode browser subscriptions", () => {
   test("keeps native free models beside Console Go while disabling paid and unknown models", () => {
     const go = [{ providerID: "opencode-go", id: "kimi-k3" }];
     const free = { providerID: "opencode", id: "deepseek-v4.1-flash-free", cost: [{ input: 0, output: 0 }] };
-    const models = [...go, free, { ...free, id: "paid-free-name", cost: [{ input: 0, output: 1 }] }];
+    const models = [...go, free, { ...free, id: "glm-5.3-flash-free" }, { ...free, id: "new-public-model" },
+      { ...free, id: "paid-free-name", cost: [{ input: 0, output: 1 }] }];
     const source = JSON.stringify({ providers: { opencode: { models: {
       custom: {}, [free.id]: { name: "DeepSeek", disabled: true },
     } } } });
@@ -169,10 +170,14 @@ describe("OpenCode browser subscriptions", () => {
     expect((config.providers as any).opencode.models).toEqual({
       custom: { disabled: true },
       [free.id]: { name: "DeepSeek", disabled: true },
+      "glm-5.3-flash-free": {},
+      "new-public-model": {},
       "paid-free-name": { disabled: true },
     });
     const normal = consoleProvider.buildOpenCodeConsoleConfig(undefined, "opencode-go/kimi-k3", models, go);
     expect((normal.providers as any).opencode.models[free.id]).toEqual({});
+    expect((normal.providers as any).opencode.models["glm-5.3-flash-free"]).toEqual({});
+    expect((normal.providers as any).opencode.models["new-public-model"]).toEqual({});
   });
 
   test("selects the production Console Go provider and rejects Zen even with matching model IDs", async () => {

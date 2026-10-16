@@ -1,0 +1,2 @@
+2026-10-16T10:32:07Z ACK dispatch_id=CXS-GLM-FREE-20261016 contract_version=CXS-GLM-FREE-20261016-v1
+2026-10-16T10:34:38Z CHECKPOINT root-cause ref=/Users/holden/code/claudex-switch-glm-free-20261016/docs/receipts/cxs-glm-free-report.md

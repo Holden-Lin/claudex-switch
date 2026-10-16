@@ -5,7 +5,7 @@ import { cleanupOpenShimDir, createOpenShimDir } from "../../lib/browser";
 import { OPENCODE_LOCKS_DIR, openCodeProfileConsoleLock, openCodeProfileV2DatabaseFile, openCodeProfileV2DataHome, openCodeProfileV2RuntimeDir } from "../../lib/paths";
 import type { OpenCodeGoProfileData, UsageFetchResult, UsageInfo } from "../../types";
 import { readOpenCodeConsoleCredentials, type OpenCodeConsoleCredential } from "./native";
-import { fetchOpenCodeGoCatalogIds } from "./catalog";
+import { fetchOpenCodeGoCatalogIds, prepareOpenCodeModelCatalog } from "./catalog";
 import { OPENCODE_GO_PROVIDER_ID, createOpenCodeProfileId, getOpenCodeProfileData, removeOpenCodeProfile, saveOpenCodeConsoleProfile } from "./profiles";
 import { acquireProfileLock, applyManagedCompactionPolicy, fetchOpenCodeApi, isOpenCodeFreeModel, locationData, OPENCODE_FREE_PROVIDER_ID, restrictOpenCodeProviders, verifyEffectiveOpenCodeRouting, withOpenCodePrivateServer, type OpenCodeCompactionGuard } from "./runtime";
 
@@ -31,7 +31,7 @@ export async function openCodeConsoleEnvironment(profileId: string): Promise<Nod
   env.XDG_STATE_HOME = join(root, "state");
   env.XDG_CACHE_HOME = join(root, "cache");
   env.OPENCODE_DISABLE_AUTOUPDATE = "1";
-  env.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  await prepareOpenCodeModelCatalog(env);
   return env;
 }
 

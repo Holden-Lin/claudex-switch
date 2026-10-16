@@ -1,0 +1,17 @@
+Native binary: /Users/holden/.opencode/bin/opencode
+Temporary HOME: /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-console-acceptance-wy4IFe
+PASS login A through real native device OAuth and save private marker
+PASS login B uses independent private account/workspace database
+PASS native Go provider uses Console OAuth and Go endpoint, excluding matching Zen IDs and paid aliases
+PASS v1.18.0 stored Zen prefix is routed to Go without another account login
+PASS own account/workspace quota is 10% for A and 20% for B
+PASS built CLI JSON and rendered text list show both subscription accounts and quota
+PASS built CLI -run reaches TUI with A private database and selected Go model
+PASS native expiry refresh rotates and persists both OAuth tokens
+PASS alternate native /connect account is restored to pinned A on next launch
+PASS wrong-account refresh refuses replacement and preserves A
+PASS same-account refresh preserves native session history
+PASS no-subscription add creates no profile; refresh preserves saved account
+PASS cancelled authorization creates no saved profile/database
+PASS no shared native database, no marker/CLI output token leakage
+ALL ACCEPTANCE CHECKS PASSED; retained review artifacts: /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-console-acceptance-wy4IFe

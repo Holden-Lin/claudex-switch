@@ -1,5 +1,5 @@
 import { acquireProfileLock } from "./lock";
-import { fetchOpenCodeGoCatalogIds } from "./catalog";
+import { fetchOpenCodeGoCatalogIds, prepareOpenCodeModelCatalog } from "./catalog";
 export { acquireProfileLock } from "./lock";
 import { randomBytes, randomUUID } from "crypto";
 import { spawn, type ChildProcess } from "child_process";
@@ -1078,7 +1078,7 @@ export async function prepareOpenCodeV2RunEnvironment(
   env.XDG_STATE_HOME = stateHome;
   env.XDG_CACHE_HOME = cacheHome;
   env.OPENCODE_CONFIG_CONTENT = serializedConfig;
-  env.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  await prepareOpenCodeModelCatalog(env);
   const routing = await credentialSync(profileId, key, env);
   if (!routing) return { env };
   // Small-window models get a session-only ~90% compaction buffer in this

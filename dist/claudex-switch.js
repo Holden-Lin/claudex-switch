@@ -3443,7 +3443,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join12, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname7, join as join13, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -7349,10 +7349,71 @@ ${result.stderr ?? ""}`);
 // src/providers/opencode/console.ts
 import { spawn as spawn5 } from "child_process";
 import { chmod as chmod9, mkdir as mkdir11 } from "fs/promises";
-import { join as join9 } from "path";
+import { join as join10 } from "path";
 
 // src/providers/opencode/catalog.ts
+import { createHash as createHash4, randomUUID as randomUUID5 } from "crypto";
+import { link, readFile as readFile7, rename as rename4, rm as rm7, stat as stat3, writeFile as writeFile7 } from "fs/promises";
+import { join as join8 } from "path";
 var OPENCODE_GO_CATALOG_URL = "https://opencode.ai/zen/go/v1/models";
+async function prepareOpenCodeModelCatalog(env2) {
+  const offline = env2.OPENCODE_DISABLE_MODELS_FETCH;
+  env2.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  if (env2.OPENCODE_MODELS_PATH || !env2.XDG_CACHE_HOME)
+    return;
+  const path = join8(env2.XDG_CACHE_HOME, "claudex-models.json");
+  let cached;
+  let fresh = false;
+  const valid = (data) => {
+    if (!data || typeof data !== "object" || Array.isArray(data))
+      return false;
+    const provider = data.opencode;
+    return !!provider && typeof provider === "object" && !Array.isArray(provider) && !!provider.models && typeof provider.models === "object" && !Array.isArray(provider.models) && Object.keys(provider.models).length > 0;
+  };
+  try {
+    const text = await readFile7(path, "utf8");
+    if (valid(JSON.parse(text)))
+      cached = text;
+    fresh = cached !== undefined && Date.now() - (await stat3(path)).mtimeMs < 5 * 60000;
+  } catch {}
+  if (!fresh && offline !== "1" && offline !== "true") {
+    const temporary = `${path}.${randomUUID5()}.tmp`;
+    try {
+      const base = env2.OPENCODE_MODELS_URL || "https://models.opencode.ai";
+      const response = await fetch(`${base.replace(/\/$/, "")}/api.json`, {
+        signal: AbortSignal.timeout(5000),
+        redirect: "error"
+      });
+      if (response.ok) {
+        const text = await response.text();
+        if (valid(JSON.parse(text))) {
+          await writeFile7(temporary, text, { mode: 384 });
+          await rename4(temporary, path);
+          cached = text;
+        }
+      }
+    } catch {} finally {
+      await rm7(temporary, { force: true });
+    }
+  }
+  if (cached) {
+    const digest = createHash4("sha256").update(cached).digest("hex");
+    const snapshot = join8(env2.XDG_CACHE_HOME, `claudex-models-${digest}.json`);
+    const temporary = `${path}.${randomUUID5()}.tmp`;
+    try {
+      await writeFile7(temporary, cached, { mode: 384 });
+      try {
+        await link(temporary, snapshot);
+      } catch (error2) {
+        if (error2.code !== "EEXIST")
+          throw error2;
+      }
+      env2.OPENCODE_MODELS_PATH = snapshot;
+    } finally {
+      await rm7(temporary, { force: true });
+    }
+  }
+}
 async function fetchOpenCodeGoCatalogIds() {
   try {
     const response = await fetch(OPENCODE_GO_CATALOG_URL, { signal: AbortSignal.timeout(5000), redirect: "error" });
@@ -7383,10 +7444,10 @@ async function resolveOpenCodeGoModel(input) {
 }
 
 // src/providers/opencode/runtime.ts
-import { randomBytes as randomBytes2, randomUUID as randomUUID5 } from "crypto";
+import { randomBytes as randomBytes2, randomUUID as randomUUID6 } from "crypto";
 import { spawn as spawn4 } from "child_process";
-import { join as join8 } from "path";
-import { chmod as chmod8, mkdir as mkdir10, readFile as readFile7, rename as rename4, rm as rm7, writeFile as writeFile7 } from "fs/promises";
+import { join as join9 } from "path";
+import { chmod as chmod8, mkdir as mkdir10, readFile as readFile8, rename as rename5, rm as rm8, writeFile as writeFile8 } from "fs/promises";
 var OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 var OPENCODE_FREE_PROVIDER_ID = "opencode";
 function isOpenCodeFreeModel(model) {
@@ -7518,7 +7579,7 @@ function restrictOpenCodeProviders(config, providerId) {
 async function readModelInventory(file) {
   let contents;
   try {
-    contents = await readFile7(file, "utf8");
+    contents = await readFile8(file, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return [];
@@ -7540,15 +7601,15 @@ async function readModelInventory(file) {
   }
 }
 async function writeModelInventory(file, models) {
-  const temporaryFile = `${file}.${randomUUID5()}.tmp`;
+  const temporaryFile = `${file}.${randomUUID6()}.tmp`;
   try {
-    await writeFile7(temporaryFile, JSON.stringify(models, null, 2), { flag: "wx", mode: 384 });
+    await writeFile8(temporaryFile, JSON.stringify(models, null, 2), { flag: "wx", mode: 384 });
     await chmod8(temporaryFile, 384);
-    await rename4(temporaryFile, file);
+    await rename5(temporaryFile, file);
   } catch {
     throw new Error("Could not save this alias's private OpenCode model history.");
   } finally {
-    await rm7(temporaryFile, { force: true });
+    await rm8(temporaryFile, { force: true });
   }
 }
 async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
@@ -7576,7 +7637,7 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
 async function readOwnedCredentialIds(file) {
   let contents;
   try {
-    contents = await readFile7(file, "utf8");
+    contents = await readFile8(file, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return [];
@@ -7594,18 +7655,18 @@ async function readOwnedCredentialIds(file) {
   return [...new Set(value.credentialIds)];
 }
 async function writeOwnedCredentialIds(file, credentialIds) {
-  const temporaryFile = `${file}.${randomUUID5()}.tmp`;
+  const temporaryFile = `${file}.${randomUUID6()}.tmp`;
   try {
-    await writeFile7(temporaryFile, JSON.stringify({ version: 1, credentialIds }, null, 2), {
+    await writeFile8(temporaryFile, JSON.stringify({ version: 1, credentialIds }, null, 2), {
       flag: "wx",
       mode: 384
     });
     await chmod8(temporaryFile, 384);
-    await rename4(temporaryFile, file);
+    await rename5(temporaryFile, file);
   } catch {
     throw new Error("Could not update this alias's private OpenCode credential index.");
   } finally {
-    await rm7(temporaryFile, { force: true });
+    await rm8(temporaryFile, { force: true });
   }
 }
 function serverUrlFromLine(line) {
@@ -7991,7 +8052,7 @@ async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, s
   }
   async function syncLocked() {
     const ownedIds = await readOwnedCredentialIds(credentialStateFile);
-    const label = `claudex-switch-${profileId}-${randomUUID5()}`;
+    const label = `claudex-switch-${profileId}-${randomUUID6()}`;
     return await withOpenCodePrivateServer(env2, async (baseUrl2, password) => {
       await waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password);
       const config = parseConfigContent(env2.OPENCODE_CONFIG_CONTENT);
@@ -8064,15 +8125,15 @@ async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credent
   const selectedManagedModelId = typeof managedConfig.model === "string" && managedConfig.model.startsWith(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/`) ? managedConfig.model.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1) : undefined;
   const privateRoot = openCodeProfileV2RuntimeDir(profileId);
   const dataHome = openCodeProfileV2DataHome(profileId);
-  const stateHome = join8(privateRoot, "state");
-  const cacheHome = join8(privateRoot, "cache");
-  const legacyAuthFile = join8(dataHome, "opencode", "auth.json");
+  const stateHome = join9(privateRoot, "state");
+  const cacheHome = join9(privateRoot, "cache");
+  const legacyAuthFile = join9(dataHome, "opencode", "auth.json");
   if (await fileExists(legacyAuthFile)) {
     throw new Error("OpenCode V2 found a legacy auth.json in this alias's private runtime data. It will not import that file into this alias's SQLite database; preserve or remove it before retrying.");
   }
   await mkdir10(privateRoot, { recursive: true, mode: 448 });
   await chmod8(privateRoot, 448);
-  await Promise.all([dataHome, join8(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir10(path, { recursive: true, mode: 448 })));
+  await Promise.all([dataHome, join9(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir10(path, { recursive: true, mode: 448 })));
   const env2 = { ...process.env };
   delete env2.OPENCODE_AUTH_CONTENT;
   delete env2[OPENCODE_NATIVE_GO_KEY_ENV];
@@ -8082,7 +8143,7 @@ async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credent
   env2.XDG_STATE_HOME = stateHome;
   env2.XDG_CACHE_HOME = cacheHome;
   env2.OPENCODE_CONFIG_CONTENT = serializedConfig;
-  env2.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  await prepareOpenCodeModelCatalog(env2);
   const routing = await credentialSync(profileId, key, env2);
   if (!routing)
     return { env: env2 };
@@ -8100,7 +8161,7 @@ function record(value) {
 async function openCodeConsoleEnvironment(profileId) {
   const root = openCodeProfileV2RuntimeDir(profileId);
   const data = openCodeProfileV2DataHome(profileId);
-  for (const path of [root, data, join9(data, "opencode"), join9(root, "state"), join9(root, "cache"), OPENCODE_LOCKS_DIR]) {
+  for (const path of [root, data, join10(data, "opencode"), join10(root, "state"), join10(root, "cache"), OPENCODE_LOCKS_DIR]) {
     await mkdir11(path, { recursive: true, mode: 448 });
     await chmod9(path, 448);
   }
@@ -8110,10 +8171,10 @@ async function openCodeConsoleEnvironment(profileId) {
   delete env2.OPENCODE_PASSWORD;
   env2.OPENCODE_DB = openCodeProfileV2DatabaseFile(profileId);
   env2.XDG_DATA_HOME = data;
-  env2.XDG_STATE_HOME = join9(root, "state");
-  env2.XDG_CACHE_HOME = join9(root, "cache");
+  env2.XDG_STATE_HOME = join10(root, "state");
+  env2.XDG_CACHE_HOME = join10(root, "cache");
   env2.OPENCODE_DISABLE_AUTOUPDATE = "1";
-  env2.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  await prepareOpenCodeModelCatalog(env2);
   return env2;
 }
 function consoleUrl(credential, path) {
@@ -8304,7 +8365,7 @@ async function loginOpenCodeConsole(profileId, previous) {
   const stagedId = createOpenCodeProfileId();
   const stagedEnv = await openCodeConsoleEnvironment(stagedId);
   stagedEnv.OPENCODE_CONFIG_CONTENT = "{}";
-  stagedEnv.XDG_CONFIG_HOME = join9(openCodeProfileV2RuntimeDir(stagedId), "config");
+  stagedEnv.XDG_CONFIG_HOME = join10(openCodeProfileV2RuntimeDir(stagedId), "config");
   stagedEnv.OPENCODE_CONFIG_PROJECT_DISABLE = "1";
   delete stagedEnv.OPENCODE_CONFIG;
   delete stagedEnv.OPENCODE_CONFIG_DIR;
@@ -9264,17 +9325,17 @@ import {
   open as open2,
   readdir as readdir3,
   realpath,
-  rename as rename5,
-  rm as rm8,
-  stat as stat3,
+  rename as rename6,
+  rm as rm9,
+  stat as stat4,
   utimes
 } from "fs/promises";
-import { join as join10 } from "path";
+import { join as join11 } from "path";
 import { pipeline } from "stream/promises";
 import { promisify as promisify2 } from "util";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
-  join10("sqlite", "state_5.sqlite"),
+  join11("sqlite", "state_5.sqlite"),
   "state_5.sqlite"
 ];
 var FIRST_LINE_MAX_BYTES = 4 * 1024 * 1024;
@@ -9291,7 +9352,7 @@ async function listJsonlFiles(root) {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = join10(dir, entry.name);
+      const fullPath = join11(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
@@ -9369,7 +9430,7 @@ async function rewriteRolloutProvider(filePath, targetProvider, managedProviders
   const updatedLine = rewriteSessionMetaLine(first.line, targetProvider, managedProviders);
   if (updatedLine === null)
     return false;
-  const { mode, size, atime, mtime } = await stat3(filePath);
+  const { mode, size, atime, mtime } = await stat4(filePath);
   const tmpPath = `${filePath}.claudex-sync.${process.pid}.tmp`;
   try {
     const out = createWriteStream(tmpPath, { mode });
@@ -9383,11 +9444,11 @@ async function rewriteRolloutProvider(filePath, targetProvider, managedProviders
         out.end((err) => err ? reject(err) : resolve2());
       });
     }
-    await rename5(tmpPath, filePath);
+    await rename6(tmpPath, filePath);
     await utimes(filePath, atime, mtime).catch(() => {});
     return true;
   } catch (err) {
-    await rm8(tmpPath, { force: true }).catch(() => {});
+    await rm9(tmpPath, { force: true }).catch(() => {});
     throw err;
   }
 }
@@ -9431,7 +9492,7 @@ async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProvid
 async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   let dbPath = null;
   for (const candidate of STATE_DB_CANDIDATES) {
-    const fullPath = join10(CODEX_DIR, candidate);
+    const fullPath = join11(CODEX_DIR, candidate);
     if (await fileExists(fullPath)) {
       dbPath = fullPath;
       break;
@@ -9511,7 +9572,7 @@ async function anyCodexProcessRunning() {
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
   const candidates = [];
   for (const dirName of SESSION_DIRS) {
-    const root = join10(CODEX_DIR, dirName);
+    const root = join11(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
       try {
         const first = await readFirstLine(filePath);
@@ -10082,12 +10143,12 @@ import {
   mkdir as mkdir13,
   readdir as readdir4,
   readlink as readlink2,
-  rename as rename6,
+  rename as rename7,
   symlink as symlink2,
   unlink as unlink3,
-  writeFile as writeFile8
+  writeFile as writeFile9
 } from "fs/promises";
-import { join as join11 } from "path";
+import { join as join12 } from "path";
 var AUTH_FILE = "auth.json";
 var CONFIG_FILE = "config.toml";
 var PRIVATE_ENTRIES = new Set([AUTH_FILE, CONFIG_FILE, "accounts"]);
@@ -10113,17 +10174,17 @@ async function prepareCodexRunHome(account) {
   if (!auth) {
     throw new Error(`Auth file not found for account: ${account.account_key}`);
   }
-  await writeFile8(join11(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
-  await chmod10(join11(home, AUTH_FILE), 384);
+  await writeFile9(join12(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
+  await chmod10(join12(home, AUTH_FILE), 384);
   const privateConfig = await renderCodexRunConfig(account.auth_mode === "apikey" ? account.api_provider : null, auth.auth_mode === "apikey" ? auth.OPENAI_API_KEY ?? undefined : undefined);
-  const configPath = join11(home, CONFIG_FILE);
+  const configPath = join12(home, CONFIG_FILE);
   await removeEntry(configPath);
   if (privateConfig === null) {
-    if (await fileExists(join11(CODEX_DIR, CONFIG_FILE))) {
-      await linkEntry(join11(CODEX_DIR, CONFIG_FILE), configPath);
+    if (await fileExists(join12(CODEX_DIR, CONFIG_FILE))) {
+      await linkEntry(join12(CODEX_DIR, CONFIG_FILE), configPath);
     }
   } else {
-    await writeFile8(configPath, privateConfig, { mode: 384 });
+    await writeFile9(configPath, privateConfig, { mode: 384 });
     await chmod10(configPath, 384);
   }
   await linkSharedEntries(home);
@@ -10132,7 +10193,7 @@ async function prepareCodexRunHome(account) {
 async function syncCodexRunAuth(account) {
   if (account.auth_mode !== "chatgpt")
     return;
-  const runAuth = await readJson(join11(codexRunHome(account.account_key), AUTH_FILE), null);
+  const runAuth = await readJson(join12(codexRunHome(account.account_key), AUTH_FILE), null);
   if (!runAuth || !authMatchesAccount(runAuth, account))
     return;
   const snapshot = await readAccountAuth(account.account_key);
@@ -10151,23 +10212,23 @@ async function linkSharedEntries(home) {
   for (const entry of await readdir4(home, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name) || entry.isSymbolicLink())
       continue;
-    const shared = join11(CODEX_DIR, entry.name);
+    const shared = join12(CODEX_DIR, entry.name);
     if (await exists(shared))
       continue;
     try {
-      await rename6(join11(home, entry.name), shared);
+      await rename7(join12(home, entry.name), shared);
     } catch {}
   }
   for (const entry of await readdir4(CODEX_DIR, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name))
       continue;
-    await linkEntry(join11(CODEX_DIR, entry.name), join11(home, entry.name));
+    await linkEntry(join12(CODEX_DIR, entry.name), join12(home, entry.name));
   }
 }
 async function linkEntry(source, destination) {
   try {
-    const stat4 = await lstat2(destination);
-    if (!stat4.isSymbolicLink())
+    const stat5 = await lstat2(destination);
+    if (!stat5.isSymbolicLink())
       return;
     if (await readlink2(destination) === source)
       return;
@@ -10931,7 +10992,7 @@ async function refreshOAuthToken(creds) {
 
 // src/lib/usage-cache.ts
 import { spawn as spawn8 } from "child_process";
-import { mkdir as mkdir14, open as open3, readFile as readFile8, rename as rename7, stat as stat4, unlink as unlink4, writeFile as writeFile9 } from "fs/promises";
+import { mkdir as mkdir14, open as open3, readFile as readFile9, rename as rename8, stat as stat5, unlink as unlink4, writeFile as writeFile10 } from "fs/promises";
 var LOCK_STALE_MS = 2 * 60000;
 var TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
 function emptyUsageCache() {
@@ -10939,7 +11000,7 @@ function emptyUsageCache() {
 }
 async function readUsageCache() {
   try {
-    const parsed = JSON.parse(await readFile8(USAGE_CACHE_FILE, "utf-8"));
+    const parsed = JSON.parse(await readFile9(USAGE_CACHE_FILE, "utf-8"));
     if (parsed?.version !== 1 || !parsed.entries || typeof parsed.entries !== "object") {
       return emptyUsageCache();
     }
@@ -10951,12 +11012,12 @@ async function readUsageCache() {
 async function writeUsageCache(cache) {
   await mkdir14(CLAUDEX_DIR, { recursive: true });
   const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
-  await writeFile9(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
-  await rename7(tmp, USAGE_CACHE_FILE);
+  await writeFile10(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
+  await rename8(tmp, USAGE_CACHE_FILE);
 }
 async function usageCacheMtime() {
   try {
-    return (await stat4(USAGE_CACHE_FILE)).mtimeMs;
+    return (await stat5(USAGE_CACHE_FILE)).mtimeMs;
   } catch {
     return 0;
   }
@@ -11027,7 +11088,7 @@ async function acquireRefreshLock() {
 }
 async function isRefreshRunning() {
   try {
-    await stat4(USAGE_REFRESH_LOCK);
+    await stat5(USAGE_REFRESH_LOCK);
   } catch {
     return false;
   }
@@ -11035,7 +11096,7 @@ async function isRefreshRunning() {
 }
 async function isRefreshLockStale() {
   try {
-    return Date.now() - (await stat4(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
+    return Date.now() - (await stat5(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
   } catch {
     return true;
   }
@@ -11897,7 +11958,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename8(currentAlias, nextAlias) {
+async function rename9(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -11928,7 +11989,7 @@ async function rename8(currentAlias, nextAlias) {
 }
 
 // src/accounts/purge.ts
-import { rm as rm9, unlink as unlink5 } from "fs/promises";
+import { rm as rm10, unlink as unlink5 } from "fs/promises";
 async function planPurge(aliasName) {
   const reg = await loadAliases();
   const entry = findAlias(reg, aliasName);
@@ -11963,7 +12024,7 @@ async function purgeAccount(aliasName) {
       if (await fileExists(authFile)) {
         await unlink5(authFile);
       }
-      await rm9(codexRunHome(entry.target.accountKey), {
+      await rm10(codexRunHome(entry.target.accountKey), {
         recursive: true,
         force: true
       });
@@ -14825,7 +14886,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join12(root, "package.json");
+  const packageFile = join13(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
@@ -15014,7 +15075,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename8(args[0], args[1]);
+        await rename9(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {
