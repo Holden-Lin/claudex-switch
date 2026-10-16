@@ -2,7 +2,7 @@
 
 ## Now
 
-本次版本 v1.23.2：OpenCode V2 的 key / Console 订阅别名可在 `/models` 选择原生免费模型（包括 DeepSeek V4.1 Flash Free）；Go 路由与账号隔离保留，订阅账号隐藏原生付费及价格未知模型，用户显式禁用规则保留。压缩余量兼顾可切换的免费模型，防止从大窗口 Go 模型切换后无限压缩。
+本次版本 v1.23.3：受管 OpenCode V2 会话在模型发现前刷新公共模型目录，`opencode/glm-5.3-flash-free` 与 `opencode/ll-alpha-free` 等新免费模型在 `/models` 可见可选；目录按内容哈希固定给发现、路由检查与 TUI，失败保留上次有效目录、首次离线回退内置目录。付费过滤、显式禁用规则与命令行默认模型（仍选 Go）不变。
 
 ## Next
 
@@ -21,6 +21,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-16：修复受管 OpenCode 会话看不到 GLM-5.3-Flash-Free / LL Alpha Free 的问题，随 v1.23.3 发布。原因：私有会话强制禁用目录刷新，只用 OpenCode 二进制内置目录（DeepSeek Free 在内置目录中，故此前可见）；两者与 DeepSeek 同属 `opencode` provider，非 Go / Zen 前缀或价格过滤所致。修复：key 与 Console 两条路径在模型发现前共用目录准备（公共目录、5 秒超时、5 分钟缓存，按内容 SHA-256 固定快照并经 `OPENCODE_MODELS_PATH` 贯穿发现 / 路由检查 / 最终 TUI；失败保留上次有效、首次离线回退内置；不硬编码模型 ID，Go 解析、显式禁用、零价检查与压缩保护不变）。320 项测试、1,469 断言、34 个测试文件、类型 / 文档检查、构建、发布守卫通过；真实 OpenCode 2.0.30 + 临时 HOME 前后对照：原版构建缺失 GLM / LL Alpha，修复版 `/models` 可见并实际选择 GLM-5.3-Flash-Free 后退出；真实 Console 假账号完整验收通过（付费过滤、A/B 隔离、token 续期）。
 
 - [x] 2026-10-16：修复 OpenCode V2 别名看不到免费模型，随 v1.23.2 发布。免费资格按全部输入 / 输出 / 缓存价格档位为零判断，Go 凭据与原生免费路由分离；保留显式禁用规则，并为可切换的小窗口免费模型设置会话压缩余量。315 项测试、1,433 断言、类型 / 文档检查、构建、发布守卫通过；真实 OpenCode 2.0.30 + 临时 HOME + 假 Go key：构建版 CLI → TUI `/models` 搜索并选择 DeepSeek V4.1 Flash Free → 实际对话显示 `TUI_FREE_OK`；独立无交互免费调用返回 `FREE_MODEL_OK`。真实 OpenCode + 假 Console 完整验收通过，含免费可见、付费过滤、A/B 账号隔离及 token 续期。
 
