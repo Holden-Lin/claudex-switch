@@ -1,27 +1,27 @@
 class ClaudexSwitch < Formula
   desc "Switch between Claude Code, Codex, and OpenCode accounts with ease"
   homepage "https://github.com/Holden-Lin/claudex-switch"
-  version "1.23.3"
+  version "1.24.0"
   # The MIT + Commons Clause combination has no SPDX identifier; see LICENSE.
   license :cannot_represent
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.23.3/claudex-switch-darwin-arm64.tar.gz"
-      sha256 "74bf71b3967fbff74930ababa2c7c1c86eb20ed16389c1d7a3b446bb5001d313"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.24.0/claudex-switch-darwin-arm64.tar.gz"
+      sha256 "693a1e07992d40135c8b05c366bdc7cb0e3a5d3a1800659371981277cd0732ad"
     else
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.23.3/claudex-switch-darwin-x64.tar.gz"
-      sha256 "e5f5a45d9a03de5b6a168346b69ef1933d50760b6ce69c4884ddeec039ad915a"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.24.0/claudex-switch-darwin-x64.tar.gz"
+      sha256 "77513e798809716e1a16a2b14266b5bcebd859225c2d2f09ecb6a985efa12a96"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.23.3/claudex-switch-linux-arm64.tar.gz"
-      sha256 "dcfa9012ca9284c9ecbabdbe765eba06fadef9fb5d184aa78cbf6a0c127baca7"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.24.0/claudex-switch-linux-arm64.tar.gz"
+      sha256 "6b8121e2a726f705656cedb7c715ba0cc7b874d526db09b0976986f32985a3ae"
     else
-      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.23.3/claudex-switch-linux-x64.tar.gz"
-      sha256 "35e2e116df48043376bd0c899d0967aa863d444996aef675e26a347945957401"
+      url "https://github.com/Holden-Lin/claudex-switch/releases/download/v1.24.0/claudex-switch-linux-x64.tar.gz"
+      sha256 "8ea31eecc0a884023d79c675d12cb56866e1090fdb5a4a4fea1a821f6bab6a67"
     end
   end
 
