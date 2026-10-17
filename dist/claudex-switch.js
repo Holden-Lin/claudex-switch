@@ -5,15 +5,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2034,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2179,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3443,7 +3456,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join13, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname7, join as join14, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -3469,6 +3482,7 @@ var RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
 var MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 var USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
 var USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
+var ACTIVITY_CACHE_FILE = join(CLAUDEX_DIR, "activity-cache.json");
 var CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 var CLI_PROXY_API_LINKS_FILE = join(CLAUDEX_DIR, "cliproxy-links.json");
 var CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
@@ -11116,6 +11130,343 @@ function spawnBackgroundRefresh() {
   } catch {}
 }
 
+// src/lib/activity.ts
+import { execFile as execFile3 } from "child_process";
+import { mkdir as mkdir15, readdir as readdir5, readFile as readFile10, realpath as realpath2, rename as rename9, stat as stat6, writeFile as writeFile11 } from "fs/promises";
+import { join as join13 } from "path";
+import { promisify as promisify3 } from "util";
+var ACTIVITY_DAYS = 30;
+var REFRESH_INTERVAL_MS = 10 * 60000;
+var STALE_START_MS = 2 * 60000;
+var GIT_TIMEOUT_MS = 30000;
+var execFileAsync3 = promisify3(execFile3);
+var CODE_EXTENSIONS = [
+  "py",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "go",
+  "rs",
+  "sh",
+  "swift",
+  "java",
+  "kt",
+  "c",
+  "cc",
+  "cpp",
+  "h",
+  "hpp",
+  "cs",
+  "rb",
+  "php",
+  "lua",
+  "sql",
+  "css",
+  "scss",
+  "vue",
+  "svelte",
+  "dart",
+  "zig"
+];
+var GENERATED_PATH = /(\.min\.(js|css)$|(^|\/)(node_modules|dist|build|vendor|\.venv|output|outputs|data|state|journals|logs|fixtures|snapshots|generated)\/)/;
+function emptyActivityCache() {
+  return { version: 1, startedAt: null, finishedAt: null, repos: 0, days: {} };
+}
+async function readActivityCache() {
+  try {
+    const parsed = JSON.parse(await readFile10(ACTIVITY_CACHE_FILE, "utf-8"));
+    if (parsed?.version !== 1 || !parsed.days || typeof parsed.days !== "object") {
+      return emptyActivityCache();
+    }
+    return parsed;
+  } catch {
+    return emptyActivityCache();
+  }
+}
+async function writeActivityCache(cache) {
+  await mkdir15(CLAUDEX_DIR, { recursive: true });
+  const tmp = `${ACTIVITY_CACHE_FILE}.${process.pid}.tmp`;
+  await writeFile11(tmp, JSON.stringify(cache), { mode: 384 });
+  await rename9(tmp, ACTIVITY_CACHE_FILE);
+}
+function localDay(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function activityWindow(now) {
+  const today = new Date(now);
+  return Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (ACTIVITY_DAYS - 1 - i), 12);
+    return localDay(d.getTime());
+  });
+}
+async function refreshActivityCache(now = Date.now()) {
+  const cache = await readActivityCache();
+  const started = cache.startedAt ?? 0;
+  const running = started > (cache.finishedAt ?? 0) && now - started < STALE_START_MS;
+  if (running || now - (cache.finishedAt ?? 0) < REFRESH_INTERVAL_MS)
+    return false;
+  await writeActivityCache({ ...cache, startedAt: now });
+  const result = await computeActivity(now);
+  await writeActivityCache({ version: 1, startedAt: now, finishedAt: Date.now(), ...result });
+  return true;
+}
+async function computeActivity(now) {
+  const window = activityWindow(now);
+  const since = new Date(`${window[0]}T00:00:00`).getTime();
+  const days = Object.fromEntries(window.map((day) => [day, { tokens: 0, added: 0, deleted: 0 }]));
+  const addTokens = (ms, tokens) => {
+    const day = days[localDay(ms)];
+    if (day && tokens > 0)
+      day.tokens += tokens;
+  };
+  const cwds = new Set;
+  await Promise.all([
+    collectClaudeTokens(since, addTokens, cwds).catch(() => {}),
+    collectCodexTokens(since, addTokens, cwds).catch(() => {}),
+    collectOpenCodeTokens(since, addTokens, cwds).catch(() => {})
+  ]);
+  const repos = await collectCommittedLines(cwds, since, days).catch(() => 0);
+  return { repos, days };
+}
+async function recentJsonlFiles(roots, since) {
+  const files = new Set;
+  const seenDirs = new Set;
+  const walk = async (dir) => {
+    let real;
+    try {
+      real = await realpath2(dir);
+    } catch {
+      return;
+    }
+    if (seenDirs.has(real))
+      return;
+    seenDirs.add(real);
+    const entries = await readdir5(real, { withFileTypes: true }).catch(() => []);
+    await Promise.all(entries.map(async (entry) => {
+      const path = join13(real, entry.name);
+      if (entry.isDirectory() || entry.isSymbolicLink()) {
+        const info2 = await stat6(path).catch(() => null);
+        if (info2?.isDirectory())
+          return walk(path);
+        if (!info2 || !entry.name.endsWith(".jsonl"))
+          return;
+        if (info2.mtimeMs >= since)
+          files.add(await realpath2(path));
+      } else if (entry.name.endsWith(".jsonl")) {
+        const info2 = await stat6(path).catch(() => null);
+        if (info2 && info2.mtimeMs >= since)
+          files.add(path);
+      }
+    }));
+  };
+  await Promise.all(roots.map(walk));
+  return [...files];
+}
+async function collectClaudeTokens(since, addTokens, cwds) {
+  const roots = [join13(CLAUDE_DIR, "projects")];
+  for (const profile of await readdir5(CLAUDE_PROFILES_DIR).catch(() => [])) {
+    roots.push(join13(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
+  }
+  const seen = new Set;
+  for (const file of await recentJsonlFiles(roots, since)) {
+    const text = await readFile10(file, "utf-8").catch(() => "");
+    for (const line of text.split(`
+`)) {
+      if (!line.includes('"usage"'))
+        continue;
+      let record2;
+      try {
+        record2 = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const usage = record2?.message?.usage;
+      const at = Date.parse(record2?.timestamp);
+      if (!usage || !(at >= since))
+        continue;
+      const key = `${record2.message.id}:${record2.requestId}`;
+      if (seen.has(key))
+        continue;
+      seen.add(key);
+      if (typeof record2.cwd === "string")
+        cwds.add(record2.cwd);
+      addTokens(at, num(usage.input_tokens) + num(usage.output_tokens) + num(usage.cache_creation_input_tokens) + num(usage.cache_read_input_tokens));
+    }
+  }
+}
+async function collectCodexTokens(since, addTokens, cwds) {
+  const files = await recentJsonlFiles([join13(CODEX_DIR, "sessions"), join13(CODEX_DIR, "archived_sessions")], since);
+  for (const file of files) {
+    const text = await readFile10(file, "utf-8").catch(() => "");
+    let previous = 0;
+    for (const line of text.split(`
+`)) {
+      const tokenEvent = line.includes('"token_count"');
+      if (!tokenEvent && !line.includes('"turn_context"') && !line.includes('"session_meta"'))
+        continue;
+      let record2;
+      try {
+        record2 = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const payload = record2?.payload;
+      if (tokenEvent) {
+        const total = num(payload?.info?.total_token_usage?.total_tokens);
+        if (total <= previous)
+          continue;
+        const at = Date.parse(record2.timestamp);
+        if (at >= since)
+          addTokens(at, total - previous);
+        previous = total;
+      } else if (typeof payload?.cwd === "string") {
+        cwds.add(payload.cwd);
+      }
+    }
+  }
+}
+async function collectOpenCodeTokens(since, addTokens, cwds) {
+  const dbs = [nativeOpenCodeDatabaseFile()];
+  for (const profileId of await readdir5(OPENCODE_PROFILES_DIR).catch(() => [])) {
+    dbs.push(openCodeProfileV2DatabaseFile(profileId));
+  }
+  const seen = new Set;
+  for (const db of dbs) {
+    if (!await stat6(db).catch(() => null))
+      continue;
+    const messages = await queryRows(db, `SELECT id, time_created AS at,
+         coalesce(json_extract(data, '$.tokens.input'), 0) + coalesce(json_extract(data, '$.tokens.output'), 0) +
+         coalesce(json_extract(data, '$.tokens.reasoning'), 0) + coalesce(json_extract(data, '$.tokens.cache.read'), 0) +
+         coalesce(json_extract(data, '$.tokens.cache.write'), 0) AS tokens
+       FROM session_message WHERE type = 'assistant' AND time_created >= ${Math.floor(since)}`);
+    for (const row of messages ?? []) {
+      if (typeof row.id !== "string" || seen.has(row.id))
+        continue;
+      seen.add(row.id);
+      addTokens(num(row.at), num(row.tokens));
+    }
+    const sessions = await queryRows(db, `SELECT DISTINCT directory FROM session_v2 WHERE time_updated >= ${Math.floor(since)}`);
+    for (const row of sessions ?? []) {
+      if (typeof row.directory === "string")
+        cwds.add(row.directory);
+    }
+  }
+}
+async function git(args) {
+  try {
+    const { stdout } = await execFileAsync3("git", args, {
+      maxBuffer: 256 * 1024 * 1024,
+      timeout: GIT_TIMEOUT_MS
+    });
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+async function collectCommittedLines(cwds, since, days) {
+  const repos = new Map;
+  await Promise.all([...cwds].map(async (cwd) => {
+    if (!(await stat6(cwd).catch(() => null))?.isDirectory())
+      return;
+    const out = await git(["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel"]);
+    const [common2, top] = out?.trim().split(`
+`) ?? [];
+    if (common2 && top && !repos.has(common2))
+      repos.set(common2, top);
+  }));
+  const seenCommits = new Set;
+  let counted = 0;
+  await Promise.all([...repos.values()].map(async (top) => {
+    const email = (await git(["-C", top, "config", "user.email"]))?.trim();
+    if (!email)
+      return;
+    const out = await git([
+      "-C",
+      top,
+      "log",
+      "--all",
+      "--no-merges",
+      `--since=${new Date(since).toISOString()}`,
+      "--author",
+      `<${email}>`,
+      "--fixed-strings",
+      "--numstat",
+      "--date=format-local:%Y-%m-%d",
+      "--format=@%H %ad",
+      "--",
+      ...CODE_EXTENSIONS.map((ext) => `*.${ext}`)
+    ]);
+    if (out === null)
+      return;
+    counted++;
+    let day;
+    for (const line of out.split(`
+`)) {
+      if (line.startsWith("@")) {
+        const [hash, date] = line.slice(1).split(" ");
+        day = hash && !seenCommits.has(hash) ? days[date ?? ""] : undefined;
+        if (hash)
+          seenCommits.add(hash);
+        continue;
+      }
+      const [added, deleted, path] = line.split("\t");
+      if (!day || path === undefined || added === "-" || GENERATED_PATH.test(path))
+        continue;
+      day.added += num(Number(added));
+      day.deleted += num(Number(deleted));
+    }
+  }));
+  return counted;
+}
+function num(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+var SPARK = "▁▂▃▄▅▆▇█";
+function sparkline(values) {
+  const max = Math.max(...values);
+  return values.map((v) => v <= 0 || max <= 0 ? " " : SPARK[Math.min(SPARK.length - 1, Math.ceil(v / max * SPARK.length) - 1)]).join("");
+}
+function formatCompact(n) {
+  const units = [[1e9, "B"], [1e6, "M"], [1000, "K"]];
+  for (const [size, suffix] of units) {
+    if (n >= size) {
+      const value = n / size;
+      return `${value >= 100 ? value.toFixed(0) : value.toFixed(1).replace(/\.0$/, "")}${suffix}`;
+    }
+  }
+  return String(Math.round(n));
+}
+function shortDay(day) {
+  return `${day.slice(5, 7)}/${day.slice(8, 10)}`;
+}
+function renderActivityLines(cache, now = Date.now()) {
+  if (!cache.finishedAt)
+    return [];
+  const window = activityWindow(now);
+  const day = (key) => cache.days[key] ?? { tokens: 0, added: 0, deleted: 0 };
+  const tokens = window.map((key) => day(key).tokens);
+  const added = window.map((key) => day(key).added);
+  const deleted = window.reduce((sum2, key) => sum2 + day(key).deleted, 0);
+  const sum = (values) => values.reduce((a, b) => a + b, 0);
+  const peak = (values, format) => {
+    const max = Math.max(...values);
+    return max > 0 ? source_default.dim(`  peak ${format(max)} ${shortDay(window[values.indexOf(max)])}`) : "";
+  };
+  const age = now - cache.finishedAt >= 60 * 60000 ? source_default.dim(` · ${formatAge(now - cache.finishedAt)}`) : "";
+  const axisGap = " ".repeat(ACTIVITY_DAYS - 10);
+  return [
+    `  ${source_default.dim("──")} ${source_default.bold(`Last ${ACTIVITY_DAYS} days`)} ${source_default.dim("──")}${age}`,
+    `  Tokens  ${source_default.cyan(sparkline(tokens))}  ${formatCompact(sum(tokens))}${peak(tokens, formatCompact)}`,
+    `  Code    ${source_default.green(sparkline(added))}  ${source_default.green(`+${formatCompact(sum(added))}`)} ${source_default.red(`-${formatCompact(deleted)}`)}` + source_default.dim(`  ${cache.repos} ${cache.repos === 1 ? "repo" : "repos"}`) + peak(added, (n) => `+${formatCompact(n)}`),
+    source_default.dim(`          ${shortDay(window[0])}${axisGap}${shortDay(window[window.length - 1])}`)
+  ];
+}
+
 // src/providers/codex/app-server.ts
 import { spawn as spawn9 } from "child_process";
 import { createInterface as createInterface2 } from "readline";
@@ -11381,26 +11732,27 @@ async function list(options = {}) {
     return;
   }
   const baseInfos = await Promise.all(ctx.entries.map((entry) => accountInfo(ctx, entry, false, options, false)));
+  const activity = await readActivityCache();
   if (!withUsage) {
     await persistDisplayedCodexPlans(ctx.entries, baseInfos, ctx.codexReg);
-    printLines(renderLines(baseInfos, false));
+    printLines(renderLines(baseInfos, false, activity));
     return;
   }
   if (!options.background) {
     await refreshUsageCache(options);
-    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, await readUsageCache()), false));
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, await readUsageCache()), false, activity));
     return;
   }
   const spawnRefresh = options.spawnRefresh ?? spawnBackgroundRefresh;
   if (options.cached) {
     const cache = await readUsageCache();
-    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, cache), false));
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, cache), false, activity));
     await startBackgroundRefreshIfIdle(cache, spawnRefresh);
     return;
   }
   const startedAt = Date.now();
   spawnRefresh();
-  await renderWhileRefreshing(ctx.entries, baseInfos, startedAt, options.waitMs ?? DEFAULT_WAIT_MS);
+  await renderWhileRefreshing(ctx.entries, baseInfos, activity, startedAt, options.waitMs ?? DEFAULT_WAIT_MS);
 }
 async function refreshUsageCache(options = {}) {
   const release = await acquireRefreshLock();
@@ -11531,10 +11883,10 @@ async function startBackgroundRefreshIfIdle(cache, spawnRefresh) {
     return;
   spawnRefresh();
 }
-async function renderWhileRefreshing(entries, baseInfos, startedAt, waitMs) {
+async function renderWhileRefreshing(entries, baseInfos, activity, startedAt, waitMs) {
   let cache = await readUsageCache();
   const finished = () => (cache.refreshFinishedAt ?? 0) >= startedAt;
-  const current = (refreshing) => renderLines(withCachedQuota(entries, baseInfos, cache), refreshing);
+  const current = (refreshing) => renderLines(withCachedQuota(entries, baseInfos, cache), refreshing, activity);
   const initial = current(true);
   const live = process.stdout.isTTY === true && visualLineCount(initial) < (process.stdout.rows || 24);
   let drawn = live ? redraw(initial, 0) : 0;
@@ -11569,7 +11921,7 @@ function printLines(lines) {
   console.log(lines.join(`
 `));
 }
-function renderLines(infos, refreshing) {
+function renderLines(infos, refreshing, activity) {
   const lines = [];
   const originalLog = console.log;
   console.log = (...args) => {
@@ -11598,6 +11950,12 @@ function renderLines(infos, refreshing) {
     }
     if (refreshing)
       hint("refreshing quota…");
+    const trend = renderActivityLines(activity);
+    if (trend.length > 0) {
+      blank();
+      for (const line of trend)
+        console.log(line);
+    }
     blank();
   } finally {
     console.log = originalLog;
@@ -11958,7 +12316,7 @@ async function remove(aliasName) {
 }
 
 // src/commands/rename.ts
-async function rename9(currentAlias, nextAlias) {
+async function rename10(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -12106,7 +12464,7 @@ async function current() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir5 } from "fs/promises";
+import { readdir as readdir6 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -12137,7 +12495,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir5(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir6(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
@@ -12536,7 +12894,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.23.3",
+  version: "1.24.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -14886,7 +15244,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join13(root, "package.json");
+  const packageFile = join14(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
@@ -15032,7 +15390,7 @@ async function main() {
       case "list":
       case "ls":
         if (args.length === 1 && args[0] === "--refresh-cache") {
-          await refreshUsageCache();
+          await Promise.all([refreshUsageCache(), refreshActivityCache().catch(() => false)]);
           break;
         }
         {
@@ -15075,7 +15433,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename9(args[0], args[1]);
+        await rename10(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {

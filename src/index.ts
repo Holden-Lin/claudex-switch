@@ -12,6 +12,7 @@ import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { isRunFlag, runAliasSession } from "./commands/run";
 import { list, refreshUsageCache, type ListOptions } from "./commands/list";
+import { refreshActivityCache } from "./lib/activity";
 import { remove } from "./commands/remove";
 import { rename } from "./commands/rename";
 import { purge } from "./commands/purge";
@@ -279,8 +280,8 @@ async function main(): Promise<void> {
       case "list":
       case "ls":
         if (args.length === 1 && args[0] === "--refresh-cache") {
-          // Internal: the detached quota refresher started by `list`.
-          await refreshUsageCache();
+          // Internal: the detached quota / activity refresher started by `list`.
+          await Promise.all([refreshUsageCache(), refreshActivityCache().catch(() => false)]);
           break;
         }
         {

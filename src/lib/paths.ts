@@ -30,6 +30,9 @@ export const MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
 // `list --refresh-cache` process is the only writer and does the network work.
 export const USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
 export const USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
+// Last-30-days token / committed-code trend for `list`, written by the same
+// detached refresher from local session logs and git history.
+export const ACTIVITY_CACHE_FILE = join(CLAUDEX_DIR, "activity-cache.json");
 export const CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
 // Codex / OpenCode account -> the unaliased Claude profile that
 // `<alias> --run --cliproxy claudecode` launches through a managed proxy.

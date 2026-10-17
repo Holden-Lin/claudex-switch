@@ -2,9 +2,12 @@
 
 ## Now
 
-本次版本 v1.23.3：受管 OpenCode V2 会话在模型发现前刷新公共模型目录，`opencode/glm-5.3-flash-free` 与 `opencode/ll-alpha-free` 等新免费模型在 `/models` 可见可选；目录按内容哈希固定给发现、路由检查与 TUI，失败保留上次有效目录、首次离线回退内置目录。付费过滤、显式禁用规则与命令行默认模型（仍选 Go）不变。
+本次版本 v1.24.0：`list` 底部显示近 30 天 token 用量与源码提交行数的 sparkline 走势，由后台刷新进程每 10 分钟最多算一次并缓存，`list` 只读缓存。
 
 ## Next
+
+- [ ] 用户升级 v1.24.0 后开新终端，确认 `.zshrc` 里的 `list --cached` 第一次没有走势（缓存尚未生成），第二次起出现走势且启动无明显变慢。
+- [ ] 用户自行在 `~/.claude/settings.json` 加 `"cleanupPeriodDays": 3650`（本次被权限拦截，未改），否则 Claude Code 日志 30 天后被清，走势与年度统计都会缺这部分。
 
 - [ ] 用户升级 v1.22.0 后，在默认 Codex 账号之外运行一次 `claudex-switch <另一个codex别名> -run`，在 Codex 里 `/status` 核对身份，退出后 `claudex-switch list` 确认默认账号未变、裸 `codex` 仍是原账号（本次仅在隔离 HOME 用真实 `codex login status` 验证）。
 - [ ] 用户首次运行 `claudex-switch holdenx --run --cliproxy claudecode`（或 satoshix）完成浏览器登录，确认同账号核对通过、Claude Code 能对话（本次只用 fake 二进制验证；真实 OAuth 需本人操作）。
@@ -21,6 +24,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-17：`list` 新增近 30 天 token / 源码行走势（v1.24.0）。token 取本机 Claude Code（含各 profile，按消息 id 去重）、Codex（累计值取增量）、OpenCode（原生库 + V2 私有库按消息）日志，含缓存；代码行取这些会话 cwd 对应仓库中本仓库 `user.email` 的提交，git pathspec 只 diff 源码（单仓库 9–11 秒降到 0.2–0.6 秒），排除产出目录，跨仓库按 hash 去重。后台每 10 分钟最多算一次，真实数据约 3.2 秒；临时 HOME 下构建版 `list --cached` 0.31 秒出走势。326 项测试、文档检查、构建通过。
 
 - [x] 2026-10-16：修复受管 OpenCode 会话看不到 GLM-5.3-Flash-Free / LL Alpha Free 的问题，随 v1.23.3 发布。原因：私有会话强制禁用目录刷新，只用 OpenCode 二进制内置目录（DeepSeek Free 在内置目录中，故此前可见）；两者与 DeepSeek 同属 `opencode` provider，非 Go / Zen 前缀或价格过滤所致。修复：key 与 Console 两条路径在模型发现前共用目录准备（公共目录、5 秒超时、5 分钟缓存，按内容 SHA-256 固定快照并经 `OPENCODE_MODELS_PATH` 贯穿发现 / 路由检查 / 最终 TUI；失败保留上次有效、首次离线回退内置；不硬编码模型 ID，Go 解析、显式禁用、零价检查与压缩保护不变）。320 项测试、1,469 断言、34 个测试文件、类型 / 文档检查、构建、发布守卫通过；真实 OpenCode 2.0.30 + 临时 HOME 前后对照：原版构建缺失 GLM / LL Alpha，修复版 `/models` 可见并实际选择 GLM-5.3-Flash-Free 后退出；真实 Console 假账号完整验收通过（付费过滤、A/B 隔离、token 续期）。
 

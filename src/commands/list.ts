@@ -23,6 +23,7 @@ import {
   writeUsageCache,
   type UsageCache,
 } from "../lib/usage-cache";
+import { readActivityCache, renderActivityLines, type ActivityCache } from "../lib/activity";
 import { loadRegistry, saveRegistry } from "../providers/codex/registry";
 import { resolveCodexModel } from "../providers/codex/config";
 import {
@@ -192,25 +193,26 @@ export async function list(options: ListOptions = {}): Promise<void> {
   const baseInfos = await Promise.all(
     ctx.entries.map((entry) => accountInfo(ctx, entry, false, options, false)),
   );
+  const activity = await readActivityCache();
 
   if (!withUsage) {
     // With usage on, the refresher persists the live plan instead; persisting
     // the token plan here too would make the two flip-flop.
     await persistDisplayedCodexPlans(ctx.entries, baseInfos, ctx.codexReg);
-    printLines(renderLines(baseInfos, false));
+    printLines(renderLines(baseInfos, false, activity));
     return;
   }
 
   if (!options.background) {
     await refreshUsageCache(options);
-    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, await readUsageCache()), false));
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, await readUsageCache()), false, activity));
     return;
   }
 
   const spawnRefresh = options.spawnRefresh ?? spawnBackgroundRefresh;
   if (options.cached) {
     const cache = await readUsageCache();
-    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, cache), false));
+    printLines(renderLines(withCachedQuota(ctx.entries, baseInfos, cache), false, activity));
     await startBackgroundRefreshIfIdle(cache, spawnRefresh);
     return;
   }
@@ -220,6 +222,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
   await renderWhileRefreshing(
     ctx.entries,
     baseInfos,
+    activity,
     startedAt,
     options.waitMs ?? DEFAULT_WAIT_MS,
   );
@@ -438,13 +441,14 @@ async function startBackgroundRefreshIfIdle(
 async function renderWhileRefreshing(
   entries: AliasEntry[],
   baseInfos: ListAccountInfo[],
+  activity: ActivityCache,
   startedAt: number,
   waitMs: number,
 ): Promise<void> {
   let cache = await readUsageCache();
   const finished = () => (cache.refreshFinishedAt ?? 0) >= startedAt;
   const current = (refreshing: boolean) =>
-    renderLines(withCachedQuota(entries, baseInfos, cache), refreshing);
+    renderLines(withCachedQuota(entries, baseInfos, cache), refreshing, activity);
 
   const initial = current(true);
   const live =
@@ -486,7 +490,11 @@ function printLines(lines: string[]): void {
 }
 
 /** Render the account table as lines, reusing the console-based UI helpers. */
-function renderLines(infos: ListAccountInfo[], refreshing: boolean): string[] {
+function renderLines(
+  infos: ListAccountInfo[],
+  refreshing: boolean,
+  activity: ActivityCache,
+): string[] {
   const lines: string[] = [];
   const originalLog = console.log;
   console.log = (...args: unknown[]) => {
@@ -514,6 +522,12 @@ function renderLines(infos: ListAccountInfo[], refreshing: boolean): string[] {
       hint("5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window");
     }
     if (refreshing) hint("refreshing quota…");
+
+    const trend = renderActivityLines(activity);
+    if (trend.length > 0) {
+      blank();
+      for (const line of trend) console.log(line);
+    }
 
     blank();
   } finally {
