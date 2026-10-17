@@ -5525,7 +5525,7 @@ function formatUsage(usage, note) {
       parts.push(`${source_default.dim("5h")} ${colorRemaining(100 - usage.fiveHourUsedPercent)}`);
     }
     if (usage.weeklyUsedPercent !== null) {
-      parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`);
+      parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}${formatWeeklyReset(usage.weeklyResetsAt)}`);
     }
     if (usage.monthlyUsedPercent !== null && usage.monthlyUsedPercent !== undefined) {
       parts.push(`${source_default.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`);
@@ -5534,6 +5534,14 @@ function formatUsage(usage, note) {
       return parts.join(source_default.dim(" · "));
   }
   return note ? source_default.dim(note) : "";
+}
+var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function formatWeeklyReset(resetsAt) {
+  if (resetsAt === null || !Number.isFinite(resetsAt))
+    return "";
+  const date = new Date(Math.round(resetsAt / 3600000) * 3600000);
+  const hour = String(date.getHours()).padStart(2, "0");
+  return ` ${source_default.dim(`${WEEKDAYS[date.getDay()]}${hour}`)}`;
 }
 function colorRemaining(percent) {
   const value = Math.round(Math.min(100, Math.max(0, percent)));
@@ -12894,7 +12902,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.24.0",
+  version: "1.25.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

@@ -96,7 +96,7 @@ export function maskKey(key: string): string {
   return key.slice(0, 7) + "••••" + key.slice(-4);
 }
 
-// Remaining quota per window, e.g. "5h 89% · wk 61%".
+// Remaining quota per window, e.g. "5h 89% · wk 61% Wed16".
 export function formatUsage(
   usage: UsageInfo | null,
   note: string | null,
@@ -110,7 +110,7 @@ export function formatUsage(
     }
     if (usage.weeklyUsedPercent !== null) {
       parts.push(
-        `${chalk.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}`,
+        `${chalk.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}${formatWeeklyReset(usage.weeklyResetsAt)}`,
       );
     }
     if (
@@ -124,6 +124,17 @@ export function formatUsage(
     if (parts.length > 0) return parts.join(chalk.dim(" · "));
   }
   return note ? chalk.dim(note) : "";
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Weekly reset as local weekday + hour, e.g. " Wed16". Rounded to the nearest
+// hour because providers report resets like 15:59:59.
+export function formatWeeklyReset(resetsAt: number | null): string {
+  if (resetsAt === null || !Number.isFinite(resetsAt)) return "";
+  const date = new Date(Math.round(resetsAt / 3_600_000) * 3_600_000);
+  const hour = String(date.getHours()).padStart(2, "0");
+  return ` ${chalk.dim(`${WEEKDAYS[date.getDay()]}${hour}`)}`;
 }
 
 function colorRemaining(percent: number): string {

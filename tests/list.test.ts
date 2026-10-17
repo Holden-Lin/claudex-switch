@@ -419,6 +419,10 @@ describe("list", () => {
     // 11% used -> 89% left; 39% used -> 61% left
     expect(output()).toContain("5h 89%");
     expect(output()).toContain("wk 61%");
+    // seven_day resets_at rendered as local weekday + hour after the percent
+    const reset = new Date(Date.parse("2026-08-02T04:00:00Z"));
+    const label = `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][reset.getDay()]}${String(reset.getHours()).padStart(2, "0")}`;
+    expect(output()).toContain(`wk 61% ${label}`);
   });
 
   test("shows the Claude plan from the freshest matching local credentials", async () => {

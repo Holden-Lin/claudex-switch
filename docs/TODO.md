@@ -2,10 +2,11 @@
 
 ## Now
 
-本次版本 v1.24.0：`list` 底部显示近 30 天 token 用量与源码提交行数的 sparkline 走势，由后台刷新进程每 10 分钟最多算一次并缓存，`list` 只读缓存。
+本次版本 v1.25.0：`list` 每周额度后显示本地重置时间（`wk 61% Wed16` = 周三 16 点）。
 
 ## Next
 
+- [ ] 用户升级 v1.25.0 后跑 `claudex-switch list`，核对 `wk` 后的重置时间与各家官网/`/status` 显示一致（本次仅以测试数据验证，真实 HOME 被仓库保护拦截）。
 - [ ] 用户升级 v1.24.0 后开新终端，确认 `.zshrc` 里的 `list --cached` 第一次没有走势（缓存尚未生成），第二次起出现走势且启动无明显变慢。
 - [ ] 用户自行在 `~/.claude/settings.json` 加 `"cleanupPeriodDays": 3650`（本次被权限拦截，未改），否则 Claude Code 日志 30 天后被清，走势与年度统计都会缺这部分。
 
@@ -24,6 +25,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-17：`list` 每周额度后加本地重置时间 `Wed16`（v1.25.0）。取已有 `weeklyResetsAt`，按最近整点取整、小时补零；无重置时间不显示。新增单测（周几/取整/补零/空值）与 list 集成断言（Claude usage API → 渲染），LA 时区复跑通过；`bun run verify` 327 项全过。
 
 - [x] 2026-10-17：`list` 新增近 30 天 token / 源码行走势（v1.24.0）。token 取本机 Claude Code（含各 profile，按消息 id 去重）、Codex（累计值取增量）、OpenCode（原生库 + V2 私有库按消息）日志，含缓存；代码行取这些会话 cwd 对应仓库中本仓库 `user.email` 的提交，git pathspec 只 diff 源码（单仓库 9–11 秒降到 0.2–0.6 秒），排除产出目录，跨仓库按 hash 去重。后台每 10 分钟最多算一次，真实数据约 3.2 秒；临时 HOME 下构建版 `list --cached` 0.31 秒出走势。326 项测试、文档检查、构建通过。
 

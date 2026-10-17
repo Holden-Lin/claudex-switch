@@ -21,7 +21,7 @@ import {
   parseRateLimitsPlan,
   parseRateLimitsResponse,
 } from "../src/providers/codex/usage";
-import { formatUsage } from "../src/lib/ui";
+import { formatUsage, formatWeeklyReset } from "../src/lib/ui";
 import type { CodexAuthFile, CodexRegistry } from "../src/types";
 import { makeJwt, resetTestHome } from "./helpers";
 
@@ -110,6 +110,20 @@ describe("Codex App Server usage", () => {
     expect(formatUsage(usage, null)).toContain("5h 75%");
     expect(formatUsage(usage, null)).toContain("wk 60%");
     expect(parseRateLimitsPlan(rateLimits)).toBe("team");
+  });
+
+  test("shows the weekly reset as local weekday and hour", () => {
+    // 2026-10-21 is a Wednesday; 15:59:59 rounds up to 16.
+    const wed = new Date(2026, 9, 21, 15, 59, 59).getTime();
+    expect(formatWeeklyReset(wed)).toContain("Wed16");
+    expect(formatWeeklyReset(new Date(2026, 9, 18, 9, 0).getTime())).toContain("Sun09");
+    expect(formatWeeklyReset(null)).toBe("");
+    expect(
+      formatUsage(
+        { fiveHourUsedPercent: 25, fiveHourResetsAt: null, weeklyUsedPercent: 40, weeklyResetsAt: wed },
+        null,
+      ),
+    ).toMatch(/wk .*60%.* .*Wed16/);
   });
 
   test("uses the official initialize and account/rateLimits protocol in isolation", async () => {
