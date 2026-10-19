@@ -27,7 +27,8 @@
 
 ## Done
 
-- [x] 2026-10-19：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`。根因：dispatcher 仅在别名已存在时转 run 路径，而 `agy` 首次使用要靠 cliproxy 解析器自建别名，故永远走不到解析器（单测直调解析器，未覆盖 CLI 入口）。修法：带 `--cliproxy` 的 run 调用即使别名不存在亦转 run 路径，判定权归解析器；`agy` 漏 `--cliproxy` 时提示正确命令。新增 4 项 CLI 级用例；全量 306 过、13 败（13 败为改动前既有 OpenCode 用例，stash 后同数复现）；`tsc --noEmit`、`git diff --check` 过。已装 1.25.0 可先用 `claudex-switch use agy --run --cliproxy claudecode`。
+- [x] 2026-10-19：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`，随 v1.25.1 发布。根因：dispatcher 仅在别名已存在时转 run 路径，而 `agy` 首次使用要靠 cliproxy 解析器自建别名，故永远走不到解析器（单测直调解析器，未覆盖 CLI 入口）。修法：带 `--cliproxy` 的 run 调用即使别名不存在亦转 run 路径，判定权归解析器；`agy` 漏 `--cliproxy` 时提示正确命令。新增 4 项 CLI 级用例；`bun run verify` 331 项 0 失败；v1.25.1 已发布，CI 绿；已装 1.25.1 实测 `agy --run --cliproxy claudecode` 达风险提示、`nope --run --cliproxy claudecode` 报 `Alias "nope" not found.`。
+- [ ] 本机跑测试前先清掉 shell 里的 `OPENCODE_DB` / `OPENCODE_CONFIG_CONTENT` / `XDG_*`（OpenCode V2 受管会话残留）：不清会读真实 HOME 的 `opencode.db`，add.test.ts 与 13 项 OpenCode 用例假失败（CI 干净环境不复现）。
 
 - [x] 2026-10-17：`list` 每周额度后加本地重置时间 `Wed16`（v1.25.0）。取已有 `weeklyResetsAt`，按最近整点取整、小时补零；无重置时间不显示。新增单测（周几/取整/补零/空值）与 list 集成断言（Claude usage API → 渲染），LA 时区复跑通过；`bun run verify` 327 项全过。
 
