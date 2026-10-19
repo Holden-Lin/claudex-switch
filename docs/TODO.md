@@ -2,7 +2,7 @@
 
 ## Now
 
-本次版本 v1.25.0：`list` 每周额度后显示本地重置时间（`wk 61% Wed16` = 周三 16 点）。
+本次版本 v1.25.1：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`（v1.25.0 的分发只在别名已存在时转运行路径，而 `agy` 首次使用要靠解析器自建别名）。发版后请用该命令实测一次 Antigravity 首用流程。
 
 ## Next
 
@@ -13,6 +13,7 @@
 - [ ] 用户升级 v1.22.0 后，在默认 Codex 账号之外运行一次 `claudex-switch <另一个codex别名> -run`，在 Codex 里 `/status` 核对身份，退出后 `claudex-switch list` 确认默认账号未变、裸 `codex` 仍是原账号（本次仅在隔离 HOME 用真实 `codex login status` 验证）。
 - [ ] 用户首次运行 `claudex-switch holdenx --run --cliproxy claudecode`（或 satoshix）完成浏览器登录，确认同账号核对通过、Claude Code 能对话（本次只用 fake 二进制验证；真实 OAuth 需本人操作）。
 - [ ] 用户决定是否接 Antigravity：运行 `claudex-switch agy --run --cliproxy claudecode`，确认风险提示后登录，核对 `list`/`.env` 里选出的真实模型 ID 和一次短对话（本次未做真实登录）。
+- [ ] 用户升级 v1.25.1 后重试 `claudex-switch agy --run --cliproxy claudecode`（v1.25.0 该命令报 `Unknown command: "agy"`，分发缺陷已修）：确认风险提示后登录，核对 `list`/`.env` 里选出的真实模型 ID 和一次短对话。升级前可用 `claudex-switch use agy --run --cliproxy claudecode`（`use` 分支不查别名表，已在已装 1.25.0 上实测可达风险提示）。
 - [ ] 反向客户端：`--cliproxy codex|opencode`（让 Codex / OpenCode 经 CLIProxyAPI 用 Antigravity、OpenCode Go 等上游；Codex 需走代理的 Responses 接口）。Claude 订阅借给其它工具违反 Anthropic 条款，不做。
 - [ ] 用户在 Warp 里新开 tab，确认不再卡在 "starting zsh..."（本机只在 zsh 子进程里测到启动 0.3 秒，Warp 本身未测）。
 - [ ] 修复版装好后，在用户日常目录重试 `claudex-switch openlam42 -run`，确认不再出现 "configured default agent is unavailable in this location"（本机复现：私有 server 启动约 2 秒内 `/api/agent` 可 200 返空表）。
@@ -25,6 +26,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-19：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`。根因：dispatcher 仅在别名已存在时转 run 路径，而 `agy` 首次使用要靠 cliproxy 解析器自建别名，故永远走不到解析器（单测直调解析器，未覆盖 CLI 入口）。修法：带 `--cliproxy` 的 run 调用即使别名不存在亦转 run 路径，判定权归解析器；`agy` 漏 `--cliproxy` 时提示正确命令。新增 4 项 CLI 级用例；全量 306 过、13 败（13 败为改动前既有 OpenCode 用例，stash 后同数复现）；`tsc --noEmit`、`git diff --check` 过。已装 1.25.0 可先用 `claudex-switch use agy --run --cliproxy claudecode`。
 
 - [x] 2026-10-17：`list` 每周额度后加本地重置时间 `Wed16`（v1.25.0）。取已有 `weeklyResetsAt`，按最近整点取整、小时补零；无重置时间不显示。新增单测（周几/取整/补零/空值）与 list 集成断言（Claude usage API → 渲染），LA 时区复跑通过；`bun run verify` 327 项全过。
 

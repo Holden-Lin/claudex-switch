@@ -9947,13 +9947,16 @@ async function purgeLinkedClaudeProfile(target) {
 var CLAUDE_CODE_CLIENTS = new Set(["claudecode", "claude-code", "claude"]);
 var CLIPROXY_CLIENT_NAMES = "claudecode";
 var ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
+function isAntigravityName(name) {
+  return ANTIGRAVITY_KEYWORDS.has(name.toLowerCase());
+}
 function isClaudeCodeClient(value) {
   return CLAUDE_CODE_CLIENTS.has(value.toLowerCase());
 }
 async function resolveCLIProxyClaudeEntry(aliasOrName, options = {}) {
   const entry = findAlias(await loadAliases(), aliasOrName);
   if (!entry) {
-    if (ANTIGRAVITY_KEYWORDS.has(aliasOrName.toLowerCase())) {
+    if (isAntigravityName(aliasOrName)) {
       return createAntigravityAlias(aliasOrName, options);
     }
     throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
@@ -10284,6 +10287,9 @@ var CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 var CODEX_COMPLETION_REVIEW_DISABLED_ENV = "CODEX_COMPLETION_REVIEW_DISABLED";
 function isRunFlag(value) {
   return value !== undefined && RUN_FLAGS.has(value);
+}
+function isCliproxyRunInvocation(args) {
+  return args.includes("--cliproxy") && isRunFlag(args[0]);
 }
 function requestsRemoteOpenCodeServer(args) {
   return args.some((arg) => arg === "--server" || arg === "-server" || arg.startsWith("--server="));
@@ -12902,7 +12908,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.0",
+  version: "1.25.1",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -15512,9 +15518,15 @@ async function main() {
             process.exit(exitCode);
           }
           await use(command);
+        } else if (isCliproxyRunInvocation(args)) {
+          const exitCode = await runAliasSession(command, args.slice(1));
+          process.exit(exitCode);
         } else {
           console.error(source_default.red(`
   Unknown command: "${command}"`));
+          if (isAntigravityName(command)) {
+            hint(`Antigravity runs through the proxy: ${source_default.cyan(`claudex-switch ${command} --run --cliproxy claudecode`)}`);
+          }
           console.log(HELP);
           process.exit(1);
         }

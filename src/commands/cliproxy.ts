@@ -51,6 +51,10 @@ export const CLIPROXY_CLIENT_NAMES = "claudecode";
 // alias backed by its own CLIProxyAPI login on first use.
 const ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
 
+export function isAntigravityName(name: string): boolean {
+  return ANTIGRAVITY_KEYWORDS.has(name.toLowerCase());
+}
+
 export function isClaudeCodeClient(value: string): boolean {
   return CLAUDE_CODE_CLIENTS.has(value.toLowerCase());
 }
@@ -72,7 +76,7 @@ export async function resolveCLIProxyClaudeEntry(
   const entry = findAlias(await loadAliases(), aliasOrName);
 
   if (!entry) {
-    if (ANTIGRAVITY_KEYWORDS.has(aliasOrName.toLowerCase())) {
+    if (isAntigravityName(aliasOrName)) {
       return createAntigravityAlias(aliasOrName, options);
     }
     throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [

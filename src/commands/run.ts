@@ -110,6 +110,15 @@ export function isRunFlag(value?: string): boolean {
   return value !== undefined && RUN_FLAGS.has(value);
 }
 
+/**
+ * `--cliproxy` can name an alias that does not exist yet: `agy` creates itself
+ * on first use. The dispatcher must send those invocations to the run path
+ * instead of rejecting them as unknown commands.
+ */
+export function isCliproxyRunInvocation(args: string[]): boolean {
+  return args.includes("--cliproxy") && isRunFlag(args[0]);
+}
+
 function requestsRemoteOpenCodeServer(args: string[]): boolean {
   return args.some(
     (arg) => arg === "--server" || arg === "-server" || arg.startsWith("--server="),

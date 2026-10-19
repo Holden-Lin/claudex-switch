@@ -10,7 +10,8 @@ import { loadRegistry } from "./providers/codex/registry";
 import { readOpenCodeState } from "./providers/opencode/profiles";
 import { add } from "./commands/add";
 import { use } from "./commands/use";
-import { isRunFlag, runAliasSession } from "./commands/run";
+import { isRunFlag, isCliproxyRunInvocation, runAliasSession } from "./commands/run";
+import { isAntigravityName } from "./commands/cliproxy";
 import { list, refreshUsageCache, type ListOptions } from "./commands/list";
 import { refreshActivityCache } from "./lib/activity";
 import { remove } from "./commands/remove";
@@ -411,8 +412,18 @@ async function main(): Promise<void> {
             process.exit(exitCode);
           }
           await use(command);
+        } else if (isCliproxyRunInvocation(args)) {
+          // The alias may not exist yet: `agy` creates itself on first use.
+          // The cliproxy resolver owns that decision and its error messages.
+          const exitCode = await runAliasSession(command, args.slice(1));
+          process.exit(exitCode);
         } else {
           console.error(chalk.red(`\n  Unknown command: "${command}"`));
+          if (isAntigravityName(command)) {
+            hint(
+              `Antigravity runs through the proxy: ${chalk.cyan(`claudex-switch ${command} --run --cliproxy claudecode`)}`,
+            );
+          }
           console.log(HELP);
           process.exit(1);
         }
