@@ -1,534 +1,155 @@
 # claudex-switch
 
+> **告别多账号管理的繁琐与撕裂。**  
+> 一款专为 Claude Code、Codex 和 OpenCode Go 打造的本地 CLI 多账号管理工具与实时额度看板。
+
 **语言 / Languages:** [中文](./README.md) | [English](./README.en.md)
 
-claudex-switch 是一款本地 CLI 账号切换器与额度查看工具，管理 Claude Code、Codex 和 OpenCode Go 的已授权账号配置。它用别名选择对应的本地 profile / 凭据，并可启动相应 CLI；它不会创建供应商账号或绕过额度限制。
+---
 
-**第一次使用？** 先[安装](#安装)，再按[快速开始](#快速开始)选择 Claude Code、Codex 或 OpenCode Go，为你自己的两个账号创建别名。已有别名可直接用 `claudex-switch <alias> -run` 启动；各 CLI 的权限与隔离边界见下文。
+## 💡 它解决什么痛点？
 
-见[JSON 输出参考](./docs/list-json.md)、[使用场景](./docs/use-cases.md)、[常见问题](./docs/faq.md)与[本地 Codex skill 指南](./skills/claudex-switch/SKILL.md)。该 skill 文件只是仓库内的指南，不会因提交仓库而自动安装或被使用者的 agent 自动发现；需由使用者选择性安装到其 agent 支持的本地 skill 目录。
+在日常使用 Claude Code、Codex 或 OpenCode 进行 AI 编程时，经常需要在多个账号（个人号、公司号、小号、中转 API）之间周旋。原生 CLI 的单账号设计带来了四大核心痛点：
 
-## 60 秒演示视频
+### 1. 凭据切换繁琐，多终端互踩
+- **痛点**：换号需要反复网页授权、手动替换配置文件或导出环境变量；如果一个终端在跑长任务，另一个终端切换账号就会覆盖全局凭据导致任务鉴权失败。
+- ⚡ **解法**：统一别名管理。`claudex-switch <alias>` 秒切全局默认账号；`claudex-switch <alias> -run` 以独立会话启动，凭证沙箱隔离，多终端真正并行不串号。
 
-[中文视频（60 秒）](./docs/media/claudex-switch-explainer-zh-60s.mp4) · [English video (60 seconds)](./docs/media/claudex-switch-explainer-en-60s.mp4)
+### 2. 历史记录丢失，会话上下文无法接续
+- **痛点**：在不同账号之间切换，或者在官方服务与中转站之间来回切换时，原有的历史会话往往无法在 `/resume` 中显示，前序项目的代码上下文直接丢失。
+- ⚡ **解法**：智能元数据同步。自动维护会话可见性元数据（如 Codex 的 rollout 文件与 SQLite 状态），跨账号、跨 Provider 切换后旧会话依然在 `/resume` 中完整可见，随调随用。
 
-这两支功能解说视频由 AI 辅助制作，不是实际产品操作录屏、实时基准测试，也不证明示例命令已经运行。账号别名与命令均为示例，额度画面不是实际账号结果。各 provider 的凭据、历史与工作区隔离边界不同，详见下文说明。项目采用 MIT License 并受 Commons Clause v1.0 限制，属于 source-available、非 OSI open source；见 [LICENSE](./LICENSE) 和[商业许可说明](./COMMERCIAL-LICENSING.md)。
+### 3. 额度如同盲盒，写到一半突然限流
+- **痛点**：各账号额度分散在不同平台，不知道哪个号还剩多少、5 小时窗口 / 每周限额何时重置，中转站更要频繁登录控制台查余额，写着写着突然撞上 Rate Limit 停工。
+- ⚡ **解法**：`claudex-switch list` 并行拉取全账号实时额度看板（5h 窗口百分比、每周本地精确重置时间点如 `Wed16`、中转站 Key 余额与总钱包余额），并展示近 30 天 token 与代码提交趋势。
 
-## 适合谁使用
+### 4. 额度无法互通，跨工具配置繁杂
+- **痛点**：ChatGPT / Codex / OpenCode Go 上有充足额度，却无法在习惯的 Claude Code 中使用；各平台的 Base URL、模型映射和环境变量散落在各个 JSON/TOML 文件中，修改极其痛苦。
+- ⚡ **解法**：原生支持 `--cliproxy claudecode` 跨额度借用；内置 `webconfig` 本地可视化网页，一站式批量查看、修改所有账号配置，支持一键粘贴导入 `export` 环境变量。
 
-- **适合**：你在本机维护多个自己有权使用的 Claude Code、Codex 或 OpenCode Go 账号，希望用别名切换、查看服务端剩余额度，或按账号启动 CLI
-- **不适合**：你需要跨账号完全隔离的工作区 / 设置 / 历史记录、集中管理团队凭据，或想绕过服务商的登录、使用条款或额度限制
-- **重要区别**：Claude `-run` 为该次会话隔离账号凭据，但设置、hooks 和历史仍共享；Codex `-run` 不切换默认账号，非默认账号在私有 `CODEX_HOME` 里只隔离登录，历史 / 配置 / hooks 仍共享；OpenCode Go 的 V1 / V2 运行和历史边界不同，详见下文指南
+---
 
-## 特点
+## ⚡ 极速安装
 
-- 统一管理 Claude Code、Codex 和 OpenCode Go 三套账号体系
-- 每个账号支持自定义别名，`claudex-switch <alias>` 一键切换
-- `claudex-switch <alias> -run` 用该账号直接启动会话，不改变默认账号（默认账号只由 `claudex-switch <alias>` 切换）；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto：保留 workspace-write sandbox，由自动 reviewer 审核越界请求），OpenCode 默认使用 `--auto`
-- `claudex-switch <alias> -run --model <model> [effort]` 会使用指定模型启动，并把它保存为该账号下次运行的默认模型；Claude 裸数字仍指 Opus（如 `5.5` → `claude-opus-5-5`），另支持 `sonnet5`、`fable5.1` 等系列名，裸 `fable` 指最新 Fable（`claude-fable-5-1`）；Codex 支持 `astra` / `sol` / `luna`（分别对应 `gpt-6-astra` / `gpt-6.1-sol` / `gpt-6-luna`）、`terra`（GPT-6 无 Terra，仍指 `gpt-5.6-terra`）和 `6`（对应 `gpt-6-astra`），旧版 GPT-5.6 可写全名如 `gpt-5.6-sol`。模型后可紧跟 effort 档位（如 `--model 5 max`），effort 只作用于本次运行；Codex 也支持 `ultra`（会启用更主动的多代理行为，额度消耗更快）
-- 切换 Codex 账号时自动同步历史会话的 provider 元数据（rollout 文件 + `state_5.sqlite`），官方 / 中转来回切换后旧会话依然在 `/resume` 里可见（参考 [codex-provider-sync](https://github.com/Dailin521/codex-provider-sync) 的做法，只改可见性元数据，不动会话内容）
-- `claudex-switch <alias> -run --attribution-header false` 可只对这次 Claude 会话临时设置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`
-- Codex `-run` 默认使用 `--approve-for-me`（Auto 权限模式）；`--autoreview on|off` 独立控制完成评审（Codex Stop hook / OpenCode V2 completion-review 插件），不改 permission mode
-- `claudex-switch list` 并行拉取并显示所有账号的剩余额度，同时以服务端额度响应更新 Codex 订阅等级、以最新匹配凭据更新 Claude 等级：Claude OAuth / Codex ChatGPT 账号显示 5 小时窗口和每周窗口的剩余百分比（`5h 89% · wk 61% Wed16`，`Wed16` 为每周额度的本地重置时间：周三 16 点），过期 token 会自动用 refresh token 刷新并写回；one-api / new-api 中转的 API Key 账号显示密钥级余额，配置站点的系统访问令牌后可同时显示账号级钱包余额（`key $47.34 left · acct $114.71 left`，见下文「中转站账号余额」）。额度先从本地缓存（`~/.claudex-switch/usage-cache.json`）瞬间显示，同时由一个后台进程联网刷新，刷新结果在原处逐行更新，最多等 2 秒；没赶上的账号保留上次的值并标出时间（如 `· 12m ago`），某个接口卡住也不会拖住终端。`--cached` 只读缓存、约 0.15 秒返回，刷新在后台进行、下次显示，适合放在 `~/.zshrc` 里开 shell 时展示。加 `--no-usage` 可跳过网络请求，但仍会从本地凭据更新等级
-- `list` 底部显示近 30 天走势图：每天一格的 token 用量（本机 Claude Code / Codex / OpenCode 会话日志合计，含缓存读写）和你提交的源码新增行数（这些会话所在 git 仓库里、作者为该仓库 `user.email` 的提交，只计源码文件，排除 output / data / logs 等产出目录）。统计由同一个后台刷新进程计算、最多每 10 分钟一次，结果存在 `~/.claudex-switch/activity-cache.json`，`list` 只读缓存，不会变慢。Claude Code 默认只保留约 30 天日志；在其它机器上产生的 token 不计入，但同步过来的提交会计入
-- 用薄别名层引用 provider 专属账号档案；切换会按 provider 同步当前认证 / 配置，历史会话可见性元数据也可能更新，详见下文注意事项
-- 只在 `claudex-switch --version` 时检查最新 GitHub Release，并在显示版本前自动升级（支持 Bun、Homebrew 安装）
-- `claudex-switch webconfig` 打开本机网页，一页批量查看和修改所有账号的请求地址、密钥和模型配置，还能贴一整段 `export ANTHROPIC_*` 直接导入（见下文「网页配置」）
-- Claude 支持 OAuth 订阅 + API Key（支持自定义 Base URL、默认模型，Fable / Sonnet / Opus / Haiku 模型映射，子代理模型，以及任意自定义环境变量）
-- Codex 支持 ChatGPT OAuth + OpenAI API Key
-- OpenCode Go 支持按别名选择订阅凭据；V2 新增 / 刷新会先向服务端验证 key，并可显式导入本机 OpenCode 已登录的凭据；V1 共享常规 `/resume` 历史，V2 每个别名使用独立 SQLite 凭据库和历史，不会自动导入原生或其他别名历史；`list` 显示服务端 5 小时 / 周 / 月额度
-- macOS Keychain 凭证兼容
-
-## 安装
-
-### 方式一：安装脚本（推荐）
-
+### 推荐：一键安装脚本
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | bash
 ```
 
-默认会安装最新 GitHub Release；如果仓库还没有发布过 release，会自动回退到 `main` 分支。
+<details>
+<summary>其他安装方式（Homebrew / Bun）</summary>
 
-安装后的 `claudex-switch` 只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；如果发现新版本，会先自动更新，再显示版本号。
-
-如果你想手动触发升级，也可以运行：
-
-```bash
-claudex-switch update
-```
-
-也可以显式指定版本或引用：
-
-```bash
-# 安装指定版本 tag
-curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | VERSION=1.0.0 bash
-
-# 安装指定分支 / commit / tag
-curl -fsSL https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/install.sh | INSTALL_REF=main bash
-```
-
-### 方式二：Bun 全局安装
-
-```bash
-bun install -g git+https://github.com/Holden-Lin/claudex-switch.git
-```
-
-### 方式三：Homebrew
-
-推送 `v*` tag 后，release workflow 会自动生成并更新 `Formula/claudex-switch.rb`。之后可以直接：
-
+**Homebrew:**
 ```bash
 brew install --formula https://raw.githubusercontent.com/Holden-Lin/claudex-switch/main/Formula/claudex-switch.rb
 ```
 
-### 本地开发
-
+**Bun 全局安装:**
 ```bash
-git clone git@github.com:Holden-Lin/claudex-switch.git
-cd claudex-switch
-bun install
-bun run test
-bun run verify
-bun run build
+bun install -g git+https://github.com/Holden-Lin/claudex-switch.git
 ```
+</details>
 
-## 快速开始
+---
 
-### 1. 安装并确认命令可用
+## 🚀 3 步快速上手
 
-先完成上面的[安装](#安装)。安装脚本可能安装 Bun，但不会替你安装 Claude Code、Codex 或 OpenCode；请先确保要用的 CLI 已安装并能在终端运行。OpenCode 浏览器订阅登录需要 OpenCode 2.x。
-
+### 1. 添加或导入账号
+运行交互式命令，按提示添加 OAuth 订阅账号或 API Key：
 ```bash
-claudex-switch help
-# 只查看已安装版本，不触发自动升级
-CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch --version
+claudex-switch add work      # 添加工作账号
+claudex-switch add personal  # 添加个人账号
 ```
+> 💡 **已有账号一键迁移**：如果你之前使用过 `claude-switch` 或 `codex-auth`，直接执行 `claudex-switch import` 即可自动导入现有全部 profile。
 
-### 2. 选一个 CLI，添加两个账号
-
-先用一个 CLI 完成下面的流程。别名只是你起的名字；真正选择 Claude Code、Codex 或 OpenCode 的位置是 `add` 里的账号类型菜单。
-
-- Claude Code 订阅账号：选择 **Claude OAuth**
-- Codex 的 ChatGPT 账号：选择 **Codex ChatGPT**
-- OpenCode 2.x 的 Go 订阅：选择 **OpenCode Subscription — browser login (Go / Go Plus)**，登录后选择持有 Go 订阅的 workspace
-- 已有 API key：选择对应 CLI 的 API Key 项；OpenCode key 路径见 [Go 指南](./docs/use-cases/opencode-go.md)
-
-添加账号可能更新对应 CLI 的当前认证与配置。首次尝试前先退出已有会话；只添加你有权使用的账号，不要把凭据贴进 issue。
-
-逐条执行，完成每次浏览器授权后再继续。第二次请确认浏览器登录的是第二个账号；别名已存在时改用另一个名字，并同步替换后续命令。
-
+### 2. 查看所有账号与实时额度看板
 ```bash
-claudex-switch add work
-claudex-switch add personal
-claudex-switch list --no-usage
+claudex-switch list
+# 快捷别名：claudex-switch ls
 ```
+瞬间展示所有账号状态、5h / 每周额度剩余百分比（如 `5h 89% · wk 61% Wed16`）及中转站余额。
 
-列表应在所选 provider 分组下显示 `work` 和 `personal`。若没有显示，先解决添加失败再继续。`--no-usage` 跳过额度查询；看到别名不代表凭据、模型调用或额度已经验证。
+### 3. 启动或切换账号
+- **方式 A（推荐）：独立会话运行（凭证隔离，不影响全局默认账号）**
+  ```bash
+  claudex-switch work -run
+  ```
+- **方式 B：切换全局默认账号**
+  ```bash
+  claudex-switch personal
+  ```
 
-只有已用 `claude-switch` / `codex-auth` 保存过账号时，才可以用 `claudex-switch import` 代替添加。它扫描已有 Claude profiles 和 Codex registry，不会创建服务商账号，也不导入 OpenCode 账号；后续命令改用实际导入的别名。
+---
 
-### 3. 顺序启动两个账号，确认切换
+## 🛠️ 常用进阶用法
 
-`-run` 默认权限为 Claude 的 `auto`、Codex 的 `--approve-for-me`、OpenCode 的 `--auto`；请先检查权限规则，只在可信项目目录运行。
-
+### 1. 启动时指定模型与思考力度（Effort）
+支持直观简写，启动即生效，并自动保存为该账号的偏好：
 ```bash
-claudex-switch work -run
-# 退出这次 CLI 会话后，再运行下一条
-claudex-switch personal -run
-```
+# Claude 示例：裸数字直接映射 Opus（5.5 → claude-opus-5-5）
+claudex-switch work -run --model 5.5 max
 
-完成标准：两个别名分别启动了预期 CLI，并在该 CLI 可用的账号/状态界面核对身份。Claude 可用 `/status`；其他 CLI 的入口以安装版本为准。若界面不显示可核对身份，不要把“窗口打开了”记作身份切换成功。真实模型请求可能消耗额度，需自行决定是否测试。
-
-Claude 的 `-run` 隔离账号凭据，但设置、hooks 和历史共享。Codex 的 `-run` 不改全局认证 / 配置：默认账号直接用 `~/.codex`，其他账号用 `~/.claudex-switch/codex-run/<账号>` 作 `CODEX_HOME`，其中只有 `auth.json`（provider 不同时还有 `config.toml`）是私有的，其余链接回 `~/.codex`。官方与中转 provider 的会话在 `/resume` 里只互相可见于全局切换同步之后。OpenCode 必须使用 `<alias> -run` 启动；V1 共享常规历史，V2 别名使用私有历史。
-
-要管理另一个 CLI，重新用 `add` 创建不同别名并选择它的账号类型，例如 `claudex-switch add codex-work` 后选择 **Codex ChatGPT**。同一个别名始终指向一个 provider 的账号。
-
-### 更多用法
-
-下面的 `holden`、`cx`、`opensatoshi` 和 `satoshix` 都是占位别名；执行前替换为对应 provider 的真实别名。
-
-```bash
-# 指定本次模型，并保存为该账号下次运行的默认模型
-# Claude：裸数字走 Opus（5.5 → claude-opus-5-5）；sonnet5 / fable5.1 可显式选择系列；fable → 最新 Fable
-# Codex：astra → gpt-6-astra；sol → gpt-6.1-sol；luna → gpt-6-luna；terra → gpt-5.6-terra；6 → gpt-6-astra
-claudex-switch holden -run --model 5.5
-claudex-switch holden -run --model fable5.1
-claudex-switch cx -run --model terra
-
-# 模型后可紧跟 effort 档位
-# Claude: low/medium/high/xhigh/max；Codex: minimal/low/medium/high/xhigh/max/ultra
-# Claude 映射为 --effort，Codex 映射为 -c model_reasoning_effort=...；具体档位仍取决于所选模型
-claudex-switch holden -run --model 5.5 max
+# Codex 示例：支持 astra / sol / luna / terra
 claudex-switch cx -run --model sol xhigh
-claudex-switch cx -run --model sol ultra # 更主动的多代理模式，消耗额度更快
-
-# 只对这次 Claude 运行临时关闭 attribution header
-claudex-switch holden -run --attribution-header false
-
-# 只对这次 Codex / OpenCode V2 会话关闭 / 开启完成评审
-claudex-switch cx -run --autoreview off
-claudex-switch cx -run --autoreview on
-claudex-switch opensatoshi -run --autoreview off
-
-# 添加新账号
-claudex-switch add my-claude
-claudex-switch add my-codex
-claudex-switch add my-go
-
-# 刷新已保存的登录态
-claudex-switch refresh holden
-claudex-switch refresh satoshix
-
-# 立即升级到最新 release
-claudex-switch update
 ```
 
-### 导入已有账号
-
-如果你已经在用 `claude-switch` 或 `codex-auth`，可以一键导入：
-
-```bash
-claudex-switch import
-```
-
-工具会自动扫描 `~/.claude-profiles/` 和 `~/.codex/accounts/registry.json`，为每个账号创建别名。
-
-### 手动添加账号
-
-```bash
-claudex-switch add work
-```
-
-然后选择账号类型：
-
-- **Claude OAuth** — 使用 Claude 订阅（Pro、Max、Team 等）
-- **Claude API Key** — 使用 Anthropic API key，可选自定义 Base URL、Auth Token、默认模型和 Sonnet / Opus / Haiku 模型映射
-- **Claude Code · ChatGPT（本机 CLIProxyAPI）** — 在 Claude Code 中使用独立的 ChatGPT 登录；本项目管理本机代理、模型映射和启动
-- **Codex ChatGPT** — 使用 ChatGPT 登录（Plus、Pro、Team 等），可为该账号保存默认模型
-- **Codex API Key** — 使用 OpenAI API key，可选择官方接口或 OpenAI-compatible 自定义供应商，并为该账号保存默认模型
-- **OpenCode Subscription** — OpenCode 2.x 浏览器订阅登录，无需 API key；添加第二账号时选择它的 Go workspace
-- **OpenCode Go API Key** — 保留 V1 私有 TUI / V2 显式导入或粘贴 key 的路径
-
-选择 Codex API Key 后会继续选择接口来源：
-
-- **OpenAI official** — 只保存 API key，不写自定义供应商配置
-- **Custom OpenAI-compatible provider** — 同时写入 `~/.codex/config.toml` 的 `model_provider`、`model` 和 `[model_providers.<name>]`，并将文件权限设置为 `0600`
-
-切换账号时会按账号同步默认模型：
-
-- Claude OAuth / API Key 会同步到 Claude Code 的 `settings.model`
-- Codex ChatGPT / API Key 会同步到 `~/.codex/config.toml` 的 `model`
-- 旧的 Codex 本地账号会在首次加载时自动补上 `default_model`
-
-### 在 OpenCode V1 / V2 中使用 Go 订阅
-
-OpenCode 2.x 推荐选择 **OpenCode Subscription — browser login**。浏览器中登录要添加的账号，选择持有 Go 订阅的 workspace 并授权，无需寻找或生成 Go key。每个别名保存独立的原生 OAuth 凭据与历史，OpenCode 自动续期 token。添加前会验证订阅并选择可用 Go 默认模型；`refresh` 必须登录同一账号和 workspace，取消、无订阅或登录错账号不会替换原账号。`list` 显示对应订阅的 5 小时、周、月额度。
-
-`claudex-switch add go-second` → 选择 Subscription → 第二账号浏览器授权 → `claudex-switch go-second -run`。旧的 key 账号继续选择 **OpenCode Go API Key**。
-
-订阅模型使用 `opencode-go/<model>`，由 Console 提供 Go 端点和授权；同名 `opencode/<model>` 属于 Zen。v1.18.0 保存的旧 `opencode/` 默认值会在显示和启动时转为 Go，无需重新登录。脚本入口继续使用 Node，以保持交互菜单正常；SQLite 优先使用稳定驱动，Node 内置 SQLite 回退在隔离读取进程中执行，不再出现实验性警告。
-
-以下为 API key 路径的 V1 / V2 说明；订阅登录详见 [OpenCode 指南](docs/use-cases/opencode-go.md)。
-
-OpenCode 默认以 `--auto` 启动，会自动批准未被明确拒绝的权限；运行前请检查权限规则。
-
-```bash
-claudex-switch add go-work
-# OpenCode V1：可导入磁盘上的当前凭据，或在专属 TUI 里运行 /connect
-# OpenCode V2：可显式导入本机 OpenCode 已登录的凭据，或手动粘贴 API key；保存前会向服务端验证
-
-claudex-switch go-work -run
-claudex-switch go-work -run --model opencode-go/kimi-k3
-claudex-switch go-work -run run --format json "总结这个项目" # V2 无交互一次性运行
-claudex-switch model go-work opencode-go/deepseek-v4-flash
-claudex-switch refresh go-work # V1 使用专属 TUI；V2 提示输入新 key
-```
-
-V1 正常启动会通过 `OPENCODE_AUTH_CONTENT` 注入别名凭据并保留 OpenCode 常规数据目录，因此 Go 别名共享 `/resume` 历史。V2 使用 `--standalone` 私有服务，为每个别名设置独立的 XDG 数据、状态、缓存和 SQLite 数据库，并覆盖继承的 `OPENCODE_DB`；历史不会跨别名共享，也不会自动导入常规 OpenCode 历史。V2 的 key 经 OpenCode 支持的本地集成 API 同步进该别名的私有 SQLite 凭据库，启动前同步失败则拒绝打开 TUI。启动前会检查当前目录的有效 Go 模型、默认 agent 和模型库存；仅放行该别名的 Go 模型与原生免费模型，不兼容的默认 agent 会拒绝启动。它不会改写当前 agent 的 permission/system 设置。使用 TUI 内 `/connect` 可临时更改该别名私有数据库中的活动凭据；它不会更改 claudex 保存的 key，下次用 claudex 启动时会重新同步。OpenCode 的其他环境变量 / 配置仍可能按其正常行为继承。网络隔离 CI fixture 会启动固定版本的 OpenCode v2.0.6 私有服务和真实构建版 claudex-switch CLI，验证真实启动配置、凭据同步 / 清理、别名数据库隔离、手动 `/connect` 后下次启动恢复 claudex 保存凭据、刷新后下次启动使用新凭据、策略 / 模型 fail-closed，以及日志不含 key。PATH shim 将版本与服务命令转交给 OpenCode，只拦截最终 `--standalone` TUI 启动，因此该 CI fixture 本身不覆盖交互 TUI、交互式 add/refresh 提示、会话导航 / 恢复和真实模型调用。
-
-V2 模型选择器同时保留原生 OpenCode 免费模型，例如 `opencode/deepseek-v4.1-flash-free`。Go 模型仍使用所选别名的凭据；免费模型保留原生路由，不改成 Go 模型。免费资格以本机 OpenCode 的全部价格档位为准（输入、输出与缓存价格均为零），不按名称判断；订阅账号会隐藏原生付费及价格未知模型。用户显式禁用的 provider / 模型不会重新启用。命令行默认模型仍选 Go，进入 TUI 后用 `/models` 切换免费模型。
-
-OpenCode V2 另支持无交互一次性运行：`claudex-switch <alias> -run run [--format json] "<提示词>"` 会在当前目录以该别名的私有 standalone 服务、受管 Go 模型和已同步 key 执行 `opencode run`；消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，目录、resume/session（`-c` / `-s` / `--session` / `--fork`）、`--model` / `-m`、`--agent`、`--server` 与未知参数仍被拒绝。`--format json` 便于脚本读取事件流。
-
-V2 受管会话按模型窗口处理自动压缩：窗口小于 500,000 token 的模型（包括元数据缺失、由 OpenCode 按 200K 回退解析的模型；基准取 OpenCode 触发公式 `limit.input || limit.context`）在该会话保持自动压缩开启，claudex 只在本次启动的受管配置里写入会话级 `compaction.buffer`（约窗口的 10%、不低于 OpenCode 自身的 16,000 token 下限），使压缩在约 90% 窗口处触发，不改用户全局 `opencode.jsonc`；压缩余量兼顾起始模型、默认 agent 模型及可切换的免费模型；只有这些模型的窗口均 ≥ 500,000 时才保留用户自己的压缩设置（如 `compaction.reserved`）。用户自带 buffer 若小于计算值但仍有 OpenCode 的最小余量，则维持用户设置。此前免费模型“无限压缩”的根因是用户全局 `compaction.reserved`（500,000）不小于 200K 窗口模型的上下文窗口，OpenCode 的触发点 `窗口 − buffer` 因此 ≤ 0、每轮都触发压缩；v1.23.0 曾为这些模型关闭自动压缩，代价是窗口写满时报错而非压缩，现已改为 90% 缓冲方案。
-
-V2 新增 / 刷新会先向 OpenCode Go 验证 key：401（无效 key）或 403（无 Go 订阅）会报错并要求重试；网络不可达时提示后仍保存，无效 key 要到首次实际调用时才报错。显式选择导入本机凭据时，claudex 只从本机 OpenCode 的 SQLite 数据库读取 `opencode-go` 凭据写入该别名的私有 profile，不会静默导出其它 provider 凭据。key 不会通过 argv 或子进程环境传入；它会写入 claudex 的私有 profile，并在启动前通过仅绑定本机回环地址的 API 写入对应别名的 SQLite 凭据库。TUI 内 `/connect` 明确切换的是当前别名的私有 OpenCode 凭据，不会更新 claudex key；下次 claudex 启动会重新同步该 key。只在可信工作区运行，并留意默认 `--auto` 会自动批准未明确拒绝的权限。`claudex-switch list` 用保存的 claudex Go key 查询服务端额度；手动 `/connect` 不会改变显示的额度身份。Go 模型须写全 `opencode-go/<model>`，不支持 Claude / Codex 的 effort 参数。`claudex-switch <alias>` 只记录本工具当前选择；始终用 `<alias> -run` 启动。
-
-自定义供应商示例配置：
-
-```toml
-model_provider = "admin"
-model = "gpt-5.4"
-
-[model_providers.admin]
-name = "admin"
-base_url = "https://newapi.hybaliez.com/v1"
-env_key = "OPENAI_API_KEY"
-requires_openai_auth = false
-```
-
-### 在 Claude Code 中使用 ChatGPT 账号
-
-```bash
-claudex-switch add chatgpt
-# 选择「Claude Code · ChatGPT（本机 CLIProxyAPI）」并完成浏览器登录
-claudex-switch chatgpt --run
-```
-
-macOS 已安装 Homebrew 时，缺少 CLIProxyAPI 会询问是否自动安装；已有安装会直接复用。Linux 可提供已安装的 `cli-proxy-api` 路径。默认无需手写代理配置，也不需要 OpenAI API key。本功能是第三方兼容桥接，不是 Claude/OpenAI 官方提供的互通方案；可用模型和额度取决于你的账号及上游支持。
-
-| Claude Code 入口 | 默认模型 |
-|---|---|
-| 默认主模型 / `fable` | `gpt-6-astra` |
-| `opus` | `gpt-5.6-terra` |
-| `haiku` | `gpt-6-luna` |
-| 子代理 | `gpt-5.6-terra`，`reasoning.effort=max` |
-
-`sonnet` 兼容映射为 Terra。`gpt-6-luna` 需 CLIProxyAPI 7.3 及以上（`brew upgrade cliproxyapi` 后 `claudex-switch doctor <alias> --restart`）；旧账号私有 `.env` 中的 `gpt-5.6-luna` 会自动按新默认处理，改成其它值则保留。子代理使用私有别名 `claudex-terra-max`，因此不会把主对话的 Terra 请求也强制成 max。`--run` 与 `-run` 等价；该新类型不使用 `--bare`，保留正常的 skills、MCP、hooks 和 CLAUDE.md 配置发现，同时隔离 Claude 登录态。
-
-```bash
-claudex-switch doctor chatgpt           # 本地诊断，不发模型请求
-claudex-switch doctor chatgpt --live    # 小额真实 Luna 请求，会消耗账号额度
-claudex-switch doctor chatgpt --restart # 结束使用该账号的会话后，重启其代理
-claudex-switch refresh chatgpt          # 必要时重新进行该账号的浏览器登录
-claudex-switch chatgpt --run --model opus low
-claudex-switch model chatgpt fable      # 恢复默认主模型
-```
-
-普通启动会自动确保代理可用，不会安装系统常驻服务。`list` 对该类型显示本机状态和 `quota unavailable`，不把进程存在当作账号额度验证。详见[设计、配置与验收说明](docs/local-cliproxyapi.md)。
-
-### 用已有的 Codex / OpenCode Go / Antigravity 账号跑 Claude Code（`--cliproxy`）
-
-不需要另外 `add`：只要装了 Claude Code 和 CLIProxyAPI，就可以直接用已有别名的额度跑 Claude Code。
-
-```bash
-claudex-switch cx --run --cliproxy claudecode         # Codex（ChatGPT 登录）别名
-claudex-switch openlam42 --run --cliproxy claudecode  # OpenCode Go API Key 别名
-claudex-switch agy --run --cliproxy claudecode        # Antigravity：首次使用会建一个名为 agy 的别名
-claudex-switch cx --run --cliproxy claudecode --model terra   # 保存为 cx 在 Claude Code 里的默认模型
-```
-
-- **别名就是额度来源**。Claude Code 只是客户端；这个别名原来的用法（`cx -run` 启动 Codex 等）不受影响，也不会被切换。
-- **Codex**：第一次使用时自动打开浏览器，为 Claude Code 单独登录一次 ChatGPT，之后一直复用。登录的必须是同一个 ChatGPT 账号，否则拒绝，且不留任何文件。不和 Codex 共用登录，是因为 ChatGPT 的 refresh token 每次刷新都会作废旧的，共用会把其中一边踢下线。只支持 ChatGPT 登录的 Codex 账号。
-- **OpenCode Go**：零交互。每次启动都读取 Go 别名里的 key，key 换了会自动跟上。Go 的 GLM / Kimi / DeepSeek 等模型走 OpenAI 格式，MiniMax / Qwen 走 Anthropic 格式，都由代理翻译，并按 Go 的要求附上会话 ID。浏览器订阅登录的 Go 别名没有固定 key，需要先在 OpenCode 控制台创建 key，再添加一个 key 型别名。
-- **Antigravity**：`agy` / `antigravity` 不是已有别名时，会先显示风险提示：Google 曾在 2026 年 2 月停用经第三方代理使用 Antigravity OAuth 的账号，条款至今仍禁止这种用法。确认后才会打开 CLIProxyAPI 自己的 Google 登录（不读取 agy 的现有登录），并从登录后的代理读取真实模型 ID。建议用非主力 Google 账号。
-
-| 上游 | 默认 / `opus` | `sonnet` | `haiku` |
-|---|---|---|---|
-| Codex | `gpt-6-astra` / `gpt-5.6-terra` | `gpt-5.6-terra` | `gpt-6-luna` |
-| OpenCode Go | `kimi-k3` | `glm-5.3` | `deepseek-v4-flash` |
-| Antigravity | 最新 `claude-opus-*` | 最新 `claude-sonnet-*` | 最新 `gemini-*-flash` |
-
-`list` 会在上游别名那一行显示 `· claudecode: running|stopped`。`doctor <上游别名> [--live]` 诊断它对应的代理。`purge` 上游别名时会一并删除这个代理；有会话正在用它时会拒绝，而且什么都不删。`remove` 只删别名，保留代理。
-
-## 命令
-
-| 命令 | 说明 |
-|---|---|
-| `claudex-switch` | 交互式账号选择器 |
-| `claudex-switch <alias>` | 切换到指定别名（`use` 的快捷写法） |
-| `claudex-switch <alias> -run` | 用该账号启动对应 Claude Code / Codex 会话或 OpenCode TUI，不改变默认账号；Claude Code 默认使用 `--permission-mode auto`，Codex 默认使用 `--approve-for-me`（Auto），OpenCode 默认使用 `--auto` |
-| `claudex-switch <alias> -run --model <model>` | 使用指定模型启动，并保存为该账号下次运行的默认模型；支持缩写（Claude `5.5` / `sonnet5` / `fable` / `fable5.1`，Codex `astra` / `sol` / `terra` / `luna` / `6`）；OpenCode Go 用 `opencode-go/<model>` |
-| `claudex-switch <opencode-v2-alias> -run run [--format json] "<prompt>"` | V2 无交互一次性运行 `opencode run`：当前目录、该别名的私有 standalone 服务与受管 Go 模型；消息与 `--format` / `--thinking` / `--title` / `--file` / `--print-logs` 会转发，目录、resume/session、`--model` / `-m`、`--agent`、`--server` 仍被拒绝 |
-| `claudex-switch <alias> -run --attribution-header <true\|false>` | 仅对这次 Claude `-run` 会话临时设置或移除 `CLAUDE_CODE_ATTRIBUTION_HEADER` |
-| `claudex-switch <codex或opencode-alias> -run --autoreview <on\|off>` | 仅控制这次会话的完成评审（Codex Stop hook；OpenCode V2 需装 completion-review 插件），与 permission mode 无关；省略则沿用当前环境 |
-| `claudex-switch <alias> -run --cliproxy claudecode [--model <model>]` | 用 Codex / OpenCode Go 别名（或 `agy` 表示 Antigravity）的额度跑 Claude Code，经本机 CLIProxyAPI 转换；首次使用时自动完成设置 |
-| `claudex-switch add <alias>` | 添加新账号 |
-| `claudex-switch use <alias>` | 切换到指定别名 |
-| `claudex-switch use <alias> -run` | `claudex-switch <alias> -run` 的显式写法 |
-| `claudex-switch list` | 列出所有账号、认证类型、默认模型和剩余额度（5h / 每周窗口，one-api 中转显示余额），底部附近 30 天 token / 代码行走势；`--cached` 只读缓存、后台刷新（适合 shell 启动）；`--no-usage` 跳过额度拉取 |
-| `claudex-switch model <alias> <model>` | 修改已有账号的默认模型，并在当前活跃时立即同步到 Claude / Codex 配置；支持同一套模型缩写 |
-| `claudex-switch rename <old> <new>` | 重命名别名 |
-| `claudex-switch refresh <alias>` | 重新登录并更新该别名保存的凭证快照 |
-| `claudex-switch doctor <alias> [--live] [--restart]` | 诊断本机 CLIProxyAPI 账号（或 `--cliproxy` 别名对应的代理）；可显式发送 haiku 档测试请求或重启其代理 |
-| `claudex-switch webconfig [--port <n>] [--no-open]` | 打开本机网页，批量查看和修改所有账号的配置 |
-| `claudex-switch current` | 显示当前活跃账号 |
-| `claudex-switch remove <alias>` | 只删除别名，不删除底层账号 |
-| `claudex-switch purge <alias>` | 删除底层账号及其关联别名 |
-| `claudex-switch import` | 从已有数据导入账号 |
-| `claudex-switch update` | 升级到最新 GitHub Release |
-| `claudex-switch --version` | 显示版本号；如有新 release，会先自动更新 |
-| `claudex-switch help` | 显示帮助 |
-
-**快捷方式:** `ls` = `list`，`rm` = `remove`，`-V` = `--version`
-
-### 网页配置
-
+### 2. 本地可视化网页配置（Web Config）
+不喜欢手动敲命令编辑配置？一键启动本地私有网页后台：
 ```bash
 claudex-switch webconfig
 ```
+- 批量查看与修改所有账号的 Base URL、API Key、默认模型与模型映射。
+- 支持直接粘贴整段 `export ANTHROPIC_*` 环境变量文本，自动解析填入。
 
-会在 `127.0.0.1` 上起一个只监听本机的服务，自动用浏览器打开，命令行里也会打印带一次性 token 的地址（换台机器打不开，页面加载后 token 会从地址栏清掉）。`Ctrl-C` 结束。
+### 3. 借用 Codex / Go 额度跑 Claude Code（Cliproxy）
+手头有充足的 Codex / ChatGPT / OpenCode Go 额度，想在 Claude Code 里跑？无需手写代理配置：
+```bash
+# 用 Codex (ChatGPT) 账号额度跑 Claude Code
+claudex-switch cx --run --cliproxy claudecode
 
-分组标题（`CLAUDE` / `CODEX`）右边的 `+` 可以新增账号，选类型填表即可，效果等同 CLI 的 `add`（建完会立即切为当前生效账号）。目前支持两种凭据型账号：
-
-| `+` 位置 | 可选类型 |
-|---|---|
-| Claude | Claude API Key（含请求地址、Auth Token、各模型映射、自定义环境变量，支持贴 export 块导入） |
-| Codex | Codex API Key（OpenAI 官方，或自定义中转：Provider 名称 / base URL / 模型 / env key） |
-
-Claude OAuth、Codex ChatGPT 登录、本机 CLIProxyAPI、OpenCode Go 这四种需交互登录的类型暂未放进网页，仍走 CLI 的 `claudex-switch add <alias>`。OpenCode Go 的凭据由 `claudex-switch add` / `refresh`（以及 V1 TUI 内的 `/connect`）管理，网页暂不支持。
-
-每个账号行右侧有两个按钮：铅笔图标可以**原位改别名**（回车保存、Esc 取消），`删除` 则是**彻底删除账号**。点开卡片就能改配置，底部一次性保存所有改动的账号：
-
-| 账号类型 | 可改内容 |
-|---|---|
-| Claude API Key | API Key、请求地址、Auth Token、主模型、Fable / Opus / Sonnet / Haiku 映射、子代理模型 |
-| Claude OAuth | 默认模型 |
-| Claude 本机 CLIProxyAPI | 默认模型（其余由代理自己管理） |
-| Codex ChatGPT | 默认模型 |
-| Codex API Key | 默认模型、请求地址、Provider 模型、环境变量名、API Key |
-
-两个额外能力：
-
-- **自定义环境变量**：Claude 账号可以挂任意 `CLAUDE_CODE_*` 变量（如 `CLAUDE_CODE_EFFORT_LEVEL=max`、`CLAUDE_CODE_AUTO_COMPACT_WINDOW=786432`）。这些变量跟着账号走：切到别的账号时会被自动清掉，`-run` 隔离会话里也会带上；你自己手写在 `~/.claude/settings.json` 里的其它 env 不会被动。
-- **粘贴导入**：把一整段 `export ANTHROPIC_BASE_URL=... / export CLAUDE_CODE_EFFORT_LEVEL=...` 直接贴进去点「解析并填入」，已知的键落到对应输入框，其余落到自定义变量表。
-
-保存时如果这个账号正好是当前生效的账号，会立刻同步到 `~/.claude/settings.json` 或 `~/.codex/config.toml`；不是当前账号就只写它自己的配置，等下次切过去再生效。
-
-**删除**等同于 CLI 的 `purge`：删掉底层账号**和所有指向它的别名**，OAuth 凭据快照 / Codex 的 `.auth.json` 一并删除，登录态没了要重新登录。确认框会先列清楚代价（会掉哪几个别名、凭据要不要重登、是不是当前生效的账号），确认后才动手。
-
-**改别名**只改别名，底层账号和登录完全不动（等同 CLI 的 `rename`）。
-
-两个安全边界：账号如果正有 `-run` 会话在跑，删除会被拒绝并且**什么都不删**（页面显示拒绝原因）；删掉当前生效的账号会把全局 active 清空，裸 `claude` / `codex` 会没有可用账号。页面不提供只删别名、保留账号的操作（那会留下够不着的孤儿数据），需要的话用 CLI 的 `remove`。
-
-Codex 的 Provider 名称是只读的：它是 `config.toml` 里 `[model_providers.<name>]` 的表名，改名会留下孤儿配置并打乱历史会话的可见性。
-
-### 中转站账号余额（可选）
-
-one-api / new-api 系中转站的 sk 密钥只能查到**密钥自身**的额度（无限额度令牌只能看到已用量），查不到账号钱包余额。
-
-`claudex-switch add` 添加 API Key 账号时会自动探测 Base URL 是否为 one-api / new-api 系站点（通过公开的 `/api/status`），命中后引导输入控制台的系统访问令牌和数字用户 ID，当场验证通过才保存并回显余额（回车可跳过）。
-
-也可以手工在 `~/.claudex-switch/relays.json` 按站点 origin 配置控制台凭证：
-
-```json
-{
-  "https://relay.example.com": {
-    "accessToken": "控制台「个人设置 → 系统访问令牌」生成的令牌",
-    "userId": 42
-  }
-}
+# 用 OpenCode Go 账号额度跑 Claude Code
+claudex-switch go-work --run --cliproxy claudecode
 ```
 
-- `accessToken`：站点控制台**个人设置**页生成的系统访问令牌（不是 `sk-` API 密钥）
-- `userId`：你的数字用户 ID（个人设置页可见）；站点要求 `New-Api-User` 头时必填
-- `quotaPerUnit`：可选，覆盖站点的额度换算比例（默认自动从 `/api/status` 读取，一般为 500000/美元）
-
-配置后同一站点下的 Claude 和 Codex 账号都会显示 `key $47.34 left · acct $114.71 left` 两级余额。
-
-### 刷新过期登录
-
-当 Claude OAuth 或 Codex ChatGPT 的本地登录态过期时，可以按别名刷新：
-
+### 4. 刷新已过期登录
+当 OAuth 本地登录态过期时，无需重新添加账号，一键刷新：
 ```bash
 claudex-switch refresh <alias>
 ```
 
-- Claude OAuth：切换到对应 profile，执行 `claude auth login`，然后把当前凭证重新保存回该 profile
-- Codex ChatGPT：切换到对应账号快照，执行 `codex login --device-auth`，然后把新的 `~/.codex/auth.json` 回写到该别名
-- API Key 类型账号不需要 refresh
+---
 
-在 macOS 上，`claudex-switch` 会主动用私密 / 无痕窗口打开 Codex 的 device auth 页面；如果浏览器没有自动打开，终端里也会显示固定地址让你手动访问。
+## 📖 常用命令速查
 
-## 输出示例
+| 命令 | 别名 | 功能说明 |
+|---|---|---|
+| `claudex-switch` | - | 打开交互式账号选择菜单 |
+| `claudex-switch list` | `ls` | 查看所有账号、当前状态、5h/周额度与 30 天用量走势 |
+| `claudex-switch <alias> -run` | - | **【推荐】** 用该账号独立启动会话（凭证隔离、不影响全局） |
+| `claudex-switch <alias>` | `use` | 切换全局生效的默认账号 |
+| `claudex-switch add <alias>` | - | 添加新账号（支持 OAuth 登录 / API Key / 中转站） |
+| `claudex-switch import` | - | 从 `claude-switch` / `codex-auth` 一键导入旧账号 |
+| `claudex-switch refresh <alias>` | - | 重新登录并刷新该账号过期的凭据快照 |
+| `claudex-switch webconfig` | - | 打开本地可视化配置网页，批量管理账号与模型 |
+| `claudex-switch model <alias> <model>` | - | 修改指定账号的默认模型 |
+| `claudex-switch rename <old> <new>` | - | 重命名账号别名 |
+| `claudex-switch remove <alias>` | `rm` | 仅删除别名映射（保留底层登录凭证） |
+| `claudex-switch purge <alias>` | - | 彻底删除底层账号及其所有关联别名 |
+| `claudex-switch update` | - | 检查并升级到最新版本 |
 
-```
-  Accounts
+---
 
-  ── Claude ──
-    holden   oauth  Pro  profile@example.invalid
-  ▸ satoshi  oauth  Pro  profile@example.invalid
+## 📚 进阶文档与深入了解
 
-  ── Codex ──
-  ▸ cx-main    chatgpt  Plus  profile@example.invalid
-    cx-team    chatgpt  Team  profile@example.invalid
-```
+如需了解底层隔离边界、高级配置或自动化集成：
+- [使用场景详细指南](./docs/use-cases.md)
+- [常见问题与技术细节 (FAQ)](./docs/faq.md)
+- [本地 CLIProxyAPI 与跨额度机制说明](./docs/local-cliproxyapi.md)
+- [JSON 脚本输出参考](./docs/list-json.md)
+- [功能解说视频：中文（60 秒）](./docs/media/claudex-switch-explainer-zh-60s.mp4) · [English (60s)](./docs/media/claudex-switch-explainer-en-60s.mp4)
 
-- `▸` 表示当前活跃账号
+---
 
-## 工作原理
+## 📄 License
 
-### 架构
-
-claudex-switch 采用「薄别名层」架构：
-
-```
-~/.claudex-switch/aliases.json    ← 统一别名注册表
-          │
-    ┌─────┴─────┐
-    ▼           ▼
-~/.claude-profiles/    ~/.codex/accounts/
-  (Claude 原生存储)      (Codex 原生存储)
-```
-
-创建、重命名和移除别名只操作这层映射关系。账号切换会按下文说明写入 provider 的当前认证 / 配置；Codex 切换也可能更新会话 provider 可见性元数据。`remove` 只移除别名；`purge` 会删除关联账号档案及其别名。
-
-### Claude 账号切换
-
-- macOS 上通过 Keychain 读写 `Claude Code-credentials`
-- 其他系统读写 `~/.claude/.credentials.json`
-- 同步 `~/.claude.json` 中的 `oauthAccount`
-- API Key 模式写入 `~/.claude/settings.json`
-- Claude API Key 账号会同步写入 `ANTHROPIC_API_KEY`；如果该 profile 配置了 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` 或 `ANTHROPIC_DEFAULT_{SONNET,OPUS,HAIKU}_MODEL`，切换时也会一并覆盖
-- 切到 Claude API Key 账号时会清理当前 active 的 Claude OAuth token，避免 Claude Code 同时检测到 claude.ai token 和 `ANTHROPIC_API_KEY`；切回 OAuth 账号时会从 profile 恢复 token
-- 当使用 `claudex-switch <claude-api-alias> -run` 时，会直接用 `claude --bare` + profile 环境变量启动临时会话，不改写全局 `~/.claude*` 状态；同时把该 profile 的路由写进一份私有的 `--settings` 文件（`~/.claude-profiles/<name>/claude-settings.json`，权限 0600）。因为 Claude Code 会用 `~/.claude/settings.json` 里的 `env` 覆盖子进程环境变量，只靠环境变量会被「当前全局账号」的路由劫持（例如全局停在本机 CLIProxyAPI 账号时，`-run` 起的 DeepSeek 会话会变成 gpt 模型）；该文件优先级更高，并把这个 profile 不拥有的 key 一律置空
-- 当使用 `claudex-switch <claude-oauth-alias> -run` 时，会通过 `CLAUDE_SECURESTORAGE_CONFIG_DIR` 给该会话一个独立的凭据存储（macOS 上是每个 profile 独立的 Keychain 条目 `Claude Code-credentials-<hash>`，其他系统是 `~/.claude-profiles/<name>/.credentials.json`），并通过 `CLAUDE_CONFIG_DIR=~/.claude-profiles/<name>/config` 提供该 profile 自己的 `oauthAccount` 元数据。token 刷新直接发生在 profile 专属存储里，`/status` 和 `/usage` 会指向同一个账号
-- 因此所有 `-run` 会话（OAuth 和 API Key）都与全局切换互不影响：切换账号不会把正在运行的 `-run` 会话变成新账号，`-run` 也不会把正在运行的其他会话切走。设置、hooks、历史记录仍然全局共享
-- 底层原因：Claude Code 的所有 bare `claude` 会话共用一份全局凭据（macOS Keychain `Claude Code-credentials`），且会在会话中途（token 刷新、401 恢复时）重新读取它，所以直接 `use` 切换必然影响正在运行的 bare `claude` 会话——这是 Claude Code 的共享存储机制决定的。要并行使用多个账号，请用 `-run` 启动会话
-- 隔离会话结束后，刷新过的 token 会自动回写到 profile 快照，后续全局 `use` 会恢复最新的 token，不会因为 refresh token 已轮换而被迫重新登录
-- 唯一的剩余边界情况：同一账号同时以 bare `claude`（全局）和 `-run`（隔离）两种方式长时间运行，两边各自刷新 token 时可能使对方的 refresh token 失效（Anthropic 每次刷新都会轮换 refresh token），表现为其中一个会话要求重新登录
-
-### Codex 账号切换
-
-- 将对应的 `<key>.auth.json` 复制到 `~/.codex/auth.json`
-- Codex API Key 账号会根据保存的接口来源同步更新 `~/.codex/config.toml`；自定义供应商会把当前 bearer token 写入 `experimental_bearer_token`（文件权限设为 `0600`），确保切换后直接运行 `codex` 也能使用该账号。请将配置文件视为敏感凭据，不要分享或提交
-- 更新 `registry.json` 中的 `active_account_key`
-
-## 兼容性
-
-- 原有 Claude / Codex 账号格式兼容 `claude-switch`、`codex-auth`，可继续使用这些工具
-- 本机 CLIProxyAPI 是本项目独有的账号类型，其他切换工具不负责它的代理生命周期
-- macOS：已验证 Claude Code Keychain JSON 格式 + 旧版 hex 编码格式
-- Claude：Pro、Max、Team、Enterprise 订阅 + API Key
-- Codex：Free、Plus、Pro、Team 等 + OpenAI API Key / OpenAI-compatible API provider
-- 本机 CLIProxyAPI：macOS 已作真实登录及调用验收；Linux 支持预装二进制路径，Windows 暂不支持此账号类型。子代理强制路由需要 Claude Code 2.1.257 或更新版本
-
-## 注意事项
-
-- 这是非官方工具，依赖 Claude Code 和 Codex 当前的本地认证存储方式
-- 自动更新只会在执行 `claudex-switch --version` 时检查最新 GitHub Release；推送到 `main` 但未发布 release 的变更不会被已安装用户自动获取
-- Codex 切换后需要重启客户端才能生效
-- `-run --model <model>`（同 `-model`）会持久化写回账号默认模型；Claude 裸数字默认是 Opus 系列，`sonnet5`、`fable5.1` 等系列名会展开为完整模型名；Codex 的 `astra` / `sol` / `luna` 分别指 `gpt-6-astra` / `gpt-6.1-sol` / `gpt-6-luna`，`terra` 指 `gpt-5.6-terra`，`6` 指 `gpt-6-astra`
-- `-run --attribution-header false` 只影响这次 Claude 启动，不会修改你的 shell 配置；`true` 表示显式移除这个环境变量
-- 凭证文件权限设置为 `0600`，但请注意 `~/.claude-profiles/` 下的凭证副本的安全风险
-- Codex 多账号切换使用文件凭据存储；`add/refresh` 在临时 `CODEX_HOME` 登录，校验成功后才替换账号快照
-
-如需临时关闭自动更新，可在当前命令前加上：
-
-```bash
-CLAUDEX_DISABLE_AUTO_UPDATE=1 claudex-switch --version
-```
-
-如果你关闭了自动更新，之后仍然可以随时手动执行：
-
-```bash
-claudex-switch update
-```
-
-## 发布
-
-- 发布前必须先通过 `bun run verify`
-- 推送 `v*` tag 后，GitHub Actions 会自动：
-- 用 Bun 编译 macOS / Linux 的单文件二进制
-- 上传 `tar.gz` 产物和 `checksums.txt` 到 GitHub Release
-- 生成并回写 `Formula/claudex-switch.rb`
-
-## 参考项目
-
-- [Holden-Lin/claude-switch](https://github.com/Holden-Lin/claude-switch)
-- [Loongphy/codex-auth](https://github.com/Loongphy/codex-auth)
-
-## License
-
-本项目采用 source-available（源码可见）许可：MIT License 附加 Commons Clause License Condition v1.0，不属于 OSI 开源。公司内部使用，以及用本工具完成普通工作或自由职业项目，均可在遵守许可条款的前提下进行。未经单独书面许可，不得向第三方收费或收取其他对价，提供价值全部或实质上来源于本工具功能的产品或服务，包括相关托管、咨询或支持。这并非禁止所有商业集成；具有真正独立增值的大型产品仍可能符合条款。可通过[项目 issue](https://github.com/Holden-Lin/claudex-switch/issues)申请单独书面许可；提交 issue 不等于获得授权。详见 [LICENSE](./LICENSE) 与[商业许可说明](./COMMERCIAL-LICENSING.md)。
+本项目采用 Source-Available 许可：MIT License 附加 Commons Clause v1.0。个人及公司内部使用、普通外包或自由职业项目均可免费使用；未经书面许可不得将本项目核心功能直接包装收费转售。详见 [LICENSE](./LICENSE) 与 [商业许可说明](./COMMERCIAL-LICENSING.md)。
