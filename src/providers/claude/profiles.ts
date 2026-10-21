@@ -48,7 +48,10 @@ import {
   ensureManagedCLIProxyAPI,
   getLocalCLIProxyAPISettings,
   purgeManagedCLIProxyAPI,
+  replaceManagedCLIProxyAPIBinary,
+  findCLIProxyAPIBinary,
 } from "../cliproxyapi/managed";
+import { assertCLIProxyAPICompatibility } from "../cliproxyapi/version";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
@@ -347,6 +350,22 @@ export async function updateLocalCLIProxyAPIProfileIdentity(
     throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
   }
   await writeProfileData(name, { ...current, authIdentity });
+}
+
+export async function replaceLocalCLIProxyAPIBinary(
+  name: string,
+  binaryPath: string,
+): Promise<LocalCLIProxyAPIProfileData> {
+  const current = await readProfileData(name);
+  if (current.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  const resolved = findCLIProxyAPIBinary(binaryPath);
+  if (!resolved) throw new Error("The replacement CLIProxyAPI executable is unavailable.");
+  assertCLIProxyAPICompatibility(resolved, current.upstream);
+  const next = { ...current, binaryPath: resolved };
+  await replaceManagedCLIProxyAPIBinary(current, resolved, () => writeProfileData(name, next));
+  return next;
 }
 
 export async function switchProfile(name: string): Promise<ProfileData> {

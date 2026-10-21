@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-21",
+  "scope": "Offline actual upstream source regression tests; no credentials, real model calls or quota used.",
+  "oldTag": "v7.3.15",
+  "fixedTag": "v7.3.20",
+  "firstFixedTag": "v7.3.19",
+  "fixCommit": "3de5709db14c43e147025bcc27ae61ff4821fc0d",
+  "fixUrl": "https://github.com/router-for-me/CLIProxyAPI/commit/3de5709db",
+  "issueUrl": "https://github.com/router-for-me/CLIProxyAPI/issues/6129",
+  "cases": [
+    {
+      "name": "NonThinkingClaude",
+      "description": "混合文本与工具结果",
+      "oldResult": "fail",
+      "newResult": "pass"
+    },
+    {
+      "name": "InterveningSystemReminder",
+      "description": "工具调用与结果之间插入 system 提醒",
+      "oldResult": "fail",
+      "newResult": "pass"
+    },
+    {
+      "name": "InterveningDeveloperReminder",
+      "description": "工具调用与结果之间插入 developer 提醒",
+      "oldResult": "fail",
+      "newResult": "pass"
+    },
+    {
+      "name": "ParallelToolResultsAcrossMessages",
+      "description": "并行工具结果分布于多个用户消息",
+      "oldResult": "pass",
+      "newResult": "pass"
+    },
+    {
+      "name": "ClaudeThinking",
+      "description": "带签名 thinking 的工具调用及混合文本结果",
+      "oldResult": "fail",
+      "newResult": "pass"
+    }
+  ],
+  "oldExitCode": 1,
+  "newExitCode": 0,
+  "newFullRegression": {
+    "testAndSubtestPass": 339,
+    "testAndSubtestFail": 0,
+    "packages": [
+      {
+        "name": "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/common",
+        "elapsedSeconds": 1.827
+      },
+      {
+        "name": "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/antigravity/claude",
+        "elapsedSeconds": 1.952
+      }
+    ]
+  },
+  "toolchain": {
+    "version": "go1.26.10 darwin/arm64",
+    "url": "https://go.dev/dl/go1.26.10.darwin-arm64.tar.gz",
+    "sha256": "0b5183492292ada170f9b561a834863808dd02edba599e4ad0e89899330020b3"
+  },
+  "sourceArchives": [
+    {
+      "tag": "v7.3.15",
+      "url": "https://codeload.github.com/router-for-me/CLIProxyAPI/tar.gz/refs/tags/v7.3.15",
+      "sha256": "5a6fc5058ca443d046e01b92e730707838975d56e34ef995cca85b01435d6e60"
+    },
+    {
+      "tag": "v7.3.20",
+      "url": "https://codeload.github.com/router-for-me/CLIProxyAPI/tar.gz/refs/tags/v7.3.20",
+      "sha256": "5ec1a413d49820a10ead8f6e04ad5417e35177667547c5a00496ac683db900e2"
+    }
+  ],
+  "binaryAsset": {
+    "version": "7.3.20",
+    "commit": "ef9e7120",
+    "builtAt": "2026-09-27T06:12:28Z",
+    "url": "https://github.com/router-for-me/CLIProxyAPI/releases/download/v7.3.20/CLIProxyAPI_7.3.20_darwin_aarch64.tar.gz",
+    "sha256": "342718b5eba201446899d03f565e8295af74a4136f49abc99237b5caf6d9fdd7",
+    "officialChecksumsUrl": "https://github.com/router-for-me/CLIProxyAPI/releases/download/v7.3.20/checksums.txt"
+  },
+  "limitations": [
+    "Proves four specific translator failure classes and one existing pass; does not establish every possible API 400 cause.",
+    "No live upstream call was used; root must separately verify user-visible flow when account quota permits."
+  ],
+  "reproductionScript": "docs/receipts/cliproxy-tool-history-reproduce-macos-arm64.sh",
+  "oldResults": "docs/receipts/cliproxy-tool-history-old.txt",
+  "newResults": "docs/receipts/cliproxy-tool-history-fixed.txt"
+}

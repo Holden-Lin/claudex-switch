@@ -41,6 +41,7 @@ import { getOpenCodeProfileData, readOpenCodeGoApiKey } from "../providers/openc
 import { fetchOpenCodeGoCatalogIds } from "../providers/opencode/catalog";
 import { resolveCLIProxyAPIBinaryForAdd } from "./add";
 import type { AliasEntry, LocalCLIProxyAPIProfileData } from "../types";
+import { assertCLIProxyAPICompatibility } from "../providers/cliproxyapi/version";
 
 // `--cliproxy <client>` names the CLI that consumes the upstream account. Only
 // Claude Code exists today; the value leaves room for Codex/OpenCode later.
@@ -320,6 +321,7 @@ async function createAntigravityAlias(
   if (!accepted) throw new UserFacingError("Cancelled; nothing was created.");
 
   const binaryPath = await requireBinary(options);
+  assertCLIProxyAPICompatibility(binaryPath, "antigravity");
   info("Opening CLIProxyAPI's own Antigravity login in your browser...");
   blank();
   const { profileName, profile } = await createManagedProfile(

@@ -41,6 +41,15 @@ function runLocalCliWithoutTestHome(args: string[]) {
 }
 
 describe("cli version flags", () => {
+  test.each([
+    ["doctor", "agy", "--binary"],
+    ["doctor", "agy", "--binary", "--live"],
+    ["doctor", "agy", "--binary", "/one", "--binary", "/two"],
+  ])("rejects invalid doctor binary options: %j", (...args) => {
+    const result = runCli(args);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("[--binary <path>]");
+  });
   test("prints the current version for --version", () => {
     const result = runCli(["--version"]);
 

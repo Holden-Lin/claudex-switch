@@ -4181,7 +4181,7 @@ async function getApiConfig() {
 }
 
 // src/providers/cliproxyapi/managed.ts
-import { spawn, spawnSync as spawnSync3 } from "child_process";
+import { spawn, spawnSync as spawnSync4 } from "child_process";
 import {
   chmod as chmod2,
   mkdir as mkdir3,
@@ -4298,6 +4298,50 @@ function openExternalUrl(url, privateWindow = false) {
     return false;
   } finally {
     cleanupBrowserScript(browserScript);
+  }
+}
+
+// src/providers/cliproxyapi/version.ts
+import { spawnSync as spawnSync3 } from "child_process";
+var CLI_PROXY_API_ANTIGRAVITY_MIN_VERSION = "7.3.19";
+var CLI_PROXY_API_RECOMMENDED_VERSION = "7.3.20";
+function parseCLIProxyAPIVersion(output) {
+  return output.match(/CLIProxyAPI\s+Version[:\s]+v?(\d+\.\d+\.\d+(?:-[\w.-]+)?)/i)?.[1] ?? null;
+}
+function readCLIProxyAPIVersion(binaryPath) {
+  try {
+    const result = spawnSync3(binaryPath, ["--help"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 5000
+    });
+    if (result.error || result.status !== 0)
+      return null;
+    return parseCLIProxyAPIVersion(`${result.stdout}
+${result.stderr}`);
+  } catch {
+    return null;
+  }
+}
+function supportsAntigravityToolHistory(version) {
+  if (!version || !/^\d+\.\d+\.\d+$/.test(version))
+    return false;
+  const actual = version.split(".").map(Number);
+  const required = CLI_PROXY_API_ANTIGRAVITY_MIN_VERSION.split(".").map(Number);
+  for (let i = 0;i < required.length; i += 1) {
+    if (actual[i] > required[i])
+      return true;
+    if (actual[i] < required[i])
+      return false;
+  }
+  return true;
+}
+function assertCLIProxyAPICompatibility(binaryPath, upstream) {
+  if (upstream !== "antigravity")
+    return;
+  const version = readCLIProxyAPIVersion(binaryPath);
+  if (!supportsAntigravityToolHistory(version)) {
+    throw new Error(`CLIProxyAPI ${version ?? "(unknown version)"} lacks the verified Antigravity tool-history fixes. ` + `Use v${CLI_PROXY_API_ANTIGRAVITY_MIN_VERSION} or newer (validated: v${CLI_PROXY_API_RECOMMENDED_VERSION}). ` + "Install a compatible binary; for an existing account, end its sessions, then run `claudex-switch doctor <alias> --binary /path/to/cli-proxy-api`. " + "A reachable proxy or text-only response does not verify tool compatibility.");
   }
 }
 
@@ -4765,7 +4809,7 @@ async function listManagedCLIProxyAPIModels(runtime) {
     clearTimeout(timeout);
   }
 }
-async function verifyManagedCLIProxyAPILive(runtime, model) {
+async function probeManagedCLIProxyAPILive(runtime, model) {
   const controller = new AbortController;
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
@@ -4784,9 +4828,9 @@ async function verifyManagedCLIProxyAPILive(runtime, model) {
       }),
       signal: controller.signal
     });
-    return response.ok;
+    return { ok: response.ok, status: response.status };
   } catch {
-    return false;
+    return { ok: false, status: null };
   } finally {
     clearTimeout(timeout);
   }
@@ -4853,7 +4897,7 @@ async function processCommandLine(pid) {
     }
   }
   try {
-    const result = spawnSync3("ps", ["-p", String(pid), "-o", "command="], {
+    const result = spawnSync4("ps", ["-p", String(pid), "-o", "command="], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
@@ -5006,51 +5050,68 @@ function stopChildWeStarted(proc) {
 }
 async function ensureManagedCLIProxyAPI(profile) {
   assertProfileId(profile.profileId);
-  return withStartupLock(profile.profileId, async () => {
-    const paths = profilePaths(profile.profileId);
-    const state = await readState(profile.profileId);
+  return withStartupLock(profile.profileId, () => ensureManagedCLIProxyAPIUnlocked(profile));
+}
+async function ensureManagedCLIProxyAPIUnlocked(profile) {
+  const paths = profilePaths(profile.profileId);
+  const state = await readState(profile.profileId);
+  const managed = await readExistingManagedEnv(profile.profileId);
+  assertCLIProxyAPICompatibility(profile.binaryPath, managed.upstream);
+  if (state) {
+    const alive = isPidAlive(state.pid);
+    const owned = alive && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state);
+    if (owned) {
+      if (await probeProxy(state.port, managed.apiKey)) {
+        return {
+          port: state.port,
+          baseUrl: baseUrl(state.port),
+          apiKey: managed.apiKey
+        };
+      }
+      throw new Error("Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.");
+    }
+    if (alive) {
+      throw new Error("Refusing to replace CLIProxyAPI state because its PID is not a verified managed process.");
+    }
+    await rm2(paths.stateFile, { force: true });
+  }
+  for (let attempt = 0;attempt < 3; attempt += 1) {
+    const port = await findAvailablePort();
+    await writeRuntimeConfig(profile.profileId, port);
+    const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
+    const ready = await waitForProxy(port, managed.apiKey);
+    if (!ready) {
+      stopChildWeStarted(proc);
+      continue;
+    }
+    if (!proc.pid) {
+      stopChildWeStarted(proc);
+      throw new Error("CLIProxyAPI started without a process id");
+    }
+    await writeState(profile.profileId, {
+      pid: proc.pid,
+      port,
+      binaryPath: profile.binaryPath,
+      configPath: paths.configFile,
+      startedAt: Date.now()
+    });
+    return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
+  }
+  throw new Error("CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.");
+}
+async function replaceManagedCLIProxyAPIBinary(profile, binaryPath, persist) {
+  await withStartupLock(profile.profileId, async () => {
     const managed = await readExistingManagedEnv(profile.profileId);
-    if (state) {
-      const alive = isPidAlive(state.pid);
-      const owned = alive && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state);
-      if (owned) {
-        if (await probeProxy(state.port, managed.apiKey)) {
-          return {
-            port: state.port,
-            baseUrl: baseUrl(state.port),
-            apiKey: managed.apiKey
-          };
-        }
-        throw new Error("Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.");
-      }
-      if (alive) {
-        throw new Error("Refusing to replace CLIProxyAPI state because its PID is not a verified managed process.");
-      }
-      await rm2(paths.stateFile, { force: true });
+    assertCLIProxyAPICompatibility(binaryPath, managed.upstream);
+    await stopManagedCLIProxyAPIUnlocked(profile);
+    const next = { ...profile, binaryPath };
+    await ensureManagedCLIProxyAPIUnlocked(next);
+    try {
+      await persist();
+    } catch (err) {
+      await stopManagedCLIProxyAPIUnlocked(next);
+      throw err;
     }
-    for (let attempt = 0;attempt < 3; attempt += 1) {
-      const port = await findAvailablePort();
-      await writeRuntimeConfig(profile.profileId, port);
-      const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
-      const ready = await waitForProxy(port, managed.apiKey);
-      if (!ready) {
-        stopChildWeStarted(proc);
-        continue;
-      }
-      if (!proc.pid) {
-        stopChildWeStarted(proc);
-        throw new Error("CLIProxyAPI started without a process id");
-      }
-      await writeState(profile.profileId, {
-        pid: proc.pid,
-        port,
-        binaryPath: profile.binaryPath,
-        configPath: paths.configFile,
-        startedAt: Date.now()
-      });
-      return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
-    }
-    throw new Error("CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.");
   });
 }
 async function managedCLIProxyAPIHasActiveLeases(profileId) {
@@ -5385,7 +5446,7 @@ async function cleanupFailedManagedCLIProxyAPI(profileId) {
 }
 function commandWorks(command) {
   try {
-    return spawnSync3(command, ["--help"], {
+    return spawnSync4(command, ["--help"], {
       stdio: "ignore"
     }).status === 0;
   } catch {
@@ -5398,7 +5459,7 @@ function resolvedCommand(command) {
   }
   const locator = platform3() === "win32" ? "where" : "which";
   try {
-    const result = spawnSync3(locator, [command], {
+    const result = spawnSync4(locator, [command], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
@@ -5716,6 +5777,19 @@ async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
     throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
   }
   await writeProfileData(name, { ...current, authIdentity });
+}
+async function replaceLocalCLIProxyAPIBinary(name, binaryPath) {
+  const current = await readProfileData(name);
+  if (current.type !== "local-cliproxyapi") {
+    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+  }
+  const resolved = findCLIProxyAPIBinary(binaryPath);
+  if (!resolved)
+    throw new Error("The replacement CLIProxyAPI executable is unavailable.");
+  assertCLIProxyAPICompatibility(resolved, current.upstream);
+  const next = { ...current, binaryPath: resolved };
+  await replaceManagedCLIProxyAPIBinary(current, resolved, () => writeProfileData(name, next));
+  return next;
 }
 async function switchProfile(name) {
   if (!await profileExists(name)) {
@@ -6873,7 +6947,7 @@ async function removeOpenCodeProfile(profileId) {
 }
 
 // src/commands/add.ts
-import { spawn as spawn6, spawnSync as spawnSync6 } from "child_process";
+import { spawn as spawn6, spawnSync as spawnSync7 } from "child_process";
 import { platform as platform4 } from "os";
 
 // src/accounts/create.ts
@@ -7312,7 +7386,7 @@ async function getJson(url, headers) {
 }
 
 // src/providers/opencode/tui.ts
-import { spawn as spawn3, spawnSync as spawnSync4 } from "child_process";
+import { spawn as spawn3, spawnSync as spawnSync5 } from "child_process";
 async function runOpenCodeTui(profileId, spawnCommand = spawn3) {
   const proc = spawnCommand("opencode", [], {
     stdio: "inherit",
@@ -7325,7 +7399,7 @@ async function runOpenCodeTui(profileId, spawnCommand = spawn3) {
 }
 
 // src/providers/opencode/version.ts
-import { spawnSync as spawnSync5 } from "child_process";
+import { spawnSync as spawnSync6 } from "child_process";
 function parseOpenCodeVersion(output) {
   const match = output.match(/(?:^|\s)v?(\d+)\.(\d+)\.(\d+)(?:[-+][\w.-]+)?(?=\s|$)/i);
   if (!match)
@@ -7342,7 +7416,7 @@ function isSupportedOpenCodeVersion(version) {
 }
 function detectOpenCodeVersion() {
   try {
-    const result = spawnSync5("opencode", ["--version"], {
+    const result = spawnSync6("opencode", ["--version"], {
       encoding: "utf-8",
       windowsHide: true,
       timeout: 5000,
@@ -8689,7 +8763,7 @@ async function promptForKey(message) {
 
 // src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result = spawnSync6("claude", ["auth", "status"], {
+  const result = spawnSync7("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
   if (result.status !== 0)
@@ -8902,7 +8976,7 @@ async function addClaudeOAuth(alias) {
     if (authStatus?.loggedIn) {
       info("Logging out current Claude session...");
       blank();
-      const logout = spawnSync6("claude", ["auth", "logout"], {
+      const logout = spawnSync7("claude", ["auth", "logout"], {
         stdio: "inherit"
       });
       if (logout.status !== 0) {
@@ -9021,7 +9095,7 @@ async function resolveCLIProxyAPIBinaryForAdd() {
 }
 function hasHomebrew() {
   try {
-    return spawnSync6("brew", ["--version"], { stdio: "ignore" }).status === 0;
+    return spawnSync7("brew", ["--version"], { stdio: "ignore" }).status === 0;
   } catch {
     return false;
   }
@@ -9124,7 +9198,7 @@ async function promptClaudeDefaultModel() {
   return normalized || undefined;
 }
 async function addCodexChatGPT(alias) {
-  const codexCheck = spawnSync6("codex", ["--version"], {
+  const codexCheck = spawnSync7("codex", ["--version"], {
     encoding: "utf-8"
   });
   const hasCodex = codexCheck.status === 0;
@@ -10123,6 +10197,7 @@ async function createAntigravityAlias(alias, options) {
   if (!accepted)
     throw new UserFacingError("Cancelled; nothing was created.");
   const binaryPath = await requireBinary(options);
+  assertCLIProxyAPICompatibility(binaryPath, "antigravity");
   info("Opening CLIProxyAPI's own Antigravity login in your browser...");
   blank();
   const { profileName, profile } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
@@ -12896,11 +12971,11 @@ async function runLoginCommand(command, args) {
 // src/lib/update.ts
 import { realpathSync } from "fs";
 import { join as join14 } from "path";
-import { spawnSync as spawnSync7 } from "child_process";
+import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.4",
+  version: "1.25.5",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -13009,7 +13084,7 @@ async function fetchLatestReleaseVersion(fetchImpl = fetch) {
     return null;
   }
 }
-function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync7) {
+function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync8) {
   const brewPrefix = readCommandStdout(runCommand("brew", ["--prefix"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"]
@@ -13074,7 +13149,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
   const env2 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
-  const runCommand = options.runCommand ?? spawnSync7;
+  const runCommand = options.runCommand ?? spawnSync8;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
   if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV] === "1" || env2[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {
@@ -15110,10 +15185,19 @@ async function doctor(aliasOrName, options = {}) {
     fail(`Claude profile "${profileName}" no longer exists.`);
     return;
   }
-  const profile = await getProfileData(profileName);
+  let profile = await getProfileData(profileName);
   if (profile.type !== "local-cliproxyapi") {
     fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
     return;
+  }
+  if (options.binaryPath) {
+    try {
+      profile = await replaceLocalCLIProxyAPIBinary(profileName, options.binaryPath);
+      success("Updated this account's CLIProxyAPI binary; existing login and settings were preserved.");
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+      return;
+    }
   }
   const managedProfile = {
     profileId: profile.profileId,
@@ -15122,7 +15206,7 @@ async function doctor(aliasOrName, options = {}) {
   let status = await inspectManagedCLIProxyAPI(managedProfile, {
     probe: true
   });
-  info(`CLIProxyAPI binary: ${status.installed ? "available" : "not found"}`);
+  info(`CLIProxyAPI binary: ${status.installed ? `v${readCLIProxyAPIVersion(profile.binaryPath) ?? "unknown"}` : "not found"}`);
   const upstream = upstreamLabel(profile.upstream);
   info(`${upstream} ${profile.upstream === "opencode-go" ? "key" : "login"}: ${status.loggedIn ? "available" : "required"}`);
   info(`Managed daemon: ${status.running ? `running on 127.0.0.1:${status.port}` : "stopped"}`);
@@ -15135,8 +15219,14 @@ async function doctor(aliasOrName, options = {}) {
     fail("CLIProxyAPI binary is unavailable. Reinstall it or add the account again with a valid executable.");
     return;
   }
+  try {
+    assertCLIProxyAPICompatibility(profile.binaryPath, profile.upstream);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+    return;
+  }
   if (!status.loggedIn) {
-    fail(`No valid local ChatGPT login is available. Run ${source_default.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
+    fail(`No valid local ${upstream} login is available. Run ${source_default.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
     return;
   }
   if (!status.environmentValid) {
@@ -15177,8 +15267,10 @@ async function doctor(aliasOrName, options = {}) {
     const liveRuntime = runtime ?? await ensureManagedCLIProxyAPI(managedProfile);
     const liveModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
     const liveName = (profile.upstream ?? "codex") === "codex" ? `Luna (${liveModel})` : liveModel;
-    if (!await verifyManagedCLIProxyAPILive(liveRuntime, liveModel)) {
-      fail(`${liveName} live verification failed. The local proxy is reachable, but this ${upstream} account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
+    const probe = await probeManagedCLIProxyAPILive(liveRuntime, liveModel);
+    if (!probe.ok) {
+      const reason = probe.status === 429 ? "HTTP 429: upstream rate limit or resource exhaustion; wait before retrying, do not relogin or repeatedly restart the proxy" : probe.status === 401 || probe.status === 403 ? `HTTP ${probe.status}: upstream authorization was rejected; check this account's login/access` : probe.status === 400 ? "HTTP 400: upstream rejected the model/request; check model availability and protocol compatibility" : probe.status === null ? "upstream request timed out or could not connect" : `HTTP ${probe.status}: upstream could not complete the request`;
+      fail(`${liveName} live verification failed. The local proxy is reachable; ${reason}.`);
       return;
     }
     success(`${source_default.bold(entry.alias)} ${liveName} live verification passed`);
@@ -15216,7 +15308,7 @@ var HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
-    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account (or the one a --cliproxy alias uses)
+    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local CLIProxyAPI
     claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
@@ -15464,24 +15556,28 @@ async function main() {
         }
         await refresh(args[0]);
         break;
-      case "doctor":
-        if (!args[0]) {
+      case "doctor": {
+        const doctorOptions = {};
+        let validDoctorArgs = !!args[0];
+        for (let i = 1;i < args.length; i += 1) {
+          if (args[i] === "--live")
+            doctorOptions.live = true;
+          else if (args[i] === "--restart")
+            doctorOptions.restart = true;
+          else if (args[i] === "--binary" && !doctorOptions.binaryPath && args[i + 1] && !args[i + 1].startsWith("-")) {
+            doctorOptions.binaryPath = args[++i];
+          } else
+            validDoctorArgs = false;
+        }
+        if (!validDoctorArgs) {
           console.error(source_default.red(`
-  Usage: claudex-switch doctor <alias> [--live] [--restart]
+  Usage: claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]
 `));
           process.exit(1);
         }
-        if (args.slice(1).some((arg) => arg !== "--live" && arg !== "--restart")) {
-          console.error(source_default.red(`
-  Usage: claudex-switch doctor <alias> [--live] [--restart]
-`));
-          process.exit(1);
-        }
-        await doctor(args[0], {
-          live: args.includes("--live"),
-          restart: args.includes("--restart")
-        });
+        await doctor(args[0], doctorOptions);
         break;
+      }
       case "webconfig":
         await webconfig(args);
         break;

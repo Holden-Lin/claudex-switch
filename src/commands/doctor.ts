@@ -6,18 +6,21 @@ import { upstreamLabel } from "./cliproxy";
 import {
   getProfileData,
   profileExists,
+  replaceLocalCLIProxyAPIBinary,
 } from "../providers/claude/profiles";
 import {
   ensureManagedCLIProxyAPI,
   inspectManagedCLIProxyAPI,
   resolveManagedLocalCLIProxyAPIModel,
   restartManagedCLIProxyAPI,
-  verifyManagedCLIProxyAPILive,
+  probeManagedCLIProxyAPILive,
 } from "../providers/cliproxyapi/managed";
+import { assertCLIProxyAPICompatibility, readCLIProxyAPIVersion } from "../providers/cliproxyapi/version";
 
 export interface DoctorOptions {
   live?: boolean;
   restart?: boolean;
+  binaryPath?: string;
 }
 
 // Diagnostics deliberately have two levels. The default does not make a model
@@ -52,10 +55,20 @@ export async function doctor(
     return;
   }
 
-  const profile = await getProfileData(profileName);
+  let profile = await getProfileData(profileName);
   if (profile.type !== "local-cliproxyapi") {
     fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
     return;
+  }
+
+  if (options.binaryPath) {
+    try {
+      profile = await replaceLocalCLIProxyAPIBinary(profileName, options.binaryPath);
+      success("Updated this account's CLIProxyAPI binary; existing login and settings were preserved.");
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+      return;
+    }
   }
 
   const managedProfile = {
@@ -67,7 +80,7 @@ export async function doctor(
   });
 
   info(
-    `CLIProxyAPI binary: ${status.installed ? "available" : "not found"}`,
+    `CLIProxyAPI binary: ${status.installed ? `v${readCLIProxyAPIVersion(profile.binaryPath) ?? "unknown"}` : "not found"}`,
   );
   const upstream = upstreamLabel(profile.upstream);
   info(`${upstream} ${profile.upstream === "opencode-go" ? "key" : "login"}: ${status.loggedIn ? "available" : "required"}`);
@@ -86,8 +99,14 @@ export async function doctor(
     fail("CLIProxyAPI binary is unavailable. Reinstall it or add the account again with a valid executable.");
     return;
   }
+  try {
+    assertCLIProxyAPICompatibility(profile.binaryPath, profile.upstream);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+    return;
+  }
   if (!status.loggedIn) {
-    fail(`No valid local ChatGPT login is available. Run ${chalk.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
+    fail(`No valid local ${upstream} login is available. Run ${chalk.cyan(`claudex-switch refresh ${entry.alias}`)} to sign in again.`);
     return;
   }
   if (!status.environmentValid) {
@@ -134,8 +153,18 @@ export async function doctor(
     const liveModel = await resolveManagedLocalCLIProxyAPIModel(profile, "haiku");
     // The ChatGPT haiku tier is Luna; keep its familiar name in messages.
     const liveName = (profile.upstream ?? "codex") === "codex" ? `Luna (${liveModel})` : liveModel;
-    if (!(await verifyManagedCLIProxyAPILive(liveRuntime, liveModel))) {
-      fail(`${liveName} live verification failed. The local proxy is reachable, but this ${upstream} account or that specific model could not complete the test request. Older CLIProxyAPI builds may not know this model; try \`brew upgrade cliproxyapi\` then \`claudex-switch doctor ${entry.alias} --restart\`.`);
+    const probe = await probeManagedCLIProxyAPILive(liveRuntime, liveModel);
+    if (!probe.ok) {
+      const reason = probe.status === 429
+        ? "HTTP 429: upstream rate limit or resource exhaustion; wait before retrying, do not relogin or repeatedly restart the proxy"
+        : probe.status === 401 || probe.status === 403
+          ? `HTTP ${probe.status}: upstream authorization was rejected; check this account's login/access`
+          : probe.status === 400
+            ? "HTTP 400: upstream rejected the model/request; check model availability and protocol compatibility"
+            : probe.status === null
+              ? "upstream request timed out or could not connect"
+              : `HTTP ${probe.status}: upstream could not complete the request`;
+      fail(`${liveName} live verification failed. The local proxy is reachable; ${reason}.`);
       return;
     }
     success(`${chalk.bold(entry.alias)} ${liveName} live verification passed`);

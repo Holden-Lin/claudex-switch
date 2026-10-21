@@ -54,6 +54,25 @@ $ claudex-switch chatgpt --run
 
 ## 登录失败与日常维护
 
+### 工具调用后报 400 / concurrency
+
+这条错误不一定意味着实际运行了多个工具。CLIProxyAPI 7.3.15 的 Antigravity 转换会把提示文本放在工具结果之前，导致上游认为结果未紧接调用；一个 Bash 也可触发。7.3.19 的[上游修复](https://github.com/router-for-me/CLIProxyAPI/commit/3de5709db14c43e147025bcc27ae61ff4821fc0d)同时处理混合文本、system/developer 提醒与带签名思考块的结果顺序。
+
+Antigravity 现在要求可识别的 CLIProxyAPI 稳定版 ≥ 7.3.19，本项目验证过 7.3.20。启动及 `doctor` 会拦截已知旧版；不靠关闭工具并发或自动重放工具来规避。`claudex-switch update` 只更新管理器，不会自动升级外部代理。
+
+先从[官方 v7.3.20 资产](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v7.3.20)下载对应系统的二进制，并按同页 `checksums.txt` 校验。结束该账号的会话后执行：
+
+```bash
+claudex-switch doctor agy --binary /path/to/cli-proxy-api
+claudex-switch agy --run --cliproxy claudecode
+```
+
+替换只影响该账号，保留模型映射、客户端密钥及上游登录。操作与会话启动共用生命周期锁：有会话时拒绝，验证新进程就绪后才保存路径，保存失败会清理新进程。不会改 Homebrew 的全局二进制。
+
+旧会话若仍重复发送已损坏的历史，可用 `/rewind` **只回退对话**到失败工具之前；工具可能已经执行，不应自动重放。新会话也会保留磁盘上的改动。`doctor --live` 只检查最小模型请求；429 会单独提示上游限流或资源不足，不能用反复重登、重启解决。
+
+离线验收：[对照结果及校验和](receipts/cliproxy-tool-history-ab.json)、[macOS arm64 复现脚本](receipts/cliproxy-tool-history-reproduce-macos-arm64.sh)。同样五例中旧版四败、修复版全过；另有相关翻译器包 339 项测试及子测试通过。这不代表所有可能的 400 都已消除。
+
 CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callback`；部分版本即使接受自定义 callback-port，授权地址仍不跟随。项目因此使用真实的 1455 端口，登录前检查占用，并将多个登录请求串行化。遇到端口冲突时先结束占用该端口的登录进程，再运行 `claudex-switch refresh <alias>`；不要分享包含 `code` 的回调地址。
 
 `doctor --restart` 只重启对应账号的代理，并可从有效私有配置重建生成文件；它不能替代登录或修复账号额度。建议日常始终使用 `--run`：单独全局切换后直接运行 `claude` 不持有项目会话租约，手工重启代理后也应重新执行别名切换以同步本机端口。

@@ -38,6 +38,7 @@ import {
   type LocalCLIProxyAPISettings,
 } from "../claude/settings";
 import type { LocalCLIProxyAPIProfileData } from "../../types";
+import { assertCLIProxyAPICompatibility } from "./version";
 import {
   CLI_PROXY_API_UPSTREAMS,
   OPENCODE_GO_ANTHROPIC_BASE_URL,
@@ -676,6 +677,13 @@ export async function verifyManagedCLIProxyAPILive(
   runtime: ManagedCLIProxyAPIRuntime,
   model: string,
 ): Promise<boolean> {
+  return (await probeManagedCLIProxyAPILive(runtime, model)).ok;
+}
+
+export async function probeManagedCLIProxyAPILive(
+  runtime: ManagedCLIProxyAPIRuntime,
+  model: string,
+): Promise<{ ok: boolean; status: number | null }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
   try {
@@ -698,9 +706,9 @@ export async function verifyManagedCLIProxyAPILive(
       }),
       signal: controller.signal,
     });
-    return response.ok;
+    return { ok: response.ok, status: response.status };
   } catch {
-    return false;
+    return { ok: false, status: null };
   } finally {
     clearTimeout(timeout);
   }
@@ -1000,72 +1008,99 @@ export async function ensureManagedCLIProxyAPI(
   profile: ManagedCLIProxyAPIProfile,
 ): Promise<ManagedCLIProxyAPIRuntime> {
   assertProfileId(profile.profileId);
+  return withStartupLock(profile.profileId, () => ensureManagedCLIProxyAPIUnlocked(profile));
+}
 
-  return withStartupLock(profile.profileId, async () => {
-    const paths = profilePaths(profile.profileId);
-    const state = await readState(profile.profileId);
+async function ensureManagedCLIProxyAPIUnlocked(
+  profile: ManagedCLIProxyAPIProfile,
+): Promise<ManagedCLIProxyAPIRuntime> {
+  const paths = profilePaths(profile.profileId);
+  const state = await readState(profile.profileId);
+  const managed = await readExistingManagedEnv(profile.profileId);
+
+  assertCLIProxyAPICompatibility(profile.binaryPath, managed.upstream);
+
+  if (state) {
+    const alive = isPidAlive(state.pid);
+    const owned =
+      alive &&
+      state.binaryPath === profile.binaryPath &&
+      state.configPath === paths.configFile &&
+      (await isOwnedProcess(state));
+
+    if (owned) {
+      if (await probeProxy(state.port, managed.apiKey)) {
+        return {
+          port: state.port,
+          baseUrl: baseUrl(state.port),
+          apiKey: managed.apiKey,
+        };
+      }
+      // Do not rewrite runtime.yaml or start a second daemon while a known
+      // managed process still owns it. That would create two watchers using
+      // the same auth directory and turn a recoverable failure into drift.
+      throw new Error(
+        "Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.",
+      );
+    }
+
+    if (alive) {
+      throw new Error(
+        "Refusing to replace CLIProxyAPI state because its PID is not a verified managed process.",
+      );
+    }
+
+    await rm(paths.stateFile, { force: true });
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const port = await findAvailablePort();
+    await writeRuntimeConfig(profile.profileId, port);
+    const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
+    const ready = await waitForProxy(port, managed.apiKey);
+    if (!ready) {
+      stopChildWeStarted(proc);
+      continue;
+    }
+    if (!proc.pid) {
+      stopChildWeStarted(proc);
+      throw new Error("CLIProxyAPI started without a process id");
+    }
+
+    await writeState(profile.profileId, {
+      pid: proc.pid,
+      port,
+      binaryPath: profile.binaryPath,
+      configPath: paths.configFile,
+      startedAt: Date.now(),
+    });
+    return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
+  }
+
+  throw new Error(
+    "CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.",
+  );
+}
+
+// Keep replacement, readiness and the profile writer in the same lifecycle
+// lock so a new session cannot acquire a lease in the middle of an upgrade.
+export async function replaceManagedCLIProxyAPIBinary(
+  profile: ManagedCLIProxyAPIProfile,
+  binaryPath: string,
+  persist: () => Promise<void>,
+): Promise<void> {
+  await withStartupLock(profile.profileId, async () => {
     const managed = await readExistingManagedEnv(profile.profileId);
-
-    if (state) {
-      const alive = isPidAlive(state.pid);
-      const owned =
-        alive &&
-        state.binaryPath === profile.binaryPath &&
-        state.configPath === paths.configFile &&
-        (await isOwnedProcess(state));
-
-      if (owned) {
-        if (await probeProxy(state.port, managed.apiKey)) {
-          return {
-            port: state.port,
-            baseUrl: baseUrl(state.port),
-            apiKey: managed.apiKey,
-          };
-        }
-        // Do not rewrite runtime.yaml or start a second daemon while a known
-        // managed process still owns it. That would create two watchers using
-        // the same auth directory and turn a recoverable failure into drift.
-        throw new Error(
-          "Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.",
-        );
-      }
-
-      if (alive) {
-        throw new Error(
-          "Refusing to replace CLIProxyAPI state because its PID is not a verified managed process.",
-        );
-      }
-
-      await rm(paths.stateFile, { force: true });
+    assertCLIProxyAPICompatibility(binaryPath, managed.upstream);
+    await stopManagedCLIProxyAPIUnlocked(profile);
+    const next = { ...profile, binaryPath };
+    await ensureManagedCLIProxyAPIUnlocked(next);
+    try {
+      await persist();
+    } catch (err) {
+      await stopManagedCLIProxyAPIUnlocked(next);
+      throw err;
     }
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const port = await findAvailablePort();
-      await writeRuntimeConfig(profile.profileId, port);
-      const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
-      const ready = await waitForProxy(port, managed.apiKey);
-      if (!ready) {
-        stopChildWeStarted(proc);
-        continue;
-      }
-      if (!proc.pid) {
-        stopChildWeStarted(proc);
-        throw new Error("CLIProxyAPI started without a process id");
-      }
-
-      await writeState(profile.profileId, {
-        pid: proc.pid,
-        port,
-        binaryPath: profile.binaryPath,
-        configPath: paths.configFile,
-        startedAt: Date.now(),
-      });
-      return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
-    }
-
-    throw new Error(
-      "CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.",
-    );
   });
 }
 

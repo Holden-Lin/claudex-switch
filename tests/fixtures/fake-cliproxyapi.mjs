@@ -9,7 +9,7 @@ import { dirname, join } from "path";
 const args = process.argv.slice(2);
 
 if (args.includes("--help")) {
-  console.log("fake CLIProxyAPI test binary");
+  console.log("CLIProxyAPI Version: 7.3.20, Commit: fixture");
   process.exit(0);
 }
 
@@ -90,6 +90,9 @@ const server = Bun.serve({
       return Response.json({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
     }
     if (path === "/v1/messages") {
+      if (process.env.CLAUDEX_FAKE_LIVE_STATUS) {
+        return Response.json({ error: { type: "fixture_error" } }, { status: Number(process.env.CLAUDEX_FAKE_LIVE_STATUS) });
+      }
       return Response.json({
         id: "fixture-message",
         type: "message",

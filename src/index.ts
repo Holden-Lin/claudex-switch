@@ -44,7 +44,7 @@ const HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
-    claudex-switch doctor <alias> [--live] [--restart]  Check a local CLIProxyAPI account (or the one a --cliproxy alias uses)
+    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local CLIProxyAPI
     claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts
@@ -358,24 +358,25 @@ async function main(): Promise<void> {
         await refresh(args[0]);
         break;
 
-      case "doctor":
-        if (!args[0]) {
+      case "doctor": {
+        const doctorOptions: { live?: boolean; restart?: boolean; binaryPath?: string } = {};
+        let validDoctorArgs = !!args[0];
+        for (let i = 1; i < args.length; i += 1) {
+          if (args[i] === "--live") doctorOptions.live = true;
+          else if (args[i] === "--restart") doctorOptions.restart = true;
+          else if (args[i] === "--binary" && !doctorOptions.binaryPath && args[i + 1] && !args[i + 1]!.startsWith("-")) {
+            doctorOptions.binaryPath = args[++i];
+          } else validDoctorArgs = false;
+        }
+        if (!validDoctorArgs) {
           console.error(
-            chalk.red("\n  Usage: claudex-switch doctor <alias> [--live] [--restart]\n"),
+            chalk.red("\n  Usage: claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]\n"),
           );
           process.exit(1);
         }
-        if (args.slice(1).some((arg) => arg !== "--live" && arg !== "--restart")) {
-          console.error(
-            chalk.red("\n  Usage: claudex-switch doctor <alias> [--live] [--restart]\n"),
-          );
-          process.exit(1);
-        }
-        await doctor(args[0], {
-          live: args.includes("--live"),
-          restart: args.includes("--restart"),
-        });
+        await doctor(args[0]!, doctorOptions);
         break;
+      }
 
       case "webconfig":
         await webconfig(args);

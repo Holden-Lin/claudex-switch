@@ -10,7 +10,7 @@ import { EventEmitter } from "events";
 import { createServer } from "net";
 import { randomUUID } from "crypto";
 import { dirname, join } from "path";
-import { lstat, mkdir, readFile, realpath, stat, writeFile } from "fs/promises";
+import { chmod, lstat, mkdir, readFile, realpath, stat, writeFile } from "fs/promises";
 import { loadAliases, saveAliases } from "../src/alias/store";
 import { buildSnapshot, deleteAccount } from "../src/webconfig/snapshot";
 import { doctor } from "../src/commands/doctor";
@@ -24,6 +24,7 @@ import {
   claudeProfileDataFile,
   claudeProfileSecureStorageDir,
   cliProxyAPIConfigFile,
+  cliProxyAPIStateFile,
   cliProxyAPIEnvFile,
   cliProxyAPIProfileDir,
 } from "../src/lib/paths";
@@ -46,12 +47,15 @@ import {
   runManagedCLIProxyAPILogin,
   stopManagedCLIProxyAPI,
   verifyManagedCLIProxyAPILive,
+  replaceManagedCLIProxyAPIBinary,
+  probeManagedCLIProxyAPILive,
 } from "../src/providers/cliproxyapi/managed";
 import type {
   LocalCLIProxyAPIProfileData,
 } from "../src/types";
 import { fileMode, resetTestHome } from "./helpers";
 import { applyLocalCLIProxyAPIConfig } from "../src/providers/claude/settings";
+import { getProfileData, replaceLocalCLIProxyAPIBinary } from "../src/providers/claude/profiles";
 
 const FIXTURE_BINARY = join(import.meta.dir, "fixtures", "fake-cliproxyapi");
 const managedProfiles: Array<{ profileId: string; binaryPath: string }> = [];
@@ -407,6 +411,71 @@ describe("managed local CLIProxyAPI", () => {
     expect((await inspectManagedCLIProxyAPI(profile)).running).toBe(false);
     await doctor("doctor-chatgpt", { live: true });
     expect((await inspectManagedCLIProxyAPI(profile)).running).toBe(true);
+  });
+
+  test("rejects old Antigravity binaries before startup, then doctor upgrades only the account binary", async () => {
+    const profile: LocalCLIProxyAPIProfileData = { ...makeProfile(), upstream: "antigravity" };
+    const oldBinary = join(cliProxyAPIProfileDir(profile.profileId), "old-proxy");
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream: "antigravity" });
+    await writeFile(oldBinary, '#!/bin/sh\necho "CLIProxyAPI Version: 7.3.15"\n');
+    await chmod(oldBinary, 0o700);
+    profile.binaryPath = oldBinary;
+    const name = `cliproxy-${profile.profileId}`;
+    await saveLocalProfile(name, profile);
+    await expect(ensureManagedCLIProxyAPI(profile)).rejects.toThrow("7.3.19");
+    await expect(stat(cliProxyAPIStateFile(profile.profileId))).rejects.toThrow();
+
+    await runManagedCLIProxyAPILogin({ ...profile, binaryPath: FIXTURE_BINARY });
+    await saveAliases({ version: 1, aliases: [{ alias: "upgrade-agy", target: { provider: "claude", profileName: name }, createdAt: 1 }] });
+    await doctor("upgrade-agy", { binaryPath: FIXTURE_BINARY });
+    const updated = await getProfileData(name);
+    expect(updated).toEqual({ ...profile, binaryPath: FIXTURE_BINARY });
+    expect(await getProfileData(name)).toEqual(updated);
+    expect((await inspectManagedCLIProxyAPI(updated, { probe: true })).healthy).toBe(true);
+    expect(await hasManagedCLIProxyAPILogin(profile.profileId)).toBe(true);
+  });
+
+  test.each([400, 401, 429, 503])("keeps HTTP %i distinct from a local proxy health failure", async (status) => {
+    const profile = makeProfile();
+    await initializeManagedCLIProxyAPI(profile.profileId);
+    const previous = process.env.CLAUDEX_FAKE_LIVE_STATUS;
+    process.env.CLAUDEX_FAKE_LIVE_STATUS = String(status);
+    try {
+      const runtime = await ensureManagedCLIProxyAPI(profile);
+      expect(await probeManagedCLIProxyAPILive(runtime, "fixture-model")).toEqual({ ok: false, status });
+      expect((await inspectManagedCLIProxyAPI(profile, { probe: true })).healthy).toBe(true);
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDEX_FAKE_LIVE_STATUS;
+      else process.env.CLAUDEX_FAKE_LIVE_STATUS = previous;
+    }
+  });
+
+  test("a binary replacement refuses active leases and keeps profile and process intact", async () => {
+    const profile = makeProfile();
+    const name = `cliproxy-${profile.profileId}`;
+    await saveLocalProfile(name, profile);
+    await initializeManagedCLIProxyAPI(profile.profileId);
+    await runManagedCLIProxyAPILogin(profile);
+    await ensureManagedCLIProxyAPI(profile);
+    const before = await readFile(cliProxyAPIStateFile(profile.profileId), "utf-8");
+    const lease = await acquireManagedCLIProxyAPILease(profile);
+    try {
+      await expect(replaceLocalCLIProxyAPIBinary(name, FIXTURE_BINARY)).rejects.toThrow("still using");
+      expect(await getProfileData(name)).toEqual(profile);
+      expect(await readFile(cliProxyAPIStateFile(profile.profileId), "utf-8")).toBe(before);
+    } finally {
+      await lease.release();
+    }
+  });
+
+  test("failed profile persistence stops the replacement instead of leaving mismatched state", async () => {
+    const profile = makeProfile();
+    await initializeManagedCLIProxyAPI(profile.profileId);
+    await ensureManagedCLIProxyAPI(profile);
+    await expect(replaceManagedCLIProxyAPIBinary(profile, FIXTURE_BINARY, async () => {
+      throw new Error("fixture writer failure");
+    })).rejects.toThrow("fixture writer failure");
+    expect((await inspectManagedCLIProxyAPI(profile)).running).toBe(false);
   });
 
   test("resolves local mapping without changing existing Claude shorthand", () => {
