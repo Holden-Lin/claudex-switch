@@ -364,7 +364,7 @@ export async function runAliasSession(
     !runOptions.modelOverride;
   let resolvedModel = runOptions.modelOverride
     ? profile?.type === "local-cliproxyapi"
-      ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
+      ? undefined // Resolve only after leased startup has synchronized its catalog.
       : isOpenCode
         ? openCodeProfile?.console
           ? normalizeOpenCodeConsoleModel(runOptions.modelOverride)
@@ -372,9 +372,7 @@ export async function runAliasSession(
         : resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
     : profile?.type === "oauth" || profile?.type === "local-cliproxyapi"
       ? profile.type === "local-cliproxyapi"
-        ? inheritProxyModel
-          ? undefined
-          : await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
+        ? undefined
         : profile.defaultModel
       : openCodeProfile?.defaultModel;
   if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
@@ -521,6 +519,13 @@ export async function runAliasSession(
         profileId: profile.profileId,
         binaryPath: profile.binaryPath,
       });
+      resolvedModel = runOptions.modelOverride
+        ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
+        : inheritProxyModel ? undefined : await resolveManagedLocalCLIProxyAPIDefaultModel(profile);
+      if (runOptions.modelOverride && resolvedModel) {
+        await updateDefaultModel(entry, resolvedModel);
+        profile = await getProfileData(claudeProfileName!) as typeof profile;
+      }
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(
         profile,
         runtime,

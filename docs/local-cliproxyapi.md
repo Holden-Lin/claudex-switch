@@ -111,7 +111,19 @@ $ claudex-switch cx --run --cliproxy claudecode        # 别名 = 额度来源�
 |---|---|---|---|
 | Codex / ChatGPT | Codex 别名（仅 ChatGPT 登录） | 首次自动 `-codex-login`，必须与别名同一 `chatgpt_account_id`（无则比 email） | 与 v1.20 逐字节相同，含 Terra/max 子代理别名 |
 | OpenCode Go | key 型 Go 别名 | 无；每次启动从 Go 别名读 key | `openai-compatibility`（`https://opencode.ai/zen/go/v1`）+ `claude-api-key`（`https://opencode.ai/zen/go`，MiniMax / Qwen / claude-*，附 `x-api-key`），两者都把 Claude Code 的 `X-Claude-Code-Session-Id` 转成 Go 要求的 `x-opencode-session` |
-| Antigravity | 关键字 `agy` / `antigravity` | 风险确认后 `-antigravity-login`（回调 51121） | 仅公共头部；登录后从代理 `/v1/models` 选默认映射 |
+| Antigravity | 关键字 `agy` / `antigravity` | 风险确认后 `-antigravity-login`（回调 51121） | 每次启动从 `/v1/models` 校正映射；保留完整模型后缀，并配置 Claude Code / Agent SDK 系统身份提示兼容 |
+
+### Antigravity 模型与 Claude Code 兼容
+
+v1.25.7 起，每次启动核对代理当前注册的模型 ID，保留仍有效的自定义映射，修正旧映射。例如代理提供 `claude-opus-5-5-high` 时，旧 `claude-opus-5-5` 会迁移为完整 ID；显式 `--model claude-opus-5-5` 也会解析到该版本的已注册变体。目录暂不可用时短暂重试，失败则停止启动，不再保存猜测值或要求重新登录。
+
+Claude Code ≥2.1.242 的 `/model` 菜单由本次目录生成，显示完整 ID、去除重复的 Fable→Opus 项，并列出 Gemini 等文本模型。图片模型不放入编码会话菜单。更早客户端仍使用四档环境变量映射。目录表示代理注册情况，不保证账号对每个模型都有使用资格；上游权限及额度错误仍保留。
+
+另一个已复现问题是：最小请求成功，完整 Claude Code / Agent SDK 请求却返回 `429 RESOURCE_EXHAUSTED`。本机四项对照中，去掉工具、思考参数、降低输出上限均无效，去掉系统提示后成功。现使用 CLIProxyAPI 原生 `antigravity.sensitive-words`，对系统提示中的 `Claude Agent SDK` / `Claude Code` 插入零宽字符；用户消息及工具结果由原生代理保持原样。该行为可在账号私有 `.env` 的 `CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS` 配置，逗号分隔，设为空则关闭。已有代理需结束旧会话后重新启动，运行中的会话不会被升级过程终止。此兼容不能保证绕过所有未来的上游变更，也不消除首次登录已提示的账号使用风险。
+
+社区参考：[CLIProxyAPI 模型后缀问题](https://github.com/router-for-me/CLIProxyAPI/issues/6366)、[Agent SDK 429 与原生兼容配置](https://github.com/router-for-me/CLIProxyAPI/issues/5695)、[magpie 的系统提示对照调查](https://github.com/yetone/magpie/issues/666)。本项目沿用现有代理生命周期，无需另装一套网关。
+
+真实验收：Claude Code 2.1.306 + CLIProxyAPI 8.0.30，经构建版 CLI 验证默认 Opus、Sonnet、Gemini 流式对话及两轮 Read 工具调用；实际 TUI 菜单去重并显示完整 ID。证据见[验收结果](receipts/agy-claude-code-live.json)。复测使用 `bun scripts/verify-antigravity.ts --auth-dir <现有代理的auth目录> --binary <代理路径> [--claude <客户端路径>]`；脚本只复制登录到临时 HOME，结束后清理，真实调用会消耗少量上游用量，不读取 `.env` 或修改原账号文件。
 
 设计取舍：
 

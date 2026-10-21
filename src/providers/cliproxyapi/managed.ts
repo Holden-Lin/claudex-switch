@@ -45,6 +45,10 @@ import {
   OPENCODE_GO_OPENAI_BASE_URL,
   isOpenCodeGoMessagesModel,
   parseUpstream,
+  matchAntigravityModel,
+  antigravityModelBase,
+  reconcileAntigravityModels,
+  type CLIProxyAPIModel,
   type CLIProxyAPIModelMap,
   type CLIProxyAPIUpstream,
 } from "./upstreams";
@@ -64,6 +68,8 @@ const ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
 // API-key upstreams (OpenCode Go): the upstream key and the models to expose.
 const ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 const ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
+const ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
+const ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 // Older accounts had the then-default Luna written into their .env. That
 // value was never a user choice, so read it as "use the current default".
 const LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
@@ -79,6 +85,7 @@ interface ManagedEnv extends CLIProxyAPIModelMap {
   upstream: CLIProxyAPIUpstream;
   upstreamKey: string | null;
   upstreamModels: string[];
+  antigravitySensitiveWords: string[];
 }
 
 export interface ManagedCLIProxyAPISetup {
@@ -86,6 +93,7 @@ export interface ManagedCLIProxyAPISetup {
   models?: CLIProxyAPIModelMap;
   upstreamKey?: string;
   upstreamModels?: string[];
+  antigravitySensitiveWords?: string[];
 }
 
 interface ManagedRuntimeState {
@@ -121,6 +129,7 @@ export interface ManagedCLIProxyAPIRuntime {
   port: number;
   baseUrl: string;
   apiKey: string;
+  models?: CLIProxyAPIModel[];
 }
 
 export interface ManagedCLIProxyAPIStatus {
@@ -252,6 +261,8 @@ function parseManagedEnv(content: string): ManagedEnv {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
     upstream,
     upstreamKey,
+    antigravitySensitiveWords: (values[ENV_ANTIGRAVITY_SENSITIVE_WORDS] ?? ANTIGRAVITY_SENSITIVE_WORDS.join(","))
+      .split(",").map((word) => word.trim()).filter(Boolean),
     upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "")
       .split(",")
       .map((model) => model.trim())
@@ -283,6 +294,9 @@ function renderManagedEnv(
     // Codex files keep their original shape; the marker is only needed to
     // tell the newer upstreams apart.
     ...(setup.upstream === "codex" ? [] : [`${ENV_UPSTREAM}=${setup.upstream}`]),
+    ...(setup.upstream === "antigravity" ? [
+      `${ENV_ANTIGRAVITY_SENSITIVE_WORDS}=${(setup.antigravitySensitiveWords ?? ANTIGRAVITY_SENSITIVE_WORDS).join(",")}`,
+    ] : []),
     ...(setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : []),
     ...(setup.upstreamModels?.length
       ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`]
@@ -303,7 +317,7 @@ function yaml(value: string): string {
 
 function renderRuntimeConfig(
   authDir: string,
-  managed: Pick<ManagedEnv, "apiKey" | "upstream" | "upstreamKey" | "upstreamModels" | keyof CLIProxyAPIModelMap>,
+  managed: Pick<ManagedEnv, "apiKey" | "upstream" | "upstreamKey" | "upstreamModels" | "antigravitySensitiveWords" | keyof CLIProxyAPIModelMap>,
   port: number,
 ): string {
   const header = [
@@ -320,7 +334,16 @@ function renderRuntimeConfig(
     "usage-statistics-enabled: false",
   ];
   if (managed.upstream === "antigravity") {
-    return [...header, ""].join("\n");
+    // CLIProxyAPI applies this only to system instructions, preserving user
+    // text and tool results. Both Claude Code and Agent SDK identity lines
+    // otherwise trigger upstream RESOURCE_EXHAUSTED despite available quota.
+    // The legacy key is accepted by both the supported 7.x and 8.x binaries.
+    return [...header, "antigravity:",
+      ...(managed.antigravitySensitiveWords.length
+        ? ["  sensitive-words:", ...managed.antigravitySensitiveWords.map((word) => `    - ${yaml(word)}`)]
+        : ["  sensitive-words: []"]),
+      "",
+    ].join("\n");
   }
   if (managed.upstream === "opencode-go") {
     return [...header, ...renderOpenCodeGoUpstream(managed), ""].join("\n");
@@ -440,6 +463,7 @@ export async function updateManagedCLIProxyAPISetup(
       models: patch.models ?? current,
       upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
       upstreamModels: patch.upstreamModels ?? current.upstreamModels,
+      antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current.antigravitySensitiveWords,
     }),
   );
 }
@@ -518,7 +542,7 @@ export async function getLocalCLIProxyAPISettings(
   return {
     apiKey: runtime.apiKey,
     baseUrl: runtime.baseUrl,
-    model: resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config),
+    model: await resolveManagedLocalCLIProxyAPIDefaultModel(profile),
     fableModel: config.fableModel,
     sonnetModel: config.sonnetModel,
     opusModel: config.opusModel,
@@ -563,6 +587,26 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   }
   await writePrivateJson(paths.claudeSettingsFile, {
     model: options.inheritModel ? undefined : config.model,
+    ...(runtime.models ? {
+      // Curate the picker from this proxy's catalog. This removes the duplicate
+      // Fable→Opus row and exposes Gemini without inventing Claude model IDs.
+      modelPicker: {
+        replaceBuiltInOptions: true,
+        options: runtime.models.filter((model) => !/image/i.test(model.id)).map((model) => ({
+          model: model.id,
+          label: model.display_name ?? model.id,
+          description: `Antigravity · ${model.id}`,
+        })),
+      },
+      // A saved Claude model or a version-specific agent can still use a bare
+      // Anthropic ID. Map it to the same registered version, including its tier.
+      modelOverrides: Object.fromEntries(runtime.models.flatMap(({ id }) => {
+        const bare = antigravityModelBase(id);
+        const ids = runtime.models!.map((model) => model.id);
+        return bare !== id && !ids.includes(bare)
+          ? [[bare, matchAntigravityModel(bare, ids)!]] : [];
+      })),
+    } : {}),
     env,
   });
   return paths.claudeSettingsFile;
@@ -613,14 +657,23 @@ export async function resolveManagedLocalCLIProxyAPIModel(
   input: string,
 ): Promise<string> {
   const config = await readExistingManagedEnv(profile.profileId);
-  return resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  const model = resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  if (config.upstream !== "antigravity") return model;
+  if (!config.upstreamModels.length) {
+    throw new Error("Antigravity's model catalog has not been synchronized. Start this account with --run --cliproxy claudecode once before setting its default model.");
+  }
+  const matched = matchAntigravityModel(model, config.upstreamModels);
+  if (matched) return matched;
+  throw new Error(`Antigravity model "${input}" is not in the proxy catalog. Use /model or one of: ${config.upstreamModels.join(", ")}`);
 }
 
 export async function resolveManagedLocalCLIProxyAPIDefaultModel(
   profile: LocalCLIProxyAPIProfileData,
 ): Promise<string> {
   const config = await readExistingManagedEnv(profile.profileId);
-  return resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  if (config.upstream !== "antigravity") return model;
+  return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
 }
 
 function baseUrl(port: number): string {
@@ -654,6 +707,12 @@ async function probeProxy(port: number, apiKey: string): Promise<boolean> {
 export async function listManagedCLIProxyAPIModels(
   runtime: ManagedCLIProxyAPIRuntime,
 ): Promise<string[]> {
+  return (await listManagedCLIProxyAPICatalog(runtime)).map((model) => model.id);
+}
+
+async function listManagedCLIProxyAPICatalog(
+  runtime: ManagedCLIProxyAPIRuntime,
+): Promise<CLIProxyAPIModel[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
@@ -662,15 +721,43 @@ export async function listManagedCLIProxyAPIModels(
       signal: controller.signal,
     });
     if (!response.ok) return [];
-    const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
-    return (body.data ?? [])
-      .map((model) => model.id)
-      .filter((id): id is string => typeof id === "string");
+    const body = (await response.json()) as { data?: Array<{ id?: unknown; display_name?: unknown }> };
+    const models = (body.data ?? []).flatMap((model) =>
+      typeof model.id === "string" && model.id.trim()
+        ? [{ id: model.id, ...(typeof model.display_name === "string" ? { display_name: model.display_name } : {}) }]
+        : [],
+    );
+    return [...new Map(models.map((model) => [model.id, model])).values()]
+      .sort((a, b) => a.id.localeCompare(b.id));
   } catch {
     return [];
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// Called under the lifecycle lock for new and reused daemons, before exposing
+// any model to a client. Failure leaves existing mappings and sessions intact.
+async function syncAntigravityModels(
+  profileId: string,
+  managed: ManagedEnv,
+  runtime: ManagedCLIProxyAPIRuntime,
+): Promise<ManagedCLIProxyAPIRuntime> {
+  if (managed.upstream !== "antigravity") return runtime;
+  let models: CLIProxyAPIModel[] = [];
+  // HTTP readiness can precede auth/model registration on a new daemon.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    models = await listManagedCLIProxyAPICatalog(runtime);
+    if (models.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id))) break;
+    if (attempt < 3) await delay(250);
+  }
+  const ids = [...new Set(models.map((model) => model.id))];
+  const mappings = reconcileAntigravityModels(ids, managed);
+  if (Object.entries(mappings).some(([tier, id]) => managed[tier as keyof CLIProxyAPIModelMap] !== id)
+    || JSON.stringify(ids) !== JSON.stringify(managed.upstreamModels)) {
+    await updateManagedCLIProxyAPISetup(profileId, { models: mappings, upstreamModels: ids });
+  }
+  return { ...runtime, models };
 }
 
 export async function verifyManagedCLIProxyAPILive(
@@ -1029,12 +1116,15 @@ async function ensureManagedCLIProxyAPIUnlocked(
       (await isOwnedProcess(state));
 
     if (owned) {
+      if (managed.upstream === "antigravity" && !(await isExpectedRuntimeConfig(paths, state, managed))) {
+        throw new Error("Antigravity's running proxy needs updated compatibility settings. End its Claude Code sessions, then run `claudex-switch doctor <alias> --restart` before launching again.");
+      }
       if (await probeProxy(state.port, managed.apiKey)) {
-        return {
+        return syncAntigravityModels(profile.profileId, managed, {
           port: state.port,
           baseUrl: baseUrl(state.port),
           apiKey: managed.apiKey,
-        };
+        });
       }
       // Do not rewrite runtime.yaml or start a second daemon while a known
       // managed process still owns it. That would create two watchers using
@@ -1074,7 +1164,7 @@ async function ensureManagedCLIProxyAPIUnlocked(
       configPath: paths.configFile,
       startedAt: Date.now(),
     });
-    return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
+    return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey });
   }
 
   throw new Error(

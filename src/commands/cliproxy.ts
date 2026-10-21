@@ -17,12 +17,14 @@ import {
   hasActiveManagedCLIProxyAPI,
   hasManagedCLIProxyAPILogin,
   initializeManagedCLIProxyAPI,
-  listManagedCLIProxyAPIModels,
+  getLocalCLIProxyAPISettings,
   readManagedCLIProxyAPIUpstream,
   runManagedCLIProxyAPILogin,
   updateManagedCLIProxyAPISetup,
+  stopManagedCLIProxyAPI,
   type ExpectedCLIProxyAPIAccount,
   type ManagedCLIProxyAPISetup,
+  type ManagedCLIProxyAPIRuntime,
 } from "../providers/cliproxyapi/managed";
 import {
   getLinkedClaudeProfile,
@@ -31,7 +33,6 @@ import {
 } from "../providers/cliproxyapi/links";
 import {
   CLI_PROXY_API_UPSTREAMS,
-  pickAntigravityModels,
   pickOpenCodeGoModels,
   type CLIProxyAPIModelMap,
   type CLIProxyAPIUpstream,
@@ -145,7 +146,7 @@ async function createManagedProfile(
   setup: ManagedCLIProxyAPISetup,
   login: ((profileId: string) => Promise<string | undefined>) | null,
   save: (profileName: string, profile: LocalCLIProxyAPIProfileData) => Promise<void>,
-): Promise<{ profileName: string; profile: LocalCLIProxyAPIProfileData }> {
+): Promise<{ profileName: string; profile: LocalCLIProxyAPIProfileData; runtime?: ManagedCLIProxyAPIRuntime }> {
   const profileId = createManagedCLIProxyAPIProfileId();
   const profileName = `cliproxy-${profileId}`;
   const profile: LocalCLIProxyAPIProfileData = {
@@ -160,14 +161,20 @@ async function createManagedProfile(
     await initializeManagedCLIProxyAPI(profileId, setup);
     const identity = login ? await login(profileId) : undefined;
     if (identity) profile.authIdentity = identity;
+    // Discover models before publishing an Antigravity alias. A failed/empty
+    // catalog must roll back first use rather than persist guessed IDs.
+    const runtime = setup.upstream === "antigravity" ? await ensureManagedCLIProxyAPI(profile) : undefined;
     await saveLocalCLIProxyAPIProfile(profileName, profile);
     saved = true;
     await save(profileName, profile);
-    return { profileName, profile };
+    return { profileName, profile, runtime };
   } catch (err) {
     try {
       if (saved) await removeProfile(profileName);
-      else await cleanupFailedManagedCLIProxyAPI(profileId);
+      else {
+        await stopManagedCLIProxyAPI(profile);
+        await cleanupFailedManagedCLIProxyAPI(profileId);
+      }
     } catch {
       // Keep the original failure; the directory is unreachable without a link.
     }
@@ -324,28 +331,14 @@ async function createAntigravityAlias(
   assertCLIProxyAPICompatibility(binaryPath, "antigravity");
   info("Opening CLIProxyAPI's own Antigravity login in your browser...");
   blank();
-  const { profileName, profile } = await createManagedProfile(
+  const { profileName, profile, runtime } = await createManagedProfile(
     binaryPath,
     { upstream: "antigravity" },
     (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"),
     (name) => addAlias(alias, { provider: "claude", profileName: name }),
   );
 
-  // The model ids Antigravity exposes vary by account and CLIProxyAPI build;
-  // read them from the logged-in proxy instead of guessing.
-  let models: CLIProxyAPIModelMap = CLI_PROXY_API_UPSTREAMS.antigravity.defaults;
-  try {
-    const runtime = await ensureManagedCLIProxyAPI({ profileId: profile.profileId, binaryPath });
-    const picked = pickAntigravityModels(await listManagedCLIProxyAPIModels(runtime));
-    if (picked) {
-      models = picked;
-      await updateManagedCLIProxyAPISetup(profile.profileId, { models });
-    } else {
-      warn("Could not read Antigravity's model list; using default mappings.");
-    }
-  } catch (err) {
-    warn(`Could not start the proxy to read models: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const models = await getLocalCLIProxyAPISettings(profile, runtime!);
 
   success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
   printMapping(models);

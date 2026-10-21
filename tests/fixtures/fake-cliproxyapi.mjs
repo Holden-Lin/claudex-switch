@@ -86,7 +86,7 @@ const server = Bun.serve({
     const path = new URL(request.url).pathname;
     if (path === "/v1/models") {
       // Optional fixture catalog, e.g. what a logged-in Antigravity lists.
-      const ids = (process.env.CLAUDEX_FAKE_MODELS ?? "").split(",").filter(Boolean);
+      const ids = (process.env.CLAUDEX_FAKE_MODELS ?? "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high").split(",").filter(Boolean);
       return Response.json({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
     }
     if (path === "/v1/messages") {

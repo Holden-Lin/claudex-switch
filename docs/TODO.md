@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.25.7：补齐 Antigravity 的模型目录同步、旧映射迁移、去重菜单与 Claude Code / Agent SDK 系统提示兼容。真实客户端与两轮工具调用已通过，发布后重开 `claudex-switch agy --run --cliproxy claudecode` 即可；若旧会话仍占用代理，先退出旧会话。
+
 本次版本 v1.25.1：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`（v1.25.0 的分发只在别名已存在时转运行路径，而 `agy` 首次使用要靠解析器自建别名）。发版后请用该命令实测一次 Antigravity 首用流程。
 
 ## Next
@@ -26,6 +28,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-21：修复 agy 选 Opus 后 `unknown provider` 及完整 SDK 请求 429（v1.25.7）。不猜模型 ID，保留完整后缀，每次启动修正失效映射；菜单由注册目录生成；采用原生系统提示兼容配置，升级不终止活跃会话。Claude Code 2.1.306 + CLIProxyAPI 8.0.30：默认 Opus、Sonnet、Gemini、连续两轮 Read、实际 `/model` 选择与 `AGY_UI_OK` 皆通过。复测脚本与脱敏证据见 `scripts/verify-antigravity.ts`、`docs/receipts/agy-claude-code-live.json`；原账号文件未改。
 
 - [x] 2026-10-21：启动器中断时转发退出信号，并等待客户端退出后释放代理会话（v1.25.6），避免超时或终端关闭留下后台请求。360 项测试、1,607 断言、类型 / 文档检查、构建通过；构建版 CLI 隔离 HOME 实测向启动器发送 OS SIGTERM，客户端收到信号并退出、无孤儿进程、代理会话已释放。未终止的客户端仍持有会话，期间代理替换被拒绝。
 

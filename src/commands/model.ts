@@ -124,11 +124,14 @@ export async function model(
       : null;
   let normalizedModel =
     profile?.type === "local-cliproxyapi"
-      ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart)
+      ? modelPart
       : resolveModelShorthand(entry.target.provider, modelPart);
 
   let authMode: string;
   try {
+    if (profile?.type === "local-cliproxyapi") {
+      normalizedModel = await resolveManagedLocalCLIProxyAPIModel(profile, modelPart);
+    }
     if (entry.target.provider === "opencode" && (await getOpenCodeProfileData(entry.target.profileId)).console) {
       const prepared = await prepareOpenCodeConsoleRun(entry.target.profileId, normalizedModel);
       try { authMode = await updateDefaultModel(entry, normalizedModel); }

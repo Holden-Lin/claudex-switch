@@ -11,6 +11,11 @@ export interface CLIProxyAPIModelMap {
   haikuModel: string;
 }
 
+export interface CLIProxyAPIModel {
+  id: string;
+  display_name?: string;
+}
+
 export interface CLIProxyAPIUpstreamSpec {
   label: string;
   /** CLIProxyAPI OAuth flag; null for upstreams configured with an API key. */
@@ -42,13 +47,13 @@ export const CLI_PROXY_API_UPSTREAMS: Record<CLIProxyAPIUpstream, CLIProxyAPIUps
     loginFlag: "-antigravity-login",
     callbackPort: 51121,
     authType: "antigravity",
-    // Starting points only: the real ids are read from the logged-in proxy's
-    // /v1/models and written to the private .env (pickAntigravityModels).
+    // Placeholders only. Startup must discover registered IDs before these
+    // can reach Claude Code; upstream versions and tier suffixes change.
     defaults: {
-      fableModel: "claude-opus-5-5",
-      sonnetModel: "claude-sonnet-5-5",
-      opusModel: "claude-opus-5-5",
-      haikuModel: "gemini-3.8-flash",
+      fableModel: "fable",
+      sonnetModel: "sonnet",
+      opusModel: "opus",
+      haikuModel: "haiku",
     },
   },
   "opencode-go": {
@@ -82,6 +87,17 @@ function versionKey(id: string): number[] {
   return (id.match(/\d+/g) ?? []).map(Number);
 }
 
+const MODEL_VARIANT_ORDER = ["high", "max", "thinking", "medium", "low"];
+
+export function antigravityModelBase(id: string): string {
+  return id.replace(/-(thinking|max|high|medium|low)$/i, "");
+}
+
+function variantRank(id: string): number {
+  const suffix = id.match(/-(thinking|max|high|medium|low)$/i)?.[1]?.toLowerCase();
+  return suffix ? MODEL_VARIANT_ORDER.indexOf(suffix) + 1 : 0;
+}
+
 function newest(ids: string[]): string | undefined {
   return [...ids].sort((a, b) => {
     const va = versionKey(a);
@@ -90,9 +106,9 @@ function newest(ids: string[]): string | undefined {
       const diff = (vb[i] ?? -1) - (va[i] ?? -1);
       if (diff !== 0) return diff;
     }
-    // Same version: the plain id beats "-thinking"/"-high" style variants,
-    // since Claude Code sends its own thinking/effort settings.
-    return a.length - b.length;
+    // Keep a plain ID first. Otherwise prefer the normal high tier; string
+    // length would accidentally choose low when a provider adds more tiers.
+    return variantRank(a) - variantRank(b) || a.localeCompare(b);
   })[0];
 }
 
@@ -110,6 +126,30 @@ export function pickAntigravityModels(ids: string[]): CLIProxyAPIModelMap | null
     opusModel: strongest,
     sonnetModel: sonnet ?? strongest,
     haikuModel: flash ?? sonnet ?? strongest,
+  };
+}
+
+/** Match an obsolete bare ID only to a registered variant of that version. */
+export function matchAntigravityModel(input: string, ids: string[]): string | undefined {
+  if (ids.includes(input)) return input;
+  const stem = antigravityModelBase(input);
+  return newest(ids.filter((id) => antigravityModelBase(id) === stem));
+}
+
+/** Keep valid user choices; repair missing tiers using the current catalog. */
+export function reconcileAntigravityModels(
+  ids: string[],
+  current: CLIProxyAPIModelMap,
+): CLIProxyAPIModelMap {
+  const defaults = pickAntigravityModels(ids);
+  if (!defaults) {
+    throw new Error("Antigravity's model catalog has no supported Claude models. Check its login and CLIProxyAPI version; no guessed model will be used.");
+  }
+  const pick = (tier: keyof CLIProxyAPIModelMap) =>
+    matchAntigravityModel(current[tier], ids) ?? defaults[tier];
+  return {
+    fableModel: pick("fableModel"), opusModel: pick("opusModel"),
+    sonnetModel: pick("sonnetModel"), haikuModel: pick("haikuModel"),
   };
 }
 

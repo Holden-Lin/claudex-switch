@@ -5,15 +5,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2034,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2179,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -4365,10 +4378,10 @@ var CLI_PROXY_API_UPSTREAMS = {
     callbackPort: 51121,
     authType: "antigravity",
     defaults: {
-      fableModel: "claude-opus-5-5",
-      sonnetModel: "claude-sonnet-5-5",
-      opusModel: "claude-opus-5-5",
-      haikuModel: "gemini-3.8-flash"
+      fableModel: "fable",
+      sonnetModel: "sonnet",
+      opusModel: "opus",
+      haikuModel: "haiku"
     }
   },
   "opencode-go": {
@@ -4395,6 +4408,14 @@ function isOpenCodeGoMessagesModel(model) {
 function versionKey(id) {
   return (id.match(/\d+/g) ?? []).map(Number);
 }
+var MODEL_VARIANT_ORDER = ["high", "max", "thinking", "medium", "low"];
+function antigravityModelBase(id) {
+  return id.replace(/-(thinking|max|high|medium|low)$/i, "");
+}
+function variantRank(id) {
+  const suffix = id.match(/-(thinking|max|high|medium|low)$/i)?.[1]?.toLowerCase();
+  return suffix ? MODEL_VARIANT_ORDER.indexOf(suffix) + 1 : 0;
+}
 function newest(ids) {
   return [...ids].sort((a, b) => {
     const va = versionKey(a);
@@ -4404,7 +4425,7 @@ function newest(ids) {
       if (diff !== 0)
         return diff;
     }
-    return a.length - b.length;
+    return variantRank(a) - variantRank(b) || a.localeCompare(b);
   })[0];
 }
 function pickAntigravityModels(ids) {
@@ -4419,6 +4440,25 @@ function pickAntigravityModels(ids) {
     opusModel: strongest,
     sonnetModel: sonnet ?? strongest,
     haikuModel: flash ?? sonnet ?? strongest
+  };
+}
+function matchAntigravityModel(input, ids) {
+  if (ids.includes(input))
+    return input;
+  const stem = antigravityModelBase(input);
+  return newest(ids.filter((id) => antigravityModelBase(id) === stem));
+}
+function reconcileAntigravityModels(ids, current) {
+  const defaults = pickAntigravityModels(ids);
+  if (!defaults) {
+    throw new Error("Antigravity's model catalog has no supported Claude models. Check its login and CLIProxyAPI version; no guessed model will be used.");
+  }
+  const pick = (tier) => matchAntigravityModel(current[tier], ids) ?? defaults[tier];
+  return {
+    fableModel: pick("fableModel"),
+    opusModel: pick("opusModel"),
+    sonnetModel: pick("sonnetModel"),
+    haikuModel: pick("haikuModel")
   };
 }
 function pickOpenCodeGoModels(catalog) {
@@ -4448,6 +4488,8 @@ var ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
 var ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
 var ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 var ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
+var ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
+var ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 var STARTUP_TIMEOUT_MS = 12000;
 var LOCK_TIMEOUT_MS = 20000;
@@ -4531,6 +4573,7 @@ function parseManagedEnv(content) {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
     upstream,
     upstreamKey,
+    antigravitySensitiveWords: (values[ENV_ANTIGRAVITY_SENSITIVE_WORDS] ?? ANTIGRAVITY_SENSITIVE_WORDS.join(",")).split(",").map((word) => word.trim()).filter(Boolean),
     upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "").split(",").map((model) => model.trim()).filter(Boolean),
     fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
@@ -4552,6 +4595,9 @@ function renderManagedEnv(apiKey, setup = { upstream: "codex" }) {
     "# Managed by claudex-switch. Keep this directory private.",
     `${ENV_CLIENT_KEY}=${apiKey}`,
     ...setup.upstream === "codex" ? [] : [`${ENV_UPSTREAM}=${setup.upstream}`],
+    ...setup.upstream === "antigravity" ? [
+      `${ENV_ANTIGRAVITY_SENSITIVE_WORDS}=${(setup.antigravitySensitiveWords ?? ANTIGRAVITY_SENSITIVE_WORDS).join(",")}`
+    ] : [],
     ...setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : [],
     ...setup.upstreamModels?.length ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`] : [],
     `${ENV_FABLE_MODEL}=${models.fableModel}`,
@@ -4580,7 +4626,12 @@ function renderRuntimeConfig(authDir, managed, port) {
     "usage-statistics-enabled: false"
   ];
   if (managed.upstream === "antigravity") {
-    return [...header, ""].join(`
+    return [
+      ...header,
+      "antigravity:",
+      ...managed.antigravitySensitiveWords.length ? ["  sensitive-words:", ...managed.antigravitySensitiveWords.map((word) => `    - ${yaml(word)}`)] : ["  sensitive-words: []"],
+      ""
+    ].join(`
 `);
   }
   if (managed.upstream === "opencode-go") {
@@ -4652,7 +4703,8 @@ async function updateManagedCLIProxyAPISetup(profileId, patch) {
     upstream: current.upstream,
     models: patch.models ?? current,
     upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
-    upstreamModels: patch.upstreamModels ?? current.upstreamModels
+    upstreamModels: patch.upstreamModels ?? current.upstreamModels,
+    antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current.antigravitySensitiveWords
   }));
 }
 async function readManagedCLIProxyAPIUpstream(profileId) {
@@ -4704,7 +4756,7 @@ async function getLocalCLIProxyAPISettings(profile, runtime) {
   return {
     apiKey: runtime.apiKey,
     baseUrl: runtime.baseUrl,
-    model: resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config),
+    model: await resolveManagedLocalCLIProxyAPIDefaultModel(profile),
     fableModel: config.fableModel,
     sonnetModel: config.sonnetModel,
     opusModel: config.opusModel,
@@ -4734,6 +4786,21 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   }
   await writePrivateJson(paths.claudeSettingsFile, {
     model: options.inheritModel ? undefined : config.model,
+    ...runtime.models ? {
+      modelPicker: {
+        replaceBuiltInOptions: true,
+        options: runtime.models.filter((model) => !/image/i.test(model.id)).map((model) => ({
+          model: model.id,
+          label: model.display_name ?? model.id,
+          description: `Antigravity · ${model.id}`
+        }))
+      },
+      modelOverrides: Object.fromEntries(runtime.models.flatMap(({ id }) => {
+        const bare = antigravityModelBase(id);
+        const ids = runtime.models.map((model) => model.id);
+        return bare !== id && !ids.includes(bare) ? [[bare, matchAntigravityModel(bare, ids)]] : [];
+      }))
+    } : {},
     env: env2
   });
   return paths.claudeSettingsFile;
@@ -4761,11 +4828,23 @@ function resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config) {
 }
 async function resolveManagedLocalCLIProxyAPIModel(profile, input) {
   const config = await readExistingManagedEnv(profile.profileId);
-  return resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  const model = resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  if (config.upstream !== "antigravity")
+    return model;
+  if (!config.upstreamModels.length) {
+    throw new Error("Antigravity's model catalog has not been synchronized. Start this account with --run --cliproxy claudecode once before setting its default model.");
+  }
+  const matched = matchAntigravityModel(model, config.upstreamModels);
+  if (matched)
+    return matched;
+  throw new Error(`Antigravity model "${input}" is not in the proxy catalog. Use /model or one of: ${config.upstreamModels.join(", ")}`);
 }
 async function resolveManagedLocalCLIProxyAPIDefaultModel(profile) {
   const config = await readExistingManagedEnv(profile.profileId);
-  return resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  if (config.upstream !== "antigravity")
+    return model;
+  return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
 }
 function baseUrl(port) {
   return `http://${LOOPBACK_HOST}:${port}`;
@@ -4791,7 +4870,7 @@ async function probeProxy(port, apiKey) {
     clearTimeout(timeout);
   }
 }
-async function listManagedCLIProxyAPIModels(runtime) {
+async function listManagedCLIProxyAPICatalog(runtime) {
   const controller = new AbortController;
   const timeout = setTimeout(() => controller.abort(), 1e4);
   try {
@@ -4802,12 +4881,31 @@ async function listManagedCLIProxyAPIModels(runtime) {
     if (!response.ok)
       return [];
     const body = await response.json();
-    return (body.data ?? []).map((model) => model.id).filter((id) => typeof id === "string");
+    const models = (body.data ?? []).flatMap((model) => typeof model.id === "string" && model.id.trim() ? [{ id: model.id, ...typeof model.display_name === "string" ? { display_name: model.display_name } : {} }] : []);
+    return [...new Map(models.map((model) => [model.id, model])).values()].sort((a, b) => a.id.localeCompare(b.id));
   } catch {
     return [];
   } finally {
     clearTimeout(timeout);
   }
+}
+async function syncAntigravityModels(profileId, managed, runtime) {
+  if (managed.upstream !== "antigravity")
+    return runtime;
+  let models = [];
+  for (let attempt = 0;attempt < 4; attempt += 1) {
+    models = await listManagedCLIProxyAPICatalog(runtime);
+    if (models.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id)))
+      break;
+    if (attempt < 3)
+      await delay(250);
+  }
+  const ids = [...new Set(models.map((model) => model.id))];
+  const mappings = reconcileAntigravityModels(ids, managed);
+  if (Object.entries(mappings).some(([tier, id]) => managed[tier] !== id) || JSON.stringify(ids) !== JSON.stringify(managed.upstreamModels)) {
+    await updateManagedCLIProxyAPISetup(profileId, { models: mappings, upstreamModels: ids });
+  }
+  return { ...runtime, models };
 }
 async function probeManagedCLIProxyAPILive(runtime, model) {
   const controller = new AbortController;
@@ -5061,12 +5159,15 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
     const alive = isPidAlive(state.pid);
     const owned = alive && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state);
     if (owned) {
+      if (managed.upstream === "antigravity" && !await isExpectedRuntimeConfig(paths, state, managed)) {
+        throw new Error("Antigravity's running proxy needs updated compatibility settings. End its Claude Code sessions, then run `claudex-switch doctor <alias> --restart` before launching again.");
+      }
       if (await probeProxy(state.port, managed.apiKey)) {
-        return {
+        return syncAntigravityModels(profile.profileId, managed, {
           port: state.port,
           baseUrl: baseUrl(state.port),
           apiKey: managed.apiKey
-        };
+        });
       }
       throw new Error("Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.");
     }
@@ -5095,7 +5196,7 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
       configPath: paths.configFile,
       startedAt: Date.now()
     });
-    return { port, baseUrl: baseUrl(port), apiKey: managed.apiKey };
+    return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey });
   }
   throw new Error("CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.");
 }
@@ -9937,9 +10038,12 @@ async function model(aliasOrName, defaultModel) {
     process.exit(1);
   }
   const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
-  let normalizedModel = profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, modelPart) : resolveModelShorthand(entry.target.provider, modelPart);
+  let normalizedModel = profile?.type === "local-cliproxyapi" ? modelPart : resolveModelShorthand(entry.target.provider, modelPart);
   let authMode;
   try {
+    if (profile?.type === "local-cliproxyapi") {
+      normalizedModel = await resolveManagedLocalCLIProxyAPIModel(profile, modelPart);
+    }
     if (entry.target.provider === "opencode" && (await getOpenCodeProfileData(entry.target.profileId)).console) {
       const prepared = await prepareOpenCodeConsoleRun(entry.target.profileId, normalizedModel);
       try {
@@ -10086,16 +10190,19 @@ async function createManagedProfile(binaryPath, setup, login, save) {
     const identity = login ? await login(profileId) : undefined;
     if (identity)
       profile.authIdentity = identity;
+    const runtime = setup.upstream === "antigravity" ? await ensureManagedCLIProxyAPI(profile) : undefined;
     await saveLocalCLIProxyAPIProfile(profileName, profile);
     saved = true;
     await save(profileName, profile);
-    return { profileName, profile };
+    return { profileName, profile, runtime };
   } catch (err) {
     try {
       if (saved)
         await removeProfile(profileName);
-      else
+      else {
+        await stopManagedCLIProxyAPI(profile);
         await cleanupFailedManagedCLIProxyAPI(profileId);
+      }
     } catch {}
     throw err;
   }
@@ -10200,20 +10307,8 @@ async function createAntigravityAlias(alias, options) {
   assertCLIProxyAPICompatibility(binaryPath, "antigravity");
   info("Opening CLIProxyAPI's own Antigravity login in your browser...");
   blank();
-  const { profileName, profile } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
-  let models = CLI_PROXY_API_UPSTREAMS.antigravity.defaults;
-  try {
-    const runtime = await ensureManagedCLIProxyAPI({ profileId: profile.profileId, binaryPath });
-    const picked = pickAntigravityModels(await listManagedCLIProxyAPIModels(runtime));
-    if (picked) {
-      models = picked;
-      await updateManagedCLIProxyAPISetup(profile.profileId, { models });
-    } else {
-      warn("Could not read Antigravity's model list; using default mappings.");
-    }
-  } catch (err) {
-    warn(`Could not start the proxy to read models: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
+  const models = await getLocalCLIProxyAPISettings(profile, runtime);
   success(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
   printMapping(models);
   return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
@@ -10526,7 +10621,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   let profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
   const openCodeProfile = openCodeProfileId ? await getOpenCodeProfileData(openCodeProfileId) : null;
   const inheritProxyModel = profile?.type === "local-cliproxyapi" && !!runOptions.cliproxyClient && !runOptions.modelOverride;
-  let resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? inheritProxyModel ? undefined : await resolveManagedLocalCLIProxyAPIDefaultModel(profile) : profile.defaultModel : openCodeProfile?.defaultModel;
+  let resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? undefined : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? undefined : profile.defaultModel : openCodeProfile?.defaultModel;
   if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
     try {
       const canonical = await resolveOpenCodeGoModel(resolvedModel);
@@ -10623,6 +10718,11 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         profileId: profile.profileId,
         binaryPath: profile.binaryPath
       });
+      resolvedModel = runOptions.modelOverride ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : inheritProxyModel ? undefined : await resolveManagedLocalCLIProxyAPIDefaultModel(profile);
+      if (runOptions.modelOverride && resolvedModel) {
+        await updateDefaultModel(entry, resolvedModel);
+        profile = await getProfileData(claudeProfileName);
+      }
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, { inheritModel: inheritProxyModel });
     } catch (err) {
       try {
@@ -12992,7 +13092,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.6",
+  version: "1.25.7",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

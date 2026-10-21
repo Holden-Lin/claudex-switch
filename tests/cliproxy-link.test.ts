@@ -22,11 +22,14 @@ import {
   prepareLocalCLIProxyAPIClaudeSettings,
   stopManagedCLIProxyAPI,
   stopStaleManagedCLIProxyAPI,
+  updateManagedCLIProxyAPISetup,
+  resolveManagedLocalCLIProxyAPIModel,
 } from "../src/providers/cliproxyapi/managed";
 import { getLinkedClaudeProfile } from "../src/providers/cliproxyapi/links";
 import {
   pickAntigravityModels,
   pickOpenCodeGoModels,
+  matchAntigravityModel,
 } from "../src/providers/cliproxyapi/upstreams";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
 import {
@@ -320,6 +323,106 @@ describe("--cliproxy claudecode", () => {
     expect(err.message).toContain("already a Claude account");
   });
 
+  test("agy repairs persisted bare IDs on reuse, renders the catalog and resolves explicit versions", async () => {
+    const entry = await resolveCLIProxyClaudeEntry("agy", options);
+    const data = await getProfileData((entry.target as { profileName: string }).profileName) as LocalCLIProxyAPIProfileData;
+    await updateManagedCLIProxyAPISetup(data.profileId, { models: {
+      fableModel: "claude-opus-5-5", opusModel: "claude-opus-5-5",
+      sonnetModel: "claude-sonnet-5-5", haikuModel: "gemini-3.8-flash",
+    } });
+    const calls: Array<{ command: string; args: string[] }> = [];
+    expect(await runAliasSession("agy", ["--cliproxy", "claudecode", "--model", "claude-opus-5-5"], fakeClaudeSpawn(calls) as never)).toBe(0);
+    expect(calls[0]!.args).toContain("claude-opus-5-5-high");
+    const args = calls[0]!.args;
+    const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf8"));
+    const runtimeConfig = await readFile(cliProxyAPIConfigFile(data.profileId), "utf8");
+    expect(runtimeConfig).toContain('antigravity:\n  sensitive-words:\n    - "Claude Agent SDK"\n    - "Claude Code"');
+    expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5-high");
+    expect(settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5-5-high");
+    expect(settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("gemini-3.8-flash-high");
+    expect(settings.modelOverrides["claude-opus-5-5"]).toBe("claude-opus-5-5-high");
+    expect(settings.modelPicker.replaceBuiltInOptions).toBe(true);
+    expect(settings.modelPicker.options.map((model: { model: string }) => model.model)).toEqual([
+      "claude-opus-5-5-high", "claude-sonnet-5-5-high", "gemini-3.8-flash-high",
+    ]);
+    expect(await resolveManagedLocalCLIProxyAPIModel(data, "opus")).toBe("claude-opus-5-5-high");
+    await expect(resolveManagedLocalCLIProxyAPIModel(data, "claude-opus-99")).rejects.toThrow("not in the proxy catalog");
+    expect((await getProfileData((entry.target as { profileName: string }).profileName) as LocalCLIProxyAPIProfileData).defaultModel).toBe("claude-opus-5-5-high");
+  });
+
+  test("agy refreshes changed catalogs without restarting an active daemon and preserves valid user mappings", async () => {
+    const entry = await resolveCLIProxyClaudeEntry("agy", options);
+    const data = await getProfileData((entry.target as { profileName: string }).profileName) as LocalCLIProxyAPIProfileData;
+    const before = await ensureManagedCLIProxyAPI(data);
+    await updateManagedCLIProxyAPISetup(data.profileId, { models: {
+      fableModel: "claude-sonnet-5-5-high", opusModel: "claude-opus-5-5-high",
+      sonnetModel: "claude-sonnet-5-5-high", haikuModel: "gemini-3.8-flash-high",
+    } });
+    const lease = await acquireManagedCLIProxyAPILease(data);
+    let reads = 0;
+    globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+      if (String(input).endsWith("/v1/models")) return Response.json({ data: ++reads <= 2 ? [] : [
+        { id: "claude-opus-5-6-high", display_name: "Claude Opus 5.6 (High)" },
+        { id: "claude-sonnet-5-5-high" }, { id: "gemini-4-flash" }, { id: "gemini-4-flash-image" },
+      ] });
+      return originalFetch(input as Request, init);
+    }) as typeof fetch;
+    try {
+      const after = await ensureManagedCLIProxyAPI(data);
+      expect(after.port).toBe(before.port);
+      expect(reads).toBe(3); // HTTP ready, transient empty registration, then catalog.
+      const file = await prepareLocalCLIProxyAPIClaudeSettings(data, after, { inheritModel: true });
+      const settings = JSON.parse(await readFile(file, "utf8"));
+      expect(settings.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-sonnet-5-5-high");
+      expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-6-high");
+      expect(settings.model).toBeUndefined();
+      expect(settings.modelPicker.options[0].label).toBe("Claude Opus 5.6 (High)");
+      expect(settings.modelPicker.options.some((model: { model: string }) => /image/.test(model.model))).toBe(false);
+    } finally { await lease.release(); }
+  });
+
+  test("agy rejects empty first-use catalogs without leaving an alias or private login", async () => {
+    process.env.CLAUDEX_FAKE_MODELS = "";
+    await expect(resolveCLIProxyClaudeEntry("agy", options)).rejects.toThrow("no supported Claude models");
+    expect((await loadAliases()).aliases.some((entry) => entry.alias === "agy")).toBe(false);
+    expect(await localProfiles()).toEqual([]);
+    expect(await managedDirs()).toEqual([]);
+  });
+
+  test("agy catalog failure on reuse leaves mappings and active sessions intact", async () => {
+    const entry = await resolveCLIProxyClaudeEntry("agy", options);
+    const data = await getProfileData((entry.target as { profileName: string }).profileName) as LocalCLIProxyAPIProfileData;
+    const before = await readFile(cliProxyAPIEnvFile(data.profileId), "utf8");
+    const lease = await acquireManagedCLIProxyAPILease(data);
+    try {
+      // The health probe must pass so this exercises catalog failure specifically.
+      let calls = 0;
+      globalThis.fetch = (async () => ++calls === 1 ? Response.json({ data: [] }) : Response.json({}, { status: 503 })) as typeof fetch;
+      await expect(ensureManagedCLIProxyAPI(data)).rejects.toThrow("no supported Claude models");
+      expect(await readFile(cliProxyAPIEnvFile(data.profileId), "utf8")).toBe(before);
+    } finally { await lease.release(); }
+  });
+
+  test("agy compatibility changes preserve active sessions and apply on the next idle launch", async () => {
+    const entry = await resolveCLIProxyClaudeEntry("agy", options);
+    const data = await getProfileData((entry.target as { profileName: string }).profileName) as LocalCLIProxyAPIProfileData;
+    const runtime = await ensureManagedCLIProxyAPI(data);
+    const lease = await acquireManagedCLIProxyAPILease(data);
+    await updateManagedCLIProxyAPISetup(data.profileId, { antigravitySensitiveWords: [] });
+    try {
+      expect(await stopStaleManagedCLIProxyAPI(data)).toBe(false);
+      await expect(ensureManagedCLIProxyAPI(data)).rejects.toThrow("End its Claude Code sessions");
+      expect((await originalFetch(`${runtime.baseUrl}/v1/models`)).status).toBe(200);
+    } finally { await lease.release(); }
+    expect(await stopStaleManagedCLIProxyAPI(data)).toBe(true);
+    const restarted = await ensureManagedCLIProxyAPI(data);
+    expect(await readFile(cliProxyAPIConfigFile(data.profileId), "utf8")).toContain("sensitive-words: []");
+    // Catalog synchronization must not reset the explicit opt-out.
+    await ensureManagedCLIProxyAPI(data);
+    expect(restarted.models?.length).toBeGreaterThan(0);
+    expect(await readFile(cliProxyAPIConfigFile(data.profileId), "utf8")).toContain("sensitive-words: []");
+  });
+
   test("-run --cliproxy launches Claude Code without switching Codex and saves the model on the link", async () => {
     await resolveCLIProxyClaudeEntry("cx", options);
     const calls: Array<{ command: string; args: string[] }> = [];
@@ -394,6 +497,15 @@ describe("--cliproxy claudecode", () => {
 });
 
 describe("upstream model picking", () => {
+  test("same-version tier selection is deliberate, supports max and preserves explicit tiers", () => {
+    const ids = ["low", "max", "medium", "high"].map((tier) => `claude-opus-5-5-${tier}`);
+    expect(pickAntigravityModels(ids)?.opusModel).toBe("claude-opus-5-5-high");
+    expect(matchAntigravityModel("claude-opus-5-5", ids)).toBe("claude-opus-5-5-high");
+    expect(matchAntigravityModel("claude-opus-5-5-max", ids)).toBe("claude-opus-5-5-max");
+    expect(matchAntigravityModel("claude-opus-5-5-max", ids.filter((id) => !id.endsWith("-max")))).toBe("claude-opus-5-5-high");
+    expect(matchAntigravityModel("claude-opus-5-5", [...ids, "claude-opus-5-5"])).toBe("claude-opus-5-5");
+    expect(matchAntigravityModel("claude-opus-5-6", ids)).toBeUndefined();
+  });
   test("Antigravity prefers the newest plain Claude ids and a Gemini Flash for haiku", () => {
     expect(
       pickAntigravityModels([

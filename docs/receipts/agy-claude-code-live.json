@@ -1,0 +1,142 @@
+{
+  "date": "2026-10-21T12:46:21.064Z",
+  "originalAccountModified": false,
+  "catalog": [
+    {
+      "id": "claude-sonnet-5-5-high"
+    },
+    {
+      "id": "gemini-3-flash"
+    },
+    {
+      "id": "gpt-oss-120b-medium"
+    },
+    {
+      "id": "gemini-3.1-flash-lite"
+    },
+    {
+      "id": "gemini-3.5-flash-lite"
+    },
+    {
+      "id": "claude-opus-5-5-high"
+    },
+    {
+      "id": "gemini-4-argon-high"
+    },
+    {
+      "id": "gemini-3.8-flash-high"
+    },
+    {
+      "id": "gemini-3.1-flash-image"
+    }
+  ],
+  "mappings": {
+    "fableModel": "claude-opus-5-5-high",
+    "sonnetModel": "claude-sonnet-5-5-high",
+    "opusModel": "claude-opus-5-5-high",
+    "haikuModel": "gemini-3.8-flash-high",
+    "subagentModel": null
+  },
+  "checks": [
+    {
+      "model": "default",
+      "responseModels": [
+        "claude-opus-5-5-high"
+      ],
+      "tools": [],
+      "result": "AGY_DEFAULT_OK"
+    },
+    {
+      "model": "sonnet",
+      "responseModels": [
+        "claude-sonnet-5-5-high"
+      ],
+      "tools": [],
+      "result": "AGY_SONNET_OK"
+    },
+    {
+      "model": "haiku",
+      "responseModels": [
+        "gemini-3.8-flash-n"
+      ],
+      "tools": [],
+      "result": "AGY_GEMINI_OK"
+    },
+    {
+      "model": "claude-opus-5-5",
+      "responseModels": [
+        "claude-opus-5-5-high"
+      ],
+      "tools": [
+        "Read",
+        "Read"
+      ],
+      "result": "AGY_TOOLS_OK\n\n```\n<nonce>\n```\n\nI read the file twice in separate tool turns. Only the first read returned the contents. The second came back with \"file unchanged since your last Read\" and no contents, so the value above is from the first read."
+    }
+  ],
+  "picker": {
+    "replaceBuiltInOptions": true,
+    "options": [
+      {
+        "model": "gemini-4-argon-high",
+        "label": "gemini-4-argon-high",
+        "description": "Antigravity · gemini-4-argon-high"
+      },
+      {
+        "model": "gemini-3.8-flash-high",
+        "label": "gemini-3.8-flash-high",
+        "description": "Antigravity · gemini-3.8-flash-high"
+      },
+      {
+        "model": "claude-sonnet-5-5-high",
+        "label": "claude-sonnet-5-5-high",
+        "description": "Antigravity · claude-sonnet-5-5-high"
+      },
+      {
+        "model": "gemini-3-flash",
+        "label": "gemini-3-flash",
+        "description": "Antigravity · gemini-3-flash"
+      },
+      {
+        "model": "gpt-oss-120b-medium",
+        "label": "gpt-oss-120b-medium",
+        "description": "Antigravity · gpt-oss-120b-medium"
+      },
+      {
+        "model": "gemini-3.1-flash-lite",
+        "label": "gemini-3.1-flash-lite",
+        "description": "Antigravity · gemini-3.1-flash-lite"
+      },
+      {
+        "model": "gemini-3.5-flash-lite",
+        "label": "gemini-3.5-flash-lite",
+        "description": "Antigravity · gemini-3.5-flash-lite"
+      },
+      {
+        "model": "claude-opus-5-5-high",
+        "label": "claude-opus-5-5-high",
+        "description": "Antigravity · claude-opus-5-5-high"
+      }
+    ]
+  },
+  "clientVersion": "2.1.306",
+  "proxyVersion": "8.0.30",
+  "before": {
+    "bareOpus": 400,
+    "sdkRequest": 429
+  },
+  "diagnosticReplay": {
+    "small": 429,
+    "noThinking": 429,
+    "noSystem": 200,
+    "noTools": 429
+  },
+  "tui": {
+    "client": "Claude Code 2.1.306",
+    "command": "agy --run --cliproxy claudecode",
+    "forcedModelArgument": false,
+    "picker": "Default + 8 catalog text models; no duplicate Fable row; full high suffixes",
+    "selectedModel": "claude-opus-5-5-high",
+    "response": "AGY_UI_OK"
+  }
+}
