@@ -690,7 +690,7 @@ describe("run alias session", () => {
     expect(await fileExists(CODEX_CONFIG_FILE)).toBe(false);
   });
 
-  test("overrides Codex autoreview only in the launched session", async () => {
+  test("defaults Codex autoreview off and applies overrides only in the launched session", async () => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -736,10 +736,15 @@ describe("run alias session", () => {
       );
       expect(process.env[envName]).toBeUndefined();
 
-      process.env[envName] = "1";
-      await runAliasSession("cx", ["--continue"], createSpawn(calls));
+      for (const inherited of [undefined, "0", "1"]) {
+        if (inherited === undefined) delete process.env[envName];
+        else process.env[envName] = inherited;
+        await runAliasSession("cx", ["--continue"], createSpawn(calls));
+        expect(calls.at(-1)?.env?.[envName]).toBe("1");
+        expect(process.env[envName]).toBe(inherited);
+      }
 
-      expect(calls).toHaveLength(3);
+      expect(calls).toHaveLength(5);
       expect(calls[0]?.args).toEqual([
         "--approve-for-me",
         "--model",
@@ -748,8 +753,7 @@ describe("run alias session", () => {
       ]);
       expect(calls[0]?.env?.[envName]).toBeUndefined();
       expect(calls[1]?.env?.[envName]).toBe("1");
-      // With no override, spawn inherits the caller environment as before.
-      expect(calls[2]?.env?.[envName]).toBe("1");
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Autoreview: off (default)"));
       expect(process.env[envName]).toBe("1");
     } finally {
       if (originalEnvValue === undefined) delete process.env[envName];
@@ -1208,7 +1212,8 @@ describe("run alias session", () => {
 
     expect(exitCode).toBe(0);
     expect(calls[0]?.args).toEqual(["--approve-for-me"]);
-    expect(calls[0]?.env).toBeUndefined();
+    expect(calls[0]?.env?.CODEX_COMPLETION_REVIEW_DISABLED).toBe("1");
+    expect(calls[0]?.env?.CODEX_HOME).toBe(process.env.CODEX_HOME);
     expect(await fileExists(codexRunHome(accountKey))).toBe(false);
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
   });

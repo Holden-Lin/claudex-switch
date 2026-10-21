@@ -1372,7 +1372,7 @@ describe("OpenCode Go profiles", () => {
     }
   });
 
-  test("V2 --autoreview toggles the completion-review plugin only for this launch", async () => {
+  test("V2 autoreview defaults off and toggles the completion-review plugin only for this launch", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-v2-run-key" });
     await saveAliases({
       version: 1,
@@ -1396,12 +1396,21 @@ describe("OpenCode Go profiles", () => {
       process.env[envName] = "1";
       await runAliasSession("go-v2-work", ["--model", "opencode-go/kimi-k3", "--autoreview", "on"], createSpawn(calls), v2, sync);
 
-      expect(calls).toHaveLength(2);
+      for (const inherited of [undefined, "0", "1"]) {
+        if (inherited === undefined) delete process.env[envName];
+        else process.env[envName] = inherited;
+        await runAliasSession("go-v2-work", [], createSpawn(calls), v2, sync);
+        expect(calls.at(-1)?.env?.[envName]).toBe("1");
+        expect(process.env[envName]).toBe(inherited);
+      }
+
+      expect(calls).toHaveLength(5);
       expect(calls[0]?.args).toEqual(["--standalone", "--auto"]);
       expect(calls[0]?.env?.[envName]).toBe("1");
       // The private V2 environment is still the one OpenCode receives.
       expect(calls[0]?.env?.OPENCODE_CONFIG_CONTENT).toBeDefined();
       expect(calls[1]?.env?.[envName]).toBeUndefined();
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Autoreview: off (default)"));
       expect(process.env[envName]).toBe("1");
     } finally {
       if (originalEnvValue === undefined) delete process.env[envName];

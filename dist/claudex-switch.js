@@ -10384,7 +10384,8 @@ function validateOpenCodeV2RunArgs(args) {
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn7, openCodeVersionDetector = detectOpenCodeVersion, openCodeCredentialSync) {
   const runOptions = parseRunArgumentOptions(forwardedArgs);
   const entry = runOptions.cliproxyClient ? await resolveCLIProxyEntryOrExit(aliasOrName) : await resolveAliasOrExit(aliasOrName);
-  if (runOptions.autoreviewOverride !== undefined && entry.target.provider !== "codex" && entry.target.provider !== "opencode") {
+  const supportsAutoreview = entry.target.provider === "codex" || entry.target.provider === "opencode";
+  if (runOptions.autoreviewOverride !== undefined && !supportsAutoreview) {
     error("--autoreview is only supported for Codex and OpenCode sessions.");
     blank();
     process.exit(1);
@@ -10598,7 +10599,8 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     blank();
     return 1;
   }
-  const env2 = applyAutoreview(codexHome ? { ...baseEnv ?? process.env, CODEX_HOME: codexHome } : baseEnv, runOptions.autoreviewOverride);
+  const autoreviewEnabled = supportsAutoreview ? runOptions.autoreviewOverride ?? false : undefined;
+  const env2 = applyAutoreview(codexHome ? { ...baseEnv ?? process.env, CODEX_HOME: codexHome } : baseEnv, autoreviewEnabled);
   if (codexHome) {
     info(`Default Codex account unchanged; this session uses ${source_default.dim(codexHome)}`);
   }
@@ -10608,10 +10610,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     info(managed ? `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; session buffer ${buffer}, fires near ${triggerPercent}%).` : `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; keeping your buffer ${buffer}, fires near ${triggerPercent}%).`);
   }
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
-  if (entry.target.provider === "codex" || entry.target.provider === "opencode") {
-    const inheritedState = process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
-    const state = runOptions.autoreviewOverride === undefined ? `${inheritedState} (inherited)` : `${runOptions.autoreviewOverride ? "on" : "off"} (this session)`;
-    info(`Autoreview: ${state}`);
+  if (supportsAutoreview) {
+    const source = runOptions.autoreviewOverride === undefined ? "default" : "this session";
+    info(`Autoreview: ${autoreviewEnabled ? "on" : "off"} (${source})`);
   }
   return new Promise((resolve2) => {
     let settled = false;
@@ -12896,7 +12897,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.2",
+  version: "1.25.3",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -15225,6 +15226,8 @@ var HELP = `
     claudex-switch rm <alias>          Same as 'remove'
     claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run' (Codex defaults to --approve-for-me)
     claudex-switch -V                  Same as '--version'
+
+  Autoreview defaults to off for Codex and OpenCode sessions; use --autoreview on to enable it for one session.
 `;
 function isVersionCommand(command) {
   return command === "--version" || command === "-V";

@@ -57,6 +57,8 @@ const HELP = `
     claudex-switch rm <alias>          Same as 'remove'
     claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run' (Codex defaults to --approve-for-me)
     claudex-switch -V                  Same as '--version'
+
+  Autoreview defaults to off for Codex and OpenCode sessions; use --autoreview on to enable it for one session.
 `;
 
 function isVersionCommand(command?: string): boolean {

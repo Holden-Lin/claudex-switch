@@ -137,6 +137,8 @@ claudex-switch refresh <alias>
 | `claudex-switch purge <alias>` | - | 彻底删除底层账号及其所有关联别名 |
 | `claudex-switch update` | - | 检查并升级到最新版本 |
 
+Codex 和 OpenCode 会话的 autoreview 默认关闭；需要时用 `claudex-switch <alias> -run --autoreview on` 为本次会话开启。
+
 ---
 
 ## 📚 进阶文档与深入了解

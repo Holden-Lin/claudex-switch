@@ -273,10 +273,11 @@ export async function runAliasSession(
   const entry = runOptions.cliproxyClient
     ? await resolveCLIProxyEntryOrExit(aliasOrName)
     : await resolveAliasOrExit(aliasOrName);
+  const supportsAutoreview =
+    entry.target.provider === "codex" || entry.target.provider === "opencode";
   if (
     runOptions.autoreviewOverride !== undefined &&
-    entry.target.provider !== "codex" &&
-    entry.target.provider !== "opencode"
+    !supportsAutoreview
   ) {
     error("--autoreview is only supported for Codex and OpenCode sessions.");
     blank();
@@ -604,9 +605,12 @@ export async function runAliasSession(
     blank();
     return 1;
   }
+  const autoreviewEnabled = supportsAutoreview
+    ? runOptions.autoreviewOverride ?? false
+    : undefined;
   const env = applyAutoreview(
     codexHome ? { ...(baseEnv ?? process.env), CODEX_HOME: codexHome } : baseEnv,
-    runOptions.autoreviewOverride,
+    autoreviewEnabled,
   );
   if (codexHome) {
     info(`Default Codex account unchanged; this session uses ${chalk.dim(codexHome)}`);
@@ -624,14 +628,12 @@ export async function runAliasSession(
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
   // Codex reads the env in its Stop hook; OpenCode V2 in the cc_chats
   // completion-review plugin, which delegates to the same review script.
-  if (entry.target.provider === "codex" || entry.target.provider === "opencode") {
-    const inheritedState =
-      process.env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] === "1" ? "off" : "on";
-    const state =
+  if (supportsAutoreview) {
+    const source =
       runOptions.autoreviewOverride === undefined
-        ? `${inheritedState} (inherited)`
-        : `${runOptions.autoreviewOverride ? "on" : "off"} (this session)`;
-    info(`Autoreview: ${state}`);
+        ? "default"
+        : "this session";
+    info(`Autoreview: ${autoreviewEnabled ? "on" : "off"} (${source})`);
   }
 
   return new Promise((resolve) => {

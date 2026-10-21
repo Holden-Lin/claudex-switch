@@ -137,6 +137,8 @@ claudex-switch refresh <alias>
 | `claudex-switch purge <alias>` | - | Delete account data and all associated aliases |
 | `claudex-switch update` | - | Check and update to latest release |
 
+Autoreview defaults to off for Codex and OpenCode sessions. Use `claudex-switch <alias> -run --autoreview on` to enable it for one session.
+
 ---
 
 ## 📚 Deep Dive & Documentation
