@@ -29,6 +29,13 @@ export interface LocalCLIProxyAPISettings {
   subagentModel: string | null;
 }
 
+// A generated loopback key is a gateway bearer token. ANTHROPIC_API_KEY would
+// trigger Claude's interactive key-approval prompt (default: reject), leaving
+// an isolated session without any accepted credential.
+export function localCLIProxyAPIAuthEnv(apiKey: string): SettingsEnv {
+  return { ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: apiKey };
+}
+
 export const CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
@@ -261,7 +268,7 @@ export async function applyLocalCLIProxyAPIConfig(
   const settings = await read();
   const env = await beginManagedEnv(settings);
 
-  setEnvValue(env, "ANTHROPIC_API_KEY", config.apiKey);
+  Object.assign(env, localCLIProxyAPIAuthEnv(config.apiKey));
   setEnvValue(env, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env, "ANTHROPIC_MODEL", config.model);
   setEnvValue(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);

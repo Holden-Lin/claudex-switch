@@ -19,6 +19,7 @@ import { runAliasSession } from "../src/commands/run";
 import {
   CLAUDE_DIR,
   CLAUDE_JSON,
+  SETTINGS_FILE,
   claudeProfileConfigJson,
   claudeProfileDataFile,
   claudeProfileSecureStorageDir,
@@ -38,6 +39,7 @@ import {
   initializeManagedCLIProxyAPI,
   inspectManagedCLIProxyAPI,
   prepareLocalCLIProxyAPIClaudeSettings,
+  getLocalCLIProxyAPISettings,
   purgeManagedCLIProxyAPI,
   resolveLocalCLIProxyAPIModel,
   resolveManagedLocalCLIProxyAPIModel,
@@ -49,6 +51,7 @@ import type {
   LocalCLIProxyAPIProfileData,
 } from "../src/types";
 import { fileMode, resetTestHome } from "./helpers";
+import { applyLocalCLIProxyAPIConfig } from "../src/providers/claude/settings";
 
 const FIXTURE_BINARY = join(import.meta.dir, "fixtures", "fake-cliproxyapi");
 const managedProfiles: Array<{ profileId: string; binaryPath: string }> = [];
@@ -148,6 +151,8 @@ describe("managed local CLIProxyAPI", () => {
       env?: Record<string, string>;
     };
     expect(settings.model).toBe(CLI_PROXY_API_DEFAULTS.fableModel);
+    expect(settings.env?.ANTHROPIC_API_KEY).toBe("");
+    expect(settings.env?.ANTHROPIC_AUTH_TOKEN).toBe(runtime.apiKey);
     expect(settings.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe(
       "claudex-terra-max",
     );
@@ -155,6 +160,11 @@ describe("managed local CLIProxyAPI", () => {
     expect(settings.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe("");
     expect(settings.env?.CLAUDE_CODE_USE_BEDROCK).toBe("");
     expect(fileMode((await stat(settingsPath)).mode)).toBe(0o600);
+
+    await applyLocalCLIProxyAPIConfig(await getLocalCLIProxyAPISettings(profile, runtime));
+    const globalSettings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    expect(globalSettings.env.ANTHROPIC_API_KEY).toBe("");
+    expect(globalSettings.env.ANTHROPIC_AUTH_TOKEN).toBe(runtime.apiKey);
   });
 
   test("starts the upstream binary in its private cwd without remote-store selectors", async () => {
@@ -362,7 +372,8 @@ describe("managed local CLIProxyAPI", () => {
       const settings = JSON.parse(await readFile(settingsPath!, "utf-8")) as {
         env: Record<string, string>;
       };
-      expect(settings.env.ANTHROPIC_API_KEY).toBeTruthy();
+      expect(settings.env.ANTHROPIC_API_KEY).toBe("");
+      expect(settings.env.ANTHROPIC_AUTH_TOKEN).toBeTruthy();
       expect(settings.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe("claudex-terra-max");
     } finally {
       if (priorOauth === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN;

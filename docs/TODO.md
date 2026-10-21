@@ -27,6 +27,8 @@
 
 ## Done
 
+- [x] 2026-10-21：修复 `agy --run --cliproxy claudecode` 模型强制及交互未登录问题（v1.25.4）。`--cliproxy` 无显式模型时不传 `--model`、不在私有配置固定主模型，仍可 `/model` 自选；本地代理统一用 Bearer token，避免 API Key 确认默认拒绝后无凭据。337 项测试、1,554 断言、类型 / 文档检查与构建通过；真实 Claude Code 2.1.305 交互复现旧错，改后无需登录、会话内选 Opus 5.5 并收到 `AGY_AUTH_OK`。
+
 - [x] 2026-10-21：autoreview 改为默认关闭（v1.25.3），Codex / OpenCode 统一仅以 `--autoreview on` 为本次会话开启；默认显示 `Autoreview: off (default)`，不改父环境或 Codex 权限审批模式。334 项测试、1,528 断言、类型 / 文档检查、构建通过；隔离 HOME + 构建版 CLI + 假 Codex 验证 alias / use 两入口的默认、on、off 共 6 例，子进程环境与显示一致。
 
 - [x] 2026-10-21：修复 `claudex-switch update` 将 Bun 安装误判为 npm/nvm（v1.25.2）。当 `~/.local/bin/claudex-switch` 链接到 Bun 且 `~/.local` 也是 npm prefix 时，原检测只认 bin 目录，漏认链接最终目标；现比对 Bun 全局入口的真实目标。回归覆盖外部链接、Node 解析后的包内路径，以及 Bun 共存时真正的 npm 安装仍被拒绝；334 项测试、类型 / 文档检查、构建通过，本机真实路径已正确识别为 Bun。

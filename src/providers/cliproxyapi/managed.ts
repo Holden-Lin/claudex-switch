@@ -33,6 +33,7 @@ import {
 } from "../../lib/browser";
 import {
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
+  localCLIProxyAPIAuthEnv,
   normalizeCustomEnv,
   type LocalCLIProxyAPISettings,
 } from "../claude/settings";
@@ -531,14 +532,14 @@ export async function getLocalCLIProxyAPISettings(
 export async function prepareLocalCLIProxyAPIClaudeSettings(
   profile: LocalCLIProxyAPIProfileData,
   runtime: ManagedCLIProxyAPIRuntime,
+  options: { inheritModel?: boolean } = {},
 ): Promise<string> {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
   const env: Record<string, string> = {
-    ANTHROPIC_API_KEY: config.apiKey,
+    ...localCLIProxyAPIAuthEnv(config.apiKey),
     ANTHROPIC_BASE_URL: config.baseUrl,
-    ANTHROPIC_AUTH_TOKEN: "",
-    ANTHROPIC_MODEL: config.model,
+    ANTHROPIC_MODEL: options.inheritModel ? "" : config.model,
     ANTHROPIC_DEFAULT_FABLE_MODEL: config.fableModel,
     ANTHROPIC_DEFAULT_SONNET_MODEL: config.sonnetModel,
     ANTHROPIC_DEFAULT_OPUS_MODEL: config.opusModel,
@@ -560,7 +561,7 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
     env[key] = value;
   }
   await writePrivateJson(paths.claudeSettingsFile, {
-    model: config.model,
+    model: options.inheritModel ? undefined : config.model,
     env,
   });
   return paths.claudeSettingsFile;

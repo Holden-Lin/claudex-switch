@@ -339,6 +339,25 @@ describe("--cliproxy claudecode", () => {
     expect(((await getProfileData(linked!)) as LocalCLIProxyAPIProfileData).defaultModel).toBe("terra");
   });
 
+  test.each(["cx", "go", "agy"])("--cliproxy %s leaves the main model to Claude Code unless explicitly selected", async (alias) => {
+    await resolveCLIProxyClaudeEntry(alias, options);
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const code = await runAliasSession(
+      alias,
+      ["--cliproxy", "claudecode"],
+      fakeClaudeSpawn(calls) as never,
+    );
+    expect(code).toBe(0);
+    expect(calls[0]?.args).not.toContain("--model");
+    const args = calls[0]!.args;
+    const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf-8"));
+    expect(settings.model).toBeUndefined();
+    expect(settings.env.ANTHROPIC_MODEL).toBe("");
+    expect(settings.env.ANTHROPIC_AUTH_TOKEN).toBeTruthy();
+    expect(settings.env.ANTHROPIC_API_KEY).toBe("");
+    expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeTruthy();
+  });
+
   test("purging the upstream alias removes its Claude Code link, but not while a session runs", async () => {
     const entry = await resolveCLIProxyClaudeEntry("cx", options);
     const data = (await getProfileData(

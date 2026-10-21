@@ -358,6 +358,10 @@ export async function runAliasSession(
   const openCodeProfile = openCodeProfileId
     ? await getOpenCodeProfileData(openCodeProfileId)
     : null;
+  const inheritProxyModel =
+    profile?.type === "local-cliproxyapi" &&
+    !!runOptions.cliproxyClient &&
+    !runOptions.modelOverride;
   let resolvedModel = runOptions.modelOverride
     ? profile?.type === "local-cliproxyapi"
       ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride)
@@ -368,7 +372,9 @@ export async function runAliasSession(
         : resolveModelShorthand(entry.target.provider, runOptions.modelOverride)
     : profile?.type === "oauth" || profile?.type === "local-cliproxyapi"
       ? profile.type === "local-cliproxyapi"
-        ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
+        ? inheritProxyModel
+          ? undefined
+          : await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
         : profile.defaultModel
       : openCodeProfile?.defaultModel;
   if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
@@ -518,6 +524,7 @@ export async function runAliasSession(
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(
         profile,
         runtime,
+        { inheritModel: inheritProxyModel },
       );
     } catch (err) {
       try {

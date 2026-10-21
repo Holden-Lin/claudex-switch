@@ -74,6 +74,10 @@ CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callba
 
 ## 多上游与 `--cliproxy`
 
+`claudex-switch agy --run --cliproxy claudecode` 等带 `--cliproxy` 的启动，在没有显式 `--model` 时不传模型参数，也不在私有配置中固定主模型；可在 Claude Code 中用 `/model` 选择。显式 `--model` 和普通代理别名启动仍沿用原规则。
+
+代理生成的本地客户端密钥通过 `ANTHROPIC_AUTH_TOKEN` 传递，并清空继承的 `ANTHROPIC_API_KEY`，避免 Claude Code 弹出默认拒绝的 API Key 确认框。Antigravity 已登录而 Claude 提示 `Not logged in` 时，先升级并重新运行上述命令，无需在 Claude 中重新 `/login`。此处是 Claude 到本地代理的认证，上游登录仍由 CLIProxyAPI 管理。参见 [Claude Code 网关认证说明](https://code.claude.com/docs/en/llm-gateway-connect#conflicts-with-an-existing-login)。
+
 参考 [magpie](https://github.com/yetone/magpie) 的思路：本机 gateway 做协议翻译，订阅本身充当 provider。本项目沿用每账号一个 CLIProxyAPI 的生命周期（UUID 目录、私有 `.env`、端口、锁、租约、归属校验、隔离 `--run`），只把上游差异收进 `src/providers/cliproxyapi/upstreams.ts`。
 
 ```text

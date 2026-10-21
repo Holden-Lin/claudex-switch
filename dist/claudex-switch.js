@@ -3922,6 +3922,9 @@ async function writeOAuthAccount(account) {
 // src/providers/claude/settings.ts
 import { chmod, mkdir as mkdir2 } from "fs/promises";
 import { dirname } from "path";
+function localCLIProxyAPIAuthEnv(apiKey) {
+  return { ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: apiKey };
+}
 var CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
@@ -4062,7 +4065,7 @@ async function applyOAuthConfig(model, extraEnv) {
 async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
   const settings = await read();
   const env2 = await beginManagedEnv(settings);
-  setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
+  Object.assign(env2, localCLIProxyAPIAuthEnv(config.apiKey));
   setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
@@ -4665,14 +4668,13 @@ async function getLocalCLIProxyAPISettings(profile, runtime) {
     subagentModel: config.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.subagentModel : null
   };
 }
-async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime) {
+async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
   const env2 = {
-    ANTHROPIC_API_KEY: config.apiKey,
+    ...localCLIProxyAPIAuthEnv(config.apiKey),
     ANTHROPIC_BASE_URL: config.baseUrl,
-    ANTHROPIC_AUTH_TOKEN: "",
-    ANTHROPIC_MODEL: config.model,
+    ANTHROPIC_MODEL: options.inheritModel ? "" : config.model,
     ANTHROPIC_DEFAULT_FABLE_MODEL: config.fableModel,
     ANTHROPIC_DEFAULT_SONNET_MODEL: config.sonnetModel,
     ANTHROPIC_DEFAULT_OPUS_MODEL: config.opusModel,
@@ -4687,7 +4689,7 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime) {
     env2[key] = value;
   }
   await writePrivateJson(paths.claudeSettingsFile, {
-    model: config.model,
+    model: options.inheritModel ? undefined : config.model,
     env: env2
   });
   return paths.claudeSettingsFile;
@@ -10448,7 +10450,8 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   let profile = claudeProfileName ? await getProfileData(claudeProfileName) : null;
   const openCodeProfile = openCodeProfileId ? await getOpenCodeProfileData(openCodeProfileId) : null;
-  let resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile) : profile.defaultModel : openCodeProfile?.defaultModel;
+  const inheritProxyModel = profile?.type === "local-cliproxyapi" && !!runOptions.cliproxyClient && !runOptions.modelOverride;
+  let resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? await resolveManagedLocalCLIProxyAPIModel(profile, runOptions.modelOverride) : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? inheritProxyModel ? undefined : await resolveManagedLocalCLIProxyAPIDefaultModel(profile) : profile.defaultModel : openCodeProfile?.defaultModel;
   if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
     try {
       const canonical = await resolveOpenCodeGoModel(resolvedModel);
@@ -10545,7 +10548,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         profileId: profile.profileId,
         binaryPath: profile.binaryPath
       });
-      localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime);
+      localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, { inheritModel: inheritProxyModel });
     } catch (err) {
       try {
         await localLease?.release();
@@ -12897,7 +12900,7 @@ import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.3",
+  version: "1.25.4",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
