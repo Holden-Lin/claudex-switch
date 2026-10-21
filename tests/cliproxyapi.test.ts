@@ -49,6 +49,7 @@ import {
   verifyManagedCLIProxyAPILive,
   replaceManagedCLIProxyAPIBinary,
   probeManagedCLIProxyAPILive,
+  hasActiveManagedCLIProxyAPI,
 } from "../src/providers/cliproxyapi/managed";
 import type {
   LocalCLIProxyAPIProfileData,
@@ -466,6 +467,35 @@ describe("managed local CLIProxyAPI", () => {
     } finally {
       await lease.release();
     }
+  });
+
+  test("a cancelled launch keeps its proxy lease until the client actually exits", async () => {
+    const profile = makeProfile();
+    const name = `cliproxy-${profile.profileId}`;
+    await saveLocalProfile(name, profile);
+    await initializeManagedCLIProxyAPI(profile.profileId);
+    await runManagedCLIProxyAPILogin(profile);
+    await saveAliases({ version: 1, aliases: [{ alias: "cancel-proxy", target: { provider: "claude", profileName: name }, createdAt: 1 }] });
+    const before = new Set(process.listeners("SIGTERM"));
+    const child = new EventEmitter() as ChildProcess;
+    let requested = false;
+    child.kill = (() => { requested = true; return true; }) as ChildProcess["kill"];
+    let ready!: () => void;
+    const started = new Promise<void>((resolve) => { ready = resolve; });
+    const pending = runAliasSession("cancel-proxy", [], () => { ready(); return child; });
+    await started;
+    try {
+      const handler = process.listeners("SIGTERM").find((listener) => !before.has(listener));
+      expect(handler).toBeDefined();
+      handler!();
+      expect(requested).toBe(true);
+      expect(await hasActiveManagedCLIProxyAPI(profile)).toBe(true);
+      await expect(replaceLocalCLIProxyAPIBinary(name, FIXTURE_BINARY)).rejects.toThrow("still using");
+    } finally {
+      child.emit("close", null, "SIGTERM");
+    }
+    expect(await pending).toBe(143);
+    expect(await hasActiveManagedCLIProxyAPI(profile)).toBe(false);
   });
 
   test("failed profile persistence stops the replacement instead of leaving mismatched state", async () => {

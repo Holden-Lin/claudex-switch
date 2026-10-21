@@ -143,6 +143,29 @@ describe("run alias session", () => {
     spyOn(console, "log").mockImplementation(() => {});
   });
 
+  test.each(["SIGTERM", "SIGHUP"] as const)("forwards %s to the client and removes its handlers after client exit", async (signal) => {
+    await addApiKeyProfile("signal-test", { apiKey: "sk-fixture" });
+    await saveAliases({ version: 1, aliases: [{ alias: "signal-test", target: { provider: "claude", profileName: "signal-test" }, createdAt: 1 }] });
+    const before = new Set(process.listeners(signal));
+    const child = new EventEmitter() as ChildProcess;
+    const received: string[] = [];
+    child.kill = ((value) => { received.push(String(value)); return true; }) as ChildProcess["kill"];
+    let ready!: () => void;
+    const started = new Promise<void>((resolve) => { ready = resolve; });
+    const pending = runAliasSession("signal-test", [], () => { ready(); return child; });
+    await started;
+    try {
+      const handler = process.listeners(signal).find((listener) => !before.has(listener));
+      expect(handler).toBeDefined();
+      handler!();
+      expect(received).toEqual([signal]);
+    } finally {
+      child.emit("close", null, signal);
+    }
+    expect(await pending).toBe(signal === "SIGTERM" ? 143 : 129);
+    expect(new Set(process.listeners(signal))).toEqual(before);
+  });
+
   test("runs Claude Code with auto permission mode after switching", async () => {
     const creds: CredentialsFile = {
       claudeAiOauth: {

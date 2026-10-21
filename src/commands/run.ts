@@ -645,9 +645,11 @@ export async function runAliasSession(
 
   return new Promise((resolve) => {
     let settled = false;
+    let removeSignalHandlers = () => {};
     const finish = async (code: number): Promise<void> => {
       if (settled) return;
       settled = true;
+      removeSignalHandlers();
       try {
         await localLease?.release();
         await releaseOpenCode?.();
@@ -670,6 +672,19 @@ export async function runAliasSession(
       return;
     }
 
+    // Keep the launcher's leases until its client exits on timeout/terminal
+    // closure. In a TTY, Ctrl-C already reaches the entire foreground group;
+    // forwarding it again would turn the first Ctrl-C into a double tap.
+    const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+    const handlers = signals.map((signal) => () => {
+      if (signal === "SIGINT" && process.stdin.isTTY) return;
+      try { proc.kill(signal); } catch { /* The child may already be gone. */ }
+    });
+    for (let i = 0; i < signals.length; i += 1) process.on(signals[i]!, handlers[i]!);
+    removeSignalHandlers = () => {
+      for (let i = 0; i < signals.length; i += 1) process.off(signals[i]!, handlers[i]!);
+    };
+
     proc.on("error", (err) => {
       error(
         `Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`,
@@ -678,7 +693,7 @@ export async function runAliasSession(
       void finish(1);
     });
 
-    proc.on("close", (code) => {
+    proc.on("close", (code, signal) => {
       void (async () => {
         if (isolatedClaudeOAuth && claudeProfileName) {
           // The session refreshed tokens in the per-profile store; fold them
@@ -701,7 +716,8 @@ export async function runAliasSession(
             // Best effort; Codex's active auth file remains authoritative.
           }
         }
-        await finish(code ?? 1);
+        const signalExitCode = signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1;
+        await finish(code ?? signalExitCode);
       })();
     });
   });

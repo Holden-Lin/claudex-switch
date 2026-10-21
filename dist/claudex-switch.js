@@ -10694,10 +10694,12 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   return new Promise((resolve2) => {
     let settled = false;
+    let removeSignalHandlers = () => {};
     const finish = async (code) => {
       if (settled)
         return;
       settled = true;
+      removeSignalHandlers();
       try {
         await localLease?.release();
         await releaseOpenCode?.();
@@ -10713,12 +10715,26 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       finish(1);
       return;
     }
+    const signals2 = ["SIGINT", "SIGTERM", "SIGHUP"];
+    const handlers = signals2.map((signal) => () => {
+      if (signal === "SIGINT" && process.stdin.isTTY)
+        return;
+      try {
+        proc.kill(signal);
+      } catch {}
+    });
+    for (let i = 0;i < signals2.length; i += 1)
+      process.on(signals2[i], handlers[i]);
+    removeSignalHandlers = () => {
+      for (let i = 0;i < signals2.length; i += 1)
+        process.off(signals2[i], handlers[i]);
+    };
     proc.on("error", (err) => {
       error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
       blank();
       finish(1);
     });
-    proc.on("close", (code) => {
+    proc.on("close", (code, signal) => {
       (async () => {
         if (isolatedClaudeOAuth && claudeProfileName) {
           try {
@@ -10733,7 +10749,8 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
             await syncActiveAuthSnapshot(await loadRegistry());
           } catch {}
         }
-        await finish(code ?? 1);
+        const signalExitCode = signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1;
+        await finish(code ?? signalExitCode);
       })();
     });
   });
@@ -12975,7 +12992,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.5",
+  version: "1.25.6",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
