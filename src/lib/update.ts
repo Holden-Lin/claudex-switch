@@ -1,4 +1,5 @@
 import { realpathSync } from "fs";
+import { join } from "path";
 import { spawnSync, type SpawnSyncOptions } from "child_process";
 import packageJson from "../../package.json";
 import { hint, info } from "./ui";
@@ -211,7 +212,10 @@ export function detectInstallMethod(
       bunGlobalBin &&
       (
         pathStartsWith(cliPath, bunGlobalBin) ||
-        pathStartsWith(realCliPath, bunGlobalBin)
+        pathStartsWith(realCliPath, bunGlobalBin) ||
+        // A PATH entry may link to Bun's bin from another prefix (including
+        // npm's). Compare final targets before classifying that prefix.
+        realCliPath === resolveRealPath(join(bunGlobalBin, "claudex-switch"))
       )
     ) {
       return "bun";

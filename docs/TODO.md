@@ -27,6 +27,8 @@
 
 ## Done
 
+- [x] 2026-10-21：修复 `claudex-switch update` 将 Bun 安装误判为 npm/nvm（v1.25.2）。当 `~/.local/bin/claudex-switch` 链接到 Bun 且 `~/.local` 也是 npm prefix 时，原检测只认 bin 目录，漏认链接最终目标；现比对 Bun 全局入口的真实目标。回归覆盖外部链接、Node 解析后的包内路径，以及 Bun 共存时真正的 npm 安装仍被拒绝；334 项测试、类型 / 文档检查、构建通过，本机真实路径已正确识别为 Bun。
+
 - [x] 2026-10-19：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`，随 v1.25.1 发布。根因：dispatcher 仅在别名已存在时转 run 路径，而 `agy` 首次使用要靠 cliproxy 解析器自建别名，故永远走不到解析器（单测直调解析器，未覆盖 CLI 入口）。修法：带 `--cliproxy` 的 run 调用即使别名不存在亦转 run 路径，判定权归解析器；`agy` 漏 `--cliproxy` 时提示正确命令。新增 4 项 CLI 级用例；`bun run verify` 331 项 0 失败；v1.25.1 已发布，CI 绿；已装 1.25.1 实测 `agy --run --cliproxy claudecode` 达风险提示、`nope --run --cliproxy claudecode` 报 `Alias "nope" not found.`。
 - [ ] 本机跑测试前先清掉 shell 里的 `OPENCODE_DB` / `OPENCODE_CONFIG_CONTENT` / `XDG_*`（OpenCode V2 受管会话残留）：不清会读真实 HOME 的 `opencode.db`，add.test.ts 与 13 项 OpenCode 用例假失败（CI 干净环境不复现）。
 

@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { dirname, join } from "path";
 import packageJson from "../package.json";
 import {
   checkForLatestUpdate,
@@ -137,6 +140,55 @@ describe("auto update", () => {
       "bun --version",
       "bun pm bin -g",
     ]);
+  });
+
+  test.each(["linked", "resolved", "npm"])("detects %s entrypoint ownership with Bun installed", async (entrypoint) => {
+    const root = mkdtempSync(join(tmpdir(), "claudex-update-links-"));
+    try {
+      const bunBin = join(root, ".bun", "bin");
+      const npmPrefix = join(root, ".local");
+      const packageBin = join(root, ".bun", "install", "global", "node_modules", "claudex-switch", "dist", "claudex-switch.js");
+      const linkedBin = join(npmPrefix, "bin", "claudex-switch");
+      const npmBin = join(npmPrefix, "lib", "node_modules", "claudex-switch", "dist", "claudex-switch.js");
+      mkdirSync(bunBin, { recursive: true });
+      for (const file of [packageBin, npmBin]) {
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, "#!/usr/bin/env node\n");
+      }
+      mkdirSync(join(npmPrefix, "bin"), { recursive: true });
+      symlinkSync("../install/global/node_modules/claudex-switch/dist/claudex-switch.js", join(bunBin, "claudex-switch"));
+      symlinkSync(entrypoint === "npm" ? npmBin : join(bunBin, "claudex-switch"), linkedBin);
+
+      const calls: string[] = [];
+      const result = await checkForLatestUpdate({
+        argv: ["/usr/bin/node", entrypoint === "resolved" ? packageBin : linkedBin, "update"],
+        env: {},
+        fetchLatestVersion: async () => "9.8.7",
+        runCommand: (command, args) => {
+          const call = `${command} ${args.join(" ")}`;
+          calls.push(call);
+          switch (call) {
+            case "bun --version":
+            case "npm --version": return { status: 0 };
+            case "bun pm bin -g": return { status: 0, stdout: `${bunBin}\n` };
+            case "npm prefix -g": return { status: 0, stdout: `${npmPrefix}\n` };
+            case "npm root -g": return { status: 0, stdout: `${npmPrefix}/lib/node_modules\n` };
+            default: return { status: 1 };
+          }
+        },
+      });
+
+      if (entrypoint === "npm") {
+        expect(result.status).toBe("unsupported");
+        expect(result).toHaveProperty("unsupportedInstallMethod", "npm");
+      } else {
+        expect(result.status).toBe("available");
+        expect(result).toHaveProperty("installMethod", "bun");
+        expect(calls.some((call) => call.startsWith("npm "))).toBe(false);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test("does not mis-detect bun when the executable path is outside bun", () => {

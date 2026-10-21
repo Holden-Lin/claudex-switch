@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2048,6 +2034,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2192,7 +2179,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3456,7 +3443,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join14, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname7, join as join15, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -12904,11 +12891,12 @@ async function runLoginCommand(command, args) {
 
 // src/lib/update.ts
 import { realpathSync } from "fs";
+import { join as join14 } from "path";
 import { spawnSync as spawnSync7 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.1",
+  version: "1.25.2",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -13035,7 +13023,7 @@ function detectInstallMethod(argv = process.argv, execPath = process.execPath, r
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     }));
-    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin))) {
+    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join14(bunGlobalBin, "claudex-switch")))) {
       return "bun";
     }
   }
@@ -15258,7 +15246,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join14(root, "package.json");
+  const packageFile = join15(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
