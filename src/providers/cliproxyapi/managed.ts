@@ -45,6 +45,7 @@ import {
   OPENCODE_GO_OPENAI_BASE_URL,
   isOpenCodeGoMessagesModel,
   parseUpstream,
+  isSupersededAntigravityClaude,
   matchAntigravityModel,
   antigravityModelBase,
   reconcileAntigravityModels,
@@ -74,6 +75,9 @@ const ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 // value was never a user choice, so read it as "use the current default".
 const LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 const STARTUP_TIMEOUT_MS = 12_000;
+// Measured 2026-10-22 on 7.3.20: built-in list at ~2s, remote catalog at ~6s.
+export const ANTIGRAVITY_CATALOG = { settleMs: 12_000 };
+const settledAntigravityDaemons = new Set<string>();
 const LOCK_TIMEOUT_MS = 20_000;
 const ORPHAN_LOCK_GRACE_MS = 60_000;
 const LOCK_HEARTBEAT_MS = 10_000;
@@ -551,13 +555,48 @@ export async function getLocalCLIProxyAPISettings(
   };
 }
 
+// Claude Code's own current IDs; it sends one when the shared settings saved a
+// /model default (2026-10-22: "claude-opus-5-5" → "unknown provider").
+const CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+
+// A saved Claude model or a version-specific agent can still use a bare
+// Anthropic ID. Map it to the same registered version, including its tier;
+// an unlisted Claude version falls back to its family's tier mapping.
+export function antigravityModelOverrides(
+  ids: string[],
+  tiers: Pick<ManagedEnv, "fableModel" | "sonnetModel" | "opusModel" | "haikuModel">,
+  savedModel?: string,
+): Record<string, string> {
+  const overrides: Record<string, string> = {};
+  for (const id of ids) {
+    const bare = antigravityModelBase(id);
+    if (bare !== id && !ids.includes(bare)) overrides[bare] = matchAntigravityModel(bare, ids)!;
+  }
+  // A pinned retired Claude version would only get "no longer available".
+  for (const id of ids) {
+    const family = id.match(/^claude-(fable|opus|sonnet|haiku)-/i)?.[1]?.toLowerCase();
+    if (family && isSupersededAntigravityClaude(id, ids)) {
+      overrides[id] = resolveLocalCLIProxyAPIModelFromConfig(family, tiers);
+      const bare = antigravityModelBase(id);
+      if (overrides[bare]) overrides[bare] = overrides[id];
+    }
+  }
+  for (const id of [...CLAUDE_CODE_MODEL_IDS, typeof savedModel === "string" ? savedModel.trim() : ""]) {
+    const family = id.match(/^claude-(fable|opus|sonnet|haiku)-\d/i)?.[1]?.toLowerCase();
+    if (!family || ids.includes(id) || overrides[id]) continue;
+    overrides[id] = matchAntigravityModel(id, ids)
+      ?? resolveLocalCLIProxyAPIModelFromConfig(family, tiers);
+  }
+  return overrides;
+}
+
 // Claude Code accepts a settings file path. Keeping the generated client API
 // key in this 0600 file prevents it from appearing in argv, shell history, or
 // the `Running ...` line that claudex-switch prints for a session.
 export async function prepareLocalCLIProxyAPIClaudeSettings(
   profile: LocalCLIProxyAPIProfileData,
   runtime: ManagedCLIProxyAPIRuntime,
-  options: { inheritModel?: boolean } = {},
+  options: { inheritModel?: boolean; savedModel?: string } = {},
 ): Promise<string> {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
@@ -592,20 +631,15 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
       // Fable→Opus row and exposes Gemini without inventing Claude model IDs.
       modelPicker: {
         replaceBuiltInOptions: true,
-        options: runtime.models.filter((model) => !/image/i.test(model.id)).map((model) => ({
+        // Retired Claude versions only answer "no longer available".
+        options: runtime.models.filter((model) => !/image/i.test(model.id)
+          && !isSupersededAntigravityClaude(model.id, runtime.models!.map(({ id }) => id))).map((model) => ({
           model: model.id,
           label: model.display_name ?? model.id,
           description: `Antigravity · ${model.id}`,
         })),
       },
-      // A saved Claude model or a version-specific agent can still use a bare
-      // Anthropic ID. Map it to the same registered version, including its tier.
-      modelOverrides: Object.fromEntries(runtime.models.flatMap(({ id }) => {
-        const bare = antigravityModelBase(id);
-        const ids = runtime.models!.map((model) => model.id);
-        return bare !== id && !ids.includes(bare)
-          ? [[bare, matchAntigravityModel(bare, ids)!]] : [];
-      })),
+      modelOverrides: antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel),
     } : {}),
     env,
   });
@@ -742,15 +776,29 @@ async function syncAntigravityModels(
   profileId: string,
   managed: ManagedEnv,
   runtime: ManagedCLIProxyAPIRuntime,
+  startedAt: number,
 ): Promise<ManagedCLIProxyAPIRuntime> {
   if (managed.upstream !== "antigravity") return runtime;
-  let models: CLIProxyAPIModel[] = [];
-  // HTTP readiness can precede auth/model registration on a new daemon.
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  // HTTP readiness can precede auth/model registration on a new daemon. Then
+  // CLIProxyAPI first serves the list compiled into its binary (retired Opus
+  // 4.6, no Opus 5.5) and swaps in its remote catalog seconds later. A young
+  // daemon is therefore polled until its list changes or the window closes.
+  const hasClaude = (list: CLIProxyAPIModel[]) => list.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id));
+  const key = (list: CLIProxyAPIModel[]) => list.map(({ id }) => id).join(",");
+  // First use syncs twice in one process (alias creation, then launch).
+  const daemon = `${profileId}:${startedAt}`;
+  const settleUntil = settledAntigravityDaemons.has(daemon) ? 0 : startedAt + ANTIGRAVITY_CATALOG.settleMs;
+  let models = await listManagedCLIProxyAPICatalog(runtime);
+  let first = hasClaude(models) ? key(models) : null;
+  for (let attempt = 0; ; attempt += 1) {
+    const young = Date.now() < settleUntil;
+    if (hasClaude(models) && (!young || key(models) !== first)) break;
+    if (!young && attempt >= 3) break;
+    await delay(250);
     models = await listManagedCLIProxyAPICatalog(runtime);
-    if (models.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id))) break;
-    if (attempt < 3) await delay(250);
+    first ??= hasClaude(models) ? key(models) : null;
   }
+  settledAntigravityDaemons.add(daemon);
   const ids = [...new Set(models.map((model) => model.id))];
   const mappings = reconcileAntigravityModels(ids, managed);
   if (Object.entries(mappings).some(([tier, id]) => managed[tier as keyof CLIProxyAPIModelMap] !== id)
@@ -1124,7 +1172,7 @@ async function ensureManagedCLIProxyAPIUnlocked(
           port: state.port,
           baseUrl: baseUrl(state.port),
           apiKey: managed.apiKey,
-        });
+        }, state.startedAt);
       }
       // Do not rewrite runtime.yaml or start a second daemon while a known
       // managed process still owns it. That would create two watchers using
@@ -1146,6 +1194,7 @@ async function ensureManagedCLIProxyAPIUnlocked(
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const port = await findAvailablePort();
     await writeRuntimeConfig(profile.profileId, port);
+    const startedAt = Date.now();
     const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
     const ready = await waitForProxy(port, managed.apiKey);
     if (!ready) {
@@ -1162,9 +1211,9 @@ async function ensureManagedCLIProxyAPIUnlocked(
       port,
       binaryPath: profile.binaryPath,
       configPath: paths.configFile,
-      startedAt: Date.now(),
+      startedAt,
     });
-    return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey });
+    return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey }, startedAt);
   }
 
   throw new Error(

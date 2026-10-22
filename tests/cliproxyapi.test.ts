@@ -33,6 +33,7 @@ import {
   getProfileData,
 } from "../src/providers/claude/profiles";
 import {
+  ANTIGRAVITY_CATALOG,
   acquireManagedCLIProxyAPILease,
   CLI_PROXY_API_DEFAULTS,
   ensureManagedCLIProxyAPI,
@@ -107,13 +108,17 @@ async function listenOnCallbackPort(): Promise<ReturnType<typeof createServer> |
 }
 
 describe("managed local CLIProxyAPI", () => {
+  const settleMs = ANTIGRAVITY_CATALOG.settleMs;
   beforeEach(async () => {
     await resetTestHome();
     delete process.env.CLAUDEX_FAKE_AUTH_SUB;
+    // The fixture serves one catalog at once; no remote refresh to wait for.
+    ANTIGRAVITY_CATALOG.settleMs = 0;
   });
 
   afterEach(async () => {
     delete process.env.CLAUDEX_FAKE_AUTH_SUB;
+    ANTIGRAVITY_CATALOG.settleMs = settleMs;
     for (const profile of managedProfiles.splice(0)) {
       try {
         await stopManagedCLIProxyAPI(profile);

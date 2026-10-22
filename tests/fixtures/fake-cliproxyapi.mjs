@@ -79,6 +79,7 @@ if (!Number.isInteger(port) || port < 1) {
   process.exit(2);
 }
 
+const startedAt = Date.now();
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port,
@@ -86,7 +87,10 @@ const server = Bun.serve({
     const path = new URL(request.url).pathname;
     if (path === "/v1/models") {
       // Optional fixture catalog, e.g. what a logged-in Antigravity lists.
-      const ids = (process.env.CLAUDEX_FAKE_MODELS ?? "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high").split(",").filter(Boolean);
+      // Like the real 7.3.20: the built-in list first, the remote catalog later.
+      const late = process.env.CLAUDEX_FAKE_MODELS_LATE !== undefined
+        && Date.now() - startedAt >= Number(process.env.CLAUDEX_FAKE_MODELS_LATE_MS ?? 0);
+      const ids = (late ? process.env.CLAUDEX_FAKE_MODELS_LATE : process.env.CLAUDEX_FAKE_MODELS ?? "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high").split(",").filter(Boolean);
       return Response.json({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
     }
     if (path === "/v1/messages") {

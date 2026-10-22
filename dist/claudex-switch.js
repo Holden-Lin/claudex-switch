@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2048,6 +2034,7 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
+
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2192,7 +2179,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState2(newValue) {
+    const setState = AsyncResource2.bind(function setState(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -3456,7 +3443,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join15, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname7, join as join16, resolve as resolve2 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -4448,12 +4435,28 @@ function matchAntigravityModel(input, ids) {
   const stem = antigravityModelBase(input);
   return newest(ids.filter((id) => antigravityModelBase(id) === stem));
 }
+function modelFamily(id) {
+  return antigravityModelBase(id).replace(/\d+(?:[.-]\d+)*/g, "#");
+}
+function isSupersededAntigravityClaude(id, ids) {
+  if (!/^claude-/i.test(id))
+    return false;
+  const base = antigravityModelBase(id);
+  return ids.some((other) => modelFamily(other) === modelFamily(id) && antigravityModelBase(other) !== base && newest([id, other]) === other);
+}
 function reconcileAntigravityModels(ids, current) {
   const defaults = pickAntigravityModels(ids);
   if (!defaults) {
     throw new Error("Antigravity's model catalog has no supported Claude models. Check its login and CLIProxyAPI version; no guessed model will be used.");
   }
-  const pick = (tier) => matchAntigravityModel(current[tier], ids) ?? defaults[tier];
+  const pick = (tier) => {
+    const kept = matchAntigravityModel(current[tier], ids);
+    if (!kept)
+      return defaults[tier];
+    if (!isSupersededAntigravityClaude(kept, ids))
+      return kept;
+    return newest(ids.filter((id) => modelFamily(id) === modelFamily(kept))) ?? defaults[tier];
+  };
   return {
     fableModel: pick("fableModel"),
     opusModel: pick("opusModel"),
@@ -4492,6 +4495,8 @@ var ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE
 var ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 var STARTUP_TIMEOUT_MS = 12000;
+var ANTIGRAVITY_CATALOG = { settleMs: 12000 };
+var settledAntigravityDaemons = new Set;
 var LOCK_TIMEOUT_MS = 20000;
 var ORPHAN_LOCK_GRACE_MS = 60000;
 var LOCK_HEARTBEAT_MS = 1e4;
@@ -4764,6 +4769,31 @@ async function getLocalCLIProxyAPISettings(profile, runtime) {
     subagentModel: config.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.subagentModel : null
   };
 }
+var CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+function antigravityModelOverrides(ids, tiers, savedModel) {
+  const overrides = {};
+  for (const id of ids) {
+    const bare = antigravityModelBase(id);
+    if (bare !== id && !ids.includes(bare))
+      overrides[bare] = matchAntigravityModel(bare, ids);
+  }
+  for (const id of ids) {
+    const family = id.match(/^claude-(fable|opus|sonnet|haiku)-/i)?.[1]?.toLowerCase();
+    if (family && isSupersededAntigravityClaude(id, ids)) {
+      overrides[id] = resolveLocalCLIProxyAPIModelFromConfig(family, tiers);
+      const bare = antigravityModelBase(id);
+      if (overrides[bare])
+        overrides[bare] = overrides[id];
+    }
+  }
+  for (const id of [...CLAUDE_CODE_MODEL_IDS, typeof savedModel === "string" ? savedModel.trim() : ""]) {
+    const family = id.match(/^claude-(fable|opus|sonnet|haiku)-\d/i)?.[1]?.toLowerCase();
+    if (!family || ids.includes(id) || overrides[id])
+      continue;
+    overrides[id] = matchAntigravityModel(id, ids) ?? resolveLocalCLIProxyAPIModelFromConfig(family, tiers);
+  }
+  return overrides;
+}
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
@@ -4789,17 +4819,13 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
     ...runtime.models ? {
       modelPicker: {
         replaceBuiltInOptions: true,
-        options: runtime.models.filter((model) => !/image/i.test(model.id)).map((model) => ({
+        options: runtime.models.filter((model) => !/image/i.test(model.id) && !isSupersededAntigravityClaude(model.id, runtime.models.map(({ id }) => id))).map((model) => ({
           model: model.id,
           label: model.display_name ?? model.id,
           description: `Antigravity · ${model.id}`
         }))
       },
-      modelOverrides: Object.fromEntries(runtime.models.flatMap(({ id }) => {
-        const bare = antigravityModelBase(id);
-        const ids = runtime.models.map((model) => model.id);
-        return bare !== id && !ids.includes(bare) ? [[bare, matchAntigravityModel(bare, ids)]] : [];
-      }))
+      modelOverrides: antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
     } : {},
     env: env2
   });
@@ -4889,17 +4915,26 @@ async function listManagedCLIProxyAPICatalog(runtime) {
     clearTimeout(timeout);
   }
 }
-async function syncAntigravityModels(profileId, managed, runtime) {
+async function syncAntigravityModels(profileId, managed, runtime, startedAt) {
   if (managed.upstream !== "antigravity")
     return runtime;
-  let models = [];
-  for (let attempt = 0;attempt < 4; attempt += 1) {
-    models = await listManagedCLIProxyAPICatalog(runtime);
-    if (models.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id)))
+  const hasClaude = (list) => list.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id));
+  const key = (list) => list.map(({ id }) => id).join(",");
+  const daemon = `${profileId}:${startedAt}`;
+  const settleUntil = settledAntigravityDaemons.has(daemon) ? 0 : startedAt + ANTIGRAVITY_CATALOG.settleMs;
+  let models = await listManagedCLIProxyAPICatalog(runtime);
+  let first = hasClaude(models) ? key(models) : null;
+  for (let attempt = 0;; attempt += 1) {
+    const young = Date.now() < settleUntil;
+    if (hasClaude(models) && (!young || key(models) !== first))
       break;
-    if (attempt < 3)
-      await delay(250);
+    if (!young && attempt >= 3)
+      break;
+    await delay(250);
+    models = await listManagedCLIProxyAPICatalog(runtime);
+    first ??= hasClaude(models) ? key(models) : null;
   }
+  settledAntigravityDaemons.add(daemon);
   const ids = [...new Set(models.map((model) => model.id))];
   const mappings = reconcileAntigravityModels(ids, managed);
   if (Object.entries(mappings).some(([tier, id]) => managed[tier] !== id) || JSON.stringify(ids) !== JSON.stringify(managed.upstreamModels)) {
@@ -5167,7 +5202,7 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
           port: state.port,
           baseUrl: baseUrl(state.port),
           apiKey: managed.apiKey
-        });
+        }, state.startedAt);
       }
       throw new Error("Managed CLIProxyAPI is running but unhealthy. Run `claudex-switch doctor <alias> --restart` after ending its sessions.");
     }
@@ -5179,6 +5214,7 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
   for (let attempt = 0;attempt < 3; attempt += 1) {
     const port = await findAvailablePort();
     await writeRuntimeConfig(profile.profileId, port);
+    const startedAt = Date.now();
     const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
     const ready = await waitForProxy(port, managed.apiKey);
     if (!ready) {
@@ -5194,9 +5230,9 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
       port,
       binaryPath: profile.binaryPath,
       configPath: paths.configFile,
-      startedAt: Date.now()
+      startedAt
     });
-    return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey });
+    return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey }, startedAt);
   }
   throw new Error("CLIProxyAPI did not become ready. Check `claudex-switch doctor <alias>` after fixing its login or binary.");
 }
@@ -10320,6 +10356,9 @@ function upstreamLabel(upstream) {
   return CLI_PROXY_API_UPSTREAMS[upstream ?? "codex"].label;
 }
 
+// src/commands/run.ts
+import { join as join13 } from "path";
+
 // src/providers/codex/run-home.ts
 import {
   chmod as chmod10,
@@ -10723,7 +10762,10 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         await updateDefaultModel(entry, resolvedModel);
         profile = await getProfileData(claudeProfileName);
       }
-      localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, { inheritModel: inheritProxyModel });
+      localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, {
+        inheritModel: inheritProxyModel,
+        savedModel: (await readJson(join13(configDir, "settings.json"), {})).model
+      });
     } catch (err) {
       try {
         await localLease?.release();
@@ -11330,7 +11372,7 @@ function spawnBackgroundRefresh() {
 // src/lib/activity.ts
 import { execFile as execFile3 } from "child_process";
 import { mkdir as mkdir15, readdir as readdir5, readFile as readFile10, realpath as realpath2, rename as rename9, stat as stat6, writeFile as writeFile11 } from "fs/promises";
-import { join as join13 } from "path";
+import { join as join14 } from "path";
 import { promisify as promisify3 } from "util";
 var ACTIVITY_DAYS = 30;
 var REFRESH_INTERVAL_MS = 10 * 60000;
@@ -11445,7 +11487,7 @@ async function recentJsonlFiles(roots, since) {
     seenDirs.add(real);
     const entries = await readdir5(real, { withFileTypes: true }).catch(() => []);
     await Promise.all(entries.map(async (entry) => {
-      const path = join13(real, entry.name);
+      const path = join14(real, entry.name);
       if (entry.isDirectory() || entry.isSymbolicLink()) {
         const info2 = await stat6(path).catch(() => null);
         if (info2?.isDirectory())
@@ -11465,9 +11507,9 @@ async function recentJsonlFiles(roots, since) {
   return [...files];
 }
 async function collectClaudeTokens(since, addTokens, cwds) {
-  const roots = [join13(CLAUDE_DIR, "projects")];
+  const roots = [join14(CLAUDE_DIR, "projects")];
   for (const profile of await readdir5(CLAUDE_PROFILES_DIR).catch(() => [])) {
-    roots.push(join13(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
+    roots.push(join14(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
   }
   const seen = new Set;
   for (const file of await recentJsonlFiles(roots, since)) {
@@ -11497,7 +11539,7 @@ async function collectClaudeTokens(since, addTokens, cwds) {
   }
 }
 async function collectCodexTokens(since, addTokens, cwds) {
-  const files = await recentJsonlFiles([join13(CODEX_DIR, "sessions"), join13(CODEX_DIR, "archived_sessions")], since);
+  const files = await recentJsonlFiles([join14(CODEX_DIR, "sessions"), join14(CODEX_DIR, "archived_sessions")], since);
   for (const file of files) {
     const text = await readFile10(file, "utf-8").catch(() => "");
     let previous = 0;
@@ -13087,12 +13129,12 @@ async function runLoginCommand(command, args) {
 
 // src/lib/update.ts
 import { realpathSync } from "fs";
-import { join as join14 } from "path";
+import { join as join15 } from "path";
 import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.7",
+  version: "1.25.8",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -13219,7 +13261,7 @@ function detectInstallMethod(argv = process.argv, execPath = process.execPath, r
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     }));
-    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join14(bunGlobalBin, "claudex-switch")))) {
+    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join15(bunGlobalBin, "claudex-switch")))) {
       return "bun";
     }
   }
@@ -15461,7 +15503,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join15(root, "package.json");
+  const packageFile = join16(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {

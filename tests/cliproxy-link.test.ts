@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
-import { readdir, readFile, stat } from "fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "fs/promises";
 import { loadAliases, saveAliases } from "../src/alias/store";
 import { purgeAccount } from "../src/accounts/purge";
 import { resolveCLIProxyClaudeEntry, UserFacingError } from "../src/commands/cliproxy";
@@ -10,6 +10,7 @@ import { runAliasSession } from "../src/commands/run";
 import {
   CLAUDE_PROFILES_DIR,
   CLI_PROXY_API_LINKS_FILE,
+  SETTINGS_FILE,
   claudeProfileDataFile,
   cliProxyAPIConfigFile,
   cliProxyAPIEnvFile,
@@ -17,7 +18,9 @@ import {
 } from "../src/lib/paths";
 import { getProfileData } from "../src/providers/claude/profiles";
 import {
+  ANTIGRAVITY_CATALOG,
   acquireManagedCLIProxyAPILease,
+  antigravityModelOverrides,
   ensureManagedCLIProxyAPI,
   prepareLocalCLIProxyAPIClaudeSettings,
   stopManagedCLIProxyAPI,
@@ -27,9 +30,11 @@ import {
 } from "../src/providers/cliproxyapi/managed";
 import { getLinkedClaudeProfile } from "../src/providers/cliproxyapi/links";
 import {
+  isSupersededAntigravityClaude,
   pickAntigravityModels,
   pickOpenCodeGoModels,
   matchAntigravityModel,
+  reconcileAntigravityModels,
 } from "../src/providers/cliproxyapi/upstreams";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
 import {
@@ -39,7 +44,7 @@ import {
 } from "../src/providers/opencode/profiles";
 import type { CodexRegistry, LocalCLIProxyAPIProfileData } from "../src/types";
 import { resetTestHome } from "./helpers";
-import { join } from "path";
+import { dirname, join } from "path";
 import { randomUUID } from "crypto";
 
 const FIXTURE_BINARY = join(import.meta.dir, "fixtures", "fake-cliproxyapi");
@@ -54,8 +59,15 @@ const FAKE_ENV = [
   "CLAUDEX_FAKE_CHATGPT_ACCOUNT_ID",
   "CLAUDEX_FAKE_LOGIN_EXIT",
   "CLAUDEX_FAKE_MODELS",
+  "CLAUDEX_FAKE_MODELS_LATE",
+  "CLAUDEX_FAKE_MODELS_LATE_MS",
   "CLAUDEX_FAKE_AUTH_SUB",
 ];
+// Antigravity's live catalog on 2026-10-22, as CLIProxyAPI 7.3.20 served it
+// first (compiled into the binary) and after its remote catalog refresh.
+const AGY_BUILT_IN = "claude-opus-4-6-thinking,claude-sonnet-4-6,gemini-3-flash,gemini-3.1-pro-low,gemini-3.8-flash-high";
+const AGY_LIVE = "claude-opus-4-6-thinking,claude-opus-5-5-high,claude-sonnet-4-6,claude-sonnet-5-5-high,gemini-3-flash,gemini-3.8-flash-high,gemini-4-argon-high";
+const SETTLE_MS = ANTIGRAVITY_CATALOG.settleMs;
 
 function codexRegistry(): CodexRegistry {
   return {
@@ -139,6 +151,8 @@ describe("--cliproxy claudecode", () => {
   beforeEach(async () => {
     await resetTestHome();
     for (const key of FAKE_ENV) delete process.env[key];
+    // Fixture daemons serve one catalog; only the late-catalog test waits.
+    ANTIGRAVITY_CATALOG.settleMs = 0;
     process.env.CLAUDEX_FAKE_CHATGPT_ACCOUNT_ID = "acct-1";
     // The Go catalog is the only network call; everything else is loopback.
     globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
@@ -165,8 +179,40 @@ describe("--cliproxy claudecode", () => {
       }
     }
     for (const key of FAKE_ENV) delete process.env[key];
+    ANTIGRAVITY_CATALOG.settleMs = SETTLE_MS;
     await resetTestHome();
   });
+
+  test("agy waits for the remote catalog and maps a saved claude-opus-5-5 default", async () => {
+    // Before the fix the launcher took the built-in list: Opus stayed on the
+    // retired 4.6 and Claude Code's saved claude-opus-5-5 got "unknown provider".
+    ANTIGRAVITY_CATALOG.settleMs = 6_000;
+    process.env.CLAUDEX_FAKE_MODELS = AGY_BUILT_IN;
+    process.env.CLAUDEX_FAKE_MODELS_LATE = AGY_LIVE;
+    process.env.CLAUDEX_FAKE_MODELS_LATE_MS = "1500";
+    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+    await writeFile(SETTINGS_FILE, JSON.stringify({ model: "claude-opus-5-5" }));
+    const calls: Array<{ command: string; args: string[] }> = [];
+    await resolveCLIProxyClaudeEntry("agy", options);
+    expect(await runAliasSession("agy", ["--cliproxy", "claudecode"], fakeClaudeSpawn(calls) as never)).toBe(0);
+    const args = calls[0]!.args;
+    expect(args).not.toContain("--model");
+    const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf8"));
+    expect(settings.model).toBeUndefined();
+    expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5-high");
+    expect(settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5-5-high");
+    expect(settings.modelOverrides).toMatchObject({
+      "claude-opus-5-5": "claude-opus-5-5-high",
+      "claude-sonnet-5-5": "claude-sonnet-5-5-high",
+      "claude-haiku-5-5": "gemini-3.8-flash-high",
+      "claude-fable-5-1": "claude-opus-5-5-high",
+      "claude-opus-4-6-thinking": "claude-opus-5-5-high",
+      "claude-opus-4-6": "claude-opus-5-5-high",
+    });
+    expect(settings.modelPicker.options.map((model: { model: string }) => model.model)).toEqual([
+      "claude-opus-5-5-high", "claude-sonnet-5-5-high", "gemini-3-flash", "gemini-3.8-flash-high", "gemini-4-argon-high",
+    ]);
+  }, 20_000);
 
   test("Codex alias logs in once, only as the same ChatGPT account, then reuses the link", async () => {
     const entry = await resolveCLIProxyClaudeEntry("cx", options);
@@ -524,6 +570,27 @@ describe("upstream model picking", () => {
       haikuModel: "gemini-3.8-flash",
     });
     expect(pickAntigravityModels(["gemini-3.8-flash"])).toBeNull();
+  });
+
+  test("Antigravity moves retired Claude versions to the newest and keeps other choices", () => {
+    const ids = AGY_LIVE.split(",");
+    expect(reconcileAntigravityModels(ids, {
+      fableModel: "claude-sonnet-4-6", opusModel: "claude-opus-4-6-thinking",
+      sonnetModel: "claude-sonnet-4-6", haikuModel: "gemini-3-flash",
+    })).toEqual({
+      fableModel: "claude-sonnet-5-5-high", opusModel: "claude-opus-5-5-high",
+      sonnetModel: "claude-sonnet-5-5-high", haikuModel: "gemini-3-flash",
+    });
+    // Other families stay: older Gemini versions still answer.
+    expect(reconcileAntigravityModels(ids, {
+      fableModel: "gemini-4-argon-high", opusModel: "claude-opus-5-5-high",
+      sonnetModel: "claude-opus-5-5-high", haikuModel: "claude-sonnet-5-5-high",
+    }).fableModel).toBe("gemini-4-argon-high");
+    expect(ids.filter((id) => isSupersededAntigravityClaude(id, ids))).toEqual(["claude-opus-4-6-thinking", "claude-sonnet-4-6"]);
+    const tiers = { fableModel: "claude-opus-5-5-high", opusModel: "claude-opus-5-5-high", sonnetModel: "claude-sonnet-5-5-high", haikuModel: "gemini-3.8-flash-high" };
+    expect(antigravityModelOverrides(ids, tiers, "claude-opus-5-6")["claude-opus-5-6"]).toBe("claude-opus-5-5-high");
+    expect(antigravityModelOverrides(ids, tiers, "opus").opus).toBeUndefined();
+    expect(antigravityModelOverrides(ids, tiers, "gemini-3-flash")["gemini-3-flash"]).toBeUndefined();
   });
 
   test("OpenCode Go keeps listed defaults and falls back within a family", () => {

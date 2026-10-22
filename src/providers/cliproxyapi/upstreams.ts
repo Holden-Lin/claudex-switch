@@ -136,7 +136,20 @@ export function matchAntigravityModel(input: string, ids: string[]): string | un
   return newest(ids.filter((id) => antigravityModelBase(id) === stem));
 }
 
-/** Keep valid user choices; repair missing tiers using the current catalog. */
+// "claude-opus-5-5-high" → "claude-opus-#": same family, any version.
+function modelFamily(id: string): string {
+  return antigravityModelBase(id).replace(/\d+(?:[.-]\d+)*/g, "#");
+}
+
+/** A Claude version Antigravity still lists after a newer one (retired upstream). */
+export function isSupersededAntigravityClaude(id: string, ids: string[]): boolean {
+  if (!/^claude-/i.test(id)) return false;
+  const base = antigravityModelBase(id);
+  return ids.some((other) => modelFamily(other) === modelFamily(id)
+    && antigravityModelBase(other) !== base && newest([id, other]) === other);
+}
+
+/** Keep valid user choices; repair missing or superseded tiers from the catalog. */
 export function reconcileAntigravityModels(
   ids: string[],
   current: CLIProxyAPIModelMap,
@@ -145,8 +158,14 @@ export function reconcileAntigravityModels(
   if (!defaults) {
     throw new Error("Antigravity's model catalog has no supported Claude models. Check its login and CLIProxyAPI version; no guessed model will be used.");
   }
-  const pick = (tier: keyof CLIProxyAPIModelMap) =>
-    matchAntigravityModel(current[tier], ids) ?? defaults[tier];
+  // Antigravity keeps listing retired Claude versions (Opus 4.6 answers only
+  // "no longer available"); such a tier moves to its family's newest model.
+  const pick = (tier: keyof CLIProxyAPIModelMap) => {
+    const kept = matchAntigravityModel(current[tier], ids);
+    if (!kept) return defaults[tier];
+    if (!isSupersededAntigravityClaude(kept, ids)) return kept;
+    return newest(ids.filter((id) => modelFamily(id) === modelFamily(kept))) ?? defaults[tier];
+  };
   return {
     fableModel: pick("fableModel"), opusModel: pick("opusModel"),
     sonnetModel: pick("sonnetModel"), haikuModel: pick("haikuModel"),

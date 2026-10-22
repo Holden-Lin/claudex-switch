@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.25.8：修 agy 仍报 `unknown provider for model claude-opus-5-5`。CLIProxyAPI 新启动时先给内置旧目录，数秒后才换远程目录；现等目录稳定，停用的 Claude 4.6 改到最新版，并映射 Claude Code 自身及已保存的模型 ID。升级后结束旧 agy 会话再运行 `claudex-switch agy --run --cliproxy claudecode`。
+
 本次版本 v1.25.7：补齐 Antigravity 的模型目录同步、旧映射迁移、去重菜单与 Claude Code / Agent SDK 系统提示兼容。真实客户端与两轮工具调用已通过，发布后重开 `claudex-switch agy --run --cliproxy claudecode` 即可；若旧会话仍占用代理，先退出旧会话。
 
 本次版本 v1.25.1：修 `claudex-switch agy --run --cliproxy claudecode` 报 `Unknown command: "agy"`（v1.25.0 的分发只在别名已存在时转运行路径，而 `agy` 首次使用要靠解析器自建别名）。发版后请用该命令实测一次 Antigravity 首用流程。
@@ -28,6 +30,8 @@
 - [ ] 全局 active 的 Claude 账号目前仍是 `chatgpt`（本机 CLIProxyAPI），所以裸 `claude` 会走 gpt 路由。若想让裸 `claude` 回到别的账号，由用户自行 `claudex-switch <alias>`。
 
 ## Done
+
+- [x] 2026-10-22：修 agy 选/存 Opus 5.5 后仍报 `400 unknown provider for model claude-opus-5-5`（v1.25.8）。根因实测：CLIProxyAPI 7.3.20 启动约 2 秒先给内置旧目录（无 Opus 5.5），约 4 秒后才换远程目录，旧同步取第一份，默认停在已停用的 Opus 4.6，共享 `settings.json` 存的 `claude-opus-5-5` 无映射。现新代理等目录变化（≤12 秒），停用 Claude 版本迁至同系列最新、菜单隐藏，`modelOverrides` 覆盖 Claude Code 自身及已保存 ID。368 项测试、1,658 断言、类型 / 文档检查、构建通过；真实 Claude Code 2.1.308 + 本机 agy 代理：旧配置重现 400，新配置答 `AGY_E2E_OK`，Read 工具两轮通过。
 
 - [x] 2026-10-21：修复 agy 选 Opus 后 `unknown provider` 及完整 SDK 请求 429（v1.25.7）。不猜模型 ID，保留完整后缀，每次启动修正失效映射；菜单由注册目录生成；采用原生系统提示兼容配置，升级不终止活跃会话。Claude Code 2.1.306 + CLIProxyAPI 8.0.30：默认 Opus、Sonnet、Gemini、连续两轮 Read、实际 `/model` 选择与 `AGY_UI_OK` 皆通过。复测脚本与脱敏证据见 `scripts/verify-antigravity.ts`、`docs/receipts/agy-claude-code-live.json`；原账号文件未改。
 

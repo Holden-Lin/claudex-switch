@@ -10,6 +10,8 @@ import {
   resolveCLIProxyClaudeEntry,
 } from "./cliproxy";
 import { blank, error, hint, info } from "../lib/ui";
+import { readJson } from "../lib/fs";
+import { join } from "path";
 import {
   isModelEffort,
   providerEffortLevels,
@@ -529,7 +531,12 @@ export async function runAliasSession(
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(
         profile,
         runtime,
-        { inheritModel: inheritProxyModel },
+        {
+          inheritModel: inheritProxyModel,
+          // The isolated config links the shared settings, where /model saves
+          // a Claude ID that Antigravity does not list.
+          savedModel: (await readJson<{ model?: string }>(join(configDir!, "settings.json"), {})).model,
+        },
       );
     } catch (err) {
       try {
