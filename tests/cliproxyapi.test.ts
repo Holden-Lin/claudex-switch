@@ -169,12 +169,21 @@ describe("managed local CLIProxyAPI", () => {
     expect(settings.env?.CLAUDE_CODE_SUBAGENT_MODEL_FORCE).toBe("1");
     expect(settings.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe("");
     expect(settings.env?.CLAUDE_CODE_USE_BEDROCK).toBe("");
+    expect(settings.env?.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
     expect(fileMode((await stat(settingsPath)).mode)).toBe(0o600);
+
+    await prepareLocalCLIProxyAPIClaudeSettings({
+      ...profile,
+      env: { CLAUDE_CODE_AUTO_MODE_SERVER: "1" },
+    }, runtime);
+    const overridden = JSON.parse(await readFile(settingsPath, "utf-8"));
+    expect(overridden.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("1");
 
     await applyLocalCLIProxyAPIConfig(await getLocalCLIProxyAPISettings(profile, runtime));
     const globalSettings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
     expect(globalSettings.env.ANTHROPIC_API_KEY).toBe("");
     expect(globalSettings.env.ANTHROPIC_AUTH_TOKEN).toBe(runtime.apiKey);
+    expect(globalSettings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
   });
 
   test("starts the upstream binary in its private cwd without remote-store selectors", async () => {

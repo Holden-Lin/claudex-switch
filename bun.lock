@@ -6,6 +6,8 @@
       "name": "claudex-switch",
       "dependencies": {
         "@inquirer/prompts": "^7.5.0",
+        "@magpie-community/opencode-cursor-auth": "0.2.19",
+        "@magpie-community/opencode-workbuddy-auth": "0.1.30",
         "chalk": "^5.4.1",
       },
       "devDependencies": {
@@ -46,6 +48,10 @@
     "@inquirer/select": ["@inquirer/select@4.4.2", "", { "dependencies": { "@inquirer/ansi": "^1.0.2", "@inquirer/core": "^10.3.2", "@inquirer/figures": "^1.0.15", "@inquirer/type": "^3.0.10", "yoctocolors-cjs": "^2.1.3" }, "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-l4xMuJo55MAe+N7Qr4rX90vypFwCajSakx59qe/tMaC1aEHWLyw68wF4o0A4SLAY4E0nd+Vt+EyskeDIqu1M6w=="],
 
     "@inquirer/type": ["@inquirer/type@3.0.10", "", { "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-BvziSRxfz5Ov8ch0z/n3oijRSEcEsHnhggm4xFZe93DHcUCTlutlq9Ox4SVENAfcRD22UQq7T/atg9Wr3k09eA=="],
+
+    "@magpie-community/opencode-cursor-auth": ["@magpie-community/opencode-cursor-auth@0.2.19", "", {}, "sha512-+ZDedCdopWjCcQhHk6tas98mc3pVru3gYqz4aeaA3w3vCpkQBtLocLFGn2iZyfDpviZ99hBqVc+Ez7BASZif8Q=="],
+
+    "@magpie-community/opencode-workbuddy-auth": ["@magpie-community/opencode-workbuddy-auth@0.1.30", "", {}, "sha512-TBDGeYuvBkPBoylvDf6RnsuNBWy0vfqpiWw2zg86CDb732QXvNmKMwpH42kFMqIAj9e/+vyF3Fx+blyZggWjOw=="],
 
     "@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
 

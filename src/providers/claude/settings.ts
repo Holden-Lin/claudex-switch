@@ -36,6 +36,16 @@ export function localCLIProxyAPIAuthEnv(apiKey: string): SettingsEnv {
   return { ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: apiKey };
 }
 
+// Translating upstreams cannot supply Anthropic's server-side safety verdicts.
+// Keep Claude's client classifier, and let an explicit profile setting opt in.
+// Track the default as extra env so switching away clears it with the profile.
+export function localCLIProxyAPIExtraEnv(extraEnv?: CustomEnv): CustomEnv {
+  return {
+    CLAUDE_CODE_AUTO_MODE_SERVER: "0",
+    ...normalizeCustomEnv(extraEnv),
+  };
+}
+
 export const CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
@@ -279,7 +289,7 @@ export async function applyLocalCLIProxyAPIConfig(
   setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
 
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env, extraEnv);
+  await commitManagedEnv(settings, env, localCLIProxyAPIExtraEnv(extraEnv));
 }
 
 // Claude Code applies `~/.claude/settings.json` env *over* the environment its
@@ -298,6 +308,9 @@ export async function prepareApiProfileClaudeSettings(
     env[key] = "";
   }
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    env[key] = "";
+  }
+  for (const key of await readManagedExtraEnvKeys()) {
     env[key] = "";
   }
 

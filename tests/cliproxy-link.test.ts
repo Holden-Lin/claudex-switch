@@ -138,9 +138,9 @@ async function managedDirs(): Promise<string[]> {
   }
 }
 
-function fakeClaudeSpawn(calls: Array<{ command: string; args: string[] }>) {
-  return (command: string, args: string[]) => {
-    calls.push({ command, args });
+function fakeClaudeSpawn(calls: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }>) {
+  return (command: string, args: string[], options: { env?: NodeJS.ProcessEnv }) => {
+    calls.push({ command, args, env: options.env });
     const proc = new EventEmitter();
     queueMicrotask(() => proc.emit("close", 0));
     return proc as ChildProcess;
@@ -490,7 +490,7 @@ describe("--cliproxy claudecode", () => {
 
   test.each(["cx", "go", "agy"])("--cliproxy %s leaves the main model to Claude Code unless explicitly selected", async (alias) => {
     await resolveCLIProxyClaudeEntry(alias, options);
-    const calls: Array<{ command: string; args: string[] }> = [];
+    const calls: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }> = [];
     const code = await runAliasSession(
       alias,
       ["--cliproxy", "claudecode"],
@@ -505,6 +505,36 @@ describe("--cliproxy claudecode", () => {
     expect(settings.env.ANTHROPIC_AUTH_TOKEN).toBeTruthy();
     expect(settings.env.ANTHROPIC_API_KEY).toBe("");
     expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeTruthy();
+    expect(settings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
+    expect(calls[0]?.env?.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
+    expect(args[args.indexOf("--permission-mode") + 1]).toBe("auto");
+  });
+
+  test.each([undefined, "1"])("local classifier setting %s outranks inherited settings without changing the global account", async (override) => {
+    const entry = await resolveCLIProxyClaudeEntry("cx", options);
+    const name = (entry.target as { profileName: string }).profileName;
+    const profile = await getProfileData(name) as LocalCLIProxyAPIProfileData;
+    if (override) await writeFile(claudeProfileDataFile(name), JSON.stringify({
+      ...profile,
+      env: { CLAUDE_CODE_AUTO_MODE_SERVER: override },
+    }));
+    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+    await writeFile(SETTINGS_FILE, JSON.stringify({ env: { CLAUDE_CODE_AUTO_MODE_SERVER: "1" } }));
+    const globalBefore = await readFile(SETTINGS_FILE, "utf-8");
+    const previous = process.env.CLAUDE_CODE_AUTO_MODE_SERVER;
+    process.env.CLAUDE_CODE_AUTO_MODE_SERVER = "1";
+    try {
+      const calls: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }> = [];
+      expect(await runAliasSession("cx", ["--cliproxy", "claudecode"], fakeClaudeSpawn(calls) as never)).toBe(0);
+      const args = calls[0]!.args;
+      const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf-8"));
+      expect(settings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe(override ?? "0");
+      expect(calls[0]?.env?.CLAUDE_CODE_AUTO_MODE_SERVER).toBe(override ?? "0");
+      expect(await readFile(SETTINGS_FILE, "utf-8")).toBe(globalBefore);
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CODE_AUTO_MODE_SERVER;
+      else process.env.CLAUDE_CODE_AUTO_MODE_SERVER = previous;
+    }
   });
 
   test("purging the upstream alias removes its Claude Code link, but not while a session runs", async () => {

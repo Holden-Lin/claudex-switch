@@ -17,6 +17,7 @@ import {
   updateLocalCLIProxyAPIProfileIdentity,
 } from "../providers/claude/profiles";
 import { runManagedCLIProxyAPILogin } from "../providers/cliproxyapi/managed";
+import { isSubscriptionUpstream } from "../providers/subscription-plugins";
 import {
   decodeIdToken,
   removeAccountAuthFile,
@@ -270,12 +271,12 @@ async function refreshLocalCLIProxyAPI(
   }
 
   const upstream = CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"];
-  if (!upstream.loginFlag) {
+  if (!upstream.loginFlag && !isSubscriptionUpstream(profile.upstream)) {
     error(`${upstream.label} uses the key of its own alias; refresh that alias instead.`);
     blank();
     process.exit(1);
   }
-  info(`Opening CLIProxyAPI's own ${upstream.label} login for ${chalk.bold(alias)}...`);
+  info(`Opening ${upstream.label} login for ${chalk.bold(alias)}...`);
   blank();
 
   let login;

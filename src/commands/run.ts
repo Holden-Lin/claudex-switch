@@ -28,6 +28,7 @@ import {
   CLAUDE_ENV_KEYS,
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   getClaudeEnvNeutralizer,
+  localCLIProxyAPIExtraEnv,
   normalizeCustomEnv,
   prepareApiProfileClaudeSettings,
   prepareOAuthProfileClaudeSettings,
@@ -1014,7 +1015,7 @@ function buildClaudeLocalCLIProxyAPIEnvironment(
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     delete env[key];
   }
-  applyCustomEnv(env, extraEnv);
+  applyCustomEnv(env, localCLIProxyAPIExtraEnv(extraEnv));
   if (secureStorageDir) {
     env.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }

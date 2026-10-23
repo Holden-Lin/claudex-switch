@@ -60,10 +60,11 @@ chmod +x "$out"
           "claudex-switch",
           "LICENSE",
           "COMMERCIAL-LICENSING.md",
+          "THIRD-PARTY-NOTICES.md",
           "",
         ]);
 
-        for (const noticeFile of ["LICENSE", "COMMERCIAL-LICENSING.md"]) {
+        for (const noticeFile of ["LICENSE", "COMMERCIAL-LICENSING.md", "THIRD-PARTY-NOTICES.md"]) {
           const archivedNotice = spawnSync(
             "tar",
             ["-xOzf", join(outputDir, archive), noticeFile],

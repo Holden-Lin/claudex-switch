@@ -40,7 +40,7 @@ describe("render-formula.sh", () => {
         'The MIT + Commons Clause combination has no SPDX identifier; see LICENSE.',
       );
       expect(result.stdout).toContain(
-        '(share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md"',
+        '(share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md", "THIRD-PARTY-NOTICES.md"',
       );
       expect(result.stdout).not.toContain('license "MIT"');
       expect(result.stdout).toContain(

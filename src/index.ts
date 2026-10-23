@@ -11,7 +11,8 @@ import { readOpenCodeState } from "./providers/opencode/profiles";
 import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { isRunFlag, isCliproxyRunInvocation, runAliasSession } from "./commands/run";
-import { isAntigravityName } from "./commands/cliproxy";
+import { isAntigravityName, isSubscriptionName } from "./commands/cliproxy";
+import { runManagedSubscriptionProxy } from "./providers/cliproxyapi/managed";
 import { list, refreshUsageCache, type ListOptions } from "./commands/list";
 import { refreshActivityCache } from "./lib/activity";
 import { remove } from "./commands/remove";
@@ -35,7 +36,7 @@ const HELP = `
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
-    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on a Codex / OpenCode Go alias (or "agy" for Antigravity) via a local CLIProxyAPI
+    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -218,6 +219,12 @@ async function main(): Promise<void> {
     const jsonListCommand =
       (command === "list" || command === "ls") && args.includes("--json");
     enforceRepoLocalHomeSafety(command, jsonListCommand);
+
+    if (command === "__subscription-proxy") {
+      if (args.length !== 3) throw new Error("Invalid subscription proxy arguments");
+      await runManagedSubscriptionProxy(args[0]!, args[1]!, args[2]!);
+      return;
+    }
 
     if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
@@ -422,9 +429,9 @@ async function main(): Promise<void> {
           process.exit(exitCode);
         } else {
           console.error(chalk.red(`\n  Unknown command: "${command}"`));
-          if (isAntigravityName(command)) {
+          if (isAntigravityName(command) || isSubscriptionName(command)) {
             hint(
-              `Antigravity runs through the proxy: ${chalk.cyan(`claudex-switch ${command} --run --cliproxy claudecode`)}`,
+              `Run through the proxy: ${chalk.cyan(`claudex-switch ${command} --run --cliproxy claudecode`)}`,
             );
           }
           console.log(HELP);

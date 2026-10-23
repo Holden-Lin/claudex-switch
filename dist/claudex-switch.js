@@ -3442,8 +3442,8 @@ var esm_default5 = createPrompt((config, done) => {
   return `${lines}${cursorHide}`;
 });
 // src/index.ts
-import { existsSync, readFileSync } from "fs";
-import { basename as basename2, dirname as dirname7, join as join16, resolve as resolve2 } from "path";
+import { existsSync, readFileSync as readFileSync2 } from "fs";
+import { basename as basename3, dirname as dirname8, join as join19, resolve as resolve3 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -3758,17 +3758,17 @@ async function renameAlias(currentAlias, nextAlias) {
 
 // src/providers/claude/profiles.ts
 import {
-  chmod as chmod3,
+  chmod as chmod4,
   copyFile,
   lstat,
-  mkdir as mkdir4,
-  readdir as readdir2,
+  mkdir as mkdir5,
+  readdir as readdir3,
   readlink,
   rm as rm3,
   symlink,
-  unlink
+  unlink as unlink2
 } from "fs/promises";
-import { join as join5 } from "path";
+import { join as join8 } from "path";
 
 // src/providers/claude/credentials.ts
 import { platform } from "os";
@@ -3925,6 +3925,12 @@ import { dirname } from "path";
 function localCLIProxyAPIAuthEnv(apiKey) {
   return { ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: apiKey };
 }
+function localCLIProxyAPIExtraEnv(extraEnv) {
+  return {
+    CLAUDE_CODE_AUTO_MODE_SERVER: "0",
+    ...normalizeCustomEnv(extraEnv)
+  };
+}
 var CLAUDE_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_BASE_URL",
@@ -4075,7 +4081,7 @@ async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
   setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel ?? undefined);
   setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env2, extraEnv);
+  await commitManagedEnv(settings, env2, localCLIProxyAPIExtraEnv(extraEnv));
 }
 async function prepareApiProfileClaudeSettings(name, config) {
   const env2 = {};
@@ -4083,6 +4089,9 @@ async function prepareApiProfileClaudeSettings(name, config) {
     env2[key] = "";
   }
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
+    env2[key] = "";
+  }
+  for (const key of await readManagedExtraEnvKeys()) {
     env2[key] = "";
   }
   env2.ANTHROPIC_API_KEY = config.apiKey;
@@ -4182,21 +4191,22 @@ async function getApiConfig() {
 
 // src/providers/cliproxyapi/managed.ts
 import { spawn, spawnSync as spawnSync4 } from "child_process";
+import { realpathSync } from "fs";
 import {
-  chmod as chmod2,
-  mkdir as mkdir3,
-  readFile as readFile2,
-  readdir,
-  rename,
+  chmod as chmod3,
+  mkdir as mkdir4,
+  readFile as readFile4,
+  readdir as readdir2,
+  rename as rename2,
   rm as rm2,
   rmdir,
-  stat,
-  writeFile as writeFile2
+  stat as stat2,
+  writeFile as writeFile3
 } from "fs/promises";
-import { createServer } from "net";
-import { platform as platform3 } from "os";
-import { basename, dirname as dirname2, join as join4, resolve } from "path";
-import { createHash as createHash2, randomBytes, randomUUID } from "crypto";
+import { createServer as createServer2 } from "net";
+import { platform as platform4 } from "os";
+import { basename as basename2, dirname as dirname3, join as join7, resolve as resolve2 } from "path";
+import { createHash as createHash6, randomBytes as randomBytes4, randomUUID as randomUUID3 } from "crypto";
 
 // src/lib/browser.ts
 import { spawnSync as spawnSync2 } from "child_process";
@@ -4346,7 +4356,16 @@ function assertCLIProxyAPICompatibility(binaryPath, upstream) {
 }
 
 // src/providers/cliproxyapi/upstreams.ts
+var SUBSCRIPTION_SPEC = {
+  loginFlag: null,
+  callbackPort: null,
+  authType: null,
+  defaults: { fableModel: "fable", opusModel: "opus", sonnetModel: "sonnet", haikuModel: "haiku" }
+};
 var CLI_PROXY_API_UPSTREAMS = {
+  cursor: { ...SUBSCRIPTION_SPEC, label: "Cursor" },
+  workbuddy: { ...SUBSCRIPTION_SPEC, label: "WorkBuddy" },
+  "workbuddy-ai": { ...SUBSCRIPTION_SPEC, label: "WorkBuddy AI" },
   codex: {
     label: "ChatGPT",
     loginFlag: "-codex-login",
@@ -4385,7 +4404,26 @@ var CLI_PROXY_API_UPSTREAMS = {
   }
 };
 function parseUpstream(value) {
-  return value === "antigravity" || value === "opencode-go" ? value : "codex";
+  if (!value || value === "codex")
+    return "codex";
+  if (Object.hasOwn(CLI_PROXY_API_UPSTREAMS, value))
+    return value;
+  throw new Error(`Unknown managed proxy upstream: ${value}`);
+}
+function pickSubscriptionModels(ids, current) {
+  if (!ids.length || ids.some((id) => !id.trim() || /[\r\n,=]/.test(id))) {
+    throw new Error("The subscription returned an empty or invalid model catalog. Sign in again; no guessed models will be used.");
+  }
+  const strongest = ids.includes("auto") ? "auto" : newest(ids.filter((id) => /claude.*opus/i.test(id))) ?? newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? ids[0];
+  const sonnet = newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? strongest;
+  const fast = newest(ids.filter((id) => /haiku|flash|mini/i.test(id))) ?? sonnet;
+  const keep = (tier, fallback) => current && ids.includes(current[tier]) ? current[tier] : fallback;
+  return {
+    fableModel: keep("fableModel", strongest),
+    opusModel: keep("opusModel", strongest),
+    sonnetModel: keep("sonnetModel", sonnet),
+    haikuModel: keep("haikuModel", fast)
+  };
 }
 var OPENCODE_GO_OPENAI_BASE_URL = "https://opencode.ai/zen/go/v1";
 var OPENCODE_GO_ANTHROPIC_BASE_URL = "https://opencode.ai/zen/go";
@@ -4478,6 +4516,5671 @@ function pickOpenCodeGoModels(catalog) {
   };
 }
 
+// node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
+import { createHash as createHash2, randomBytes } from "node:crypto";
+var NATIVE_LIMITS = {
+  resultWait: 120000,
+  lifetime: 15 * 60000,
+  batchWait: 30000,
+  drain: 6000,
+  replayWait: 120000,
+  blobBytes: 64 << 20,
+  outputBytes: 16 << 20,
+  argumentBytes: 1 << 20,
+  argumentFields: 1e5,
+  argumentDepth: 64,
+  outboundBytes: 16 << 20,
+  outboundMessages: 256,
+  writeWait: 30000,
+  perAccount: 8,
+  perProcess: 32
+};
+var HANDLE = /^call_cursor_[a-f0-9]+_\d+_\d+$/;
+var hash = (s) => createHash2("sha256").update(s).digest("hex");
+var canonical = (v) => JSON.stringify(v, (_k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]])) : x);
+var bytes = (v) => Buffer.byteLength(canonical(v));
+var later = (fn, ms) => {
+  const timer = setTimeout(fn, ms);
+  timer.unref?.();
+  return timer;
+};
+
+class NativeSessionError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+var invalid = (message, status = 409) => {
+  throw new NativeSessionError(status, message);
+};
+var failureOf = (e) => ({ status: e?.status ?? 502, message: e?.message ?? String(e) });
+function nativeFields(input, maxFields = Infinity) {
+  const b = Buffer.from(input);
+  const out = [];
+  let at = 0;
+  const uv = () => {
+    let n = 0;
+    let scale = 1;
+    for (let i = 0;i < 10 && at < b.length; i++) {
+      const c = b[at++];
+      n += (c & 127) * scale;
+      if (c < 128 && Number.isSafeInteger(n))
+        return n;
+      scale *= 128;
+    }
+    invalid("malformed native protobuf", 502);
+  };
+  while (at < b.length) {
+    const key = uv();
+    const num = Math.floor(key / 8);
+    const wire = key % 8;
+    if (!num || num > 536870911)
+      invalid("malformed native protobuf field", 502);
+    let n = 0;
+    let data = Buffer.alloc(0);
+    if (wire === 0)
+      n = uv();
+    else if (wire === 2 || wire === 1 || wire === 5) {
+      const size = wire === 2 ? uv() : wire === 1 ? 8 : 4;
+      if (at + size > b.length)
+        invalid("truncated native protobuf", 502);
+      data = b.subarray(at, at + size);
+      at += size;
+    } else
+      invalid("unsupported native protobuf wire type", 502);
+    if (out.length >= maxFields)
+      invalid("native protobuf field limit reached", 502);
+    out.push({ num, wire, n, data });
+  }
+  return out;
+}
+function nativeMcpArgs(input, limits = NATIVE_LIMITS) {
+  if (input.length > limits.argumentBytes)
+    invalid("native MCP argument byte limit reached", 502);
+  let remaining = limits.argumentFields;
+  const read2 = (b) => {
+    const fs2 = nativeFields(b, remaining);
+    remaining -= fs2.length;
+    return fs2;
+  };
+  const typed = (f, wire) => {
+    if (f.wire !== wire)
+      invalid("invalid native MCP argument field type", 502);
+  };
+  const utf8 = (b) => {
+    try {
+      return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(b);
+    } catch {
+      invalid("invalid UTF-8 in native MCP arguments", 502);
+    }
+  };
+  function mapEntry(b, depth) {
+    let key = "", value = null;
+    for (const f of read2(b)) {
+      if (f.num === 1) {
+        typed(f, 2);
+        key = utf8(f.data);
+      } else if (f.num === 2) {
+        typed(f, 2);
+        value = decodeValue(f.data, depth);
+      }
+    }
+    return [key, value];
+  }
+  function decodeStruct(b, depth) {
+    const entries2 = [];
+    for (const f of read2(b))
+      if (f.num === 1) {
+        typed(f, 2);
+        entries2.push(mapEntry(f.data, depth));
+      }
+    return Object.fromEntries(entries2);
+  }
+  function decodeValue(b, depth = 0) {
+    if (depth > limits.argumentDepth)
+      invalid("native MCP argument nesting limit reached", 502);
+    let value = null;
+    for (const f of read2(b)) {
+      if (f.num < 1 || f.num > 6)
+        continue;
+      typed(f, [0, 1, 2, 0, 2, 2][f.num - 1]);
+      switch (f.num) {
+        case 1:
+          if (f.n !== 0)
+            invalid("invalid native protobuf NullValue", 502);
+          value = null;
+          break;
+        case 2:
+          value = f.data.readDoubleLE(0);
+          if (!Number.isFinite(value))
+            invalid("nonfinite native MCP argument number", 502);
+          break;
+        case 3:
+          value = utf8(f.data);
+          break;
+        case 4:
+          value = f.n !== 0;
+          break;
+        case 5:
+          value = decodeStruct(f.data, depth + 1);
+          break;
+        case 6:
+          value = [];
+          for (const item of read2(f.data))
+            if (item.num === 1) {
+              typed(item, 2);
+              value.push(decodeValue(item.data, depth + 1));
+            }
+          break;
+      }
+    }
+    return value;
+  }
+  const fs = read2(input), entries = [];
+  for (const f of fs) {
+    if ([1, 3, 4, 5, 9].includes(f.num)) {
+      typed(f, 2);
+      utf8(f.data);
+    } else if (f.num === 2) {
+      typed(f, 2);
+      entries.push(mapEntry(f.data, 0));
+    } else if (f.num === 6)
+      typed(f, 2);
+    else if (f.num === 7)
+      typed(f, 0);
+  }
+  return { fields: fs, args: Object.fromEntries(entries) };
+}
+var field = (fs, n) => fs.find((f) => f.num === n);
+var str = (fs, n) => field(fs, n)?.data.toString("utf8") ?? "";
+var num = (fs, n) => field(fs, n)?.n ?? 0;
+function argsOf(s) {
+  try {
+    const v = typeof s === "string" ? JSON.parse(s) : s;
+    if (v && typeof v === "object" && !Array.isArray(v))
+      return v;
+  } catch {}
+  invalid("invalid tool arguments in native continuation", 400);
+}
+function assistantDisplay(message) {
+  const parts = typeof message.content === "string" ? [{ type: "text", text: message.content }] : message.content ?? [];
+  if (!Array.isArray(parts) || parts.some((p) => !["text", "reasoning"].includes(p?.type) || typeof p.text !== "string"))
+    invalid("unsupported native assistant display");
+  const reasoning = [message.reasoning_content, message.reasoning, message.reasoning_text].find((v) => typeof v === "string" && v.trim()) ?? "";
+  return {
+    text: parts.filter((p) => p.type === "text").map((p) => p.text).join(""),
+    reasoning: reasoning + parts.filter((p) => p.type === "reasoning").map((p) => p.text).join("")
+  };
+}
+function resultParts(message, limits) {
+  const parts = typeof message.content === "string" ? [{ type: "text", text: message.content }] : message.content;
+  if (!Array.isArray(parts))
+    invalid("unsupported native tool result");
+  let retained = 0;
+  return parts.map((part) => {
+    if (part?.type === "text" && typeof part.text === "string") {
+      retained += Buffer.byteLength(part.text);
+      if (retained > limits.outputBytes)
+        invalid("native tool result limit reached");
+      return { text: part.text };
+    }
+    const url = part?.type === "image_url" ? typeof part.image_url === "string" ? part.image_url : part.image_url?.url : part?.type === "image" && part.source?.type === "base64" ? `data:${part.source.media_type};base64,${part.source.data}` : "";
+    const image = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]*={0,2})$/.exec(url ?? "");
+    if (!image)
+      invalid("unsupported native tool result content");
+    const data = Buffer.from(image[2], "base64");
+    retained += data.length;
+    if (retained > limits.outputBytes)
+      invalid("native tool result limit reached");
+    if (!data.length || data.toString("base64").replace(/=+$/, "") !== image[2].replace(/=+$/, ""))
+      invalid("invalid native result image");
+    return { data, mimeType: image[1] };
+  });
+}
+function normalizeMessage(m) {
+  if (m?.role !== "assistant")
+    return m;
+  const { text, reasoning } = assistantDisplay(m);
+  const out = { ...m, content: text };
+  delete out.reasoning;
+  delete out.reasoning_content;
+  delete out.reasoning_text;
+  if (reasoning)
+    out.reasoning_content = reasoning;
+  if (m.tool_calls)
+    out.tool_calls = m.tool_calls.map((c) => ({
+      ...c,
+      type: c.type ?? "function",
+      function: { ...c.function, arguments: argsOf(c.function?.arguments ?? "{}") }
+    }));
+  return out;
+}
+var historyDigest = (messages) => hash(canonical(messages.map(normalizeMessage)));
+function controlsOf(chat, selector, tools) {
+  const controls = { ...chat };
+  for (const k of ["messages", "stream", "stream_options"])
+    delete controls[k];
+  return hash(canonical({ selector, controls, tools }));
+}
+var toolAttachment = (m) => m?.role === "user" && Array.isArray(m.content) && m.content.length > 1 && m.content[0]?.type === "text" && m.content[0].text === "Attached image(s) from tool result:" && m.content.slice(1).every((p) => p?.type === "image_url");
+function matchResults(batch, messages) {
+  if (historyDigest(messages.slice(0, batch.prefixLength)) !== batch.prefixDigest)
+    invalid("native continuation history diverged");
+  const suffix = messages.slice(batch.prefixLength);
+  const assistants = [];
+  while (suffix[assistants.length]?.role === "assistant")
+    assistants.push(suffix[assistants.length]);
+  if (!assistants.length)
+    invalid("native continuation is missing its assistant tool calls", 400);
+  let content = "";
+  let reasoning = "";
+  const calls = [];
+  for (const m of assistants) {
+    const unknown = Object.keys(m).filter((k) => !["role", "content", "tool_calls", "reasoning", "reasoning_content", "reasoning_text"].includes(k));
+    if (unknown.length)
+      invalid("unsupported assistant fields in native continuation", 400);
+    const display = assistantDisplay(m);
+    content += display.text;
+    reasoning += display.reasoning;
+    for (const c of m.tool_calls ?? []) {
+      if (c.type && c.type !== "function")
+        invalid("unsupported native continuation tool call", 400);
+      calls.push({ id: c.id, name: c.function?.name, args: argsOf(c.function?.arguments ?? "{}") });
+    }
+  }
+  if (content !== batch.content || reasoning && reasoning !== batch.reasoning)
+    invalid("native continuation assistant output changed");
+  const expected = batch.calls.map((c) => ({ id: c.id, name: c.name, args: argsOf(c.args) }));
+  const sorted = (v) => [...v].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (canonical(sorted(calls)) !== canonical(sorted(expected)))
+    invalid("native continuation tool calls changed");
+  let results = suffix.slice(assistants.length);
+  if (batch.calls.length === 1 && results.length === 2 && results[0]?.role === "tool" && toolAttachment(results[1])) {
+    const [result, attachment] = results;
+    const content2 = typeof result.content === "string" ? [{ type: "text", text: result.content }] : result.content;
+    if (!Array.isArray(content2))
+      invalid("unsupported native tool result");
+    results = [{ ...result, content: [...content2, ...attachment.content.slice(1)] }];
+  }
+  if (results.some((m) => m?.role !== "tool"))
+    invalid("new input cannot be interleaved with pending native results");
+  const ids = new Set;
+  for (const m of results) {
+    if (ids.has(m.tool_call_id))
+      invalid("duplicate native tool result", 400);
+    ids.add(m.tool_call_id);
+    if (!expected.some((c) => c.id === m.tool_call_id))
+      invalid("unknown native tool result", 400);
+  }
+  if (ids.size !== expected.length)
+    invalid("all parallel native tool results must be submitted together", 400);
+  return [...results].sort((a, b) => a.tool_call_id.localeCompare(b.tool_call_id));
+}
+
+class Segment {
+  constructor(owner, chat) {
+    this.owner = owner;
+    this.prefixLength = chat.messages.length;
+    this.prefixDigest = historyDigest(chat.messages);
+    this.events = [];
+    this.calls = [];
+    this.answered = 0;
+    this.content = "";
+    this.reasoning = "";
+    this.expected = null;
+    this.closed = false;
+    this.clean = false;
+    this.waiters = new Set;
+  }
+  wake() {
+    for (const wake of this.waiters)
+      wake();
+    this.waiters.clear();
+  }
+  emit(e) {
+    this.owner.retain(bytes(e));
+    if (e.text)
+      this.content += e.text;
+    if (e.reasoning)
+      this.reasoning += e.reasoning;
+    this.events.push(e);
+    this.wake();
+  }
+  finish(stop) {
+    for (const [index, c] of this.calls.entries()) {
+      const e = { tool: { index, id: c.id, name: c.name, args: c.args } };
+      this.owner.retain(bytes(e));
+      this.events.push(e);
+    }
+    this.owner.retain(bytes(stop));
+    this.events.push(stop);
+    this.closed = true;
+    this.wake();
+  }
+  fail(error) {
+    this.events = [{ error }];
+    this.closed = true;
+    this.wake();
+  }
+  iterator({ replay = false } = {}) {
+    const segment = this;
+    let at = 0;
+    let errorSent = false;
+    return {
+      async next() {
+        while (!segment.closed && at >= segment.events.length)
+          await new Promise((r) => segment.waiters.add(r));
+        if (!replay && segment.owner.error) {
+          if (errorSent)
+            return { done: true };
+          errorSent = true;
+          return { value: { error: segment.owner.error }, done: false };
+        }
+        if (at < segment.events.length) {
+          const event = segment.events[at++];
+          if (replay && event.stop)
+            return { value: { ...event, usage: {
+              prompt_tokens: 0,
+              completion_tokens: 0,
+              total_tokens: 0,
+              prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+              magpie_native: { accounting: "replayed" }
+            } }, done: false };
+          return { value: event, done: false };
+        }
+        return { done: true };
+      },
+      async return() {
+        if (!replay)
+          await segment.owner.cancel("the Chat response was cancelled");
+        return { done: true };
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      }
+    };
+  }
+}
+
+class NativeSessionPool {
+  constructor(limits = NATIVE_LIMITS) {
+    this.limits = limits;
+    this.entries = new Set;
+    this.handles = new Map;
+    this.selectors = new Map;
+  }
+  prepare(tok, chat, selector, tools) {
+    const fallback = (reason) => ({ fallback: reason });
+    if (!Array.isArray(chat.messages) || bytes(chat) > this.limits.outputBytes)
+      return fallback("history retention limit");
+    const account = hash(tok);
+    const controls = controlsOf(chat, selector, tools);
+    const trailing = [];
+    const end = chat.messages.length - (toolAttachment(chat.messages.at(-1)) ? 2 : 1);
+    for (let i = end;i >= 0 && chat.messages[i]?.role === "tool"; i--)
+      trailing.push(chat.messages[i].tool_call_id);
+    const handles = trailing.filter((id) => typeof id === "string" && HANDLE.test(id));
+    if (handles.length) {
+      const found = handles.map((id) => this.handles.get(id));
+      if (found.some((v) => !v))
+        return fallback("owner unavailable");
+      const { owner, batch } = found[0];
+      if (found.some((v) => v.owner !== owner || v.batch !== batch))
+        return fallback("different native batches");
+      if (owner.account !== account || owner.controls !== controls || owner.error)
+        return fallback("owner incompatible or expired");
+      try {
+        const results = matchResults(batch, chat.messages);
+        const encoded = results.map((m) => owner.encodeResult(m));
+        const digest = hash(canonical(results));
+        if (batch.resultDigest) {
+          if (batch.resultDigest !== digest || !batch.next?.clean)
+            return fallback("result already submitted or busy");
+          return { owner, batch, replay: true, segment: batch.next };
+        }
+        if (owner.state !== "awaiting-results" || owner.segment !== batch || !batch.clean)
+          return fallback("owner busy");
+        const reserve = Math.min(60000, owner.limits.lifetime / 10);
+        if (owner.expiresAt - Date.now() <= reserve) {
+          owner.fail({ status: 410, message: "native Run retired before lifetime deadline" }, "expired");
+          return fallback("owner near lifetime deadline");
+        }
+        return { owner, batch, results, encoded, digest, chat };
+      } catch (e) {
+        if (!(e instanceof NativeSessionError))
+          throw e;
+        return fallback("history incompatible with retained owner");
+      }
+    }
+    if (chat.messages.some((m) => m?.tool_calls?.some((c) => HANDLE.test(c?.id ?? ""))))
+      return fallback("historical native calls");
+    if (selector && this.selectors.has(account + ":" + selector))
+      return fallback("owner busy");
+    return { account, selector, controls, selected: !!selector, chat };
+  }
+  create(prepared, resolution, wire) {
+    if (prepared.fallback || prepared.selected && this.selectors.has(prepared.account + ":" + prepared.selector))
+      return null;
+    const crowded = () => this.entries.size >= this.limits.perProcess || [...this.entries].filter((e) => e.account === prepared.account).length >= this.limits.perAccount;
+    while (crowded()) {
+      const accountFull = [...this.entries].filter((e) => e.account === prepared.account).length >= this.limits.perAccount;
+      const finished = [...this.entries].find((e) => ["complete", "failed", "cancelled", "expired"].includes(e.state) && (!accountFull || e.account === prepared.account));
+      if (!finished)
+        return null;
+      this.forget(finished);
+    }
+    let owner;
+    try {
+      owner = new NativeSession(this, prepared, resolution, wire);
+    } catch (e) {
+      if (!(e instanceof NativeSessionError))
+        throw e;
+      return null;
+    }
+    this.entries.add(owner);
+    if (prepared.selected)
+      this.selectors.set(owner.account + ":" + owner.selector, owner);
+    return owner;
+  }
+  release(owner) {
+    const key = owner.account + ":" + owner.selector;
+    if (this.selectors.get(key) === owner)
+      this.selectors.delete(key);
+  }
+  forget(owner) {
+    owner.accounting?.abandon();
+    clearTimeout(owner.replayTimer);
+    this.release(owner);
+    this.entries.delete(owner);
+    for (const [id, h] of this.handles)
+      if (h.owner === owner)
+        this.handles.delete(id);
+    owner.blobs.clear();
+    owner.checkpoint = null;
+    owner.execs.clear();
+    owner.nativeCalls.clear();
+  }
+  async clear() {
+    await Promise.all([...this.entries].map((e) => e.cancel("native owner removed")));
+    for (const e of this.entries) {
+      clearTimeout(e.replayTimer);
+      this.forget(e);
+    }
+  }
+}
+
+class NativeSession {
+  constructor(pool, prepared, resolution, wire) {
+    Object.assign(this, prepared);
+    this.pool = pool;
+    this.limits = pool.limits;
+    this.resolution = resolution;
+    this.wire = wire;
+    this.identity = randomBytes(12).toString("hex");
+    this.state = "opening";
+    this.ac = new AbortController;
+    this.execs = new Map;
+    this.nativeCalls = new Map;
+    this.blobs = new Map;
+    this.knownHashes = new Set;
+    this.blobSize = 0;
+    this.retainedBytes = 0;
+    this.sequence = 0;
+    this.segments = 0;
+    this.steps = 1;
+    this.stepSaid = 0;
+    this.said = 0;
+    this.wrote = 0;
+    this.terminal = false;
+    this.segment = new Segment(this, prepared.chat);
+    this.retain(bytes(prepared.chat));
+    this.expireIn(this.limits.lifetime);
+  }
+  expireIn(ms) {
+    clearTimeout(this.lifetimeTimer);
+    this.expiresAt = Date.now() + ms;
+    this.lifetimeTimer = later(() => this.fail({ status: 410, message: "native Run lifetime expired" }, "expired"), ms);
+  }
+  retain(n) {
+    if (this.retainedBytes + n > this.limits.outputBytes)
+      invalid("native output/history retention limit reached", 503);
+    this.retainedBytes += n;
+  }
+  attach(signal, segment = this.segment) {
+    if (signal?.aborted) {
+      this.fail({ status: 410, message: "the Chat request was already cancelled" }, "cancelled");
+      return;
+    }
+    const abort = () => this.fail({ status: 410, message: "the Chat request was cancelled" }, "cancelled");
+    signal?.addEventListener("abort", abort, { once: true });
+    segment.detach = () => signal?.removeEventListener("abort", abort);
+  }
+  delivered(segment = this.segment) {
+    if (this.error)
+      return;
+    segment.clean = true;
+    segment.detach?.();
+    if (this.state === "complete" && segment === this.segment)
+      this.accounting?.delivered();
+  }
+  closeTransport() {
+    if (this.transportClosed)
+      return;
+    this.transportClosed = true;
+    clearInterval(this.runHeartbeat);
+    clearInterval(this.execHeartbeat);
+    clearTimeout(this.batchTimer);
+    clearTimeout(this.resultTimer);
+    clearTimeout(this.drainTimer);
+    clearTimeout(this.lifetimeTimer);
+    this.ac.abort();
+    this.transport?.close();
+  }
+  fail(error, state = "failed") {
+    if (this.error || this.state === "complete")
+      return;
+    this.error = error;
+    this.state = state;
+    this.segment.fail(error);
+    for (const segment of this.batches ?? [])
+      segment.detach?.();
+    this.segment.detach?.();
+    this.closeTransport();
+    this.pool.forget(this);
+  }
+  async cancel(message) {
+    this.fail({ status: 410, message }, "cancelled");
+    await this.pumpTask;
+  }
+  bind(transport, blobs, estimate) {
+    if (this.transportClosed || this.error) {
+      transport.close();
+      return;
+    }
+    this.transport = transport;
+    this.estimate = estimate;
+    this.stepEstimate = estimate;
+    this.blobs = blobs;
+    this.knownHashes = new Set(blobs.keys());
+    this.blobSize = [...blobs.values()].reduce((n, b) => n + b.length, 0);
+    if (this.blobSize > this.limits.blobBytes)
+      invalid("native bootstrap blob limit reached", 503);
+    if (this.error)
+      return this.closeTransport();
+    this.state = "running";
+    const { pb } = this.wire;
+    const heartbeat = (message) => {
+      try {
+        this.send(message);
+      } catch (e) {
+        this.fail(failureOf(e));
+      }
+    };
+    this.runHeartbeat = setInterval(() => heartbeat(pb().bytes(7, Buffer.alloc(0)).done()), 5000);
+    this.execHeartbeat = setInterval(() => {
+      for (const c of this.execs.values())
+        if (!c.submitted)
+          heartbeat(pb().bytes(5, pb().bytes(3, pb().varint(1, c.requestID))).done());
+    }, 3000);
+    this.runHeartbeat.unref?.();
+    this.execHeartbeat.unref?.();
+  }
+  send(message) {
+    if (this.error || this.transportClosed)
+      invalid("native transport is no longer writable", 410);
+    this.transport.send(message);
+  }
+  async reply(message) {
+    await this.transport.room?.(message.length + 5);
+    this.send(message);
+  }
+  execClose(id) {
+    this.send(this.wire.pb().bytes(5, this.wire.pb().bytes(1, this.wire.pb().varint(1, id))).done());
+  }
+  encodeResult(message) {
+    const { pb } = this.wire;
+    const success = pb();
+    for (const item of resultParts(message, this.limits)) {
+      if (item.text !== undefined)
+        success.bytes(1, pb().bytes(1, pb().str(1, item.text)));
+      else
+        success.bytes(1, pb().bytes(2, pb().bytes(1, item.data).str(2, item.mimeType)));
+    }
+    if (message.is_error === true || message.isError === true)
+      success.varint(2, 1);
+    return pb().bytes(1, success).done();
+  }
+  resume(prepared, signal) {
+    if (prepared.replay)
+      return this.response(prepared.segment, true);
+    const batch = prepared.batch;
+    if (this.error || this.state !== "awaiting-results" || this.segment !== batch || batch.resultDigest)
+      invalid("native continuation is already reserved");
+    const next = new Segment(this, prepared.chat);
+    this.attach(signal, next);
+    if (this.error)
+      invalid(this.error.message, this.error.status);
+    batch.resultDigest = prepared.digest;
+    batch.next = next;
+    this.segment = next;
+    this.state = "submitting";
+    clearTimeout(this.resultTimer);
+    clearTimeout(this.batchTimer);
+    this.batchTimer = null;
+    this.nextStep(prepared.estimate);
+    try {
+      for (let i = 0;i < prepared.results.length; i++) {
+        const call = batch.calls.find((c) => c.id === prepared.results[i].tool_call_id);
+        const msg = this.wire.pb().varint(1, call.requestID);
+        if (call.execID)
+          msg.str(15, call.execID);
+        msg.bytes(11, prepared.encoded[i]);
+        this.resultSubmitted = true;
+        this.send(this.wire.pb().bytes(2, msg).done());
+        call.submitted = true;
+        this.execClose(call.requestID);
+      }
+      this.state = "running";
+    } catch (e) {
+      const error = failureOf(e);
+      this.fail({ status: error.status, message: `${error.message}; native result submission failed; its outcome is uncertain and cannot be replayed` });
+    }
+    return this.response(next);
+  }
+  response(segment = this.segment, replay = false) {
+    return {
+      events: segment.iterator({ replay }),
+      cancel: () => replay ? Promise.resolve() : this.cancel("the Chat response was cancelled"),
+      resolution: this.resolution,
+      delivered: () => replay || this.delivered(segment),
+      diagnostic: `same-run; bootstrap=imported-history; new-turn=stateless; missing-owner=stateless${replay ? "; replay=true" : ""}`
+    };
+  }
+  acceptCall(call) {
+    if (!Number.isInteger(call.requestID))
+      invalid("native tool call is missing its exec request ID", 502);
+    const prior = this.execs.get(call.requestID);
+    const digest = hash(canonical({ requestID: call.requestID, execID: call.execID, nativeID: call.nativeID, name: call.name, args: argsOf(call.args) }));
+    if (prior) {
+      if (prior.digest !== digest)
+        invalid("native exec identity changed during retransmission", 502);
+      return;
+    }
+    if (this.terminal || this.state === "awaiting-results")
+      invalid("native call arrived after its batch was sealed", 502);
+    if (call.nativeID && this.nativeCalls.has(call.nativeID))
+      invalid("native tool-call ID was reused for another exec", 502);
+    call.id = `call_cursor_${this.identity}_${this.segments}_${this.segment.calls.length}`;
+    call.digest = digest;
+    this.execs.set(call.requestID, call);
+    if (call.nativeID)
+      this.nativeCalls.set(call.nativeID, call);
+    this.segment.calls.push(call);
+    this.retain(bytes(call));
+    this.said += call.args.length;
+    this.waitForBatch();
+    this.sealBatch();
+  }
+  nextStep(estimate) {
+    this.steps++;
+    this.stepSaid = this.said;
+    if (estimate != null)
+      this.stepEstimate = estimate;
+  }
+  waitForBatch() {
+    clearTimeout(this.batchTimer);
+    this.batchTimer = later(() => {
+      if (this.segment.expected == null && this.segment.calls.length && !this.resultSubmitted)
+        this.missingCount();
+      else
+        this.fail({ status: 502, message: "Cursor did not complete its declared native tool batch" });
+    }, this.limits.batchWait);
+  }
+  missingCount() {
+    this.fail({ status: 502, message: "Cursor did not declare its native tool batch", retentionIneligible: !this.resultSubmitted });
+  }
+  answeredCall() {
+    if (this.terminal || this.state === "awaiting-results")
+      return;
+    this.segment.answered++;
+    if (this.batchTimer)
+      this.waitForBatch();
+    this.sealBatch();
+  }
+  listed(count) {
+    if (!Number.isSafeInteger(count) || count < 1)
+      invalid("invalid native tool count", 502);
+    if (this.segment.expected != null && this.segment.expected !== count) {
+      this.fail({ status: 502, message: "inconsistent native tool count", retentionIneligible: !this.resultSubmitted, continuityReason: "inconsistent-batch-count" });
+      return;
+    }
+    this.segment.expected = count;
+    if (this.state === "awaiting-results")
+      return;
+    this.waitForBatch();
+    this.sealBatch();
+  }
+  sealBatch() {
+    const segment = this.segment;
+    if (segment.expected == null)
+      return;
+    const made = segment.calls.length + segment.answered;
+    if (made > segment.expected)
+      invalid("native tool batch exceeded its declared count", 502);
+    if (made !== segment.expected || segment.closed)
+      return;
+    if (!segment.calls.length) {
+      segment.expected = null;
+      segment.answered = 0;
+      clearTimeout(this.batchTimer);
+      this.batchTimer = null;
+      this.nextStep();
+      return;
+    }
+    clearTimeout(this.batchTimer);
+    this.batchTimer = null;
+    this.state = "awaiting-results";
+    this.batches ??= [];
+    this.batches.push(segment);
+    for (const c of segment.calls)
+      this.pool.handles.set(c.id, { owner: this, batch: segment });
+    segment.finish({ stop: "tool_calls", usage: {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+      prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+      magpie_native: { accounting: "pending" }
+    } });
+    this.segments++;
+    this.resultTimer = later(() => this.fail({ status: 410, message: "native tool-result deadline expired" }, "expired"), this.limits.resultWait);
+  }
+  store(id, data) {
+    if (!id.length)
+      invalid("native blob ID is empty", 502);
+    const key = id.toString("hex");
+    if (this.knownHashes.has(key) && hash(data) !== key)
+      invalid("native content-addressed bootstrap blob changed", 502);
+    const size = this.blobSize - (this.blobs.get(key)?.length ?? 0) + data.length;
+    if (size + (this.checkpoint?.bytes.length ?? 0) > this.limits.blobBytes)
+      invalid("native blob retention limit reached", 503);
+    this.blobs.set(key, Buffer.from(data));
+    this.blobSize = size;
+    this.validateCheckpoint();
+  }
+  checkpointReceived(data) {
+    if (data.length + this.blobSize > this.limits.blobBytes)
+      invalid("native checkpoint retention limit reached", 503);
+    nativeFields(data);
+    this.checkpoint = { bytes: Buffer.from(data), sequence: ++this.sequence, status: "incomplete", terminal: this.terminal };
+    this.validateCheckpoint();
+  }
+  validateCheckpoint() {
+    if (!this.checkpoint)
+      return;
+    const state = nativeFields(this.checkpoint.bytes);
+    const missing = new Set;
+    let supported = true;
+    const get = (id) => {
+      const key = id.toString("hex");
+      const b = this.blobs.get(key);
+      if (!b)
+        missing.add(key);
+      return b;
+    };
+    const refs = new Set([1, 3, 6, 7, 11, 13]);
+    const known = new Set(Array.from({ length: 34 }, (_, i) => i + 1).filter((n) => n !== 2));
+    const complex = new Set([3, 6, 7, 11, 12, 13, 15, 16, 20, 24, 29, 30, 31, 32]);
+    for (const f of state) {
+      if (!known.has(f.num) || complex.has(f.num))
+        supported = false;
+      if (refs.has(f.num) && f.data.length)
+        get(f.data);
+      if (f.num !== 8)
+        continue;
+      const turn = get(f.data);
+      if (!turn)
+        continue;
+      const tf = nativeFields(turn);
+      const agent = field(tf, 1);
+      if (!agent || tf.some((f2) => f2.num !== 1)) {
+        supported = false;
+        continue;
+      }
+      const agentFields = nativeFields(agent.data);
+      if (!field(agentFields, 1)?.data.length)
+        supported = false;
+      for (const a of agentFields) {
+        if (a.num === 1) {
+          const user = get(a.data);
+          if (user)
+            nativeFields(user);
+        } else if (a.num === 2) {
+          const step = get(a.data);
+          if (step) {
+            const sf = nativeFields(step);
+            if (sf.length !== 1 || ![1, 2, 3].includes(sf[0].num))
+              supported = false;
+            else {
+              const stepFields = nativeFields(sf[0].data);
+              if (sf[0].num === 2 && (stepFields.length !== 1 || stepFields[0].num !== 15))
+                supported = false;
+            }
+          }
+        } else if (![3, 4, 5, 6].includes(a.num))
+          supported = false;
+      }
+    }
+    this.checkpoint.missing = missing.size;
+    this.checkpoint.status = !supported ? "unsupported" : missing.size ? "incomplete" : "complete";
+    this.checkpoint.terminal = this.terminal;
+  }
+  terminalSeen(fields) {
+    if (this.segment.calls.length)
+      invalid("Cursor ended a turn with unresolved native tool calls", 502);
+    this.terminal = true;
+    this.state = "finalizing";
+    this.usageFields = fields;
+    if (this.checkpoint)
+      this.checkpoint.terminal = true;
+    clearTimeout(this.batchTimer);
+    this.drainTimer = later(() => {
+      Promise.resolve().then(() => this.complete()).catch((e) => this.fail(failureOf(e)));
+    }, this.limits.drain);
+  }
+  complete() {
+    if (this.completionTask)
+      return this.completionTask;
+    if (this.error || this.state === "complete")
+      return;
+    if (!this.terminal)
+      invalid("native Run ended before TurnEnded or a complete final answer", 502);
+    const { usageOf } = this.wire;
+    const measuredInput = this.usageFields?.some((f) => [1, 3, 4].includes(f.num));
+    const measuredOutput = this.usageFields?.some((f) => f.num === 2);
+    const u = usageOf(this.usageFields ?? []);
+    if (!measuredInput)
+      u.input = this.estimate;
+    if (!measuredOutput)
+      u.output = Math.floor((this.said + 3) / 4);
+    let earlier = null;
+    if (this.steps > 1) {
+      const whole = u.input + u.cacheRead + u.cacheWrite;
+      const share = (total, own2) => total > 0 ? Math.min(1, Math.max(own2, total / this.steps) / total) : 0;
+      const fi = share(whole, measuredInput ? this.stepEstimate ?? 0 : whole);
+      const fo = share(u.output, Math.floor((this.said - this.stepSaid + 3) / 4));
+      const own = {
+        input: Math.round(u.input * fi),
+        cacheRead: Math.round(u.cacheRead * fi),
+        cacheWrite: Math.round(u.cacheWrite * fi),
+        output: Math.round(u.output * fo),
+        reasoning: Math.round(u.reasoning * fo)
+      };
+      earlier = { input: u.input - own.input, cacheRead: u.cacheRead - own.cacheRead, cacheWrite: u.cacheWrite - own.cacheWrite, output: u.output - own.output };
+      Object.assign(u, own);
+    }
+    const prompt = u.input + u.cacheRead + u.cacheWrite;
+    this.finalUsage = {
+      prompt_tokens: prompt,
+      completion_tokens: u.output,
+      total_tokens: prompt + u.output,
+      prompt_tokens_details: { cached_tokens: u.cacheRead, cache_write_tokens: u.cacheWrite },
+      ...this.usageFields?.some((f) => f.num === 5) ? { completion_tokens_details: { reasoning_tokens: u.reasoning } } : {},
+      ...!measuredInput || !measuredOutput ? { magpie_native: { accounting: "estimated" } } : {}
+    };
+    this.state = "finalizing";
+    this.closeTransport();
+    const finish = (settled) => {
+      if (this.error)
+        return;
+      const more = earlier && settled ? Object.fromEntries(Object.keys(earlier).map((k) => [k, earlier[k] + settled[k]])) : earlier ?? settled;
+      const deferred = more && more.input + more.output + more.cacheRead + more.cacheWrite > 0;
+      this.segment.finish({ stop: "stop", usage: {
+        ...this.finalUsage,
+        ...deferred ? { magpie_deferred: {
+          prompt_tokens: more.input + more.cacheRead + more.cacheWrite,
+          completion_tokens: more.output,
+          cached_tokens: more.cacheRead,
+          cache_write_tokens: more.cacheWrite
+        } } : {}
+      } });
+      this.state = "complete";
+      this.pool.release(this);
+      this.replayTimer = later(() => this.pool.forget(this), this.limits.replayWait);
+    };
+    if (!this.accounting)
+      return finish(null);
+    this.completionTask = this.accounting.settle().then(finish);
+    return this.completionTask;
+  }
+  async pump(stream) {
+    const { pb, exec, failure } = this.wire;
+    try {
+      for await (const f of stream) {
+        if (this.error || this.state === "complete")
+          return;
+        if (f.end) {
+          const e = failure(200, f.data);
+          if (e.status < 200 || e.status > 299)
+            throw new NativeSessionError(e.status, e.message);
+          if (this.segment.calls.length && this.segment.expected == null) {
+            this.missingCount();
+            return;
+          }
+          if (!this.terminal && !this.segment.calls.length && this.segment.content)
+            this.terminalSeen([]);
+          await this.complete();
+          return;
+        }
+        for (const m of nativeFields(f.data)) {
+          switch (m.num) {
+            case 1:
+              for (const u of nativeFields(m.data)) {
+                const uf = nativeFields(u.data);
+                if (u.num === 1 || u.num === 4) {
+                  const text = str(uf, 1);
+                  if (this.terminal || this.state === "awaiting-results")
+                    invalid("native output arrived outside a running Chat segment", 502);
+                  if (text) {
+                    this.said += text.length;
+                    if (u.num === 1)
+                      this.wrote += text.length;
+                    this.segment.emit(u.num === 1 ? { text } : { reasoning: text });
+                    if (this.batchTimer)
+                      this.waitForBatch();
+                  }
+                } else if (u.num === 14) {
+                  if (!this.segment.content && !this.segment.calls.length)
+                    invalid("an empty reply (Cursor ended the turn without text or a tool call)", 502);
+                  this.terminalSeen(uf);
+                } else if (u.num === 27) {
+                  this.listed(num(uf, 1));
+                  if (this.error)
+                    return;
+                }
+              }
+              break;
+            case 2: {
+              const c = exec(m.data, this.chatTools, (b) => this.send(b), (id) => this.execClose(id), null, true);
+              if (c)
+                this.acceptCall(c);
+              else if (!nativeFields(m.data).some((e) => e.num === 10))
+                this.answeredCall();
+              break;
+            }
+            case 3:
+              this.checkpointReceived(m.data);
+              break;
+            case 4: {
+              const kv = nativeFields(m.data);
+              const id = num(kv, 1);
+              for (const k of kv) {
+                if (k.num === 2) {
+                  const want = field(nativeFields(k.data), 1)?.data.toString("hex") ?? "";
+                  const b = this.blobs.get(want);
+                  const res = b ? pb().bytes(1, b) : pb().bytes(2, pb().str(1, "blob not found"));
+                  await this.reply(pb().bytes(3, pb().varint(1, id).bytes(2, res)).done());
+                } else if (k.num === 3) {
+                  try {
+                    const set = nativeFields(k.data);
+                    this.store(field(set, 1)?.data ?? Buffer.alloc(0), field(set, 2)?.data ?? Buffer.alloc(0));
+                  } catch (e) {
+                    this.send(pb().bytes(3, pb().varint(1, id).bytes(3, pb().bytes(1, pb().str(1, "native blob could not be retained")))).done());
+                    throw e;
+                  }
+                  await this.reply(pb().bytes(3, pb().varint(1, id).bytes(3, Buffer.alloc(0))).done());
+                }
+              }
+              break;
+            }
+            case 5:
+              for (const c of nativeFields(m.data))
+                if (c.num === 1) {
+                  const id = num(nativeFields(c.data), 1);
+                  const pending = this.execs.get(id);
+                  if (pending && !pending.submitted)
+                    invalid("Cursor cancelled a pending native tool exec; late results cannot be submitted", 410);
+                }
+              break;
+            case 7:
+              invalid("unsupported native interaction query", 502);
+          }
+        }
+      }
+      if (!this.error && this.state !== "complete") {
+        if (this.terminal)
+          await this.complete();
+        else
+          invalid("native reply broke off before completing its turn or tool batch: EOF", 502);
+      }
+    } catch (e) {
+      if (!this.error && this.state !== "complete")
+        this.fail(failureOf(e));
+    }
+  }
+}
+var nativeSessions = new NativeSessionPool;
+
+// node_modules/@magpie-community/opencode-cursor-auth/index.mjs
+import { isDeepStrictEqual } from "node:util";
+import http2 from "node:http2";
+import { STATUS_CODES } from "node:http";
+import { gunzipSync } from "node:zlib";
+import { Duplex } from "node:stream";
+import { createHash as createHash3, randomBytes as randomBytes2, randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { readFile as readFile2, stat, readdir, realpath } from "node:fs/promises";
+import { homedir as homedir2, platform as platform3, tmpdir as tmpdir2 } from "node:os";
+import { basename, dirname as dirname2, join as join4 } from "node:path";
+var ID = "cursor";
+var API = "https://api2.cursor.sh";
+var WEBSITE = "https://cursor.com";
+var AGENT = "https://agentn.global.api5.cursor.sh";
+var CHAT = "@ai-sdk/openai-compatible";
+var VERSION_FALLBACK = "2026.09.23-86fc751";
+var DEFAULT_CONTEXT = 200000;
+var MODELS_KEEP = 10 * 60 * 1000;
+var CALL = "CallDynamicTool";
+var NO_RESULT = "Tool use was interrupted and did not produce a result.";
+var CLI_MARK = "cursor-agent";
+var GOOS = { win32: "windows" }[platform3()] ?? platform3();
+var EMPTY = Buffer.alloc(0);
+var enc = new TextEncoder;
+var exists = (p) => stat(p).then((s) => !s.isDirectory(), () => false);
+function run(file, args, { timeout = 1e4, env: env2 } = {}) {
+  return new Promise((resolve) => {
+    execFile(file, args, { timeout, env: env2 ?? process.env, maxBuffer: 8 << 20 }, (err, stdout) => resolve({ ok: !err, out: String(stdout ?? ""), code: typeof err?.code === "number" ? err.code : err ? -1 : 0 }));
+  });
+}
+async function cursorExecutable() {
+  const dirs = (process.env.PATH ?? "").split(GOOS === "windows" ? ";" : ":").filter(Boolean);
+  for (const name of ["cursor-agent", "agent"]) {
+    for (const d of dirs) {
+      const p = join4(d, GOOS === "windows" ? name + ".exe" : name);
+      if (!await exists(p))
+        continue;
+      if (name === "cursor-agent")
+        return p;
+      if ((await realpath(p).catch(() => "")).includes("cursor-agent"))
+        return p;
+    }
+  }
+  const home = homedir2();
+  for (const p of [join4(home, ".local", "bin", "cursor-agent"), "/usr/local/bin/cursor-agent", "/opt/homebrew/bin/cursor-agent"])
+    if (await exists(p))
+      return p;
+  return "";
+}
+var VERSION_RE = /^\d{4}\.\d{2}\.\d{2}-[0-9a-f]+$/;
+var versionSaid = "";
+async function clientVersion() {
+  if (versionSaid)
+    return versionSaid;
+  let v = "";
+  const exe = await cursorExecutable();
+  if (exe) {
+    const d = basename(dirname2(await realpath(exe).catch(() => exe)));
+    if (VERSION_RE.test(d))
+      v = d;
+  }
+  if (!v) {
+    const dirs = [join4(homedir2(), ".local", "share", "cursor-agent", "versions")];
+    if (GOOS === "windows")
+      dirs.push(join4(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions"));
+    for (const dir of dirs)
+      for (const n of await readdir(dir).catch(() => []))
+        if (VERSION_RE.test(n) && n > v)
+          v = n;
+  }
+  versionSaid = "cli-" + (v || VERSION_FALLBACK);
+  return versionSaid;
+}
+function authFile() {
+  const home = homedir2();
+  if (GOOS === "windows")
+    return join4(process.env.APPDATA || join4(home, "AppData", "Roaming"), "Cursor", "auth.json");
+  if (GOOS === "darwin")
+    return join4(home, ".cursor", "auth.json");
+  return join4(process.env.XDG_CONFIG_HOME || join4(home, ".config"), "cursor", "auth.json");
+}
+var TOKEN_TTL = 1e4;
+var KEYCHAIN_DENIED = 10 * 60000;
+var keychain = { tok: "", at: 0, ask: 0, busy: null, now: () => Date.now(), read: (args) => run("security", args) };
+function keychainToken(fresh = false) {
+  const go = async () => {
+    const now = keychain.now();
+    const ttl = !keychain.tok && now - keychain.ask < KEYCHAIN_DENIED ? KEYCHAIN_DENIED : TOKEN_TTL;
+    if (!fresh && now - keychain.at < ttl)
+      return keychain.tok;
+    const r = await keychain.read(["find-generic-password", "-s", "cursor-access-token", "-a", "cursor-user", "-w"]);
+    keychain.tok = "";
+    keychain.at = keychain.now();
+    if (r.ok) {
+      keychain.tok = r.out.trim();
+      keychain.ask = 0;
+    } else if (r.code !== 44) {
+      keychain.ask = keychain.at;
+    } else
+      keychain.ask = 0;
+    return keychain.tok;
+  };
+  const p = (keychain.busy ?? Promise.resolve()).then(go, go);
+  keychain.busy = p.catch(() => {});
+  return p;
+}
+async function cliToken(fresh = false) {
+  if (GOOS === "darwin") {
+    const t = await keychainToken(fresh);
+    if (t)
+      return t;
+  }
+  try {
+    return JSON.parse(await readFile2(authFile(), "utf8"))?.accessToken ?? "";
+  } catch {
+    return "";
+  }
+}
+function expiry(tok) {
+  const parts = String(tok ?? "").split(".");
+  if (parts.length !== 3)
+    return 0;
+  try {
+    const exp = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"))?.exp;
+    return typeof exp === "number" && exp > 0 ? exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+var SOON = 5 * 60 * 1000;
+
+class AuthError extends Error {
+  constructor(msg) {
+    super(msg);
+    this.status = 401;
+  }
+}
+var cliRefresh = null;
+async function cliTokenNow() {
+  let tok = await cliToken();
+  const exp = expiry(tok);
+  if (tok && (!exp || exp - Date.now() > SOON))
+    return tok;
+  const exe = await cursorExecutable();
+  if (exe) {
+    cliRefresh ??= run(exe, ["status"], { timeout: 30000 }).finally(() => cliRefresh = null);
+    await cliRefresh;
+    tok = await cliToken(true);
+  }
+  if (!tok)
+    throw new AuthError("Cursor isn't signed in; sign in from magpie's Providers page or run `cursor-agent login`");
+  const e = expiry(tok);
+  if (e && e <= Date.now())
+    throw new AuthError("Cursor's sign-in has run out; sign in again from magpie's Providers page or run `cursor-agent login`");
+  return tok;
+}
+async function headersFor(tok) {
+  return {
+    "Content-Type": "application/json",
+    "Connect-Protocol-Version": "1",
+    ...tok ? { Authorization: `Bearer ${tok}` } : {},
+    "x-cursor-client-version": await clientVersion(),
+    "x-cursor-client-type": "cli",
+    "x-ghost-mode": "true"
+  };
+}
+async function unary(base, path, tok, body = {}, timeout = 15000) {
+  const res = await fetch(base + "/" + path, {
+    method: "POST",
+    headers: await headersFor(tok),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeout)
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const f = failure(res.status, text);
+    const e = new Error(f.message);
+    e.status = f.status;
+    throw e;
+  }
+  return JSON.parse(text || "{}");
+}
+async function whoIs(tok) {
+  const [me, plan] = await Promise.allSettled([
+    unary(API, "aiserver.v1.DashboardService/GetMe", tok),
+    unary(API, "aiserver.v1.DashboardService/GetPlanInfo", tok)
+  ]);
+  return {
+    email: me.status === "fulfilled" ? String(me.value?.email ?? "").trim() : "",
+    plan: plan.status === "fulfilled" ? String(plan.value?.planInfo?.planName ?? "").trim() : ""
+  };
+}
+var plans = new Map;
+var PLAN_TTL = 3600000;
+async function planOf(tok) {
+  const had = plans.get(tok);
+  if (had && Date.now() - had.at < PLAN_TTL)
+    return had.plan;
+  try {
+    const plan = String((await unary(API, "aiserver.v1.DashboardService/GetPlanInfo", tok))?.planInfo?.planName ?? "").trim();
+    if (plan)
+      plans.set(tok, { plan, at: Date.now() });
+    return plan || had?.plan || "";
+  } catch {
+    return had?.plan ?? "";
+  }
+}
+var exchanged = new Map;
+async function keyToken(key) {
+  const h = createHash3("sha256").update(key).digest("hex");
+  const had = exchanged.get(h);
+  if (had && (!had.exp || had.exp - Date.now() > SOON))
+    return had.tok;
+  const res = await fetch(API + "/auth/exchange_user_api_key", {
+    method: "POST",
+    headers: { ...await headersFor(key), "Connect-Protocol-Version": undefined },
+    body: "{}",
+    signal: AbortSignal.timeout(15000)
+  }).catch((e) => {
+    throw Object.assign(new Error("couldn't reach Cursor's API: " + e.message), { status: 502 });
+  });
+  if (res.status >= 500)
+    throw Object.assign(new Error(`exchange_user_api_key: HTTP ${res.status}`), { status: 502 });
+  const j = res.ok ? await res.json().catch(() => null) : null;
+  if (!j?.accessToken)
+    throw new AuthError("Cursor didn't take this API key");
+  exchanged.set(h, { tok: j.accessToken, exp: expiry(j.accessToken) });
+  return j.accessToken;
+}
+async function tokenOf(auth) {
+  if (auth?.type === "api" && auth.key)
+    return keyToken(auth.key);
+  if (auth?.type !== "oauth")
+    throw new AuthError("Cursor isn't signed in");
+  if (auth.refresh === CLI_MARK)
+    return cliTokenNow();
+  const exp = auth.expires || expiry(auth.access);
+  if (!auth.access)
+    throw new AuthError("Cursor isn't signed in");
+  if (exp && exp <= Date.now())
+    throw new AuthError("Cursor's sign-in has run out; sign in to Cursor again");
+  return auth.access;
+}
+async function browserSignIn() {
+  const verifier = randomBytes2(32).toString("base64url");
+  const challenge = createHash3("sha256").update(verifier).digest("base64url");
+  const uuid = randomUUID();
+  const url = new URL("/loginDeepControl", WEBSITE);
+  url.searchParams.set("challenge", challenge);
+  url.searchParams.set("uuid", uuid);
+  url.searchParams.set("mode", "login");
+  url.searchParams.set("redirectTarget", "cli");
+  return {
+    url: url.toString(),
+    instructions: "Sign in to Cursor in the browser; this finishes by itself.",
+    method: "auto",
+    async callback() {
+      const headers = { "Content-Type": "application/json", "x-cursor-client-version": await clientVersion(), "x-cursor-client-type": "cli" };
+      let errors2 = 0;
+      for (let r = 0;r < 150; r++) {
+        const wait = Math.min(1000 * 1.2 ** r, 1e4);
+        let res;
+        try {
+          res = await fetch(`${API}/auth/poll?uuid=${uuid}&verifier=${verifier}`, { headers, signal: AbortSignal.timeout(15000) });
+        } catch {
+          if (++errors2 >= 3)
+            return { type: "failed", error: "couldn't reach Cursor" };
+          await sleep(wait);
+          continue;
+        }
+        if (res.status === 404) {
+          errors2 = 0;
+          await sleep(wait);
+          continue;
+        }
+        if (!res.ok) {
+          if (res.status === 403 || ++errors2 >= 3)
+            return { type: "failed", error: res.status === 403 ? "Cursor refused the sign-in (403)" : `Cursor's sign-in answered HTTP ${res.status}` };
+          await sleep(wait);
+          continue;
+        }
+        const j = await res.json().catch(() => null);
+        if (!j?.accessToken || !("refreshToken" in j))
+          return { type: "failed", error: "Cursor sent back no token" };
+        const who = await whoIs(j.accessToken);
+        return {
+          type: "success",
+          access: j.accessToken,
+          refresh: j.refreshToken || "none",
+          expires: expiry(j.accessToken) || Date.now() + 30 * 24 * 3600 * 1000,
+          ...who.email ? { accountId: who.email } : {},
+          ...who.plan ? { plan: who.plan } : {}
+        };
+      }
+      return { type: "failed", error: "the sign-in timed out" };
+    }
+  };
+}
+async function cliSignIn() {
+  return {
+    url: "",
+    instructions: "Uses the account `cursor-agent login` signed in to.",
+    method: "auto",
+    async callback() {
+      const tok = await cliToken(true);
+      const exp = expiry(tok);
+      if (!tok)
+        return { type: "failed", error: "cursor-agent isn't signed in: run `cursor-agent login`" };
+      if (exp && exp <= Date.now())
+        return { type: "failed", error: "cursor-agent's sign-in has run out: run `cursor-agent login` again" };
+      const who = await whoIs(tok);
+      if (!who.email)
+        return { type: "failed", error: "Cursor couldn't say which account is signed in" };
+      return { type: "success", access: "", refresh: CLI_MARK, expires: 0, accountId: who.email, ...who.plan ? { plan: who.plan } : {} };
+    }
+  };
+}
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+var statusText = (s) => ({ 413: "Request Entity Too Large", 414: "Request URI Too Long", 416: "Requested Range Not Satisfiable", 418: "I'm a teapot", 509: "" })[s] ?? STATUS_CODES[s] ?? "";
+var POOL_VARIANT = /-(fast|none|low|medium|high|xhigh|extra-high|max|thinking)$/;
+function poolBase(model) {
+  model = String(model).trim().toLowerCase().replace(/@[^@]*$/, "");
+  if (model.startsWith("cursor-"))
+    model = model.slice("cursor-".length);
+  for (;; ) {
+    const b = model.replace(POOL_VARIANT, "");
+    if (b === model)
+      return model;
+    model = b;
+  }
+}
+function firstParty(model) {
+  model = model.replace(/@[^@]*$/, "");
+  if (model.startsWith("cursor-"))
+    model = model.slice("cursor-".length);
+  if (model === "default" || model === "composer" || model.startsWith("composer-"))
+    return true;
+  return ["grok-4.5", "grok-4.6", "grok-4.7"].some((b) => model === b || model.startsWith(b + "-"));
+}
+function onDemandOf(data, hard) {
+  const s = data?.spendLimitUsage;
+  const usedDollars = Number(s?.individualUsed ?? 0) / 100;
+  const own = s?.individualLimit === undefined ? undefined : Number(s.individualLimit) > 0 ? { kind: "fixed", usedDollars, limitDollars: Number(s.individualLimit) / 100 } : { kind: "disabled", usedDollars };
+  if (s?.limitType === "team") {
+    if (own)
+      return own;
+    if (hard && (hard.noUsageBasedAllowed || !(Number(hard.hardLimit) > 0)))
+      return { kind: "disabled", usedDollars };
+    const pool = Number(s.pooledLimit ?? 0);
+    if (pool > 0)
+      return { kind: "fixed", usedDollars: Number(s.pooledUsed ?? 0) / 100, limitDollars: pool / 100, mineDollars: usedDollars };
+    return hard ? { kind: "unlimited", usedDollars } : { kind: "unavailable", usedDollars };
+  }
+  if (!hard)
+    return own ?? { kind: "unavailable", usedDollars };
+  if (hard.noUsageBasedAllowed)
+    return { kind: "disabled", usedDollars };
+  const limit = Number(hard.hardLimit ?? 0);
+  if (limit >= 2147483647)
+    return { kind: "unlimited", usedDollars };
+  return limit > 0 ? { kind: "fixed", usedDollars, limitDollars: limit } : { kind: "disabled", usedDollars };
+}
+async function hardLimit(tok) {
+  try {
+    const res = await fetch(API + "/aiserver.v1.DashboardService/GetHardLimit", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+      body: "{}",
+      signal: AbortSignal.timeout(15000)
+    });
+    return res.ok ? await res.json() ?? undefined : undefined;
+  } catch {
+    return;
+  }
+}
+var dollars = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+async function usage(tok, ids) {
+  const [res, hard] = await Promise.all([
+    fetch(API + "/aiserver.v1.DashboardService/GetCurrentPeriodUsage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+      body: "{}",
+      signal: AbortSignal.timeout(15000)
+    }),
+    hardLimit(tok)
+  ]);
+  if (!res.ok)
+    return { error: statusText(res.status), windows: [] };
+  const data = await res.json();
+  const u = data?.planUsage;
+  if (!u)
+    return { windows: [] };
+  const ms = /^[+-]?\d+$/.test(data.billingCycleEnd ?? "") ? Number(data.billingCycleEnd) : 0;
+  const resets = ms > 0 ? { resetsAt: new Date(ms).toISOString() } : {};
+  const bucket = new Set((data.autoBucketModels ?? []).map(poolBase));
+  const inPool = (model) => {
+    model = poolBase(model);
+    if (model === "auto")
+      model = "default";
+    return bucket.has(model) || firstParty(model);
+  };
+  const asked = ids.flatMap((id) => [id, id.replace(/@[^@]*$/, "")]);
+  const pool = [...new Set(["auto", ...asked, ...data.autoBucketModels ?? []])].filter(inPool);
+  const num2 = (v) => typeof v === "number" ? v : 0;
+  const od = onDemandOf(data, hard);
+  const pooled = od.kind === "fixed" || od.kind === "unlimited" ? { aside: true } : {};
+  const onDemand = od.kind === "fixed" ? [{ name: "On-demand", used: Math.max(0, Math.min(100, 100 * od.usedDollars / od.limitDollars)), display: `${dollars(od.usedDollars)} / ${dollars(od.limitDollars)}` + (od.mineDollars === undefined ? "" : ` (you: ${dollars(od.mineDollars)})`), ...resets }] : od.kind === "unlimited" ? [{ name: "On-demand", used: 0, display: dollars(od.usedDollars), ...resets, aside: true }] : [];
+  return {
+    windows: [
+      { name: "Cursor Models", used: num2(u.autoPercentUsed), ...resets, models: pool, ...pooled },
+      { name: "Other Models", used: num2(u.apiPercentUsed), ...resets, notModels: pool, ...pooled },
+      ...onDemand,
+      { name: "Total", used: num2(u.totalPercentUsed), ...resets, aside: true }
+    ]
+  };
+}
+async function botUsage(tok) {
+  try {
+    const subject = JSON.parse(Buffer.from(tok.split(".")[1], "base64url").toString()).sub;
+    if (typeof subject !== "string")
+      return [];
+    const user = subject.split("|").filter(Boolean).at(-1);
+    if (!user || !/^[a-zA-Z0-9._-]+$/.test(user))
+      return [];
+    const res = await fetch(WEBSITE + "/api/dashboard/get-sand-usage-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Origin: WEBSITE,
+        Cookie: "WorkosCursorSessionToken=" + encodeURIComponent(user + "::" + tok)
+      },
+      body: "{}",
+      redirect: "error",
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok)
+      return [];
+    const data = await res.json();
+    const paid = typeof data?.includedLimitZero === "boolean" ? !data.includedLimitZero : data?.hasNonZeroIncludedLimit === true;
+    const trial = !paid && typeof data?.sandTrialExpiresAt === "string" && Date.parse(data.sandTrialExpiresAt) > Date.now();
+    if (!paid && !trial || typeof data?.usagePercent !== "number" || !Number.isFinite(data.usagePercent))
+      return [];
+    const reset = paid && typeof data.nextResetTimestampUtc === "string" ? Date.parse(data.nextResetTimestampUtc) : NaN;
+    return [{
+      name: trial ? "Grok Bot (trial)" : "Grok Bot",
+      used: Math.max(0, Math.min(100, data.usagePercent)),
+      aside: true,
+      ...Number.isFinite(reset) ? { resetsAt: new Date(reset).toISOString(), span: 604800 } : {}
+    }];
+  } catch {
+    return [];
+  }
+}
+var LEVEL_RANK = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+var EFFORT_PARAMS = ["effort", "reasoning_effort", "reasoning"];
+var ID_EFFORTS = [["extra-high", "xhigh"], ["xhigh", "xhigh"], ["minimal", "minimal"], ["none", "none"], ["low", "low"], ["medium", "medium"], ["high", "high"], ["max", "max"]];
+var cut = (s, suffix) => s.endsWith(suffix) && s.length > suffix.length ? s.slice(0, -suffix.length) : null;
+function splitID(id) {
+  let s = id;
+  let fast = false;
+  let thinking = false;
+  let effort = "";
+  let b;
+  if ((b = cut(s, "-fast")) !== null)
+    [s, fast] = [b, true];
+  if ((b = cut(s, "-thinking")) !== null)
+    [s, thinking] = [b, true];
+  for (const [word, level] of ID_EFFORTS) {
+    if ((b = cut(s, "-" + word)) !== null) {
+      [s, effort] = [b, level];
+      break;
+    }
+  }
+  if (!thinking && (b = cut(s, "-thinking")) !== null)
+    [s, thinking] = [b, true];
+  if (thinking)
+    s += "-thinking";
+  if (fast)
+    s += "-fast";
+  return [s, effort];
+}
+var PICKER_SKIP = new Set(["claude-4.5-haiku", "claude-4.5-haiku-thinking", "gemini-2.5-pro", "gemini-2.5-flash", "claude-haiku-4-5"]);
+var clean = (s) => String(s ?? "").replaceAll("​", "").split(/\s+/).filter(Boolean).join(" ");
+function tokensOf(value) {
+  const m = /^(\d+(?:\.\d+)?)([km])$/i.exec(String(value ?? "").trim());
+  return m ? Math.round(Number(m[1]) * (m[2].toLowerCase() === "m" ? 1e6 : 1000)) : 0;
+}
+function paramDefs(m) {
+  const out = {};
+  for (const d of m.parameterDefinitions ?? []) {
+    const t = d?.parameterType ?? {};
+    const vs = (t.enumParameter ?? t.booleanParameter)?.values ?? [];
+    if (d?.id)
+      out[d.id] = vs.map((v) => String(v.value));
+  }
+  return out;
+}
+var valuesOf = (v) => Object.fromEntries((v?.parameterValues ?? []).map((p) => [String(p.id), String(p.value)]));
+var defaultVariant = (m) => {
+  const vs = m?.variants ?? [];
+  return vs.find((v) => v.isDefaultNonMaxConfig) ?? vs.find((v) => v.isDefaultMaxConfig) ?? vs[0];
+};
+var needsMax = (m, v) => m?.supportsNonMaxMode === false || v?.isMaxMode === true;
+function effortsOf(defs) {
+  const pid = EFFORT_PARAMS.find((p) => defs[p]?.length);
+  if (!pid && defs.thinking?.includes("true") && defs.thinking.includes("false"))
+    return { pid: "thinking", levels: { none: "false", high: "true" } };
+  if (!pid)
+    return { pid: "", levels: {} };
+  const levels = {};
+  for (const v of defs[pid]) {
+    const l = v === "extra-high" ? "xhigh" : v;
+    if (LEVEL_RANK.includes(l))
+      levels[l] = v;
+  }
+  return { pid, levels };
+}
+function served(m, ids) {
+  const vs = m.variants ?? [];
+  if (!ids)
+    return vs;
+  const got = vs.filter((v) => !v.legacySlug || ids.has(v.legacySlug));
+  return got.some((v) => v.legacySlug) ? got : vs;
+}
+function modelsOf(picker, ids) {
+  const out = [];
+  const used = new Set;
+  for (const m of picker) {
+    if (!m?.name || m.isHidden || m.isChatOnly || m.onlySupportsCmdK || m.supportsAgent === false || PICKER_SKIP.has(m.name))
+      continue;
+    const defs = paramDefs(m);
+    const variants = served(m, ids);
+    const partial = variants.length < (m.variants ?? []).length;
+    const has = (pid2, value) => !partial || !variants.some((v) => (pid2 in valuesOf(v))) || variants.some((v) => valuesOf(v)[pid2] === value);
+    const def = defaultVariant({ variants });
+    const { pid, levels: all } = effortsOf(defs);
+    const levels = Object.fromEntries(Object.entries(all).filter(([, value]) => has(pid, value)));
+    const base = { run: m.name, title: clean(m.clientDisplayName || m.name), pid, levels, fast: !!defs.fast?.length, variants, def, partial, model: m };
+    const contexts = (defs.context ?? []).filter((c) => has("context", c));
+    if (contexts.length) {
+      for (const c of contexts) {
+        const id = m.name + "@" + c;
+        if (used.has(id))
+          continue;
+        used.add(id);
+        out.push({ ...base, id, name: base.title + " @ " + c, context: tokensOf(c) || DEFAULT_CONTEXT, size: c, offersFast: fastAt(variants, c) });
+      }
+    } else if (!used.has(m.name)) {
+      used.add(m.name);
+      const limit = needsMax(m, def) ? m.contextTokenLimitForMaxMode || m.contextTokenLimit : m.contextTokenLimit;
+      out.push({ ...base, id: m.name === "default" ? "auto" : m.name, name: base.title, context: limit > 0 ? limit : DEFAULT_CONTEXT, size: "", offersFast: fastAt(variants, "") });
+    }
+  }
+  return out;
+}
+var fastAt = (variants, size) => variants.some((v) => {
+  const have = valuesOf(v);
+  return have.fast === "true" && (!size || have.context === undefined || have.context === size);
+});
+function nearest(vs, want) {
+  let best;
+  let most = -1;
+  for (const v of vs) {
+    const have = valuesOf(v);
+    const n = Object.keys(want).filter((k) => have[k] === want[k]).length + (have.context === want.context ? 100 : 0);
+    if (n > most)
+      [best, most] = [v, n];
+  }
+  return best;
+}
+function pick(entry, effort, fast, seed) {
+  const def = entry.def;
+  const want = { ...valuesOf(seed ?? def) };
+  if (entry.size)
+    want.context = entry.size;
+  if (effort === "off")
+    effort = "none";
+  if (entry.pid && entry.pid !== "thinking" && effort === "none" && !("none" in entry.levels) && "thinking" in want) {
+    want.thinking = "false";
+  } else if (entry.pid) {
+    const at = effort ? fitEffort(effort, Object.keys(entry.levels)) : "";
+    if (at && entry.levels[at])
+      want[entry.pid] = entry.levels[at];
+    if (!seed && entry.pid !== "thinking" && "thinking" in want && at)
+      want.thinking = "true";
+  }
+  if (entry.fast)
+    want.fast = fast ? "true" : "false";
+  const same = (v2) => {
+    const have = valuesOf(v2);
+    return Object.keys({ ...have, ...want }).every((k) => have[k] === undefined || want[k] === undefined || have[k] === want[k]);
+  };
+  const v = entry.variants.find(same) ?? (seed ? branch(entry, want) : undefined) ?? (entry.partial ? nearest(entry.variants, want) : undefined);
+  const params = Object.entries(v ? { ...want, ...valuesOf(v) } : want).map(([id2, value]) => ({ id: id2, value }));
+  const maxMode = v ? needsMax(entry.model, v) : needsMax(entry.model, def) || tokensOf(entry.size) > (entry.model.contextTokenLimit || Infinity);
+  const id = v?.legacySlug || def?.legacySlug || entry.run;
+  return { id, params, maxMode };
+}
+function branch(entry, want) {
+  if (!entry.pid || entry.pid === "thinking")
+    return;
+  const level = (x) => x === "extra-high" ? "xhigh" : x;
+  const def = valuesOf(entry.def);
+  const named = entry.variants.some((v) => level(valuesOf(v)[entry.pid]) === level(want[entry.pid]));
+  if (!named && Object.keys(want).every((k) => k === entry.pid || k === "context" || def[k] === undefined || def[k] === want[k]))
+    return;
+  const vs = entry.variants.filter((v) => {
+    const have = valuesOf(v);
+    return entry.pid in have && Object.keys(want).every((k) => k === entry.pid || have[k] === undefined || have[k] === want[k]);
+  });
+  const at = fitEffort(level(want[entry.pid]), vs.map((v) => level(valuesOf(v)[entry.pid])));
+  return at ? vs.find((v) => level(valuesOf(v)[entry.pid]) === at) : undefined;
+}
+function fitEffort(want, levels) {
+  if (want === "ultra")
+    want = "max";
+  if (!levels.length || levels.includes(want))
+    return want;
+  const at = LEVEL_RANK.indexOf(want);
+  if (at < 0)
+    return "";
+  let best = "";
+  let dist = LEVEL_RANK.length;
+  for (const l of levels) {
+    const i = LEVEL_RANK.indexOf(l);
+    if (i < 0 || l === "none")
+      continue;
+    const d = Math.abs(i - at);
+    if (d < dist || d === dist && i > at)
+      [best, dist] = [l, d];
+  }
+  return best;
+}
+var lists = new Map;
+async function usable(tok) {
+  const h = createHash3("sha256").update(tok).digest("hex");
+  const had = lists.get(h);
+  if (had && Date.now() - had.at < MODELS_KEEP)
+    return had.raw;
+  const [j, ids] = await Promise.all([
+    unary(API, "aiserver.v1.AiService/AvailableModels", tok, { useModelParameters: true, doNotUseMarkdown: true }, 30000),
+    unary(API, "agent.v1.AgentService/GetUsableModels", tok, {}, 8000).then((u) => {
+      const ids2 = new Set((u?.models ?? []).flatMap((m) => [m.modelId, m.displayModelId]).filter(Boolean));
+      return ids2.size ? ids2 : null;
+    }, () => null)
+  ]);
+  const raw = modelsOf(Array.isArray(j?.models) ? j.models : [], ids);
+  if (!raw.length)
+    throw new Error("Cursor listed no models");
+  lists.set(h, { at: Date.now(), raw });
+  return raw;
+}
+function named(raw, id) {
+  const models = raw.filter((e, i) => raw.findIndex((x) => x.model === e.model) === i);
+  const at = (e, v) => raw.find((x) => x.model === e.model && x.size === (valuesOf(v).context ?? "")) ?? e;
+  const as = (e, vs, effort2) => {
+    const seed = nearest(vs, valuesOf(e.def));
+    return { entry: at(e, seed), seed, effort: effort2, fast: valuesOf(seed).fast === "true" };
+  };
+  for (const e of models) {
+    const vs = e.variants.filter((v) => v.legacySlug === id);
+    if (vs.length)
+      return as(e, vs, "");
+  }
+  const [family, effort] = splitID(id);
+  for (const e of models) {
+    const vs = e.variants.filter((v) => v.legacySlug && splitID(v.legacySlug)[0] === family);
+    if (vs.length)
+      return as(e, vs, effort);
+  }
+  for (const e of models) {
+    const m = e.model;
+    if ([m.name, ...m.legacySlugs ?? [], ...m.idAliases ?? []].includes(id))
+      return { entry: at(e, e.def), seed: undefined, effort: "", fast: false };
+  }
+  return null;
+}
+function request(raw, model, effort, fast) {
+  const entry = raw.find((m) => m.id === model);
+  if (entry)
+    return pick(entry, effort, fast);
+  const old = named(raw, model);
+  if (old)
+    return pick(old.entry, effort || old.effort, fast || old.fast, old.seed);
+  return { id: model === "auto" ? "default" : model, params: [], maxMode: false };
+}
+function runtimeModel(m) {
+  const efforts = LEVEL_RANK.filter((l) => (l in m.levels));
+  return {
+    id: m.id,
+    providerID: ID,
+    name: m.name,
+    api: { id: m.id, url: AGENT, npm: CHAT },
+    status: "active",
+    headers: {},
+    options: {},
+    cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+    limit: { context: m.context || DEFAULT_CONTEXT, output: 0 },
+    capabilities: {
+      temperature: false,
+      reasoning: efforts.length > 0,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, image: true, audio: false, video: false, pdf: false },
+      output: { text: true, image: false, audio: false, video: false, pdf: false },
+      interleaved: false
+    },
+    release_date: "",
+    variants: Object.fromEntries(efforts.map((e) => [e, { reasoningEffort: e }])),
+    ...m.offersFast ? { fast: true } : {}
+  };
+}
+
+class PB {
+  parts = [];
+  push(b) {
+    this.parts.push(b);
+    return this;
+  }
+  uv(v) {
+    const out = [];
+    while (v >= 128) {
+      out.push(v % 128 | 128);
+      v = Math.floor(v / 128);
+    }
+    out.push(v);
+    return this.push(Uint8Array.from(out));
+  }
+  tag(num2, wire) {
+    return this.uv(num2 * 8 + wire);
+  }
+  varint(num2, v) {
+    return this.tag(num2, 0).uv(v);
+  }
+  bytes(num2, v) {
+    const b = v instanceof PB ? v.done() : v ?? EMPTY;
+    return this.tag(num2, 2).uv(b.length).push(b);
+  }
+  str(num2, s) {
+    return this.bytes(num2, Buffer.from(s, "utf8"));
+  }
+  double(num2, v) {
+    const b = Buffer.alloc(8);
+    b.writeDoubleLE(v);
+    return this.tag(num2, 1).push(b);
+  }
+  done() {
+    return Buffer.concat(this.parts);
+  }
+}
+var pb = () => new PB;
+function fields(b) {
+  b = Buffer.isBuffer(b) ? b : Buffer.from(b ?? EMPTY);
+  const out = [];
+  let i = 0;
+  const uv = () => {
+    let v = 0;
+    let m = 1;
+    while (i < b.length) {
+      const c = b[i++];
+      v += (c & 127) * m;
+      if (c < 128)
+        return v;
+      m *= 128;
+    }
+    return -1;
+  };
+  while (i < b.length) {
+    const key = uv();
+    if (key < 0)
+      break;
+    const f = { num: Math.floor(key / 8), wire: key % 8, n: 0, data: EMPTY };
+    switch (f.wire) {
+      case 0: {
+        const v = uv();
+        if (v < 0)
+          return out;
+        f.n = v;
+        break;
+      }
+      case 1:
+        if (i + 8 > b.length)
+          return out;
+        f.data = b.subarray(i, i + 8);
+        f.n = Number(b.readBigUInt64LE(i));
+        i += 8;
+        break;
+      case 2: {
+        const l = uv();
+        if (l < 0 || i + l > b.length)
+          return out;
+        f.data = b.subarray(i, i + l);
+        i += l;
+        break;
+      }
+      case 5:
+        if (i + 4 > b.length)
+          return out;
+        f.n = b.readUInt32LE(i);
+        i += 4;
+        break;
+      default:
+        return out;
+    }
+    out.push(f);
+  }
+  return out;
+}
+var field2 = (fs, num2) => fs.find((f) => f.num === num2);
+var pbStr = (fs, num2) => field2(fs, num2)?.data.toString("utf8") ?? "";
+var pbNum = (fs, num2) => field2(fs, num2)?.n ?? 0;
+function pbValue(v) {
+  if (v === null || v === undefined)
+    return pb().varint(1, 0);
+  if (typeof v === "number")
+    return pb().double(2, v);
+  if (typeof v === "string")
+    return pb().str(3, v);
+  if (typeof v === "boolean")
+    return pb().varint(4, v ? 1 : 0);
+  if (Array.isArray(v)) {
+    const l = pb();
+    for (const e of v)
+      l.bytes(1, pbValue(e));
+    return pb().bytes(6, l);
+  }
+  if (typeof v === "object") {
+    const st = pb();
+    for (const k of Object.keys(v).sort())
+      st.bytes(1, pb().str(1, k).bytes(2, pbValue(v[k])));
+    return pb().bytes(5, st);
+  }
+  return pb().varint(1, 0);
+}
+function pbAny(b) {
+  for (const f of fields(b)) {
+    switch (f.num) {
+      case 1:
+        return null;
+      case 2:
+        return f.data.length === 8 ? f.data.readDoubleLE(0) : 0;
+      case 3:
+        return f.data.toString("utf8");
+      case 4:
+        return f.n !== 0;
+      case 5: {
+        const m = {};
+        for (const e of fields(f.data)) {
+          if (e.num !== 1)
+            continue;
+          const kv = fields(e.data);
+          const v = field2(kv, 2);
+          m[pbStr(kv, 1)] = v ? pbAny(v.data) : null;
+        }
+        return m;
+      }
+      case 6:
+        return fields(f.data).filter((e) => e.num === 1).map((e) => pbAny(e.data));
+    }
+  }
+  return null;
+}
+function frame(msg) {
+  const head = Buffer.alloc(5);
+  head.writeUInt32BE(msg.length, 1);
+  return Buffer.concat([head, msg]);
+}
+async function* frames(body) {
+  let buf = EMPTY;
+  for await (const chunk of body) {
+    buf = buf.length ? Buffer.concat([buf, chunk]) : Buffer.from(chunk);
+    while (buf.length >= 5) {
+      const n = buf.readUInt32BE(1);
+      if (n > 64 << 20)
+        throw new Error("a malformed stream");
+      if (buf.length < 5 + n)
+        break;
+      const flags = buf[0];
+      let data = buf.subarray(5, 5 + n);
+      buf = buf.subarray(5 + n);
+      if (flags & 1)
+        data = gunzipSync(data);
+      yield { end: (flags & 2) !== 0, data };
+    }
+  }
+  if (buf.length)
+    throw new Error("unexpected EOF");
+}
+var regional = (msg) => msg.toLowerCase().includes("region");
+function failure(status, text) {
+  let e;
+  try {
+    e = JSON.parse(typeof text === "string" ? text : Buffer.from(text).toString("utf8"));
+  } catch {
+    return statusOf(status, "", String(text ?? "").trim());
+  }
+  const f = e?.error && typeof e.error === "object" ? e.error : e ?? {};
+  let msg = f.message ?? "";
+  for (const d of f.details ?? []) {
+    const t = `${d?.debug?.details?.title ?? ""}: ${d?.debug?.details?.detail ?? ""}`.trim();
+    if (t !== ":")
+      msg = t.replace(/^[:\s]+|[:\s]+$/g, "");
+  }
+  if (!msg || msg === "Error")
+    msg = f.code ?? "";
+  if (!f.code && status >= 200 && status < 300)
+    return { status, message: msg };
+  return statusOf(status, f.code ?? "", msg);
+}
+function statusOf(status, code, msg) {
+  msg ||= statusText(status);
+  const low = msg.toLowerCase();
+  const out = (status2, message) => ({ status: status2, message });
+  if (regional(msg))
+    return out(403, msg + " — Cursor serves your team only in some regions and turned this request away; signing in again won't change that");
+  if (code === "permission_denied")
+    return out(403, msg);
+  if (code === "unauthenticated" || status === 401 || low.includes("expired"))
+    return out(401, msg + " — sign in to Cursor again in magpie");
+  if (code === "resource_exhausted" || low.includes("quota") || low.includes("rate limit") || low.includes("usage limit"))
+    return out(429, "usage limit reached: " + msg);
+  if (low.includes("too long") || low.includes("context length") || low.includes("too many tokens"))
+    return out(400, "input is too long for the model's context: " + msg);
+  if (code === "invalid_argument")
+    return out(400, msg);
+  if (code === "unavailable")
+    return out(503, msg);
+  if (code)
+    return out(502, msg);
+  return out(status, msg);
+}
+var textOf = (c) => typeof c === "string" ? c : Array.isArray(c) ? c.filter((p) => p?.type === "text").map((p) => p.text ?? "").join("") : "";
+var reasoningOf = (m) => [m.reasoning_content, m.reasoning].find((s) => typeof s === "string" && s.trim()) ?? "";
+function joinSplitCalls(msgs) {
+  const out = [];
+  for (const m of msgs) {
+    const prev = out.at(-1);
+    if (m?.role === "assistant" && prev?.role === "assistant" && prev.tool_calls?.length) {
+      const content = [textOf(prev.content), textOf(m.content)].filter(Boolean).join(`
+
+`);
+      const reasoning_content = [reasoningOf(prev), reasoningOf(m)].filter(Boolean).join(`
+
+`);
+      out[out.length - 1] = { ...prev, content, reasoning_content, tool_calls: [...prev.tool_calls, ...m.tool_calls ?? []] };
+      continue;
+    }
+    out.push(m);
+  }
+  return out;
+}
+function parseArgs(s) {
+  if (s && typeof s === "object")
+    return s;
+  try {
+    const v = JSON.parse(s || "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+function toolsOf(chat) {
+  const choice = chat.tool_choice;
+  const only = typeof choice === "object" ? choice?.function?.name : "";
+  if (choice === "none")
+    return [];
+  return (chat.tools ?? []).filter((t) => t?.type === "function" && t.function?.name && (!only || t.function.name === only)).map((t) => {
+    const schema = t.function.parameters ?? { type: "object", properties: {} };
+    return { name: t.function.name, description: t.function.description ?? "", schema, schemaText: JSON.stringify(schema) };
+  });
+}
+function catalog(tools) {
+  if (!tools.length)
+    return "";
+  let s = `
+
+<dynamic_tool_catalog>
+The MCP namespace "magpie" has the tools below. They are reached only through \`${CALL}\`, never as tools of their own. Each entry is the exact call to make; its arguments must match the schema given. The schemas are complete, so there is no need to call \`GetDynamicTools\` first.
+`;
+  for (const t of tools)
+    s += `<call>${CALL}({"namespace":"magpie","toolName":"${t.name}","arguments":{...}})
+${t.description}
+arguments schema: ${t.schemaText}
+</call>
+`;
+  return s + "</dynamic_tool_catalog>";
+}
+var callID = (id) => id.startsWith("call_") ? id.replace("__fc_", `
+fc_`) : id;
+function result(id, text, isError) {
+  let res = text;
+  try {
+    res = JSON.parse(text);
+  } catch {}
+  return {
+    type: "tool-result",
+    toolCallId: callID(id),
+    toolName: CALL,
+    result: res,
+    experimental_content: [{ type: "text", text }],
+    ...isError ? { isError: true } : {}
+  };
+}
+function conversation(chat, tools) {
+  const out = [];
+  const add = (m) => out.push(Buffer.from(JSON.stringify(m)));
+  let size = 0;
+  const system = [];
+  let last = ".";
+  for (const m of chat.messages ?? [])
+    if (m.role === "system" || m.role === "developer")
+      system.push(textOf(m.content));
+  const sys = system.filter(Boolean).join(`
+
+`) + catalog(tools);
+  size += sys.length;
+  if (sys)
+    add({ role: "system", content: sys });
+  let pending = [];
+  let results = [];
+  const answer = () => {
+    for (const id of pending)
+      results.push(result(id, NO_RESULT, true));
+    pending = [];
+    if (results.length)
+      add({ role: "tool", content: results });
+    results = [];
+  };
+  for (const m of joinSplitCalls(chat.messages ?? [])) {
+    if (m.role === "system" || m.role === "developer")
+      continue;
+    if (m.role === "tool") {
+      const id = m.tool_call_id ?? "";
+      const i = pending.indexOf(id);
+      if (i >= 0) {
+        pending.splice(i, 1);
+        const text = textOf(m.content);
+        size += text.length;
+        results.push(result(id, text, m.is_error === true || m.isError === true));
+      }
+      continue;
+    }
+    if (m.role === "assistant") {
+      answer();
+      const content2 = [];
+      const reasoning = reasoningOf(m);
+      if (reasoning)
+        content2.push({ type: "reasoning", text: reasoning });
+      const text = textOf(m.content);
+      if (text)
+        content2.push({ type: "text", text });
+      size += reasoning.length + text.length;
+      for (const c of m.tool_calls ?? []) {
+        if (c?.type && c.type !== "function")
+          continue;
+        const args = parseArgs(c.function?.arguments);
+        size += (c.function?.arguments ?? "").length + (c.function?.name ?? "").length;
+        content2.push({ type: "tool-call", toolCallId: callID(c.id), toolName: CALL, args: { namespace: "magpie", toolName: c.function?.name, arguments: args } });
+        pending.push(c.id);
+      }
+      if (content2.length)
+        add({ role: "assistant", content: content2 });
+      continue;
+    }
+    const content = [];
+    const parts = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content ?? [];
+    let first = "";
+    for (const p of parts) {
+      if (p?.type === "text" && p.text) {
+        content.push({ type: "text", text: p.text });
+        size += p.text.length;
+        first ||= p.text;
+      } else if (p?.type === "image_url") {
+        const u = typeof p.image_url === "string" ? p.image_url : p.image_url?.url ?? "";
+        const d = /^data:([^;,]+);base64,(.*)$/s.exec(u);
+        if (d)
+          content.push({ type: "image", mimeType: d[1], image: { __type: "Uint8Array", hex: Buffer.from(d[2], "base64").toString("hex") } });
+        else
+          content.push({ type: "text", text: `[attachment image: ${u}]` });
+      } else if (p?.type === "file") {
+        content.push({ type: "text", text: `[attachment ${p.file?.filename ?? "file"}]` });
+      }
+    }
+    answer();
+    if (first)
+      last = first;
+    if (content.length)
+      add({ role: "user", content });
+  }
+  answer();
+  for (const t of tools)
+    size += t.name.length + t.description.length + t.schemaText.length;
+  return { msgs: out, last, estimate: Math.floor(size / 4) };
+}
+function toolDef(t) {
+  const d = pb().str(1, t.name);
+  if (t.description)
+    d.str(2, t.description);
+  d.bytes(3, pbValue(t.schema));
+  return d.str(4, "magpie").str(5, t.name).str(6, t.schemaText).done();
+}
+var env2 = () => pb().str(1, GOOS).str(2, tmpdir2()).str(10, "UTC");
+var SESSION = "x-magpie-cursor-session";
+function sessionOf(input) {
+  const s = String(input?.sessionID ?? "").trim();
+  if (!s || /^magpie-[0-9a-f]{24}$/.test(s))
+    return "";
+  return s.slice(0, 128);
+}
+function uuidOf(b) {
+  b = Buffer.from(b.subarray(0, 16));
+  b[6] = b[6] & 15 | 64;
+  b[8] = b[8] & 63 | 128;
+  const h = b.toString("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+function conversationID(chat, session) {
+  const key = (typeof chat?.prompt_cache_key === "string" ? chat.prompt_cache_key.trim() : "") || session || "";
+  if (!key)
+    return "";
+  const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
+  const first = msgs.find((m) => m?.role === "user") ?? msgs[0];
+  const sum = createHash3("sha256").update("cursor conversation\x00" + key + "\x00" + (first === undefined ? "" : JSON.stringify(first))).digest();
+  return uuidOf(sum);
+}
+function usageOf(uf) {
+  const [inp, cr, cw] = [pbNum(uf, 1), pbNum(uf, 3), pbNum(uf, 4)];
+  return { input: Math.max(inp - cr - cw, 0), output: pbNum(uf, 2), cacheRead: cr, cacheWrite: cw, reasoning: pbNum(uf, 5) };
+}
+var STEP_WAIT = { first: 1500, every: 500, until: 6000, ask: 5000, skipAfter: 3, retryEvery: 10, owedAt: 5000, owedFor: 600000 };
+var claimed = new Map;
+var owed = new Map;
+var flights = new Map;
+var unreadable = new Map;
+var misses = new Map;
+var tokKey = (tok) => createHash3("sha256").update(tok).digest("hex");
+var usageKey = (tok, conv) => tokKey(tok) + "\x00" + conv;
+function canRead(tok) {
+  const at = unreadable.get(tokKey(tok));
+  if (at === undefined)
+    return true;
+  if (Date.now() - at < STEP_WAIT.owedFor)
+    return false;
+  unreadable.delete(tokKey(tok));
+  return true;
+}
+var ZERO = () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 });
+function addUsage(a, b) {
+  if (!b)
+    return a;
+  if (!a)
+    return { ...b };
+  for (const k of Object.keys(a))
+    a[k] += b[k] ?? 0;
+  return a;
+}
+var DEBT_GROUP_LIMIT = 64;
+function owe(key, { since = Date.now(), n = 0, ready = Date.now(), carry = null, before }) {
+  for (const [k, d2] of owed) {
+    if (d2.groups) {
+      d2.groups = d2.groups.filter((g) => Date.now() - g.since <= STEP_WAIT.owedFor);
+      d2.n = d2.groups.reduce((sum, g) => sum + g.n, 0);
+      if (Date.now() - d2.since > STEP_WAIT.owedFor)
+        d2.carry = null;
+      if (!d2.n && !d2.carry)
+        owed.delete(k);
+      else if (d2.groups.length)
+        d2.since = Math.min(...d2.groups.map((g) => g.since));
+    } else if (Date.now() - d2.since > STEP_WAIT.owedFor)
+      owed.delete(k);
+  }
+  if (n <= 0 && !carry)
+    return;
+  const d = owed.get(key);
+  if (!d)
+    return void owed.set(key, { since, n, ready, carry: carry && { ...carry }, ...before !== undefined ? { before } : {} });
+  if (n > 0 && (d.groups || d.before !== undefined || before !== undefined)) {
+    const groups = d.groups ?? (d.n > 0 ? [{ since: d.since, n: d.n, ready: d.ready, before: d.before }] : []);
+    const same = groups.find((g) => g.before === before);
+    if (same) {
+      same.since = Math.min(same.since, since);
+      same.n += n;
+      same.ready = Math.min(same.ready, ready);
+    } else
+      groups.push({ since, n, ready, before });
+    groups.sort((a, b) => a.since - b.since);
+    d.groups = groups.slice(-DEBT_GROUP_LIMIT);
+    delete d.before;
+    d.n = d.groups.reduce((sum, g) => sum + g.n, 0);
+    d.since = Math.min(...d.groups.map((g) => g.since));
+  } else {
+    d.since = Math.min(d.since, since);
+    d.n += n;
+  }
+  d.ready = Math.min(d.ready, ready);
+  d.carry = addUsage(d.carry, carry);
+}
+async function usageEvents(tok, conv, since, want, { poll = false, first = STEP_WAIT.first, signal, before = () => Infinity, groups, abortFetch = false } = {}) {
+  const key = usageKey(tok, conv);
+  const end = Date.now() + STEP_WAIT.until;
+  const wait = (ms) => new Promise((r) => {
+    const t = setTimeout(r, ms);
+    signal?.addEventListener("abort", () => (clearTimeout(t), r()), { once: true });
+  });
+  for (const [k, at] of claimed)
+    if (Date.now() - at > 2 * STEP_WAIT.owedFor)
+      claimed.delete(k);
+  const num2 = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+  let usage2 = null;
+  let got = 0;
+  const events = [];
+  const counts = groups?.map(() => 0);
+  if (poll)
+    await wait(first);
+  while (!signal?.aborted) {
+    try {
+      const res = await fetch(API + "/aiserver.v1.DashboardService/GetFilteredUsageEvents", {
+        method: "POST",
+        headers: await headersFor(tok),
+        body: JSON.stringify({ teamId: 0, startDate: String(since - 60000), endDate: String(Date.now() + 60000), page: 1, pageSize: 50 }),
+        signal: abortFetch && signal ? AbortSignal.any([signal, AbortSignal.timeout(STEP_WAIT.ask)]) : AbortSignal.timeout(STEP_WAIT.ask)
+      });
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        unreadable.set(tokKey(tok), Date.now());
+        return { usage: usage2, events, got, counts, refused: true };
+      }
+      const evs = res.ok ? (await res.json())?.usageEventsDisplay ?? [] : [];
+      const found = evs.filter((e) => e?.conversationId === conv && e.tokenUsage && num2(e.timestamp) >= since - 1000 && !claimed.has(key + "\x00" + e.timestamp)).sort((a, b) => num2(a.timestamp) - num2(b.timestamp));
+      for (const ev of found) {
+        if (got >= want)
+          break;
+        const at = num2(ev.timestamp);
+        if (at >= before())
+          continue;
+        const group = groups?.findIndex((g, i) => counts[i] < g.n && at >= g.since - 1000 && at < (g.before ?? Infinity));
+        if (groups && group === -1)
+          continue;
+        if (groups)
+          counts[group]++;
+        claimed.set(key + "\x00" + ev.timestamp, Date.now());
+        const t = ev.tokenUsage;
+        const u = { input: num2(t.inputTokens), output: num2(t.outputTokens), cacheRead: num2(t.cacheReadTokens), cacheWrite: num2(t.cacheWriteTokens), reasoning: 0 };
+        usage2 = addUsage(usage2 ?? ZERO(), u);
+        events.push({ at: num2(ev.timestamp), usage: u });
+        got++;
+      }
+      if (got >= want)
+        break;
+    } catch {}
+    if (!poll || Date.now() + STEP_WAIT.every > end)
+      break;
+    await wait(STEP_WAIT.every);
+  }
+  return { usage: usage2, events, got, counts, refused: false };
+}
+function collect(tok, conv, { poll = false, first, signal, over = () => false, abortFetch = false } = {}) {
+  const key = usageKey(tok, conv);
+  const d = owed.get(key);
+  if (!d)
+    return Promise.resolve({ usage: null, carry: null, events: [], short: false });
+  owed.delete(key);
+  const p = (async () => {
+    const groups = (d.groups ?? [d]).filter((g) => g.before === undefined && !d.groups || Date.now() - g.since <= STEP_WAIT.owedFor);
+    const want = groups.reduce((sum, g) => sum + g.n, 0);
+    let r = { usage: null, events: [], got: 0 };
+    if (want > 0 && canRead(tok))
+      r = await usageEvents(tok, conv, Math.min(...groups.map((g) => g.since)), want, {
+        poll,
+        first,
+        signal,
+        abortFetch,
+        before: () => d.before ?? Infinity,
+        ...d.groups ? { groups } : {}
+      }).catch(() => r);
+    let short = false;
+    for (const [i, g] of groups.entries()) {
+      const remaining = g.n - (d.groups ? r.counts?.[i] ?? 0 : r.got);
+      if (remaining > 0 && canRead(tok)) {
+        short = true;
+        owe(key, { since: g.since, n: remaining, ready: g.ready, before: g.before });
+      }
+    }
+    const carry = d.carry && { ...d.carry };
+    const usage2 = addUsage(d.carry, r.usage);
+    if (!over())
+      return { usage: usage2, carry, events: r.events ?? [], short };
+    owe(key, { carry: usage2 });
+    return { usage: null, carry: null, events: [], short };
+  })();
+  p.debt = d;
+  const set = flights.get(key) ?? new Set;
+  flights.set(key, set.add(p));
+  p.finally(() => {
+    set.delete(p);
+    if (!set.size && flights.get(key) === set)
+      flights.delete(key);
+  });
+  return p;
+}
+function ledger(tok, conv, since, signal, kept, { before } = {}) {
+  const key = tokKey(tok);
+  const debtKey = usageKey(tok, conv);
+  if (kept && before !== undefined) {
+    const debts = [owed.get(debtKey), ...[...flights.get(debtKey) ?? []].map((p) => p.debt)];
+    for (const d of debts)
+      for (const g of d?.groups ?? (d ? [d] : []))
+        g.before = Math.min(g.before ?? Infinity, before);
+  }
+  let mine = null;
+  let theirs = null;
+  let over = false;
+  const gather = (opts) => collect(tok, conv, { ...opts, over: () => over, abortFetch: before !== undefined }).then((r) => {
+    theirs = addUsage(theirs, r.carry);
+    for (const e of r.events ?? []) {
+      if (e.at >= since - 1000)
+        mine = addUsage(mine, e.usage);
+      else
+        theirs = addUsage(theirs, e.usage);
+    }
+    return r;
+  });
+  let collecting = null;
+  const debt = kept ? owed.get(debtKey) : undefined;
+  const timer = debt ? setTimeout(() => collecting = gather(), Math.max(0, debt.ready - Date.now())) : null;
+  timer?.unref?.();
+  const takeMine = () => {
+    const u = mine;
+    mine = null;
+    return u;
+  };
+  const take = () => {
+    const u = addUsage(theirs, mine);
+    mine = theirs = null;
+    return u;
+  };
+  return {
+    async own() {
+      if (!canRead(tok))
+        return null;
+      const m = misses.get(key) ?? 0;
+      const waits = m < STEP_WAIT.skipAfter || m % STEP_WAIT.retryEvery === 0;
+      if (!kept) {
+        const r = waits ? await usageEvents(tok, conv, since, 1, { poll: true, signal }).catch(() => ({})) : {};
+        if (r.usage)
+          misses.delete(key);
+        else if (!r.refused)
+          misses.set(key, m + 1);
+        return r.usage ?? null;
+      }
+      owe(debtKey, { since, n: 1, ready: Date.now() + STEP_WAIT.owedAt });
+      if (waits) {
+        const r = await gather({ poll: true, signal });
+        if (!canRead(tok))
+          return null;
+        if (r.short)
+          misses.set(key, m + 1);
+        else
+          misses.delete(key);
+      } else
+        misses.set(key, m + 1);
+      return takeMine() ?? false;
+    },
+    async owed(final) {
+      if (!kept)
+        return null;
+      if (final) {
+        await collecting;
+        await Promise.all([...flights.get(debtKey) ?? []]);
+        if (owed.has(debtKey))
+          await gather({ poll: owed.get(debtKey).n > 0, first: 0, signal });
+      }
+      return take();
+    },
+    done() {
+      over = true;
+      clearTimeout(timer);
+      const u = take();
+      if (u)
+        owe(debtKey, { carry: u });
+    }
+  };
+}
+function buildRun(msgs, lastUser, tools, model, conv = "", { maxMode = false, params = [] } = {}) {
+  const blobs = new Map;
+  const put = (b) => {
+    const id = createHash3("sha256").update(b).digest();
+    blobs.set(id.toString("hex"), b);
+    return id;
+  };
+  const state = pb();
+  for (const m of msgs)
+    state.bytes(1, put(m));
+  const mid = randomUUID();
+  const user = pb().str(1, lastUser).str(2, mid).varint(4, 1).done();
+  const turn = pb().bytes(1, pb().bytes(1, put(user)).str(10, mid)).done();
+  state.bytes(8, put(turn)).varint(10, 1).str(22, "cli");
+  const defs = tools.map(toolDef);
+  const rc = pb().bytes(4, env2());
+  const mcp = pb();
+  for (const d of defs) {
+    rc.bytes(7, d);
+    mcp.bytes(1, d);
+  }
+  const action = pb().bytes(2, pb().bytes(2, rc));
+  const details = pb().str(1, model).str(3, model).str(4, model);
+  const requested = pb().str(1, model);
+  if (maxMode) {
+    details.varint(7, 1);
+    requested.varint(2, 1);
+  }
+  for (const p of params)
+    requested.bytes(3, pb().str(1, p.id).str(2, p.value));
+  const rr = pb().bytes(1, state).bytes(2, action).bytes(3, details).bytes(4, mcp).str(5, conv || randomUUID()).bytes(9, requested).varint(19, 1);
+  return { first: pb().bytes(1, rr).done(), blobs };
+}
+var endpoints = new Map;
+async function agentURL(tok, fresh) {
+  const key = createHash3("sha256").update(tok).digest("hex");
+  const had = endpoints.get(key);
+  if (!fresh && had && (had.listed || Date.now() - had.at < 60000))
+    return had.url;
+  let url = AGENT;
+  let listed = false;
+  try {
+    const cfg = await unary(API, "aiserver.v1.ServerConfigService/GetServerConfig", tok, {}, 1e4);
+    for (const raw of [cfg?.agentUrlConfig?.agentUrl, cfg?.agentUrlConfig?.agentnUrl]) {
+      try {
+        const u = new URL(raw);
+        if ((u.protocol === "https:" || u.protocol === "http:") && u.host) {
+          url = raw.replace(/\/+$/, "");
+          listed = true;
+          break;
+        }
+      } catch {}
+    }
+  } catch {}
+  endpoints.set(key, { url, at: Date.now(), listed });
+  return url;
+}
+var h1Until = 0;
+var cancelledOpen = () => ({ error: { status: 410, message: "the request was cancelled" }, h2Failed: false });
+async function open(base, headers, signal) {
+  if (signal?.aborted)
+    return cancelledOpen();
+  if (Date.now() >= h1Until) {
+    const o = await openH2(base, headers, signal);
+    if (signal?.aborted) {
+      o.req?.close(http2.constants.NGHTTP2_CANCEL);
+      o.session?.destroy();
+      return cancelledOpen();
+    }
+    if (!o.h2Failed)
+      return o;
+    if (o.blocked)
+      h1Until = Date.now() + H2.retryAfter;
+  }
+  if (signal?.aborted)
+    return cancelledOpen();
+  return openH1(headers, signal);
+}
+var H2 = {
+  wait: 15000,
+  retryAfter: 10 * 60000
+};
+var NET = ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH", "ECONNRESET", "ETIMEDOUT", "ECONNABORTED", "EPIPE"];
+function h2Blocked(e) {
+  if (e?.h2Timeout)
+    return true;
+  const code = String(e?.code ?? "");
+  const text = `${code} ${e?.message ?? ""}`;
+  if (NET.some((c) => text.includes(c)))
+    return false;
+  if (code === "ERR_HTTP2_STREAM_ERROR")
+    return false;
+  return code.startsWith("ERR_HTTP2") || /h2 is not supported|alpn|nghttp2|protocol error/i.test(text);
+}
+function openH2(base, headers, signal) {
+  if (signal?.aborted)
+    return Promise.resolve(cancelledOpen());
+  return new Promise((resolve) => {
+    const u = new URL(base);
+    const session = http2.connect(u.origin);
+    let done = false;
+    const fail = (e, h2Failed = true) => {
+      if (done)
+        return;
+      done = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      session.destroy();
+      resolve({ error: { status: h2Failed ? 502 : 410, message: e?.message ?? String(e) }, h2Failed, blocked: h2Failed && h2Blocked(e) });
+    };
+    const abort = () => fail(new Error("the request was cancelled"), false);
+    const timer = setTimeout(() => fail(Object.assign(new Error(`no answer over HTTP/2 in ${H2.wait / 1000}s`), { h2Timeout: true })), H2.wait);
+    session.on("error", fail);
+    const req = session.request({
+      ":method": "POST",
+      ":path": u.pathname.replace(/\/+$/, "") + "/agent.v1.AgentService/Run",
+      ...headers
+    });
+    req.on("error", fail);
+    req.once("close", () => fail(Object.assign(new Error(`the HTTP/2 stream closed before its response (code ${req.rstCode ?? "?"})`), { code: "ERR_HTTP2_STREAM_ERROR" })));
+    req.once("response", (h) => {
+      if (done)
+        return;
+      done = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      resolve({ session, req, status: Number(h[":status"]) });
+    });
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted)
+      abort();
+  });
+}
+var H1 = { appendWait: 60000 };
+function connectCode(status) {
+  return { 400: "invalid_argument", 401: "unauthenticated", 403: "permission_denied", 429: "resource_exhausted" }[status] ?? "unavailable";
+}
+function openH1(headers, signal) {
+  if (signal?.aborted)
+    return Promise.resolve(cancelledOpen());
+  const ac = new AbortController;
+  const id = headers["x-request-id"];
+  const h = { ...headers, "accept-encoding": "identity", "x-cursor-streaming": "true" };
+  let ended = false;
+  let seq = 0;
+  let reader;
+  const req = new Duplex({
+    read() {},
+    write(chunk, _enc, cb) {
+      const msg = Buffer.from(chunk).subarray(5);
+      const n = seq++;
+      append(msg, n).then(() => cb(), (e) => cb(e));
+    }
+  });
+  const cleanup = () => {
+    signal?.removeEventListener("abort", close);
+    ac.abort();
+    reader?.cancel().catch(() => {});
+  };
+  const end = (body) => {
+    if (ended || req.destroyed)
+      return;
+    ended = true;
+    const f = frame(Buffer.from(body));
+    f[0] = 2;
+    req.push(f);
+    req.push(null);
+    cleanup();
+  };
+  const failed = async (res) => {
+    const text = await res.text().catch(() => "");
+    let e;
+    try {
+      e = JSON.parse(text);
+    } catch {}
+    end(JSON.stringify({ error: typeof e?.code === "string" ? e : { code: connectCode(res.status), message: text.trim() || `HTTP ${res.status}` } }));
+  };
+  const append = async (msg, n) => {
+    if (ended || ac.signal.aborted)
+      return;
+    const body = pb().str(1, msg.toString("hex")).bytes(2, pb().str(1, id).done()).varint(3, n).done();
+    const ms = H1.appendWait + Math.ceil(body.length / 65536) * 1000;
+    const deadline = AbortSignal.timeout(ms);
+    try {
+      const res = await fetch(API + "/aiserver.v1.BidiService/BidiAppend", {
+        method: "POST",
+        headers: { ...h, "content-type": "application/proto", "connect-protocol-version": "1" },
+        body,
+        signal: AbortSignal.any([ac.signal, deadline])
+      });
+      if (ended || ac.signal.aborted) {
+        await res.body?.cancel().catch(() => {});
+        return;
+      }
+      if (!res.ok)
+        return failed(res);
+      await res.arrayBuffer();
+    } catch (e) {
+      if (ac.signal.aborted)
+        return;
+      if (deadline.aborted)
+        return end(JSON.stringify({ error: { code: "deadline_exceeded", message: `BidiAppend got no answer in ${Math.round(ms / 1000)}s` } }));
+      end(JSON.stringify({ error: { code: "unavailable", message: `BidiAppend: ${e?.message ?? e}` } }));
+    }
+  };
+  const close = () => {
+    ended = true;
+    cleanup();
+    req.destroy();
+  };
+  signal?.addEventListener("abort", close, { once: true });
+  if (signal?.aborted) {
+    close();
+    return Promise.resolve(cancelledOpen());
+  }
+  (async () => {
+    try {
+      const res = await fetch(API + "/agent.v1.AgentService/RunSSE", {
+        method: "POST",
+        headers: { ...h, "content-type": "application/connect+proto", "connect-protocol-version": "1" },
+        body: frame(pb().str(1, id).done()),
+        signal: ac.signal
+      });
+      if (ended || ac.signal.aborted) {
+        await res.body?.cancel().catch(() => {});
+        return;
+      }
+      if (!res.ok)
+        return failed(res);
+      reader = res.body.getReader();
+      try {
+        while (!ended && !req.destroyed) {
+          const { value, done } = await reader.read();
+          if (done)
+            break;
+          if (!ended && !req.destroyed)
+            req.push(Buffer.from(value));
+        }
+      } finally {
+        reader.releaseLock();
+        reader = undefined;
+      }
+      if (!ended && !req.destroyed) {
+        ended = true;
+        req.push(null);
+        cleanup();
+      }
+    } catch (e) {
+      if (!ac.signal.aborted)
+        end(JSON.stringify({ error: { code: "unavailable", message: `RunSSE: ${e?.message ?? e}` } }));
+    }
+  })();
+  return Promise.resolve(signal?.aborted ? cancelledOpen() : { session: { close, destroy: close }, req: Object.assign(req, { close }), status: 200, h1: true });
+}
+function nativeTransport(req, close, fail, limits = NATIVE_LIMITS) {
+  const outbound = { bytes: 0, messages: 0 };
+  const queue = [];
+  let closed = false, flushing = false, rejectWrite;
+  const waiters = new Set;
+  const spare = (n) => Math.floor(n / 8);
+  const fits = (size) => outbound.messages === 0 || outbound.messages + 1 + spare(limits.outboundMessages) <= limits.outboundMessages && outbound.bytes + size + spare(limits.outboundBytes) <= limits.outboundBytes;
+  const wake = () => {
+    for (const w of waiters)
+      if (closed || fits(w.size))
+        w.done();
+  };
+  const flush = async () => {
+    if (closed || flushing)
+      return;
+    flushing = true;
+    try {
+      while (!closed && queue.length) {
+        const packet = queue.shift();
+        await new Promise((resolve, reject) => {
+          let written = false, drained = false, started = false, settled = false;
+          const finish = (error) => {
+            if (settled)
+              return;
+            settled = true;
+            rejectWrite = undefined;
+            req.removeListener("drain", drain);
+            req.removeListener("error", failed);
+            req.removeListener("close", lost);
+            error ? reject(error) : resolve();
+          };
+          const check = () => {
+            if (started && written && drained)
+              finish();
+          };
+          const drain = () => {
+            drained = true;
+            check();
+          };
+          const failed = (e) => finish(e);
+          const lost = () => finish(new NativeSessionError(502, "native transport closed during a write; its outcome is uncertain"));
+          rejectWrite = finish;
+          req.once("drain", drain);
+          req.once("error", failed);
+          req.once("close", lost);
+          try {
+            drained = req.write(packet, (e) => {
+              if (e)
+                return finish(e);
+              written = true;
+              check();
+            }) || drained;
+            started = true;
+            if (drained)
+              req.removeListener("drain", drain);
+            check();
+          } catch (e) {
+            finish(e);
+          }
+        });
+        if (!closed) {
+          outbound.bytes -= packet.length;
+          outbound.messages--;
+          wake();
+        }
+      }
+    } catch (e) {
+      if (!closed)
+        fail(e);
+    } finally {
+      flushing = false;
+    }
+  };
+  return {
+    outbound,
+    send(message) {
+      if (closed || req.destroyed || !req.writable)
+        throw new NativeSessionError(502, "native transport is no longer writable");
+      const size = message.length + 5;
+      if (outbound.bytes + size > limits.outboundBytes)
+        throw new NativeSessionError(503, "native outbound bytes limit reached");
+      if (outbound.messages + 1 > limits.outboundMessages)
+        throw new NativeSessionError(503, "native outbound messages limit reached");
+      outbound.bytes += size;
+      outbound.messages++;
+      queue.push(frame(message));
+      flush();
+    },
+    room(size) {
+      if (closed || fits(size))
+        return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const w = {
+          size,
+          done() {
+            waiters.delete(w);
+            clearTimeout(w.timer);
+            resolve();
+          }
+        };
+        w.timer = setTimeout(() => {
+          waiters.delete(w);
+          const which = outbound.bytes + size + spare(limits.outboundBytes) > limits.outboundBytes ? "bytes" : "messages";
+          reject(new NativeSessionError(503, `native outbound ${which} limit reached: the queue did not drain for ${Math.round(limits.writeWait / 1000)}s`));
+        }, limits.writeWait);
+        w.timer.unref?.();
+        waiters.add(w);
+      });
+    },
+    close() {
+      if (closed)
+        return;
+      closed = true;
+      queue.length = 0;
+      outbound.bytes = 0;
+      outbound.messages = 0;
+      wake();
+      rejectWrite?.(new NativeSessionError(410, "native transport was cancelled"));
+      close();
+    }
+  };
+}
+async function runNative({ tok, base, id, tools, conv, convID, signal, maxMode, params, native }) {
+  const cid = convID || randomUUID();
+  const since = Date.now();
+  const accounting = new AbortController;
+  const book = ledger(tok, cid, since, accounting.signal, !!convID, { before: since });
+  const debtKey = usageKey(tok, cid);
+  let started = false, settled = false, deferred = null;
+  native.accounting = {
+    started() {
+      started = true;
+    },
+    async settle() {
+      const more = await book.owed(true);
+      if (settled) {
+        if (more)
+          owe(debtKey, { carry: more });
+        return null;
+      }
+      deferred = more;
+      return more;
+    },
+    delivered() {
+      if (settled)
+        return;
+      settled = true;
+      deferred = null;
+      book.done();
+      accounting.abort();
+    },
+    abandon() {
+      if (settled)
+        return;
+      settled = true;
+      book.done();
+      accounting.abort();
+      if (deferred)
+        owe(debtKey, { carry: deferred });
+      deferred = null;
+      if (started && native.segments > 0 && !native.finalUsage && convID && canRead(tok)) {
+        owe(debtKey, { since, n: 1, ready: Date.now() + STEP_WAIT.owedAt });
+      }
+    }
+  };
+  const { first, blobs } = buildRun(conv.msgs, conv.last, tools, id, cid, { maxMode, params });
+  native.chatTools = tools;
+  native.attach(signal);
+  if (native.error) {
+    nativeSessions.forget(native);
+    return { error: native.error };
+  }
+  const o = await open(base, {
+    "content-type": "application/connect+proto",
+    "connect-protocol-version": "1",
+    authorization: `Bearer ${tok}`,
+    "x-cursor-client-version": await clientVersion(),
+    "x-cursor-client-type": "cli",
+    "x-ghost-mode": "true",
+    "x-request-id": randomUUID(),
+    "x-cursor-agent-allowed-tools": "mcp_tool_call,get_mcp_tools_tool_call"
+  }, native.ac.signal);
+  if (o.error) {
+    native.fail(o.error);
+    nativeSessions.forget(native);
+    return o;
+  }
+  const { session, req } = o;
+  const close = () => {
+    try {
+      req.close(http2.constants.NGHTTP2_CANCEL);
+    } catch {}
+    session.close();
+    session.destroy();
+  };
+  const transport = nativeTransport(req, close, (e) => native.fail({ status: e.status ?? 502, message: e.message }), native.limits);
+  try {
+    native.bind(transport, blobs, conv.estimate);
+    if (native.error) {
+      nativeSessions.forget(native);
+      return { error: native.error };
+    }
+    native.send(first);
+    native.accounting.started();
+    if (o.status < 200 || o.status > 299) {
+      const chunks = [];
+      for await (const c of req)
+        chunks.push(c);
+      native.fail(failure(o.status, Buffer.concat(chunks).toString("utf8").slice(0, 1 << 20)));
+      nativeSessions.forget(native);
+      return { error: native.error, h1: !!o.h1 };
+    }
+    native.pumpTask = (async () => {
+      await native.pump(frames(req));
+    })();
+    const response = native.response();
+    const it = response.events;
+    const head = await it.next();
+    if (head.done || head.value.error) {
+      const error = head.value?.error ?? { status: 502, message: "an empty reply" };
+      await native.cancel(error.message);
+      nativeSessions.forget(native);
+      return { error, h1: !!o.h1 };
+    }
+    let firstEvent = head;
+    response.events = {
+      next() {
+        if (firstEvent) {
+          const r = firstEvent;
+          firstEvent = null;
+          return Promise.resolve(r);
+        }
+        return it.next();
+      },
+      return: () => it.return(),
+      [Symbol.asyncIterator]() {
+        return this;
+      }
+    };
+    return response;
+  } catch (e) {
+    native.fail({ status: e.status ?? 502, message: e.message });
+    await native.pumpTask;
+    nativeSessions.forget(native);
+    return { error: native.error, h1: !!o.h1 };
+  }
+}
+async function runOnce({ tok, base, id, tools, conv, convID, signal, maxMode, params }) {
+  const cid = convID || randomUUID();
+  const since = Date.now();
+  const book = ledger(tok, cid, since, signal, !!convID);
+  const { first, blobs } = buildRun(conv.msgs, conv.last, tools, id, cid, { maxMode, params });
+  const o = await open(base, {
+    "content-type": "application/connect+proto",
+    "connect-protocol-version": "1",
+    authorization: `Bearer ${tok}`,
+    "x-cursor-client-version": await clientVersion(),
+    "x-cursor-client-type": "cli",
+    "x-ghost-mode": "true",
+    "x-request-id": randomUUID(),
+    "x-cursor-agent-allowed-tools": "mcp_tool_call,get_mcp_tools_tool_call"
+  }, signal);
+  if (o.error)
+    return book.done(), o;
+  const { session, req } = o;
+  let closed = false;
+  let heartbeat;
+  const send = (msg) => {
+    if (!closed && !req.destroyed && req.writable)
+      req.write(frame(msg));
+  };
+  const close = () => {
+    if (closed)
+      return;
+    closed = true;
+    clearInterval(heartbeat);
+    signal?.removeEventListener("abort", close);
+    try {
+      req.close(http2.constants.NGHTTP2_CANCEL);
+    } catch {}
+    session.close();
+    setTimeout(() => session.destroy(), 1000).unref?.();
+  };
+  signal?.addEventListener("abort", close, { once: true });
+  if (signal?.aborted) {
+    close();
+    book.done();
+    return cancelledOpen();
+  }
+  heartbeat = setInterval(() => send(pb().bytes(7, EMPTY).done()), 5000);
+  send(first);
+  if (o.status < 200 || o.status > 299) {
+    const chunks = [];
+    try {
+      for await (const c of req)
+        chunks.push(c);
+    } catch {}
+    close();
+    book.done();
+    return { error: failure(o.status, Buffer.concat(chunks).toString("utf8").slice(0, 1 << 20)) };
+  }
+  const it = decode(frames(req), {
+    send,
+    blobs,
+    tools,
+    estimate: conv.estimate,
+    close,
+    stepUsage: book.own,
+    owedUsage: book.owed
+  });
+  const wrapped = async function* () {
+    try {
+      yield* it;
+    } finally {
+      close();
+      book.done();
+    }
+  }();
+  const head = await wrapped.next();
+  if (head.done)
+    return book.done(), { error: { status: 502, message: "an empty reply" } };
+  if (head.value.error) {
+    await wrapped.return();
+    return { error: head.value.error, h1: !!o.h1 };
+  }
+  return {
+    events: async function* () {
+      yield head.value;
+      yield* wrapped;
+    }()
+  };
+}
+async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage, owedUsage }) {
+  let calls = 0;
+  let answered = 0;
+  let ended = false;
+  let listed = 0;
+  const stepDone = () => {
+    if (!listed || calls + answered < listed)
+      return false;
+    if (calls > 0)
+      return true;
+    listed = 0;
+    answered = 0;
+    return false;
+  };
+  let said = 0;
+  let wrote = 0;
+  const seen = { thinking: 0, refused: new Map, updates: new Map, messages: new Map };
+  const count = (m, k) => m.set(k, (m.get(k) ?? 0) + 1);
+  const empty = (how) => ({ error: { status: 502, message: "an empty reply" + emptyWhy(how, seen, ended ? usage2 : null) } });
+  let usage2 = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 };
+  let counted = false;
+  const finish = (more) => {
+    if (!counted && !usage2.output)
+      usage2.output = Math.floor((said + 3) / 4);
+    if (!counted && !usage2.input && !usage2.cacheRead && !usage2.cacheWrite)
+      usage2.input = estimate;
+    const prompt = usage2.input + usage2.cacheRead + usage2.cacheWrite;
+    const deferred = more && more.input + more.output + more.cacheRead + more.cacheWrite > 0;
+    return {
+      stop: calls > 0 ? "tool_calls" : "stop",
+      usage: {
+        prompt_tokens: prompt,
+        completion_tokens: usage2.output,
+        total_tokens: prompt + usage2.output,
+        prompt_tokens_details: { cached_tokens: usage2.cacheRead, cache_write_tokens: usage2.cacheWrite },
+        ...usage2.reasoning ? { completion_tokens_details: { reasoning_tokens: usage2.reasoning } } : {},
+        ...deferred ? {
+          magpie_deferred: {
+            prompt_tokens: more.input + more.cacheRead + more.cacheWrite,
+            completion_tokens: more.output,
+            cached_tokens: more.cacheRead,
+            cache_write_tokens: more.cacheWrite
+          }
+        } : {}
+      }
+    };
+  };
+  const settled = async () => {
+    if (calls > 0 && !ended && stepUsage) {
+      close?.();
+      const u = await stepUsage().catch(() => null);
+      if (u)
+        usage2 = u;
+      counted = u === false || !!u;
+    }
+    return finish(owedUsage ? await owedUsage(calls === 0).catch(() => null) : null);
+  };
+  const closeExec = (id) => send(pb().bytes(5, pb().bytes(1, pb().varint(1, id))).done());
+  try {
+    for await (const f of stream) {
+      if (f.end) {
+        const e = failure(200, f.data);
+        if (e.status < 200 || e.status > 299)
+          yield { error: e };
+        else if (wrote === 0 && calls === 0)
+          yield empty(endFrame(f.data));
+        else
+          yield await settled();
+        return;
+      }
+      for (const m of fields(f.data)) {
+        switch (m.num) {
+          case 1:
+            for (const u of fields(m.data)) {
+              const uf = fields(u.data);
+              switch (u.num) {
+                case 1: {
+                  const t = pbStr(uf, 1);
+                  if (t) {
+                    said += t.length;
+                    wrote += t.length;
+                    yield { text: t };
+                  }
+                  break;
+                }
+                case 4: {
+                  const t = pbStr(uf, 1);
+                  if (t) {
+                    said += t.length;
+                    seen.thinking += t.length;
+                    yield { reasoning: t };
+                  }
+                  break;
+                }
+                case 14:
+                  usage2 = usageOf(uf);
+                  ended = true;
+                  if (calls === 0) {
+                    yield wrote === 0 ? empty("Cursor ended the turn") : await settled();
+                    return;
+                  }
+                  break;
+                case 27:
+                  listed = pbNum(uf, 1);
+                  if (stepDone()) {
+                    yield await settled();
+                    return;
+                  }
+                  break;
+                default:
+                  count(seen.updates, u.num);
+              }
+            }
+            break;
+          case 2: {
+            const call = exec(m.data, tools, send, closeExec, seen.refused);
+            if (call) {
+              said += call.args.length;
+              yield { tool: { index: calls++, ...call } };
+            } else if (!fields(m.data).some((e) => e.num === 10))
+              answered++;
+            if (stepDone()) {
+              yield await settled();
+              return;
+            }
+            break;
+          }
+          case 4: {
+            const kv = fields(m.data);
+            const id = pbNum(kv, 1);
+            for (const k of kv) {
+              if (k.num === 2) {
+                const want = field2(fields(k.data), 1)?.data.toString("hex") ?? "";
+                const b = blobs.get(want);
+                const res = b ? pb().bytes(1, b) : pb().bytes(2, pb().str(1, "blob not found"));
+                send(pb().bytes(3, pb().varint(1, id).bytes(2, res)).done());
+              } else if (k.num === 3) {
+                send(pb().bytes(3, pb().varint(1, id).bytes(3, EMPTY)).done());
+              }
+            }
+            break;
+          }
+          default:
+            count(seen.messages, m.num);
+        }
+      }
+    }
+    if (calls > 0) {
+      yield await settled();
+      return;
+    }
+    yield { error: { status: 502, message: "the reply broke off: EOF" } };
+  } catch (e) {
+    if (calls > 0 && /EOF/.test(e?.message ?? "")) {
+      yield await settled();
+      return;
+    }
+    yield { error: { status: 502, message: "the reply broke off: " + (e?.message ?? e) } };
+  }
+}
+function endFrame(data) {
+  const t = Buffer.from(data ?? []).toString("utf8").trim();
+  if (!t || t === "{}")
+    return "the Run's stream ended (an empty end frame)";
+  return `the Run's stream ended (end frame: ${t.length > 300 ? t.slice(0, 300) + "…" : t})`;
+}
+function emptyWhy(how, seen, usage2) {
+  const list = (m) => [...m].map(([k, n]) => n > 1 ? `#${k} ×${n}` : `#${k}`).join(", ");
+  const parts = [how];
+  parts.push(seen.thinking ? `after ${seen.thinking} chars of thinking, no text and no tool call` : "with no thinking, no text and no tool call");
+  if (usage2)
+    parts.push(`Cursor counted ${usage2.output} output tokens`);
+  if (seen.refused.size)
+    parts.push(`Cursor's own tools asked for and refused: ${list(seen.refused)}`);
+  if (seen.updates.size)
+    parts.push(`updates not read: ${list(seen.updates)}`);
+  if (seen.messages.size)
+    parts.push(`messages not read: ${list(seen.messages)}`);
+  return ` (${parts.join("; ")}; try again)`;
+}
+function exec(msg, tools, send, closeExec, refused, native = false) {
+  const es = native ? nativeFields(msg) : fields(msg);
+  if (native && es.some((e) => e.num === 1 && (e.wire !== 0 || !Number.isInteger(e.n) || e.n < 0 || e.n > 4294967295)))
+    throw new NativeSessionError(502, "invalid native exec request ID");
+  const id = pbNum(es, 1);
+  const execID = pbStr(es, 15);
+  let nativeCall, nativeUnavailable = false;
+  if (native) {
+    for (const e of es)
+      if (e.num === 11) {
+        if (e.wire !== 2)
+          throw new NativeSessionError(502, "invalid native MCP argument envelope");
+        const { fields: a, args } = nativeMcpArgs(e.data);
+        const name = pbStr(a, 5) || pbStr(a, 1).replace(/^magpie-/, "");
+        const provider = pbStr(a, 4);
+        const server = pbStr(a, 9);
+        if (provider && provider !== "magpie" || server && server !== "magpie")
+          nativeUnavailable = true;
+        if (pbNum(a, 7) || field2(a, 6))
+          nativeUnavailable = true;
+        if (!tools.some((t) => t.name === name))
+          nativeUnavailable = true;
+        if (!pbStr(a, 5) && pbStr(a, 1) !== "magpie-" + name)
+          nativeUnavailable = true;
+        const call = { requestID: id, execID, nativeID: pbStr(a, 3), name, args };
+        if (nativeCall && !isDeepStrictEqual(nativeCall, call))
+          throw new NativeSessionError(502, "ambiguous repeated native MCP argument envelopes");
+        nativeCall ??= call;
+      }
+  }
+  const answer = (num2, res) => {
+    send(pb().bytes(2, pb().varint(1, id).str(15, execID).bytes(num2, res)).done());
+    closeExec(id);
+  };
+  const unavailable = () => {
+    const kind = es.find((e) => ![1, 15, 19, 55].includes(e.num))?.num ?? 0;
+    refused?.set(kind, (refused.get(kind) ?? 0) + 1);
+    send(pb().bytes(5, pb().bytes(2, pb().varint(1, id).str(2, "not available"))).done());
+    closeExec(id);
+    return null;
+  };
+  if (nativeUnavailable)
+    return unavailable();
+  for (const e of es) {
+    switch (e.num) {
+      case 11: {
+        if (native)
+          return { ...nativeCall, args: JSON.stringify(nativeCall.args) };
+        const a = fields(e.data);
+        const args = {};
+        for (const kv of a) {
+          if (kv.num !== 2)
+            continue;
+          const ef = fields(kv.data);
+          const v = field2(ef, 2);
+          args[pbStr(ef, 1)] = v ? pbAny(v.data) : null;
+        }
+        const name = pbStr(a, 5) || pbStr(a, 1).replace(/^magpie-/, "");
+        const cid = pbStr(a, 3).replaceAll(`
+`, "__") || "call_" + randomBytes2(12).toString("hex");
+        return { id: cid, name, args: JSON.stringify(args) };
+      }
+      case 36: {
+        const srv = pb().str(1, "magpie").str(2, "magpie").str(7, "connected");
+        for (const t of tools)
+          srv.bytes(5, toolDef(t));
+        answer(36, pb().bytes(1, pb().bytes(1, srv)));
+        return null;
+      }
+      case 10:
+        answer(10, pb().bytes(1, pb().bytes(1, pb().bytes(4, env2()))));
+        return null;
+    }
+  }
+  return unavailable();
+}
+var errorResponse = ({ status, message }) => new Response(JSON.stringify({ error: { message, type: "cursor_error", code: status } }), {
+  status,
+  headers: { "Content-Type": "application/json", "X-Magpie-Sign-In": "kept" }
+});
+function kept(res) {
+  if (res.headers.has("X-Magpie-Sign-In"))
+    return res;
+  const headers = new Headers(res.headers);
+  headers.set("X-Magpie-Sign-In", "kept");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+var answer = async (auth, chat, signal, session) => kept(await answerOf(auth, chat, signal, session));
+var maxOnly = new Set;
+var maxRequired = (msg) => /max[ _]mode[ _]required|requires max mode/i.test(String(msg ?? ""));
+async function answerOf(auth, chat, signal, session = "") {
+  let tok;
+  try {
+    tok = await tokenOf(auth);
+  } catch (e) {
+    return errorResponse({ status: e.status ?? 401, message: e.message });
+  }
+  if (signal?.aborted)
+    return errorResponse({ status: 410, message: "the request was cancelled" });
+  const tools = toolsOf(chat);
+  const convID = conversationID(chat, session);
+  const prepared = nativeSessions.prepare(tok, chat, convID, tools);
+  let r;
+  if (prepared.owner)
+    r = prepared.owner.resume({ ...prepared, estimate: conversation(chat, tools).estimate }, signal);
+  const model = String(chat.model ?? "");
+  if (!r) {
+    let raw = [];
+    try {
+      raw = await usable(tok);
+    } catch {}
+    const tier = chat.service_tier;
+    const fast = tier === "priority" || tier === "fast" ? true : tier ? false : undefined;
+    const req = request(raw, model, chat.reasoning_effort ?? "", fast);
+    const id = req.id;
+    const params = req.params;
+    let maxMode = req.maxMode || maxOnly.has(id);
+    const conv = conversation(chat, tools);
+    let base = await agentURL(tok, false);
+    const once = async () => {
+      const native = prepared.fallback ? null : nativeSessions.create(prepared, { id, maxMode, params }, { pb, exec, usageOf, failure });
+      const args = { tok, base, id, tools, conv, convID, signal, maxMode, params };
+      let response = native ? await runNative({ ...args, native }) : await runOnce(args);
+      const rebuild = async () => {
+        const fallback = await runOnce(args);
+        fallback.diagnostic = "stateless; bootstrap=imported-history; reason=" + (response.error?.continuityReason || "missing-batch-count");
+        return fallback;
+      };
+      if (response.error?.retentionIneligible && !signal?.aborted)
+        response = await rebuild();
+      else if (native)
+        response.rebuild = rebuild;
+      response.diagnostic ??= "stateless; bootstrap=imported-history; reason=" + (prepared.fallback || "retention capacity or reservation unavailable");
+      return response;
+    };
+    r = await once();
+    if (r.error && regional(r.error.message)) {
+      const viaH1 = !!r.h1;
+      h1Until = 0;
+      const fresh = await agentURL(tok, true);
+      if (fresh !== base || viaH1) {
+        base = fresh;
+        r = await once();
+      }
+    }
+    if (r.error && !maxMode && maxRequired(r.error.message)) {
+      maxMode = true;
+      maxOnly.add(id);
+      r = await once();
+    }
+  }
+  if (r.error)
+    return errorResponse(r.error);
+  const it = r.events;
+  let head = await it.next();
+  if (head.value?.error)
+    return errorResponse(head.value.error);
+  let events = {
+    next() {
+      if (head) {
+        const value = head;
+        head = null;
+        return Promise.resolve(value);
+      }
+      return it.next();
+    },
+    return: () => it.return?.(),
+    [Symbol.asyncIterator]() {
+      return this;
+    }
+  };
+  const responseHeaders = { "X-Magpie-Cursor-Continuity": r.diagnostic };
+  const cid = "chatcmpl-" + randomBytes2(12).toString("hex");
+  const created = Math.floor(Date.now() / 1000);
+  if (!chat.stream) {
+    while (true) {
+      let retry = false;
+      const msg = { role: "assistant", content: "" };
+      let reasoning = "";
+      const calls = [];
+      let stop = "stop";
+      let usage2;
+      for await (const e of events) {
+        if (e.error) {
+          if (!e.error.retentionIneligible || !r.rebuild || signal?.aborted)
+            return errorResponse(e.error);
+          const reason = e.error.continuityReason;
+          r = await r.rebuild();
+          if (r.error)
+            return errorResponse(r.error);
+          if (reason)
+            r.diagnostic = "stateless; bootstrap=imported-history; reason=" + reason;
+          events = r.events;
+          responseHeaders["X-Magpie-Cursor-Continuity"] = r.diagnostic;
+          retry = true;
+          break;
+        }
+        if (e.text)
+          msg.content += e.text;
+        if (e.reasoning)
+          reasoning += e.reasoning;
+        if (e.tool)
+          calls.push({ id: e.tool.id, type: "function", function: { name: e.tool.name, arguments: e.tool.args } });
+        if (e.stop)
+          [stop, usage2] = [e.stop, e.usage];
+      }
+      if (retry)
+        continue;
+      if (reasoning)
+        msg.reasoning_content = reasoning;
+      if (calls.length)
+        msg.tool_calls = calls;
+      r.delivered?.();
+      return Response.json({ id: cid, object: "chat.completion", created, model, choices: [{ index: 0, message: msg, finish_reason: stop }], ...usage2 ? { usage: usage2 } : {} }, { headers: responseHeaders });
+    }
+  }
+  const chunk = (delta, finish_reason = null, extra = {}) => enc.encode(`data: ${JSON.stringify({ id: cid, object: "chat.completion.chunk", created, model, choices: [{ index: 0, delta, finish_reason }], ...extra })}
+
+`);
+  let began = false;
+  const stream = new ReadableStream({
+    async pull(ctl) {
+      const next = await events.next();
+      if (!began) {
+        began = true;
+        ctl.enqueue(chunk({ role: "assistant", content: "" }));
+      }
+      if (next.done) {
+        r.delivered?.();
+        ctl.enqueue(enc.encode(`data: [DONE]
+
+`));
+        return ctl.close();
+      }
+      const e = next.value;
+      if (e.text)
+        ctl.enqueue(chunk({ content: e.text }));
+      else if (e.reasoning)
+        ctl.enqueue(chunk({ reasoning_content: e.reasoning }));
+      else if (e.tool)
+        ctl.enqueue(chunk({ tool_calls: [{ index: e.tool.index, id: e.tool.id, type: "function", function: { name: e.tool.name, arguments: e.tool.args } }] }));
+      else if (e.stop)
+        ctl.enqueue(chunk({}, e.stop, e.usage ? { usage: e.usage } : {}));
+      else if (e.error) {
+        ctl.enqueue(enc.encode(`data: ${JSON.stringify({ error: { message: e.error.message, code: e.error.status } })}
+
+`));
+        ctl.close();
+      }
+    },
+    async cancel() {
+      await r.cancel?.();
+      await events.return();
+    }
+  });
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", ...responseHeaders } });
+}
+async function CursorAuthPlugin() {
+  return {
+    auth: {
+      provider: ID,
+      async loader(getAuth) {
+        const auth = await getAuth();
+        if (!auth || auth.type !== "oauth" && auth.type !== "api")
+          return {};
+        return {
+          baseURL: AGENT,
+          apiKey: "cursor",
+          async fetch(input, init = {}) {
+            const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+            if (!/\/chat\/completions$/.test(new URL(url).pathname))
+              return errorResponse({ status: 404, message: "only chat completions are served" });
+            let chat;
+            try {
+              const b = init.body ?? (input instanceof Request ? await input.clone().text() : undefined);
+              chat = JSON.parse(typeof b === "string" ? b : new TextDecoder().decode(b));
+            } catch {
+              return errorResponse({ status: 400, message: "a request that isn't JSON" });
+            }
+            const session = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined)).get(SESSION) ?? "";
+            return answer(await getAuth() ?? auth, chat, init.signal ?? (input instanceof Request ? input.signal : undefined), session);
+          }
+        };
+      },
+      methods: [
+        { type: "oauth", label: "Cursor (browser)", authorize: browserSignIn },
+        { type: "oauth", label: "cursor-agent's sign-in", authorize: cliSignIn },
+        { type: "api", label: "Cursor API key (cursor.com/dashboard → Integrations)" }
+      ],
+      async usage(getAuth, provider) {
+        let tok;
+        try {
+          tok = await tokenOf(await getAuth());
+        } catch (e) {
+          return { error: e.message, windows: [], signIn: "kept" };
+        }
+        const [u, plan, bot] = await Promise.all([usage(tok, Object.keys(provider?.models ?? {})), planOf(tok), botUsage(tok)]);
+        const last = (w) => w.name === "Total" || w.name === "On-demand" && w.aside;
+        const windows = [...u.windows.filter((w) => !last(w)), ...bot, ...u.windows.filter(last)];
+        return { ...u, windows, ...plan ? { plan } : {}, signIn: "kept" };
+      }
+    },
+    async "chat.headers"(input, output) {
+      if (input?.model?.providerID !== ID && input?.provider?.info?.id !== ID)
+        return;
+      const s = sessionOf(input);
+      if (s)
+        output.headers[SESSION] = s;
+    },
+    async config(config) {
+      config.provider ??= {};
+      const was = config.provider[ID] ?? {};
+      config.provider[ID] = {
+        name: "Cursor",
+        npm: CHAT,
+        api: AGENT,
+        ...was,
+        models: {
+          auto: { name: "Auto", limit: { context: DEFAULT_CONTEXT, output: 0 }, attachment: true, tool_call: true },
+          ...was.models ?? {}
+        }
+      };
+    },
+    provider: {
+      id: ID,
+      async models(provider, { auth } = {}) {
+        if (!auth)
+          return provider.models;
+        const tok = await tokenOf(auth);
+        return Object.fromEntries((await usable(tok)).map((m) => [m.id, runtimeModel(m)]));
+      }
+    }
+  };
+}
+
+// node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
+import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join5 } from "node:path";
+var APP_VERSION = "2.0.0";
+var UA_VERSION = "5.5.6";
+var POLL_MS = 1000;
+var SIGN_IN_MS = 5 * 60 * 1000;
+var EARLY_MS = 60 * 1000;
+var LEAD_MS = 5 * 60 * 1000;
+var KEEP_RENEWED_MS = 60 * 1000;
+var CN_MODELS = [
+  ["auto", "Auto", 168000],
+  ["hy4-preview-f", "Hy4 preview", 1e6, ["high"]],
+  ["hy3", "Hy3", 192000, ["low", "high"]],
+  ["hy3-x", "Hy3-X", 192000, ["low", "high"]],
+  ["deepseek-v4.1-flash", "Deepseek-V4.1-Flash", 1e6],
+  ["glm-5.3", "GLM-5.3", 1e6, ["low", "high", "max"]],
+  ["glm-5.3-flash", "GLM-5.3-Flash", 1e6, ["low", "high", "max"]],
+  ["glm-5.2", "GLM-5.2", 1e6, ["high", "xhigh"]],
+  ["glm-5.1", "GLM-5.1", 200000],
+  ["glm-5v-turbo", "GLM-5v-Turbo", 200000],
+  ["minimax-m3", "MiniMax-M3", 512000],
+  ["kimi-k3-1", "Kimi-K3", 1e6, ["low", "high", "xhigh"]],
+  ["kimi-k2.7", "Kimi-K2.7-Code", 256000],
+  ["kimi-k2.6", "Kimi-K2.6", 256000],
+  ["deepseek-v4-pro", "Deepseek-V4-Pro", 1e6, ["none", "high", "xhigh"]]
+];
+var AI_MODELS = [
+  ["default-model", "Default", 176000],
+  ["fast-model", "Fast", 200000],
+  ["balanced-model", "Balanced", 256000],
+  ["primary-model", "Primary", 272000],
+  ["deep-model", "Deep", 176000],
+  ["gpt-5.5", "GPT-5.5", 1e6],
+  ["gpt-5.4", "GPT-5.4", 272000],
+  ["gpt-5.3-codex", "GPT-5.3-Codex", 272000],
+  ["gemini-3.1-pro", "Gemini-3.1-Pro", 400000],
+  ["gemini-3.5-flash", "Gemini-3.5-Flash", 1e6],
+  ["glm-5.3", "GLM-5.3", 1e6, ["low", "high", "max"]],
+  ["glm-5.2", "GLM-5.2", 1e6, ["high", "xhigh"]],
+  ["hy3", "Hy3", 192000, ["low", "high"]],
+  ["kimi-k3", "Kimi-K3", 1e6],
+  ["kimi-k2.6", "Kimi-K2.6", 256000],
+  ["minimax-m3", "MiniMax-M3", 512000]
+];
+var SITES = {
+  workbuddy: {
+    id: "workbuddy",
+    name: "WorkBuddy",
+    endpoint: "https://copilot.tencent.com",
+    authID: "workbuddy-desktop",
+    platform: "workbuddy",
+    ai: false,
+    models: CN_MODELS
+  },
+  "workbuddy-ai": {
+    id: "workbuddy-ai",
+    name: "WorkBuddy AI",
+    endpoint: "https://www.workbuddy.ai",
+    authID: "workbuddy-desktop-ai",
+    platform: "workbuddy-ai",
+    ai: true,
+    models: AI_MODELS,
+    noImages: /^glm-/
+  }
+};
+function textOnly(site, model) {
+  return !!site.noImages?.test(model);
+}
+var NPM = "@ai-sdk/openai-compatible";
+var hex = () => randomBytes3(16).toString("hex");
+var sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
+var api = (site) => site.endpoint + "/v2";
+
+class WBError extends Error {
+  constructor(message, code, status, said) {
+    super(message);
+    this.code = code;
+    this.status = status;
+    this.said = said;
+  }
+}
+async function call(site, method, path, headers = {}, body) {
+  const res = await fetch(site.endpoint + path, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "WorkBuddy/" + UA_VERSION,
+      ...headers
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(30000)
+  });
+  const text = await res.text();
+  let env3 = {};
+  try {
+    env3 = JSON.parse(text);
+  } catch {}
+  const code = Number.parseInt(env3.code, 10) || 0;
+  if (!res.ok) {
+    const why = env3.msg || env3.message || env3.error?.message || text.slice(0, 200) || res.statusText;
+    const said = code ? env3.msg || `error ${code}` : env3.msg || statusText2(res.status);
+    throw new WBError(`${site.name}: ${why} (HTTP ${res.status}${env3.code ? ", code " + env3.code : ""})`, env3.code, res.status, said);
+  }
+  if (env3.code)
+    throw new WBError(`${site.name}: ${env3.msg || "error"} (${env3.code})`, env3.code, res.status, env3.msg || `error ${code}`);
+  return env3.data;
+}
+function domainOf(site, a) {
+  return a.domain || new URL(api(site)).host;
+}
+function merge(a, got) {
+  const now = Date.now();
+  const out = { ...a, access: got.accessToken };
+  if (got.refreshToken)
+    out.refresh = got.refreshToken;
+  if (got.domain)
+    out.domain = got.domain;
+  if (got.tokenType)
+    out.tokenType = got.tokenType;
+  if (got.expiresAt > 0)
+    out.expires = got.expiresAt;
+  else if (got.expiresIn > 0)
+    out.expires = now + got.expiresIn * 1000;
+  if (got.refreshExpiresAt > 0)
+    out.refreshExpiresAt = got.refreshExpiresAt;
+  else if (got.refreshExpiresIn > 0)
+    out.refreshExpiresAt = now + got.refreshExpiresIn * 1000;
+  return out;
+}
+function stale(a) {
+  return !!a.expires && Date.now() >= a.expires - EARLY_MS;
+}
+var renewing = new Map;
+var renewed = new Map;
+function refreshable(a) {
+  return !!a.refresh && !(a.refreshExpiresAt && Date.now() >= a.refreshExpiresAt);
+}
+function renew(site, a, save) {
+  const key = site.id + `
+` + a.refresh;
+  const done = renewed.get(key);
+  if (done && Date.now() - done.at < KEEP_RENEWED_MS)
+    return Promise.resolve(merged(a, done.next));
+  let r = renewing.get(key);
+  if (!r) {
+    r = (async () => {
+      const got = await call(site, "POST", "/v2/plugin/auth/token/refresh", {
+        "X-Refresh-Token": a.refresh,
+        "X-Auth-Refresh-Source": "plugin",
+        "X-Domain": domainOf(site, a),
+        ...enterpriseHeaders(a)
+      }, {});
+      if (!got?.accessToken)
+        throw Object.assign(new Error("WorkBuddy gave no refreshed token"), { bare: true });
+      const next = merge(a, got);
+      renewed.set(key, { next, at: Date.now() });
+      await save?.(next);
+      return next;
+    })().finally(() => renewing.delete(key));
+    renewing.set(key, r);
+  }
+  return r.then((next) => merged(a, next));
+}
+function merged(a, next) {
+  const out = { ...a };
+  for (const k of TOKEN_FIELDS)
+    if (k in next)
+      out[k] = next[k];
+  return out;
+}
+var TOKEN_FIELDS = ["access", "refresh", "expires", "refreshExpiresAt", "domain", "tokenType"];
+async function fresh(site, client, a) {
+  if (!stale(a))
+    return a;
+  if (!refreshable(a)) {
+    if (a.access)
+      return a;
+    throw new Error("this WorkBuddy account is signed out; sign in again");
+  }
+  try {
+    return await renew(site, a, async (next) => {
+      try {
+        await client?.auth?.set?.({ path: { id: site.id }, body: next });
+      } catch {}
+    });
+  } catch (e) {
+    if (a.access)
+      return a;
+    if (e?.bare)
+      throw e;
+    throw new Error(`WorkBuddy token refresh: ${e?.said ?? e?.message ?? e}`);
+  }
+}
+async function refreshed(site, auth) {
+  if (auth?.type !== "oauth" || auth.source === "desktop" || !auth.access || !auth.refresh)
+    return;
+  if (!refreshable(auth))
+    throw new Error("this WorkBuddy account is signed out; sign in again");
+  let next;
+  try {
+    next = await renew(site, auth);
+  } catch (e) {
+    if (e?.bare)
+      throw e;
+    throw new Error(`WorkBuddy token refresh: ${e?.said ?? e?.message ?? e}`);
+  }
+  const out = {};
+  for (const k of TOKEN_FIELDS)
+    if (k in next && next[k] !== auth[k])
+      out[k] = next[k];
+  return Object.keys(out).length ? out : undefined;
+}
+function sign(site, a, headers) {
+  headers.set("Authorization", "Bearer " + a.access);
+  headers.set("X-User-Id", a.uid ?? "");
+  headers.set("X-Domain", domainOf(site, a));
+  headers.set("X-Product", "SaaS");
+  headers.set("X-IDE-Type", "WorkBuddy");
+  headers.set("User-Agent", "WorkBuddy/" + UA_VERSION);
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("X-Agent-Intent", "craft");
+  headers.set("X-Agent-Purpose", "conversation");
+  headers.set("X-IDE-Name", "WorkBuddy");
+  headers.set("X-IDE-Version", UA_VERSION);
+  for (const [k, v] of Object.entries(enterpriseHeaders(a)))
+    headers.set(k, v);
+  if (!site.ai)
+    return;
+  headers.set("X-Agent-Type", "main");
+}
+function enterpriseHeaders(a) {
+  const id = typeof a?.enterpriseId === "string" ? a.enterpriseId.trim() : "";
+  return id ? { "X-Enterprise-Id": id, "X-Tenant-Id": id } : {};
+}
+async function enterpriseOf(site, a, who) {
+  const own = typeof who?.enterpriseId === "string" ? who.enterpriseId.trim() : "";
+  if (own)
+    return own;
+  const type = String(who?.type ?? "").trim().toLowerCase();
+  if (!type || type === "personal")
+    return "";
+  let list;
+  try {
+    list = await call(site, "GET", "/v2/plugin/accounts", {
+      Authorization: "Bearer " + a.access,
+      "X-Domain": domainOf(site, a)
+    });
+  } catch {
+    return "";
+  }
+  const mine = (list?.accounts ?? []).filter((x) => x?.uid === who.uid && typeof x.enterpriseId === "string" && x.enterpriseId.trim());
+  const same = mine.filter((x) => String(x.type ?? "").trim().toLowerCase() === type);
+  const last = mine.filter((x) => x.lastLogin);
+  const pick2 = same.length === 1 ? same[0] : last.length === 1 ? last[0] : mine.length === 1 ? mine[0] : undefined;
+  return pick2 ? pick2.enterpriseId.trim() : "";
+}
+var SESSION2 = "x-magpie-workbuddy-session";
+var SALT = randomBytes3(16).toString("hex");
+function idFor(kind, key) {
+  return createHash4("sha256").update(`${SALT}|${kind}|${key}`).digest("hex").slice(0, 32);
+}
+function signatureOf(content) {
+  if (typeof content === "string")
+    return content;
+  if (!Array.isArray(content))
+    return "";
+  let out = "";
+  for (const part of content) {
+    const type = part?.type ?? "";
+    if (type === "" || type === "text")
+      out += typeof part?.text === "string" ? part.text : "";
+    else if (type !== "tool_result" && type !== "tool-result") {
+      out += `[${type}:${createHash4("sha256").update(JSON.stringify(part)).digest("hex").slice(0, 8)}]`;
+    }
+  }
+  return out;
+}
+function answeredBefore(msgs, i) {
+  const prev = msgs[i - 1];
+  if (prev === null || typeof prev !== "object")
+    return false;
+  if (prev.role === "tool")
+    return true;
+  return prev.role === "assistant" && Array.isArray(prev.tool_calls) && prev.tool_calls.length > 0;
+}
+function turnKey(chat) {
+  const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
+  for (let i = msgs.length - 1;i >= 0; i--) {
+    if (msgs[i]?.role !== "user" || answeredBefore(msgs, i))
+      continue;
+    const sig = signatureOf(msgs[i].content);
+    return sig ? `u${i}:${sig}` : "";
+  }
+  return "";
+}
+function conversationKey(chat, session) {
+  if (session)
+    return `session:${session}`;
+  const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
+  for (const m of msgs) {
+    if (m?.role !== "user")
+      continue;
+    const sig = signatureOf(m.content);
+    if (sig)
+      return `first:${sig}`;
+  }
+  return "";
+}
+function chatOf(body) {
+  if (typeof body !== "string")
+    return null;
+  try {
+    const b = JSON.parse(body);
+    return b !== null && typeof b === "object" ? b : null;
+  } catch {
+    return null;
+  }
+}
+function sessionOf2(headers) {
+  const s = String(headers.get(SESSION2) ?? "").trim();
+  headers.delete(SESSION2);
+  return s.slice(0, 128);
+}
+function attend(headers, body, session) {
+  const chat = chatOf(body);
+  const conv = conversationKey(chat, session);
+  const msg = hex();
+  headers.set("X-Conversation-Message-ID", msg);
+  headers.set("X-Request-ID", msg);
+  if (!headers.has("X-Conversation-Request-ID")) {
+    const turn = turnKey(chat);
+    headers.set("X-Conversation-Request-ID", turn ? idFor("turn", `${conv}|${turn}`) : hex());
+  }
+  if (conv && !headers.has("X-Conversation-ID"))
+    headers.set("X-Conversation-ID", idFor("conversation", conv));
+}
+var FLAGGED = [
+  [/x-anthropic-billing-header:[^\n]*\n?/gi, ""],
+  [/You are Claude Code, Anthropic['’]s official CLI for Claude/gi, "You are Claude Code, Anthropic's CLI for Claude"],
+  [/Main branch \(you will usually use this for PRs\)/gi, "Main branch (usually the base for PRs)"],
+  [/(?<!the )Codex CLI is an open source project led by OpenAI\./gi, "The Codex CLI is an open source project led by OpenAI."],
+  [/You are an AI agent powered by DeepSeek Harness\.?/gi, "You are an AI agent that helps the user with programming tasks."],
+  [/Web GUI whose URL the runtime context names\.\s+When the user refers/gi, "Web GUI whose URL the runtime context names. The interface, when the user refers"]
+];
+function unflagged(text) {
+  for (const [re, to] of FLAGGED)
+    text = text.replace(re, to);
+  return text;
+}
+function unflag(messages) {
+  let changed = false;
+  for (let i = messages.length - 1;i >= 0; i--) {
+    const m = messages[i];
+    if (typeof m?.content === "string") {
+      const t = unflagged(m.content);
+      if (t === m.content)
+        continue;
+      changed = true;
+      if (t.trim() || m.role !== "system")
+        m.content = t;
+      else
+        messages.splice(i, 1);
+    } else if (Array.isArray(m?.content)) {
+      const parts = [];
+      let here = false;
+      for (const p of m.content) {
+        const t = typeof p?.text === "string" ? unflagged(p.text) : null;
+        if (t === null || t === p.text) {
+          parts.push(p);
+          continue;
+        }
+        here = true;
+        if (t.trim())
+          parts.push({ ...p, text: t });
+      }
+      if (!here)
+        continue;
+      changed = true;
+      if (parts.length || m.role !== "system")
+        m.content = parts;
+      else
+        messages.splice(i, 1);
+    }
+  }
+  return changed;
+}
+function withSystem(body) {
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body))
+    body = new TextDecoder().decode(body);
+  if (typeof body !== "string")
+    return body;
+  try {
+    const b = JSON.parse(body);
+    if (!Array.isArray(b?.messages) || !b.messages.length)
+      return body;
+    let changed = unflag(b.messages);
+    if (b.max_completion_tokens !== undefined) {
+      if (b.max_tokens === undefined)
+        b.max_tokens = b.max_completion_tokens;
+      delete b.max_completion_tokens;
+      changed = true;
+    }
+    for (const m of b.messages) {
+      if (m?.role !== "developer")
+        continue;
+      m.role = "system";
+      changed = true;
+    }
+    if (b.messages[0]?.role !== "system") {
+      b.messages.unshift({ role: "system", content: "You are a helpful assistant." });
+      changed = true;
+    }
+    return changed ? JSON.stringify(b) : body;
+  } catch {
+    return body;
+  }
+}
+var DEFAULT_SYSTEM = "You are a helpful assistant.";
+var INSTRUCTIONS = [`<instructions>
+`, `
+</instructions>`];
+function textOf2(content) {
+  if (typeof content === "string")
+    return content;
+  if (!Array.isArray(content))
+    return "";
+  return content.map((p) => typeof p?.text === "string" ? p.text : "").filter(Boolean).join(`
+`);
+}
+function systemKey(body) {
+  const msgs = chatOf(body)?.messages;
+  if (!Array.isArray(msgs))
+    return "";
+  const key = msgs.filter((m) => m?.role === "system").map((m) => textOf2(m.content)).join(`
+`);
+  return key.trim() === DEFAULT_SYSTEM ? "" : key;
+}
+function systemAsUser(body) {
+  const b = chatOf(body);
+  const msgs = b?.messages;
+  if (!Array.isArray(msgs))
+    return null;
+  let i = 0;
+  const lead = [];
+  for (;i < msgs.length && msgs[i]?.role === "system"; i++)
+    lead.push(textOf2(msgs[i].content));
+  const said = lead.join(`
+
+`).trim();
+  const rest = msgs.slice(i).map((m) => m?.role === "system" ? { ...m, role: "user" } : m);
+  const moved = said && said !== DEFAULT_SYSTEM;
+  if (!moved && rest.every((m, k) => m === msgs[i + k]))
+    return null;
+  if (moved) {
+    const text = INSTRUCTIONS[0] + said + INSTRUCTIONS[1];
+    const u = rest.findIndex((m) => m?.role === "user");
+    if (u < 0)
+      rest.unshift({ role: "user", content: text });
+    else if (typeof rest[u].content === "string")
+      rest[u] = { ...rest[u], content: text + `
+
+` + rest[u].content };
+    else if (Array.isArray(rest[u].content))
+      rest[u] = { ...rest[u], content: [{ type: "text", text }, ...rest[u].content] };
+    else
+      rest[u] = { ...rest[u], content: text };
+  }
+  b.messages = [{ role: "system", content: DEFAULT_SYSTEM }, ...rest];
+  return JSON.stringify(b);
+}
+function normalizeToolChoice(body) {
+  if (typeof body !== "string")
+    return body;
+  try {
+    const b = JSON.parse(body);
+    if (!b || typeof b !== "object" || Array.isArray(b) || !("tool_choice" in b))
+      return body;
+    const choice = b.tool_choice;
+    if (typeof choice === "string") {
+      if (choice.trim().toLowerCase() === "none") {
+        delete b.tool_choice;
+        delete b.tools;
+        delete b.functions;
+      }
+      return JSON.stringify(b);
+    }
+    if (!choice || typeof choice !== "object" || Array.isArray(choice)) {
+      delete b.tool_choice;
+      return JSON.stringify(b);
+    }
+    const type = typeof choice.type === "string" ? choice.type.trim().toLowerCase() : "";
+    if (type === "none") {
+      delete b.tool_choice;
+      delete b.tools;
+      delete b.functions;
+    } else if (type === "auto" || type === "required") {
+      b.tool_choice = type;
+    } else if (type === "function") {
+      const fn = choice.function && typeof choice.function === "object" && !Array.isArray(choice.function) ? choice.function : undefined;
+      const name = typeof fn?.name === "string" ? fn.name.trim() : "";
+      b.tool_choice = name || "auto";
+    } else {
+      delete b.tool_choice;
+    }
+    return JSON.stringify(b);
+  } catch {
+    return body;
+  }
+}
+var NAME_OK = /^[A-Za-z0-9_-]+$/;
+function safeName(name, taken) {
+  const base = String(name).replace(/[^A-Za-z0-9_-]/g, "_") || "tool";
+  let n = base;
+  for (let i = 2;taken.has(n); i++)
+    n = `${base}_${i}`;
+  taken.add(n);
+  return n;
+}
+var NUL_ESCAPE = /\\\\|\\0(?![0-9])/g;
+function fitSchema(s, depth = 0) {
+  if (!s || typeof s !== "object" || depth > 64)
+    return false;
+  let changed = false;
+  if (Array.isArray(s)) {
+    for (const v of s)
+      if (fitSchema(v, depth + 1))
+        changed = true;
+    return changed;
+  }
+  if (typeof s.pattern === "string" && s.pattern.includes("\\0")) {
+    const p = s.pattern.replace(NUL_ESCAPE, (m) => m === "\\\\" ? m : "\\u0000");
+    if (p !== s.pattern) {
+      s.pattern = p;
+      changed = true;
+    }
+  }
+  if (Array.isArray(s.items)) {
+    const list = s.items.filter((v) => v && typeof v === "object");
+    s.items = list.length === 0 ? {} : list.length === 1 ? list[0] : { anyOf: list };
+    delete s.additionalItems;
+    changed = true;
+  }
+  for (const v of Object.values(s))
+    if (fitSchema(v, depth + 1))
+      changed = true;
+  return changed;
+}
+var TYPES = new Set(["string", "number", "integer", "boolean", "object", "array", "null"]);
+var SUB_ONE = ["items", "additionalItems", "unevaluatedItems", "contains", "not", "if", "then", "else", "propertyNames", "additionalProperties", "unevaluatedProperties"];
+var SUB_LIST = ["anyOf", "oneOf", "allOf", "prefixItems"];
+var SUB_MAP = ["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"];
+var BOOL_OK = new Set(["additionalProperties", "unevaluatedProperties"]);
+function valueType(v) {
+  if (v === null)
+    return "null";
+  if (Array.isArray(v))
+    return "array";
+  if (typeof v === "number")
+    return Number.isInteger(v) ? "integer" : "number";
+  return typeof v;
+}
+function fitEnum(s) {
+  if (!("enum" in s))
+    return false;
+  if (!Array.isArray(s.enum) || s.enum.length === 0) {
+    delete s.enum;
+    return true;
+  }
+  const listed = Array.isArray(s.type) ? s.type : typeof s.type === "string" ? [s.type] : [];
+  if (listed.filter((t) => t !== "null").length === 1)
+    return false;
+  const byType = new Map;
+  for (const v of s.enum) {
+    const t = valueType(v);
+    if (!byType.has(t))
+      byType.set(t, []);
+    byType.get(t).push(v);
+  }
+  if (byType.has("integer") && byType.has("number")) {
+    byType.get("number").push(...byType.get("integer"));
+    byType.delete("integer");
+  }
+  const hasNull = byType.delete("null");
+  if (byType.size <= 1) {
+    const [t] = byType.keys();
+    const want = t === undefined ? "null" : hasNull ? [t, "null"] : t;
+    if (JSON.stringify(want) === JSON.stringify(s.type))
+      return false;
+    s.type = want;
+    return true;
+  }
+  const split = [...byType].map(([t, vs]) => ({ type: t, enum: vs }));
+  if (hasNull)
+    split.push({ type: "null" });
+  delete s.enum;
+  delete s.type;
+  if (Array.isArray(s.anyOf))
+    s.allOf = [...Array.isArray(s.allOf) ? s.allOf : [], { anyOf: split }];
+  else
+    s.anyOf = split;
+  return true;
+}
+function subSchema(v, key) {
+  if (typeof v !== "boolean" || BOOL_OK.has(key))
+    return v;
+  return v ? {} : { not: {} };
+}
+function fitShape(s, depth = 0) {
+  if (!s || typeof s !== "object" || Array.isArray(s) || depth > 64)
+    return false;
+  let changed = false;
+  if ("type" in s) {
+    const list = (Array.isArray(s.type) ? s.type : [s.type]).map((t) => typeof t === "string" ? t.toLowerCase() : t).filter((t) => TYPES.has(t));
+    const uniq = [...new Set(list)];
+    const want = uniq.length === 0 ? undefined : uniq.length === 1 ? uniq[0] : uniq;
+    if (JSON.stringify(want) !== JSON.stringify(s.type)) {
+      if (want === undefined)
+        delete s.type;
+      else
+        s.type = want;
+      changed = true;
+    }
+  }
+  if ("required" in s && !Array.isArray(s.required)) {
+    delete s.required;
+    changed = true;
+  } else if (Array.isArray(s.required) && s.required.some((k) => typeof k !== "string")) {
+    s.required = s.required.filter((k) => typeof k === "string");
+    changed = true;
+  }
+  if (fitEnum(s))
+    changed = true;
+  for (const k of SUB_ONE) {
+    if (!(k in s))
+      continue;
+    const v = subSchema(s[k], k);
+    if (v !== s[k]) {
+      s[k] = v;
+      changed = true;
+    }
+    if (fitShape(v, depth + 1))
+      changed = true;
+  }
+  for (const k of SUB_LIST) {
+    if (!Array.isArray(s[k]))
+      continue;
+    s[k].forEach((v0, i) => {
+      const v = subSchema(v0, k);
+      if (v !== v0) {
+        s[k][i] = v;
+        changed = true;
+      }
+      if (fitShape(v, depth + 1))
+        changed = true;
+    });
+  }
+  for (const k of SUB_MAP) {
+    const m = s[k];
+    if (!m || typeof m !== "object" || Array.isArray(m))
+      continue;
+    for (const [name, v0] of Object.entries(m)) {
+      const v = subSchema(v0, k);
+      if (v !== v0) {
+        m[name] = v;
+        changed = true;
+      }
+      if (fitShape(v, depth + 1))
+        changed = true;
+    }
+  }
+  return changed;
+}
+function localRef(root, s) {
+  const ref = s?.$ref;
+  if (typeof ref !== "string" || !ref.startsWith("#/"))
+    return s;
+  let at = root;
+  for (const k of ref.slice(2).split("/"))
+    at = at?.[k.replaceAll("~1", "/").replaceAll("~0", "~")];
+  return at && typeof at === "object" ? at : s;
+}
+function objectRoot(ps, root = ps, depth = 0) {
+  const unions = ["allOf", "anyOf", "oneOf"].filter((k) => Array.isArray(ps[k]));
+  if (ps.type === "object" && !unions.length)
+    return false;
+  const props = ps.properties && typeof ps.properties === "object" ? ps.properties : {};
+  const required = Array.isArray(ps.required) ? [...ps.required] : [];
+  for (const b0 of ps.allOf ?? []) {
+    let b = localRef(root, b0);
+    if (!b || typeof b !== "object")
+      continue;
+    if (depth < 8 && ["allOf", "anyOf", "oneOf"].some((k) => Array.isArray(b[k])))
+      objectRoot(b = structuredClone(b), root, depth + 1);
+    for (const [k, v] of Object.entries(b.properties ?? {}))
+      if (!(k in props))
+        props[k] = v;
+    if (Array.isArray(b.required))
+      required.push(...b.required);
+  }
+  const branches = [];
+  for (const key of ["anyOf", "oneOf"]) {
+    for (const b0 of ps[key] ?? []) {
+      let b = localRef(root, b0);
+      if (!b || typeof b !== "object")
+        continue;
+      if (depth < 8 && ["allOf", "anyOf", "oneOf"].some((k) => Array.isArray(b[k])))
+        objectRoot(b = structuredClone(b), root, depth + 1);
+      if (b.type !== "object" && !b.properties)
+        continue;
+      branches.push(b);
+    }
+  }
+  const from = new Map;
+  for (const b of branches) {
+    for (const [k, v] of Object.entries(b.properties ?? {})) {
+      if (k in props)
+        continue;
+      const seen = from.get(k) ?? [];
+      if (!seen.some((x) => JSON.stringify(x) === JSON.stringify(v)))
+        seen.push(v);
+      from.set(k, seen);
+    }
+  }
+  for (const [k, list] of from)
+    props[k] = list.length === 1 ? list[0] : { anyOf: list };
+  if (branches.length) {
+    for (const k of Object.keys(branches[0].properties ?? {})) {
+      if (branches.every((b) => Array.isArray(b.required) && b.required.includes(k)))
+        required.push(k);
+    }
+  }
+  for (const k of unions)
+    delete ps[k];
+  ps.type = "object";
+  ps.properties = props;
+  const req = [...new Set(required)].filter((k) => typeof k === "string" && (k in props));
+  if (req.length)
+    ps.required = req;
+  else
+    delete ps.required;
+  return true;
+}
+function fitTools(b) {
+  const names = new Map;
+  if (!Array.isArray(b?.tools) || !b.tools.length)
+    return { changed: false, names };
+  let changed = false;
+  const taken = new Set;
+  for (const t of b.tools) {
+    const n = t?.function?.name;
+    if (typeof n === "string" && NAME_OK.test(n))
+      taken.add(n);
+  }
+  const theirs = new Map;
+  for (const t of b.tools) {
+    const fn = t?.type === "function" || t?.function ? t.function : null;
+    if (!fn || typeof fn !== "object")
+      continue;
+    if (typeof fn.name === "string" && !NAME_OK.test(fn.name)) {
+      const safe = safeName(fn.name, taken);
+      names.set(safe, fn.name);
+      theirs.set(fn.name, safe);
+      fn.name = safe;
+      changed = true;
+    }
+    if (fn.parameters === undefined)
+      continue;
+    if (!fn.parameters || typeof fn.parameters !== "object" || Array.isArray(fn.parameters)) {
+      fn.parameters = { type: "object", properties: {} };
+      changed = true;
+      continue;
+    }
+    if (fitSchema(fn.parameters))
+      changed = true;
+    if (fitShape(fn.parameters))
+      changed = true;
+    if (objectRoot(fn.parameters))
+      changed = true;
+  }
+  if (theirs.size && Array.isArray(b.messages)) {
+    for (const m of b.messages) {
+      for (const c of Array.isArray(m?.tool_calls) ? m.tool_calls : []) {
+        const safe = theirs.get(c?.function?.name);
+        if (safe)
+          c.function.name = safe;
+      }
+      if (m?.role === "tool" && theirs.has(m.name))
+        m.name = theirs.get(m.name);
+    }
+  }
+  const choice = b.tool_choice?.function;
+  if (choice && theirs.has(choice.name))
+    choice.name = theirs.get(choice.name);
+  return { changed, names };
+}
+function fitted(body) {
+  if (typeof body !== "string")
+    return { body, names: new Map };
+  try {
+    const b = JSON.parse(body);
+    const { changed, names } = fitTools(b);
+    return { body: changed ? JSON.stringify(b) : body, names };
+  } catch {
+    return { body, names: new Map };
+  }
+}
+function namedBack(v, names) {
+  let changed = false;
+  for (const c of Array.isArray(v?.choices) ? v.choices : []) {
+    for (const at of [c?.message, c?.delta]) {
+      for (const tc of Array.isArray(at?.tool_calls) ? at.tool_calls : []) {
+        const ours = names.get(tc?.function?.name);
+        if (ours) {
+          tc.function.name = ours;
+          changed = true;
+        }
+      }
+    }
+  }
+  return changed;
+}
+function renamed(res, names) {
+  if (!names.size || !res.body)
+    return res;
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  const json = /json/i.test(res.headers.get("content-type") ?? "");
+  if (json) {
+    const out = res.text().then((text) => {
+      try {
+        const v = JSON.parse(text);
+        return namedBack(v, names) ? JSON.stringify(v) : text;
+      } catch {
+        return text;
+      }
+    });
+    return out.then((text) => new Response(text, { status: res.status, statusText: res.statusText, headers }));
+  }
+  const dec = new TextDecoder;
+  const enc2 = new TextEncoder;
+  let rest = "";
+  const line = (l) => {
+    const m = /^data:\s?(.*)$/.exec(l);
+    if (!m || m[1] === "[DONE]")
+      return l;
+    try {
+      const v = JSON.parse(m[1]);
+      return namedBack(v, names) ? `data: ${JSON.stringify(v)}` : l;
+    } catch {
+      return l;
+    }
+  };
+  const body = res.body.pipeThrough(new TransformStream({
+    transform(chunk, ctl) {
+      rest += dec.decode(chunk, { stream: true });
+      const lines = rest.split(`
+`);
+      rest = lines.pop();
+      if (lines.length)
+        ctl.enqueue(enc2.encode(lines.map(line).join(`
+`) + `
+`));
+    },
+    flush(ctl) {
+      rest += dec.decode();
+      if (rest)
+        ctl.enqueue(enc2.encode(line(rest)));
+    }
+  }));
+  return new Response(body, { status: res.status, statusText: res.statusText, headers });
+}
+async function poll(site, path, headers, retry, deadline) {
+  for (;; ) {
+    if (Date.now() > deadline)
+      throw new Error(`${site.name} sign-in timed out`);
+    try {
+      const data = await call(site, "GET", path, headers);
+      if (data && Object.keys(data).length)
+        return data;
+    } catch (e) {
+      if (!(retry.includes(e.code) || e.status === 408 || e.status === 429))
+        throw e;
+    }
+    await sleep2(POLL_MS);
+  }
+}
+async function browserSignIn2(site) {
+  const state = await call(site, "POST", `/v2/plugin/auth/state?platform=${encodeURIComponent(site.platform)}`, {
+    "X-No-Authorization": "true",
+    "X-No-User-Id": "true",
+    "X-No-Enterprise-Id": "true",
+    "X-No-Department-Info": "true"
+  }, {});
+  if (!state?.state || !state?.authUrl)
+    throw new Error(`${site.name} gave no sign-in page`);
+  const url = new URL(state.authUrl);
+  if (url.protocol !== "https:")
+    throw new Error(`${site.name}'s sign-in page isn't https`);
+  url.searchParams.set("version", APP_VERSION);
+  url.searchParams.set("loginSessionId", hex());
+  return {
+    url: url.toString(),
+    instructions: `Sign in to ${site.name} in the browser; this finishes by itself.`,
+    method: "auto",
+    async callback() {
+      try {
+        const deadline = Date.now() + SIGN_IN_MS;
+        const q = encodeURIComponent(state.state);
+        const token = await poll(site, `/v2/plugin/auth/token?state=${q}`, {}, [11217], deadline);
+        if (!token.accessToken)
+          return { type: "failed", error: `${site.name} sent back no token` };
+        let a = merge({}, token);
+        const who = await poll(site, `/v2/plugin/login/account?state=${q}`, {
+          Authorization: "Bearer " + a.access,
+          "X-Domain": domainOf(site, a),
+          "X-No-User-Id": "true",
+          "X-No-Enterprise-Id": "true"
+        }, [12151], deadline);
+        a.uid = who.uid ?? "";
+        a.enterpriseId = await enterpriseOf(site, a, who);
+        return success(site, a, who.nickname || who.phoneNumber || who.uid);
+      } catch (e) {
+        return { type: "failed", error: e.message };
+      }
+    }
+  };
+}
+function success(site, a, name) {
+  return {
+    type: "success",
+    refresh: a.refresh ?? "",
+    access: a.access,
+    expires: a.expires ?? 0,
+    accountId: name || site.name,
+    uid: a.uid ?? "",
+    domain: a.domain ?? "",
+    ...a.enterpriseId ? { enterpriseId: a.enterpriseId } : {},
+    ...a.refreshExpiresAt ? { refreshExpiresAt: a.refreshExpiresAt } : {},
+    ...a.tokenType ? { tokenType: a.tokenType } : {}
+  };
+}
+function desktopFile(site) {
+  const home = homedir3();
+  const base = process.platform === "darwin" ? join5(home, "Library", "Application Support", "CodeBuddyExtension") : process.platform === "win32" ? join5(home, "AppData", "Local", "CodeBuddyExtension") : join5(home, ".local", "share", "CodeBuddyExtension");
+  return join5(base, "Data", "Public", "auth", site.authID + ".info");
+}
+function readDesktop(site) {
+  try {
+    const f = JSON.parse(readFileSync(desktopFile(site), "utf8"));
+    const t = f?.auth ?? {};
+    if (typeof t.accessToken !== "string" || !t.accessToken || !f?.account?.uid)
+      return null;
+    const now = Date.now();
+    const acct = f.account;
+    return {
+      access: t.accessToken,
+      refresh: typeof t.refreshToken === "string" ? t.refreshToken : "",
+      expires: t.expiresAt > 0 ? t.expiresAt : t.expiresIn > 0 ? now + t.expiresIn * 1000 : 0,
+      refreshExpiresAt: t.refreshExpiresAt > 0 ? t.refreshExpiresAt : t.refreshExpiresIn > 0 ? now + t.refreshExpiresIn * 1000 : 0,
+      domain: typeof t.domain === "string" ? t.domain : "",
+      tokenType: typeof t.tokenType === "string" ? t.tokenType : "",
+      uid: acct.uid,
+      ...typeof acct.enterpriseId === "string" && acct.enterpriseId.trim() ? { enterpriseId: acct.enterpriseId.trim() } : {},
+      name: acct.nickname || acct.phoneNumber || acct.uid
+    };
+  } catch {
+    return null;
+  }
+}
+function notDesktop(site) {
+  try {
+    const t = JSON.parse(readFileSync(desktopFile(site), "utf8"))?.auth ?? {};
+    if (t.accessToken?.$wbEncrypted || t.refreshToken?.$wbEncrypted)
+      return `${site.name} desktop keeps its sign-in encrypted (WorkBuddy 5.6 and later), which magpie can't read; sign in with "${site.name} account (browser)" instead`;
+  } catch {}
+  return `${site.name} desktop isn't signed in`;
+}
+function desktopSignIn(site) {
+  return {
+    url: "",
+    instructions: `Uses the account ${site.name} desktop is signed in to.`,
+    method: "auto",
+    async callback() {
+      const d = readDesktop(site);
+      if (!d)
+        return { type: "failed", error: notDesktop(site) };
+      return { type: "success", refresh: "", access: "", expires: 0, source: "desktop", accountId: d.name || site.name, uid: d.uid };
+    }
+  };
+}
+var desktopHeld = new Map;
+async function current(site, client, auth) {
+  if (auth?.source !== "desktop")
+    return fresh(site, client, auth);
+  const d = readDesktop(site);
+  if (!d)
+    throw new Error(notDesktop(site));
+  const k = site.id + "|" + d.uid;
+  const h = desktopHeld.get(k);
+  const a = await fresh(site, null, h && h.expires >= d.expires ? h : d);
+  desktopHeld.set(k, a);
+  return a;
+}
+var STATUS_TEXT = {
+  100: "Continue",
+  101: "Switching Protocols",
+  102: "Processing",
+  103: "Early Hints",
+  200: "OK",
+  201: "Created",
+  202: "Accepted",
+  203: "Non-Authoritative Information",
+  204: "No Content",
+  205: "Reset Content",
+  206: "Partial Content",
+  207: "Multi-Status",
+  208: "Already Reported",
+  226: "IM Used",
+  300: "Multiple Choices",
+  301: "Moved Permanently",
+  302: "Found",
+  303: "See Other",
+  304: "Not Modified",
+  305: "Use Proxy",
+  307: "Temporary Redirect",
+  308: "Permanent Redirect",
+  400: "Bad Request",
+  401: "Unauthorized",
+  402: "Payment Required",
+  403: "Forbidden",
+  404: "Not Found",
+  405: "Method Not Allowed",
+  406: "Not Acceptable",
+  407: "Proxy Authentication Required",
+  408: "Request Timeout",
+  409: "Conflict",
+  410: "Gone",
+  411: "Length Required",
+  412: "Precondition Failed",
+  413: "Request Entity Too Large",
+  414: "Request URI Too Long",
+  415: "Unsupported Media Type",
+  416: "Requested Range Not Satisfiable",
+  417: "Expectation Failed",
+  418: "I'm a teapot",
+  421: "Misdirected Request",
+  422: "Unprocessable Entity",
+  423: "Locked",
+  424: "Failed Dependency",
+  425: "Too Early",
+  426: "Upgrade Required",
+  428: "Precondition Required",
+  429: "Too Many Requests",
+  431: "Request Header Fields Too Large",
+  451: "Unavailable For Legal Reasons",
+  500: "Internal Server Error",
+  501: "Not Implemented",
+  502: "Bad Gateway",
+  503: "Service Unavailable",
+  504: "Gateway Timeout",
+  505: "HTTP Version Not Supported",
+  506: "Variant Also Negotiates",
+  507: "Insufficient Storage",
+  508: "Loop Detected",
+  510: "Not Extended",
+  511: "Network Authentication Required"
+};
+var statusText2 = (n) => STATUS_TEXT[n] || `HTTP ${n}`;
+function meterAsked(site, a, path, body = {}, signal = AbortSignal.timeout(20000)) {
+  return fetch(site.endpoint + path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "WorkBuddy/" + UA_VERSION,
+      Authorization: "Bearer " + a.access,
+      "X-User-Id": a.uid ?? "",
+      "X-Domain": domainOf(site, a),
+      "X-Product": "SaaS",
+      "X-IDE-Type": "WorkBuddy",
+      ...enterpriseHeaders(a)
+    },
+    body: JSON.stringify(body),
+    signal
+  });
+}
+var EDGE_READS = 2 * 1024 * 1024;
+var byteLength = (b) => typeof b === "string" ? Buffer.byteLength(b) : b instanceof ArrayBuffer || ArrayBuffer.isView(b) ? b.byteLength : 0;
+async function unanswered(site, a, body, err, signal) {
+  if (signal?.aborted || err?.name === "AbortError" || err?.name === "TimeoutError")
+    throw err;
+  const size = byteLength(body);
+  if (size <= EDGE_READS)
+    throw err;
+  let status = 0;
+  try {
+    const res = await meterAsked(site, a, "/billing/meter/get-user-resource-summary", {}, AbortSignal.timeout(20000));
+    status = res.status;
+    await res.body?.cancel();
+  } catch {
+    throw err;
+  }
+  if (status !== 401)
+    throw err;
+  const mb = (size / (1024 * 1024)).toFixed(1);
+  const message = `${site.name} refused this account's sign-in (401). It closes the connection on a refused request over 2 MiB ` + `(this one was ${mb} MiB) instead of answering, which is why it read as ECONNRESET. ` + (a.source === "desktop" ? `Sign in to ${site.name} desktop again.` : `Sign in to ${site.name} again in magpie.`);
+  return new Response(JSON.stringify({ error: { message, type: "authentication_error", code: 401 } }), {
+    status: 401,
+    statusText: "Unauthorized",
+    headers: { "content-type": "application/json" }
+  });
+}
+async function meter(site, a, path, body = {}) {
+  const res = await meterAsked(site, a, path, body);
+  let env3 = {};
+  try {
+    env3 = JSON.parse(await res.text()) ?? {};
+  } catch {}
+  const code = Number.parseInt(env3.code, 10) || 0;
+  if (!res.ok) {
+    if (code)
+      throw new Error(env3.msg || `error ${code}`);
+    if (env3.msg)
+      throw new Error(env3.msg);
+    throw new Error(statusText2(res.status));
+  }
+  if (code)
+    throw new Error(env3.msg || `error ${code}`);
+  return env3.data ?? null;
+}
+function capacity(v) {
+  if (v == null || v === "")
+    return 0;
+  if (typeof v === "number")
+    return v;
+  const s = String(v);
+  const n = Number(s);
+  if (s.trim() !== s || Number.isNaN(n))
+    throw new Error(`strconv.ParseFloat: parsing ${JSON.stringify(s)}: invalid syntax`);
+  return n;
+}
+var compact = (n) => Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+function usageOf2(sum, plan) {
+  const out = { plan: plan || (sum?.IsPaidUser ? "Pro" : "Free"), windows: [] };
+  let total = 0, used = 0;
+  for (const p of sum?.Packages ?? []) {
+    total += capacity(p?.CycleTotalCapacity);
+    used += capacity(p?.CycleUsedCapacity);
+  }
+  if (total > 0)
+    out.windows.push({ name: "Credits", used: 100 * used / total, display: `${compact(used)} / ${compact(total)}`, amount: used, limit: total, unit: "credits" });
+  return out;
+}
+function enterpriseUsageOf(u) {
+  const limit = capacity(u?.limitNum);
+  if (!(limit > 0))
+    return null;
+  const used = capacity(u?.credit);
+  const w = { name: "Credits", used: 100 * used / limit, display: `${compact(used)} / ${compact(limit)}`, amount: used, limit, unit: "credits" };
+  const at = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v.trim()) ? Date.parse(v.trim().replace(" ", "T") + "+08:00") : 0;
+  const reset = at(u?.cycleResetTime), start = at(u?.cycleStartTime);
+  if (reset > 0)
+    w.resetsAt = new Date(reset).toISOString();
+  if (reset > start && start > 0)
+    w.span = (reset - start) / 1000;
+  return w;
+}
+async function spareFree(site, a, windows) {
+  if (!windows.length)
+    return windows;
+  let free = [];
+  try {
+    free = (await liveModels(site, a)).filter((m) => m.free).map((m) => m.id);
+  } catch {}
+  if (free.length)
+    for (const w of windows)
+      w.notModels = free;
+  return windows;
+}
+var CODE = (n, s) => `TCACA_code_${n}_${s}`;
+var PAID_CODES = [
+  CODE("002", "AkiJS3ZHF5"),
+  CODE("005", "maRGyrHhw1"),
+  CODE("003", "FAnt7lcmRT"),
+  CODE("023", "4xbGhMrE6q"),
+  CODE("026", "BaESVICNoi"),
+  CODE("027", "0FCGVA6vSa"),
+  CODE("009", "0XmEQc2xOf"),
+  CODE("038", "OhvqZtiPKr"),
+  CODE("036", "lupO5WgNdG")
+];
+var DAILY_CODE = CODE("001", "PqouKr6QWV");
+var FREE_CODES = [
+  DAILY_CODE,
+  CODE("008", "cfWoLwvjU4"),
+  CODE("035", "ArVxJcGDsm"),
+  CODE("006", "DbXS0lrypC"),
+  CODE("039", "KRcQj7wUat"),
+  CODE("040", "mi9rCYg46x"),
+  CODE("007", "nzdH5h4Nl0"),
+  CODE("028", "NtpWi0jzXs"),
+  CODE("037", "WxOD3MpI2o"),
+  CODE("029", "6wCGEWquYy"),
+  CODE("030", "BjSt89qTvr")
+];
+var SLICE = "4";
+var beijing = (ms) => new Date(ms + 8 * 3600000).toISOString().slice(0, 19).replace("T", " ");
+async function packagesOf(site, a, now = Date.now()) {
+  const day = beijing(now).slice(0, 10);
+  const lists2 = [
+    ["/billing/meter/get-user-resource-paid-packages", { PackageCodes: PAID_CODES, NeedRenewInfo: true }],
+    ["/billing/meter/get-user-resource-free-packages", { PackageCodes: FREE_CODES, SlicePeriodStartTime: day + " 00:00:00", SlicePeriodEndTime: day + " 23:59:59" }]
+  ];
+  const out = [];
+  for (const [path, extra] of lists2) {
+    for (let page = 1;page <= 10; page++) {
+      const d = await meter(site, a, path, { PageNumber: page, PageSize: 200, Status: [0, 3], ...extra });
+      const got = d?.Accounts ?? [];
+      out.push(...got);
+      if (got.length < 200 || out.length >= (d?.TotalCount ?? 0))
+        break;
+    }
+  }
+  return out;
+}
+function endOf(p) {
+  const ms = Number(p?.DeductionEndTime);
+  if (ms > 0)
+    return ms;
+  for (const v of [p?.ExpiredTime, p?.CycleEndTime]) {
+    if (typeof v !== "string" || !v.trim())
+      continue;
+    const t = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v.trim()) ? Date.parse(v.trim().replace(" ", "T") + "+08:00") : Date.parse(v);
+    if (t > 0)
+      return t;
+  }
+  return 0;
+}
+function runsOutOf(sum, packages, now = Date.now()) {
+  const counted = new Set((sum?.Packages ?? []).map((p) => p?.PackageCode));
+  let at = 0, amount = 0;
+  for (const p of packages ?? []) {
+    if (!counted.has(p?.PackageCode) || p?.PackageCode === DAILY_CODE || String(p?.CapacityType) === SLICE)
+      continue;
+    const left = capacity(p?.CycleCapacityRemainPrecise ?? p?.CycleCapacityRemain);
+    const end = endOf(p);
+    if (!(left > 0) || end <= now)
+      continue;
+    if (!at || end < at)
+      at = end, amount = left;
+    else if (end === at)
+      amount += left;
+  }
+  return at ? { runsOutAt: new Date(at).toISOString(), runsOut: amount } : null;
+}
+function variants(efforts) {
+  return Object.fromEntries((efforts ?? []).map((e) => [e, { reasoningEffort: e }]));
+}
+function configModels(site) {
+  return Object.fromEntries(site.models.map(([id, name, context, efforts]) => [id, {
+    name,
+    limit: { context, output: 0 },
+    tool_call: true,
+    ...efforts ? { reasoning: true, variants: variants(efforts) } : {}
+  }]));
+}
+function modelOf(site, provider, m) {
+  return {
+    id: m.id,
+    providerID: provider.id,
+    name: m.name,
+    api: { id: m.id, url: api(site), npm: NPM },
+    status: "active",
+    headers: {},
+    options: {},
+    cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+    limit: { context: m.context ?? 0, output: m.output ?? 0 },
+    capabilities: {
+      temperature: true,
+      reasoning: !!m.efforts?.length,
+      attachment: !!m.images,
+      toolcall: true,
+      input: { text: true, image: !!m.images, audio: false, video: false, pdf: false },
+      output: { text: true, image: false, audio: false, video: false, pdf: false },
+      interleaved: false
+    },
+    release_date: "",
+    variants: variants(m.efforts),
+    free: !!m.free,
+    rate: m.rate ?? 0,
+    rateWas: m.rateWas ?? 0
+  };
+}
+function creditsOf(c) {
+  if (c == null || c === "")
+    return;
+  const s = String(c).trim().toLowerCase().replace(/\s+credits?$/, "").replace(/^x/, "");
+  const n = Number(s);
+  return s !== "" && Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+function discountOf(p, base) {
+  const said = creditsOf(String(p.discount?.discountedCredits ?? "").trim().replace(/x$/i, ""));
+  if (said !== undefined)
+    return said;
+  const f = Number(p.discount?.factor);
+  return Number.isFinite(f) && f >= 0 && base !== undefined ? base * f : undefined;
+}
+function running(p, now) {
+  if (!p || p.enabled === false)
+    return false;
+  const from = Date.parse(p.schedule?.validFrom ?? "");
+  const until = Date.parse(p.schedule?.validUntil ?? "");
+  return !(from > now) && !(until <= now);
+}
+function priceOf(d, promotions, now = Date.now()) {
+  const base = creditsOf(d.credits);
+  const mine = (Array.isArray(promotions) ? promotions : []).filter((p) => p?.kind === "discount" && Array.isArray(p.modelIds) && p.modelIds.includes(d.id) && running(p, now));
+  if (mine.some((p) => Array.isArray(p.schedule?.daily) && p.schedule.daily.length)) {
+    const night = mine.filter((p) => p.discount && Array.isArray(p.schedule?.daily) && p.schedule.daily.length);
+    if (base === undefined || base === 0 && night.some((p) => discountOf(p, base) === 0))
+      return { free: false };
+    return { free: false, rate: base };
+  }
+  const off = mine.filter((p) => p.discount).map((p) => discountOf(p, base)).filter((r) => r !== undefined);
+  if (off.length) {
+    const r = Math.min(...off);
+    return { free: r === 0, rate: r, ...base !== undefined && base > r ? { rateWas: base } : {} };
+  }
+  if (base === undefined)
+    return {};
+  return { free: base === 0, rate: base };
+}
+var EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
+function effortsOf2(d) {
+  const said = d.reasoning?.supportedEfforts;
+  if (Array.isArray(said) && said.length)
+    return said;
+  if (d.supportsReasoning !== true)
+    return [];
+  const own = d.reasoning?.effort;
+  const set = new Set(["low", "high", "max", ...typeof own === "string" && EFFORT_ORDER.includes(own) ? [own] : []]);
+  return EFFORT_ORDER.filter((e) => set.has(e));
+}
+async function liveModels(site, a) {
+  const headers = new Headers;
+  sign(site, a, headers);
+  headers.set("User-Agent", `CLI/${APP_VERSION} WorkBuddy/${UA_VERSION}`);
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Accept", "application/json");
+  const res = await fetch(site.endpoint + "/v3/config", { headers, signal: AbortSignal.timeout(15000) });
+  const env3 = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(`${site.name}'s config: HTTP ${res.status}`);
+  if (env3.code)
+    throw new Error(`${site.name}'s config: ${env3.msg} (${env3.code})`);
+  const cfg = env3.data ?? {};
+  const out = [];
+  for (const agent of cfg.agents ?? []) {
+    if (agent.name !== "cli")
+      continue;
+    for (const id of agent.models ?? []) {
+      const d = (cfg.models ?? []).find((x) => x.id === id);
+      const m = { id, name: d?.name || id };
+      if (d) {
+        m.context = d.maxInputTokens;
+        m.output = d.maxOutputTokens;
+        m.images = d.supportsImages === true && !textOnly(site, id);
+        Object.assign(m, priceOf(d, cfg.modelPromotions));
+        const es = effortsOf2(d);
+        if (es.length) {
+          const canOff = d.reasoning?.canDisableThinking;
+          m.efforts = [...!d.onlyReasoning && (canOff == null || canOff) ? ["none"] : [], ...es];
+        }
+      }
+      out.push(m);
+    }
+  }
+  const first = new Map;
+  for (const m of out) {
+    const id = first.get(m.name);
+    if (id === undefined) {
+      first.set(m.name, m.id);
+      continue;
+    }
+    const rest = m.id.startsWith(id + "-") ? m.id.slice(id.length + 1) : "";
+    m.name = `${m.name} (${rest ? rest.toUpperCase() : m.id})`;
+  }
+  return out;
+}
+var AFTER_TOOLS_REFUSED = /must end with a user message|["']code["']\s*:\s*["']?11153(?![\d.])/i;
+function replyAfterTools(body) {
+  const b = chatOf(body);
+  const msgs = b?.messages;
+  if (!Array.isArray(msgs))
+    return null;
+  let i = msgs.length - 1;
+  while (i >= 0 && msgs[i]?.role === "user")
+    i--;
+  if (i === msgs.length - 1 || i < 0 || msgs[i]?.role !== "tool")
+    return null;
+  msgs.splice(i + 1, 0, { role: "assistant", content: "" });
+  return JSON.stringify(b);
+}
+function makePlugin(site) {
+  const endsAfterTools = new Set;
+  const refusedSystems = new Set;
+  return async ({ client }) => ({
+    config: async (config) => {
+      config.provider ??= {};
+      config.provider[site.id] ??= {};
+      const p = config.provider[site.id];
+      p.name ??= site.name;
+      p.npm ??= NPM;
+      p.api ??= api(site);
+      p.models = { ...configModels(site), ...p.models ?? {} };
+    },
+    "chat.headers": async (input, output) => {
+      const id = input?.model?.providerID ?? input?.provider?.info?.id;
+      if (id !== site.id || !input?.sessionID)
+        return;
+      output.headers[SESSION2] = String(input.sessionID).slice(0, 128);
+    },
+    provider: {
+      id: site.id,
+      async models(provider, { auth }) {
+        if (auth?.type !== "oauth" || !(auth.access || auth.source))
+          return provider.models;
+        try {
+          const a = await current(site, client, auth);
+          const ms = await liveModels(site, a);
+          if (!ms.length)
+            return provider.models;
+          return Object.fromEntries(ms.map((m) => [m.id, modelOf(site, provider, m)]));
+        } catch {
+          return provider.models;
+        }
+      }
+    },
+    auth: {
+      provider: site.id,
+      refreshLead: LEAD_MS,
+      refresh: (auth) => refreshed(site, auth),
+      async loader(getAuth) {
+        const auth = await getAuth();
+        if (auth?.type !== "oauth")
+          return {};
+        return {
+          baseURL: api(site),
+          apiKey: "",
+          async fetch(input, init) {
+            let a = await getAuth();
+            if (a?.type !== "oauth")
+              throw new Error(`${site.name} isn't signed in`);
+            a = await current(site, client, a);
+            const req = input instanceof Request ? input : null;
+            const headers = new Headers(init?.headers ?? req?.headers);
+            headers.delete("authorization");
+            headers.delete("x-api-key");
+            headers.delete("content-length");
+            const session = sessionOf2(headers);
+            sign(site, a, headers);
+            let body = init?.body;
+            if (body === undefined && req)
+              body = await req.clone().text();
+            body = withSystem(body);
+            const fit = fitted(body);
+            body = normalizeToolChoice(fit.body);
+            attend(headers, body, session);
+            const send = (b) => fetch(req ? req.url : input, { ...init, method: init?.method ?? req?.method, headers, body: b }).catch((e) => unanswered(site, a, b, e, init?.signal));
+            const model = chatOf(body)?.model;
+            const sysKey = systemKey(body);
+            if (sysKey && refusedSystems.has(sysKey))
+              body = systemAsUser(body) ?? body;
+            const shaped = (b) => endsAfterTools.has(model) ? replyAfterTools(b) ?? b : b;
+            let res = await send(shaped(body));
+            if (res.status === 400) {
+              let text = await res.text();
+              const moved = REFUSED.test(text) && sysKey && !refusedSystems.has(sysKey) ? systemAsUser(body) : null;
+              if (moved) {
+                refusedSystems.add(sysKey);
+                if (refusedSystems.size > 256)
+                  refusedSystems.delete(refusedSystems.values().next().value);
+                body = moved;
+                res = await send(shaped(body));
+                if (res.status === 400)
+                  text = await res.text();
+              }
+              const again = res.status === 400 && !endsAfterTools.has(model) && AFTER_TOOLS_REFUSED.test(text) ? replyAfterTools(body) : null;
+              if (again) {
+                endsAfterTools.add(model);
+                res = await send(again);
+              } else if (res.status === 400) {
+                res = new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers });
+              }
+            }
+            return res.status >= 400 ? explained(res) : kept2(await renamed(res, fit.names));
+          }
+        };
+      },
+      async usage(getAuth) {
+        const auth = await getAuth();
+        if (auth?.type !== "oauth" || !(auth.access || auth.source))
+          return { error: "not signed in", signIn: "kept" };
+        try {
+          const a = await current(site, client, auth);
+          const sum = await meter(site, a, "/billing/meter/get-user-resource-summary");
+          const out = usageOf2(sum, auth.plan);
+          if (!out.windows.length) {
+            let ent = null;
+            try {
+              ent = enterpriseUsageOf(await meter(site, a, "/billing/meter/get-enterprise-user-usage"));
+            } catch {}
+            if (ent)
+              return { plan: auth.plan || "Enterprise", windows: await spareFree(site, a, [ent]), signIn: "kept" };
+          }
+          const credits = out.windows.find((w) => w.name === "Credits");
+          if (credits) {
+            try {
+              Object.assign(credits, runsOutOf(sum, await packagesOf(site, a)) ?? {});
+            } catch {}
+          }
+          await spareFree(site, a, out.windows);
+          return { ...out, signIn: "kept" };
+        } catch (e) {
+          return { error: e?.message ?? String(e), signIn: "kept" };
+        }
+      },
+      methods: [
+        {
+          type: "oauth",
+          label: `${site.name} account (browser)`,
+          authorize: () => browserSignIn2(site)
+        },
+        {
+          type: "oauth",
+          label: `${site.name} desktop's sign-in`,
+          authorize: async () => desktopSignIn(site)
+        }
+      ]
+    }
+  });
+}
+var REFUSED_HINT = "WorkBuddy refused words in this client's prompt (most often its system prompt); use it from Hermes, OpenCode or Pi, or add another provider to this group";
+var REFUSED = /unapproved channel|illegal api invocation/i;
+var RESTRICTED_HINT = "WorkBuddy restricted this account for unusual activity; it stays out until WorkBuddy lifts that, which an appeal (Submit feedback in WorkBuddy) asks for";
+var RESTRICTED_CODE = 11140;
+var RESTRICTED_TEXT = /account has been restricted due to unusual activity|账号存在异常行为|帳號存在異常行為|["']code["']\s*:\s*["']?11140(?![\d.])/i;
+var EXHAUSTED_HINT = "WorkBuddy requires an active credit package even for 0-rate free models; check your account package balance";
+var EXHAUSTED_TEXT = /credits exhausted|额度已用尽|["']code["']\s*:\s*["']?14018(?![\d.])/i;
+function kept2(res) {
+  const headers = new Headers(res.headers);
+  headers.set("X-Magpie-Sign-In", "kept");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+async function explained(res) {
+  const text = await res.text();
+  const again = (b) => {
+    const headers2 = new Headers(res.headers);
+    headers2.delete("content-length");
+    headers2.delete("content-encoding");
+    headers2.set("X-Magpie-Sign-In", "kept");
+    return new Response(b, { status: res.status, statusText: res.statusText, headers: headers2 });
+  };
+  let v;
+  try {
+    v = JSON.parse(text);
+  } catch {}
+  const at = v?.error && typeof v.error === "object" ? v.error : v && typeof v === "object" ? v : null;
+  const code = at?.data?.code ?? at?.code ?? v?.code ?? v?.data?.code;
+  const isRefused = REFUSED.test(text);
+  const isRestricted = !isRefused && (Number(code) === RESTRICTED_CODE || RESTRICTED_TEXT.test(text));
+  const isExhausted = !isRestricted && (code === 14018 || Number(code) === 14018 || EXHAUSTED_TEXT.test(text));
+  if (!isRefused && !isRestricted && !isExhausted)
+    return again(text);
+  let msg = text.trim();
+  if (at && typeof at.message === "string")
+    msg = at.message;
+  else if (typeof at?.data?.msg === "string")
+    msg = at.data.msg;
+  else if (typeof v?.error === "string")
+    msg = v.error;
+  else if (typeof v?.msg === "string" && v.msg)
+    msg = v.msg;
+  else if (typeof v?.data?.msg === "string")
+    msg = v.data.msg;
+  const hint = isRefused ? REFUSED_HINT : isRestricted ? RESTRICTED_HINT : EXHAUSTED_HINT;
+  const type = isRefused || isRestricted ? "permission_error" : "insufficient_quota";
+  const errCode = isRefused ? null : isRestricted ? RESTRICTED_CODE : 14018;
+  msg = `${msg} — ${hint}`;
+  const headers = new Headers(res.headers);
+  headers.set("content-type", "application/json");
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  headers.set("X-Magpie-Sign-In", "kept");
+  return new Response(JSON.stringify({ error: { message: msg, type, code: errCode } }), { status: res.status, statusText: res.statusText, headers });
+}
+var WorkBuddyAuthPlugin = makePlugin(SITES.workbuddy);
+var WorkBuddyAIAuthPlugin = makePlugin(SITES["workbuddy-ai"]);
+
+// src/providers/subscription-plugins/index.ts
+import { createHash as createHash5, randomUUID as randomUUID2, timingSafeEqual } from "node:crypto";
+import { chmod as chmod2, mkdir as mkdir3, readFile as readFile3, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
+import { createServer } from "node:http";
+import { join as join6, resolve } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+var FACTORIES = { cursor: CursorAuthPlugin, workbuddy: WorkBuddyAuthPlugin, "workbuddy-ai": WorkBuddyAIAuthPlugin };
+var writes = new Map;
+var contexts = new Map;
+var MAX_BODY_BYTES = 16 * 1024 * 1024;
+var SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
+function isSubscriptionUpstream(value) {
+  return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
+}
+function authPath(directory) {
+  return join6(resolve(directory), SUBSCRIPTION_AUTH_FILE);
+}
+async function readAuthFile(file, upstream) {
+  let text;
+  try {
+    text = await readFile3(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT")
+      return;
+    throw error;
+  }
+  let stored;
+  try {
+    stored = JSON.parse(text);
+  } catch {
+    throw new Error("Subscription login file is invalid; sign in again.");
+  }
+  if (stored?.version !== 1 || stored.upstream !== upstream || stored.auth?.type !== "oauth") {
+    throw new Error("Subscription login file does not match this provider; sign in again.");
+  }
+  return stored.auth;
+}
+async function getAuth(directory, upstream) {
+  const file = authPath(directory);
+  await writes.get(file);
+  return readAuthFile(file, upstream);
+}
+async function saveAuth(directory, upstream, update, replace = false) {
+  const file = authPath(directory);
+  const previous = writes.get(file) ?? Promise.resolve();
+  const next = previous.catch(() => {}).then(async () => {
+    const old = replace ? undefined : await readAuthFile(file, upstream);
+    if (!replace && old?.source === "desktop")
+      return;
+    const auth = { ...old, ...update, type: "oauth" };
+    await mkdir3(resolve(directory), { recursive: true, mode: 448 });
+    const temporary = `${file}.${process.pid}.${randomUUID2()}.tmp`;
+    try {
+      await writeFile2(temporary, JSON.stringify({ version: 1, upstream, auth }, null, 2) + `
+`, { mode: 384 });
+      await rename(temporary, file);
+      await chmod2(file, 384);
+    } finally {
+      await unlink(temporary).catch(() => {});
+    }
+  });
+  writes.set(file, next);
+  try {
+    await next;
+  } finally {
+    if (writes.get(file) === next)
+      writes.delete(file);
+  }
+}
+async function context(directory, upstream, options) {
+  const key = `${resolve(directory)}
+${upstream}`;
+  const create = async () => {
+    const plugin = await (options.pluginFactory ?? FACTORIES[upstream])({
+      client: { auth: { set: async ({ path, body }) => {
+        if (path.id !== upstream)
+          throw new Error("Plugin attempted to update a different provider's login.");
+        await saveAuth(directory, upstream, body);
+      } } }
+    });
+    if (plugin.auth.provider !== upstream)
+      throw new Error("Subscription plugin provider mismatch.");
+    const config = { provider: {} };
+    await plugin.config?.(config);
+    return {
+      plugin,
+      provider: { ...config.provider[upstream], id: upstream, models: config.provider[upstream]?.models ?? {} },
+      getAuth: () => getAuth(directory, upstream)
+    };
+  };
+  if (options.pluginFactory)
+    return create();
+  let pending = contexts.get(key);
+  if (!pending) {
+    pending = create();
+    contexts.set(key, pending);
+    pending.catch(() => {
+      if (contexts.get(key) === pending)
+        contexts.delete(key);
+    });
+  }
+  return pending;
+}
+async function subscriptionLoginMethods(directory, upstream, options = {}) {
+  const { plugin } = await context(directory, upstream, options);
+  return plugin.auth.methods.filter((method) => method.type === "oauth" && method.authorize).map(({ label }) => ({ label: /desktop|cursor-agent/i.test(label) ? `${label} (follows the app account)` : label }));
+}
+function identity(upstream, auth) {
+  let subject;
+  if (typeof auth.access === "string") {
+    try {
+      const claims = JSON.parse(Buffer.from(auth.access.split(".")[1] ?? "", "base64url").toString("utf8"));
+      subject = claims.sub;
+    } catch {}
+  }
+  const account = [auth.uid, auth.accountId, subject].map((value) => typeof value === "number" && Number.isFinite(value) ? String(value) : value).find((value) => typeof value === "string" && value.length > 0);
+  if (typeof account !== "string")
+    throw new Error("Subscription sign-in did not identify the account.");
+  return createHash5("sha256").update(`${upstream}
+${account}`).digest("hex");
+}
+async function loginSubscriptionPlugin(directory, upstream, methodIndex, notify, options = {}) {
+  const { plugin } = await context(directory, upstream, options);
+  const methods = plugin.auth.methods.filter((method2) => method2.type === "oauth" && method2.authorize);
+  const method = Number.isInteger(methodIndex) ? methods[methodIndex] : undefined;
+  if (!method?.authorize)
+    throw new Error("Unknown subscription login method.");
+  if (/desktop|cursor-agent/i.test(method.label))
+    notify("This login follows the account currently signed in to the native app, including later account switches.");
+  const authorization = await method.authorize();
+  if (authorization.instructions)
+    notify(authorization.instructions);
+  if (authorization.url) {
+    if (new URL(authorization.url).protocol !== "https:")
+      throw new Error("Subscription sign-in URL must use HTTPS.");
+    notify(authorization.url);
+    (options.openUrl ?? ((url) => openExternalUrl(url, true)))(authorization.url);
+  }
+  if (authorization.method && authorization.method !== "auto")
+    throw new Error("This subscription sign-in requires an unsupported manual callback.");
+  const result2 = await authorization.callback();
+  if (result2.type !== "success")
+    throw new Error(result2.error || "Subscription sign-in failed.");
+  const { type: _type, error: _error, ...fields2 } = result2;
+  const auth = { ...fields2, type: "oauth" };
+  if (auth.source === "desktop") {
+    auth.access = "";
+    auth.refresh = "";
+    auth.expires = 0;
+  }
+  const fingerprint = identity(upstream, auth);
+  await saveAuth(directory, upstream, auth, true);
+  return fingerprint;
+}
+async function hasSubscriptionLogin(directory, upstream) {
+  try {
+    const auth = await getAuth(directory, upstream);
+    return !!auth && (!!auth.access || auth.source === "desktop" || upstream === "cursor" && auth.refresh === "cursor-agent");
+  } catch {
+    return false;
+  }
+}
+async function models(ctx) {
+  const auth = await ctx.getAuth();
+  if (!auth)
+    throw new Error("Subscription is not signed in.");
+  const catalog2 = ctx.plugin.provider ? await ctx.plugin.provider.models(ctx.provider, { auth }) : ctx.provider.models;
+  if (!Object.keys(catalog2).length || ctx.plugin.provider && catalog2 === ctx.provider.models) {
+    throw new Error("Subscription model catalog is unavailable; retry after checking the account sign-in.");
+  }
+  return Object.entries(catalog2).map(([id, value]) => ({ id, ...value.name ? { display_name: value.name } : {} }));
+}
+async function listSubscriptionModels(directory, upstream, options = {}) {
+  return models(await context(directory, upstream, options));
+}
+function authorized(headers, key) {
+  const bearer = headers.get("authorization");
+  const token = bearer?.startsWith("Bearer ") ? bearer.slice(7) : headers.get("x-api-key");
+  if (typeof token !== "string")
+    return false;
+  const expected = Buffer.from(key);
+  const actual = Buffer.from(token);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+function json(status, body) {
+  return Response.json(body, { status, headers: { "cache-control": "no-store" } });
+}
+
+class HTTPError extends Error {
+  status;
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+async function requestBody(request2) {
+  if (Number(request2.headers["content-length"]) > MAX_BODY_BYTES)
+    throw new HTTPError(413, "Request body is too large.");
+  return new Promise((resolveBody, reject) => {
+    const chunks = [];
+    let size = 0;
+    const cleanup = () => {
+      request2.removeListener("data", data);
+      request2.removeListener("end", end);
+      request2.removeListener("error", fail);
+      request2.removeListener("aborted", aborted);
+    };
+    const fail = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const aborted = () => fail(new Error("Request aborted."));
+    const data = (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        request2.pause();
+        fail(new HTTPError(413, "Request body is too large."));
+      } else
+        chunks.push(chunk);
+    };
+    const end = () => {
+      cleanup();
+      resolveBody(Buffer.concat(chunks).toString("utf8"));
+    };
+    request2.on("data", data);
+    request2.once("end", end);
+    request2.once("error", fail);
+    request2.once("aborted", aborted);
+  });
+}
+async function webRequestBody(request2) {
+  if (!request2.body)
+    return "";
+  const reader = request2.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    for (;; ) {
+      const { value, done } = await reader.read();
+      if (done)
+        return Buffer.concat(chunks).toString("utf8");
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        throw new HTTPError(413, "Request body is too large.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+var HOP_HEADERS = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "content-length", "content-encoding"]);
+async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
+  if (!authorized(input.headers, options.apiKey))
+    return json(401, { error: { message: "Invalid API key." } });
+  const path = new URL(input.url, "http://127.0.0.1").pathname;
+  if (input.method === "GET" && path === "/health")
+    return json(200, { status: "ok", upstream: options.upstream });
+  if (input.method === "GET" && path === "/v1/models") {
+    return json(200, { object: "list", data: (await models(ctx)).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
+  }
+  if (input.method !== "POST" || path !== "/v1/chat/completions")
+    return json(404, { error: { message: "Unknown endpoint." } });
+  if (Number(input.headers.get("content-length")) > MAX_BODY_BYTES)
+    throw new HTTPError(413, "Request body is too large.");
+  const body = await input.body();
+  if (Buffer.byteLength(body) > MAX_BODY_BYTES)
+    throw new HTTPError(413, "Request body is too large.");
+  let chat;
+  try {
+    chat = JSON.parse(body);
+  } catch {
+    throw new HTTPError(400, "Request body must be valid JSON.");
+  }
+  if (!chat || typeof chat !== "object" || Array.isArray(chat))
+    throw new HTTPError(400, "Request body must be a JSON object.");
+  const headers = { "content-type": "application/json" };
+  const session = input.headers.get("x-claudex-session");
+  if (session)
+    await ctx.plugin["chat.headers"]?.({ sessionID: session.slice(0, 256), model: { providerID: options.upstream } }, { headers });
+  const upstream = await pluginFetch(endpoint, { method: "POST", headers, body, signal: input.signal });
+  const responseHeaders = new Headers;
+  const connectionHeaders = new Set((upstream.headers.get("connection") ?? "").toLowerCase().split(",").map((h) => h.trim()));
+  upstream.headers.forEach((value, name) => {
+    if (!HOP_HEADERS.has(name) && !connectionHeaders.has(name))
+      responseHeaders.set(name, value);
+  });
+  return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+}
+function failure2(error) {
+  const result2 = json(error instanceof HTTPError ? error.status : 502, { error: { message: error instanceof HTTPError ? error.message : "Subscription upstream request failed." } });
+  if (error instanceof HTTPError && error.status === 413)
+    result2.headers.set("connection", "close");
+  return result2;
+}
+async function serveSubscriptionBridge(options) {
+  if (!options.apiKey)
+    throw new Error("Subscription bridge requires an API key.");
+  const ctx = await context(options.directory, options.upstream, options);
+  const loader = await ctx.plugin.auth.loader(ctx.getAuth);
+  if (!loader.fetch || !loader.baseURL)
+    throw new Error("Subscription is not signed in.");
+  const pluginFetch = loader.fetch;
+  const endpoint = `${loader.baseURL.replace(/\/$/, "")}/chat/completions`;
+  if (typeof Bun !== "undefined") {
+    const native = Bun.serve({
+      hostname: "127.0.0.1",
+      port: options.port,
+      idleTimeout: 0,
+      maxRequestBodySize: MAX_BODY_BYTES + 64 * 1024,
+      fetch: async (request2) => {
+        try {
+          return await bridgeResponse({ method: request2.method, url: request2.url, headers: request2.headers, body: () => webRequestBody(request2), signal: request2.signal }, ctx, pluginFetch, endpoint, options);
+        } catch (error) {
+          if (request2.signal.aborted)
+            return new Response(null, { status: 499 });
+          return failure2(error);
+        }
+      },
+      error: () => failure2(new Error("HTTP request failed."))
+    });
+    let closing = false;
+    return {
+      address: () => closing ? null : { address: "127.0.0.1", family: "IPv4", port: native.port },
+      close: (callback) => {
+        closing = true;
+        native.stop(false).then(() => callback?.(), (error) => callback?.(error));
+      },
+      closeAllConnections: () => {
+        closing = true;
+        native.stop(true);
+      }
+    };
+  }
+  const server = createServer(async (request2, response) => {
+    const abort = new AbortController;
+    const disconnected = () => {
+      if (!response.writableFinished)
+        abort.abort();
+    };
+    request2.once("aborted", disconnected);
+    response.once("close", disconnected);
+    request2.socket.once("close", disconnected);
+    try {
+      const headers = new Headers;
+      for (const [name, value] of Object.entries(request2.headers)) {
+        if (value !== undefined)
+          headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+      }
+      const upstream = await bridgeResponse({ method: request2.method ?? "GET", url: request2.url ?? "/", headers, body: () => requestBody(request2), signal: abort.signal }, ctx, pluginFetch, endpoint, options);
+      const responseHeaders = {};
+      upstream.headers.forEach((value, name) => {
+        responseHeaders[name] = value;
+      });
+      response.writeHead(upstream.status, responseHeaders);
+      if (upstream.body) {
+        await pipeline(Readable.fromWeb(upstream.body), response, { signal: abort.signal });
+      } else
+        response.end();
+    } catch (error) {
+      if (abort.signal.aborted || response.destroyed)
+        return;
+      if (response.headersSent)
+        response.destroy();
+      else {
+        if (error instanceof HTTPError && error.status === 413) {
+          response.shouldKeepAlive = false;
+          response.once("finish", () => request2.destroy());
+        }
+        const result2 = failure2(error);
+        response.writeHead(result2.status, Object.fromEntries(result2.headers));
+        response.end(await result2.text());
+      }
+    } finally {
+      request2.removeListener("aborted", disconnected);
+      response.removeListener("close", disconnected);
+      request2.socket.removeListener("close", disconnected);
+    }
+  });
+  server.requestTimeout = 60000;
+  server.headersTimeout = 15000;
+  await new Promise((resolveListening, reject) => {
+    server.once("error", reject);
+    server.listen(options.port, "127.0.0.1", () => {
+      server.removeListener("error", reject);
+      resolveListening();
+    });
+  });
+  return server;
+}
+
+// src/lib/ui.ts
+var icons = {
+  active: source_default.green("▸"),
+  inactive: source_default.dim(" "),
+  success: source_default.green("✓"),
+  error: source_default.red("✗"),
+  arrow: source_default.cyan("→"),
+  info: source_default.blue("●")
+};
+function header(text) {
+  return source_default.bold(text);
+}
+function success2(text) {
+  console.log(`  ${icons.success} ${text}`);
+}
+function error(text) {
+  console.error(`  ${icons.error} ${source_default.red(text)}`);
+}
+function warn(text) {
+  console.log(`  ${source_default.yellow("⚠")} ${source_default.yellow(text)}`);
+}
+function info(text) {
+  console.log(`  ${icons.info} ${text}`);
+}
+function hint(text) {
+  console.log(source_default.dim(`  ${text}`));
+}
+function blank() {
+  console.log();
+}
+function sectionHeader(text) {
+  console.log(`  ${source_default.dim("──")} ${source_default.bold(text)} ${source_default.dim("──")}`);
+}
+function formatType(type) {
+  switch (type) {
+    case "oauth":
+      return source_default.blue("oauth");
+    case "api-key":
+      return source_default.yellow("api-key");
+    case "local-cliproxyapi":
+      return source_default.green("local CLIProxyAPI");
+    case "chatgpt":
+      return source_default.green("chatgpt");
+    case "apikey":
+      return source_default.yellow("apikey");
+    default:
+      return source_default.dim(type);
+  }
+}
+function formatPlan(plan) {
+  if (!plan)
+    return source_default.dim("unknown");
+  const map = {
+    max: source_default.magenta("Max"),
+    pro: source_default.cyan("Pro"),
+    free: source_default.dim("Free"),
+    plus: source_default.green("Plus"),
+    team: source_default.blue("Team"),
+    business: source_default.blue("Business"),
+    enterprise: source_default.yellow("Enterprise"),
+    edu: source_default.cyan("Edu")
+  };
+  return map[plan.toLowerCase()] ?? source_default.dim(plan);
+}
+function formatProvider(provider) {
+  switch (provider) {
+    case "claude":
+      return source_default.magenta("Claude");
+    case "codex":
+      return source_default.green("Codex");
+    case "opencode":
+      return source_default.cyan("OpenCode");
+  }
+}
+function maskKey(key) {
+  if (key.length <= 12)
+    return "••••";
+  return key.slice(0, 7) + "••••" + key.slice(-4);
+}
+function formatUsage(usage2, note) {
+  if (usage2) {
+    const parts = [];
+    if (usage2.fiveHourUsedPercent !== null) {
+      parts.push(`${source_default.dim("5h")} ${colorRemaining(100 - usage2.fiveHourUsedPercent)}`);
+    }
+    if (usage2.weeklyUsedPercent !== null) {
+      parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage2.weeklyUsedPercent)}${formatWeeklyReset(usage2.weeklyResetsAt)}`);
+    }
+    if (usage2.monthlyUsedPercent !== null && usage2.monthlyUsedPercent !== undefined) {
+      parts.push(`${source_default.dim("mo")} ${colorRemaining(100 - usage2.monthlyUsedPercent)}`);
+    }
+    if (parts.length > 0)
+      return parts.join(source_default.dim(" · "));
+  }
+  return note ? source_default.dim(note) : "";
+}
+var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function formatWeeklyReset(resetsAt) {
+  if (resetsAt === null || !Number.isFinite(resetsAt))
+    return "";
+  const date = new Date(Math.round(resetsAt / 3600000) * 3600000);
+  const hour = String(date.getHours()).padStart(2, "0");
+  return ` ${source_default.dim(`${WEEKDAYS[date.getDay()]}${hour}`)}`;
+}
+function colorRemaining(percent) {
+  const value = Math.round(Math.min(100, Math.max(0, percent)));
+  const text = `${value}%`;
+  if (value >= 50)
+    return source_default.green(text);
+  if (value >= 20)
+    return source_default.yellow(text);
+  return source_default.red(text);
+}
+function formatBalance(balance) {
+  if (!balance)
+    return "";
+  const keyPart = formatBalanceSide(balance.key);
+  const acctPart = formatBalanceSide(balance.account);
+  if (keyPart && acctPart) {
+    return [
+      `${source_default.dim("key")} ${keyPart}`,
+      `${source_default.dim("acct")} ${acctPart}`
+    ].join(source_default.dim(" · "));
+  }
+  return keyPart || acctPart;
+}
+function formatBalanceSide(side) {
+  if (!side)
+    return "";
+  const dollars2 = (v) => `$${v.toFixed(2)}`;
+  if (side.unlimited) {
+    return side.usedUsd === null ? source_default.dim("∞") : source_default.dim(`${dollars2(side.usedUsd)} used`);
+  }
+  if (side.remainingUsd === null)
+    return "";
+  const colored = side.remainingUsd >= 10 ? source_default.green(dollars2(side.remainingUsd)) : side.remainingUsd >= 1 ? source_default.yellow(dollars2(side.remainingUsd)) : source_default.red(dollars2(side.remainingUsd));
+  return `${colored} ${source_default.dim("left")}`;
+}
+
 // src/providers/cliproxyapi/managed.ts
 var CLI_PROXY_API_DEFAULTS = {
   ...CLI_PROXY_API_UPSTREAMS.codex.defaults,
@@ -4491,6 +10194,7 @@ var ENV_HAIKU_MODEL = "CLAUDEX_CLIPROXYAPI_HAIKU_MODEL";
 var ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
 var ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 var ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
+var ENV_SUBSCRIPTION_PORT = "CLAUDEX_CLIPROXYAPI_SUBSCRIPTION_PORT";
 var ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
 var ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
@@ -4521,22 +10225,22 @@ function profilePaths(profileId) {
   };
 }
 async function mkdirPrivate(path) {
-  await mkdir3(path, { recursive: true, mode: 448 });
+  await mkdir4(path, { recursive: true, mode: 448 });
   try {
-    await chmod2(path, 448);
+    await chmod3(path, 448);
   } catch {}
 }
 async function writePrivate(path, data) {
-  await writeFile2(path, data, { mode: 384 });
+  await writeFile3(path, data, { mode: 384 });
   try {
-    await chmod2(path, 384);
+    await chmod3(path, 384);
   } catch {}
 }
 async function writePrivateOnce(path, data) {
   try {
-    await writeFile2(path, data, { mode: 384, flag: "wx" });
+    await writeFile3(path, data, { mode: 384, flag: "wx" });
     try {
-      await chmod2(path, 384);
+      await chmod3(path, 384);
     } catch {}
     return true;
   } catch (err) {
@@ -4548,7 +10252,7 @@ async function writePrivateOnce(path, data) {
 async function writePrivateJson(path, data) {
   await writeJsonSecure(path, data);
   try {
-    await chmod2(path, 384);
+    await chmod3(path, 384);
   } catch {}
 }
 function requireEnvValue(values, key) {
@@ -4571,6 +10275,10 @@ function parseManagedEnv(content) {
   const upstream = parseUpstream(values[ENV_UPSTREAM]?.trim());
   const defaults = CLI_PROXY_API_UPSTREAMS[upstream].defaults;
   const upstreamKey = values[ENV_UPSTREAM_KEY]?.trim() || null;
+  const subscriptionPort = values[ENV_SUBSCRIPTION_PORT] ? Number(values[ENV_SUBSCRIPTION_PORT]) : null;
+  if (subscriptionPort !== null && (!Number.isInteger(subscriptionPort) || subscriptionPort < 1 || subscriptionPort > 65535)) {
+    throw new Error("Invalid subscription bridge port");
+  }
   if (upstream === "opencode-go" && !upstreamKey) {
     throw new Error(`Managed CLIProxyAPI configuration is missing ${ENV_UPSTREAM_KEY}`);
   }
@@ -4578,6 +10286,7 @@ function parseManagedEnv(content) {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
     upstream,
     upstreamKey,
+    subscriptionPort,
     antigravitySensitiveWords: (values[ENV_ANTIGRAVITY_SENSITIVE_WORDS] ?? ANTIGRAVITY_SENSITIVE_WORDS.join(",")).split(",").map((word) => word.trim()).filter(Boolean),
     upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "").split(",").map((model) => model.trim()).filter(Boolean),
     fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
@@ -4595,7 +10304,7 @@ function currentHaikuModel(upstream, value) {
   return model;
 }
 function renderManagedEnv(apiKey, setup = { upstream: "codex" }) {
-  const models = setup.models ?? CLI_PROXY_API_UPSTREAMS[setup.upstream].defaults;
+  const models2 = setup.models ?? CLI_PROXY_API_UPSTREAMS[setup.upstream].defaults;
   return [
     "# Managed by claudex-switch. Keep this directory private.",
     `${ENV_CLIENT_KEY}=${apiKey}`,
@@ -4604,11 +10313,12 @@ function renderManagedEnv(apiKey, setup = { upstream: "codex" }) {
       `${ENV_ANTIGRAVITY_SENSITIVE_WORDS}=${(setup.antigravitySensitiveWords ?? ANTIGRAVITY_SENSITIVE_WORDS).join(",")}`
     ] : [],
     ...setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : [],
+    ...setup.subscriptionPort ? [`${ENV_SUBSCRIPTION_PORT}=${setup.subscriptionPort}`] : [],
     ...setup.upstreamModels?.length ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`] : [],
-    `${ENV_FABLE_MODEL}=${models.fableModel}`,
-    `${ENV_SONNET_MODEL}=${models.sonnetModel}`,
-    `${ENV_OPUS_MODEL}=${models.opusModel}`,
-    `${ENV_HAIKU_MODEL}=${models.haikuModel}`,
+    `${ENV_FABLE_MODEL}=${models2.fableModel}`,
+    `${ENV_SONNET_MODEL}=${models2.sonnetModel}`,
+    `${ENV_OPUS_MODEL}=${models2.opusModel}`,
+    `${ENV_HAIKU_MODEL}=${models2.haikuModel}`,
     ""
   ].join(`
 `);
@@ -4617,7 +10327,7 @@ function yaml(value) {
   return JSON.stringify(value);
 }
 function renderRuntimeConfig(authDir, managed, port) {
-  const header = [
+  const header2 = [
     `host: ${yaml(LOOPBACK_HOST)}`,
     `port: ${port}`,
     `auth-dir: ${yaml(authDir)}`,
@@ -4630,9 +10340,28 @@ function renderRuntimeConfig(authDir, managed, port) {
     "logging-to-file: false",
     "usage-statistics-enabled: false"
   ];
+  if (isSubscriptionUpstream(managed.upstream)) {
+    if (!managed.subscriptionPort || !managed.upstreamModels.length) {
+      throw new Error("Subscription models and bridge port must be discovered before proxy startup.");
+    }
+    return [
+      ...header2,
+      "openai-compatibility:",
+      `  - name: ${yaml(managed.upstream)}`,
+      `    base-url: ${yaml(`${baseUrl(managed.subscriptionPort)}/v1`)}`,
+      "    headers:",
+      `      x-claudex-session: ${yaml("$X-Claude-Code-Session-Id")}`,
+      "    api-key-entries:",
+      `      - api-key: ${yaml(managed.apiKey)}`,
+      "    models:",
+      ...managed.upstreamModels.flatMap((id) => [`      - name: ${yaml(id)}`, `        alias: ${yaml(id)}`]),
+      ""
+    ].join(`
+`);
+  }
   if (managed.upstream === "antigravity") {
     return [
-      ...header,
+      ...header2,
       "antigravity:",
       ...managed.antigravitySensitiveWords.length ? ["  sensitive-words:", ...managed.antigravitySensitiveWords.map((word) => `    - ${yaml(word)}`)] : ["  sensitive-words: []"],
       ""
@@ -4640,11 +10369,11 @@ function renderRuntimeConfig(authDir, managed, port) {
 `);
   }
   if (managed.upstream === "opencode-go") {
-    return [...header, ...renderOpenCodeGoUpstream(managed), ""].join(`
+    return [...header2, ...renderOpenCodeGoUpstream(managed), ""].join(`
 `);
   }
   return [
-    ...header,
+    ...header2,
     "oauth-model-alias:",
     "  codex:",
     `    - name: ${yaml("gpt-5.6-terra")}`,
@@ -4663,7 +10392,7 @@ function renderRuntimeConfig(authDir, managed, port) {
 }
 function renderOpenCodeGoUpstream(managed) {
   const key = managed.upstreamKey ?? "";
-  const models = [
+  const models2 = [
     ...new Set([
       managed.fableModel,
       managed.opusModel,
@@ -4672,8 +10401,8 @@ function renderOpenCodeGoUpstream(managed) {
       ...managed.upstreamModels
     ])
   ];
-  const chat = models.filter((model) => !isOpenCodeGoMessagesModel(model));
-  const messages = models.filter(isOpenCodeGoMessagesModel);
+  const chat = models2.filter((model) => !isOpenCodeGoMessagesModel(model));
+  const messages = models2.filter(isOpenCodeGoMessagesModel);
   const modelLines = (list, indent) => list.flatMap((model) => [
     `${indent}- name: ${yaml(model)}`,
     `${indent}  alias: ${yaml(model)}`
@@ -4692,24 +10421,25 @@ function renderOpenCodeGoUpstream(managed) {
   return lines;
 }
 function createManagedCLIProxyAPIProfileId() {
-  return randomUUID();
+  return randomUUID3();
 }
 async function initializeManagedCLIProxyAPI(profileId, setup = { upstream: "codex" }) {
   const paths = profilePaths(profileId);
   await mkdirPrivate(paths.dir);
   await mkdirPrivate(paths.authDir);
-  const apiKey = randomBytes(32).toString("base64url");
+  const apiKey = randomBytes4(32).toString("base64url");
   await writePrivateOnce(paths.envFile, renderManagedEnv(apiKey, setup));
 }
 async function updateManagedCLIProxyAPISetup(profileId, patch) {
   const paths = profilePaths(profileId);
-  const current = await readExistingManagedEnv(profileId);
-  await writePrivate(paths.envFile, renderManagedEnv(current.apiKey, {
-    upstream: current.upstream,
-    models: patch.models ?? current,
-    upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
-    upstreamModels: patch.upstreamModels ?? current.upstreamModels,
-    antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current.antigravitySensitiveWords
+  const current2 = await readExistingManagedEnv(profileId);
+  await writePrivate(paths.envFile, renderManagedEnv(current2.apiKey, {
+    upstream: current2.upstream,
+    models: patch.models ?? current2,
+    upstreamKey: patch.upstreamKey ?? current2.upstreamKey ?? undefined,
+    upstreamModels: patch.upstreamModels ?? current2.upstreamModels,
+    antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current2.antigravitySensitiveWords,
+    subscriptionPort: patch.subscriptionPort ?? current2.subscriptionPort ?? undefined
   }));
 }
 async function readManagedCLIProxyAPIUpstream(profileId) {
@@ -4722,7 +10452,7 @@ async function readManagedCLIProxyAPIUpstream(profileId) {
 }
 async function readManagedEnv(profileId) {
   const paths = profilePaths(profileId);
-  const content = await readFile2(paths.envFile, "utf-8");
+  const content = await readFile4(paths.envFile, "utf-8");
   return parseManagedEnv(content);
 }
 async function readExistingManagedEnv(profileId) {
@@ -4746,7 +10476,7 @@ async function isExpectedRuntimeConfig(paths, state, managed) {
   if (!managed)
     return false;
   try {
-    const raw = await readFile2(paths.configFile, "utf-8");
+    const raw = await readFile4(paths.configFile, "utf-8");
     const configuredPort = raw.match(/^port:\s*(\d+)\s*$/m)?.[1];
     const port = state?.port ?? Number(configuredPort);
     if (!Number.isInteger(port) || port < 1 || port > 65535)
@@ -4797,7 +10527,7 @@ function antigravityModelOverrides(ids, tiers, savedModel) {
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
-  const env2 = {
+  const env3 = {
     ...localCLIProxyAPIAuthEnv(config.apiKey),
     ANTHROPIC_BASE_URL: config.baseUrl,
     ANTHROPIC_MODEL: options.inheritModel ? "" : config.model,
@@ -4809,27 +10539,37 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
     CLAUDE_CODE_SUBAGENT_MODEL_FORCE: config.subagentModel ? "1" : ""
   };
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
-    env2[key] = "";
+    env3[key] = "";
   }
-  for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
-    env2[key] = value;
+  for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
+    env3[key] = value;
   }
   await writePrivateJson(paths.claudeSettingsFile, {
     model: options.inheritModel ? undefined : config.model,
     ...runtime.models ? {
       modelPicker: {
         replaceBuiltInOptions: true,
-        options: runtime.models.filter((model) => !/image/i.test(model.id) && !isSupersededAntigravityClaude(model.id, runtime.models.map(({ id }) => id))).map((model) => ({
+        options: runtime.models.filter((model) => !/image/i.test(model.id) && (profile.upstream !== "antigravity" || !isSupersededAntigravityClaude(model.id, runtime.models.map(({ id }) => id)))).map((model) => ({
           model: model.id,
           label: model.display_name ?? model.id,
-          description: `Antigravity · ${model.id}`
+          description: `${CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"].label} · ${model.id}`
         }))
       },
-      modelOverrides: antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
+      modelOverrides: profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
     } : {},
-    env: env2
+    env: env3
   });
   return paths.claudeSettingsFile;
+}
+function subscriptionModelOverrides(ids, tiers, savedModel) {
+  const overrides = {};
+  for (const id of [...CLAUDE_CODE_MODEL_IDS, ...savedModel ? [savedModel] : []]) {
+    if (ids.includes(id))
+      continue;
+    const family = id.match(/^claude-(fable|opus|sonnet|haiku)(?:-|$)/i)?.[1]?.toLowerCase();
+    overrides[id] = family ? tiers[`${family}Model`] : tiers.fableModel;
+  }
+  return overrides;
 }
 function resolveLocalCLIProxyAPIModelFromConfig(input, config) {
   const normalized = input.trim();
@@ -4855,6 +10595,11 @@ function resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config) {
 async function resolveManagedLocalCLIProxyAPIModel(profile, input) {
   const config = await readExistingManagedEnv(profile.profileId);
   const model = resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  if (isSubscriptionUpstream(config.upstream)) {
+    if (config.upstreamModels.includes(model))
+      return model;
+    throw new Error(`${CLI_PROXY_API_UPSTREAMS[config.upstream].label} model "${input}" is not in the account catalog. Use /model or one of: ${config.upstreamModels.join(", ")}`);
+  }
   if (config.upstream !== "antigravity")
     return model;
   if (!config.upstreamModels.length) {
@@ -4868,6 +10613,8 @@ async function resolveManagedLocalCLIProxyAPIModel(profile, input) {
 async function resolveManagedLocalCLIProxyAPIDefaultModel(profile) {
   const config = await readExistingManagedEnv(profile.profileId);
   const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  if (isSubscriptionUpstream(config.upstream))
+    return config.upstreamModels.includes(model) ? model : config.fableModel;
   if (config.upstream !== "antigravity")
     return model;
   return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
@@ -4907,8 +10654,8 @@ async function listManagedCLIProxyAPICatalog(runtime) {
     if (!response.ok)
       return [];
     const body = await response.json();
-    const models = (body.data ?? []).flatMap((model) => typeof model.id === "string" && model.id.trim() ? [{ id: model.id, ...typeof model.display_name === "string" ? { display_name: model.display_name } : {} }] : []);
-    return [...new Map(models.map((model) => [model.id, model])).values()].sort((a, b) => a.id.localeCompare(b.id));
+    const models2 = (body.data ?? []).flatMap((model) => typeof model.id === "string" && model.id.trim() ? [{ id: model.id, ...typeof model.display_name === "string" ? { display_name: model.display_name } : {} }] : []);
+    return [...new Map(models2.map((model) => [model.id, model])).values()].sort((a, b) => a.id.localeCompare(b.id));
   } catch {
     return [];
   } finally {
@@ -4916,31 +10663,38 @@ async function listManagedCLIProxyAPICatalog(runtime) {
   }
 }
 async function syncAntigravityModels(profileId, managed, runtime, startedAt) {
+  if (isSubscriptionUpstream(managed.upstream)) {
+    const catalog2 = await listManagedCLIProxyAPICatalog({ ...runtime, baseUrl: baseUrl(managed.subscriptionPort) });
+    const models3 = catalog2.filter(({ id }) => managed.upstreamModels.includes(id));
+    if (!models3.length)
+      throw new Error("The subscription adapter has no available models. Check its login, then restart this account's proxy.");
+    return { ...runtime, models: models3 };
+  }
   if (managed.upstream !== "antigravity")
     return runtime;
   const hasClaude = (list) => list.some(({ id }) => /^claude-(opus|sonnet)-/i.test(id));
   const key = (list) => list.map(({ id }) => id).join(",");
   const daemon = `${profileId}:${startedAt}`;
   const settleUntil = settledAntigravityDaemons.has(daemon) ? 0 : startedAt + ANTIGRAVITY_CATALOG.settleMs;
-  let models = await listManagedCLIProxyAPICatalog(runtime);
-  let first = hasClaude(models) ? key(models) : null;
+  let models2 = await listManagedCLIProxyAPICatalog(runtime);
+  let first = hasClaude(models2) ? key(models2) : null;
   for (let attempt = 0;; attempt += 1) {
     const young = Date.now() < settleUntil;
-    if (hasClaude(models) && (!young || key(models) !== first))
+    if (hasClaude(models2) && (!young || key(models2) !== first))
       break;
     if (!young && attempt >= 3)
       break;
     await delay(250);
-    models = await listManagedCLIProxyAPICatalog(runtime);
-    first ??= hasClaude(models) ? key(models) : null;
+    models2 = await listManagedCLIProxyAPICatalog(runtime);
+    first ??= hasClaude(models2) ? key(models2) : null;
   }
   settledAntigravityDaemons.add(daemon);
-  const ids = [...new Set(models.map((model) => model.id))];
+  const ids = [...new Set(models2.map((model) => model.id))];
   const mappings = reconcileAntigravityModels(ids, managed);
   if (Object.entries(mappings).some(([tier, id]) => managed[tier] !== id) || JSON.stringify(ids) !== JSON.stringify(managed.upstreamModels)) {
     await updateManagedCLIProxyAPISetup(profileId, { models: mappings, upstreamModels: ids });
   }
-  return { ...runtime, models };
+  return { ...runtime, models: models2 };
 }
 async function probeManagedCLIProxyAPILive(runtime, model) {
   const controller = new AbortController;
@@ -4952,7 +10706,7 @@ async function probeManagedCLIProxyAPILive(runtime, model) {
         ...credentialHeaders(runtime.apiKey),
         "content-type": "application/json",
         "anthropic-version": "2023-06-01",
-        "X-Claude-Code-Session-Id": randomUUID()
+        "X-Claude-Code-Session-Id": randomUUID3()
       },
       body: JSON.stringify({
         model,
@@ -4982,7 +10736,7 @@ function delay(ms) {
 }
 async function portIsAvailable(port) {
   return new Promise((resolveAvailable) => {
-    const server = createServer();
+    const server = createServer2();
     const closeAndResolve = (available) => {
       server.close(() => resolveAvailable(available));
     };
@@ -4994,14 +10748,14 @@ async function portIsAvailable(port) {
 }
 async function findAvailablePort() {
   return new Promise((resolvePort, reject) => {
-    const server = createServer();
+    const server = createServer2();
     server.once("error", reject);
     server.listen({ host: LOOPBACK_HOST, port: 0, exclusive: true }, () => {
       const address = server.address();
       const port = typeof address === "object" && address ? address.port : null;
-      server.close((error) => {
-        if (error) {
-          reject(error);
+      server.close((error2) => {
+        if (error2) {
+          reject(error2);
         } else if (port) {
           resolvePort(port);
         } else {
@@ -5024,19 +10778,19 @@ function isPidAlive(pid) {
 async function processCommandLine(pid) {
   if (process.platform === "linux") {
     try {
-      return (await readFile2(`/proc/${pid}/cmdline`, "utf-8")).replaceAll("\x00", " ");
+      return (await readFile4(`/proc/${pid}/cmdline`, "utf-8")).replaceAll("\x00", " ");
     } catch {
       return null;
     }
   }
   try {
-    const result = spawnSync4("ps", ["-p", String(pid), "-o", "command="], {
+    const result2 = spawnSync4("ps", ["-p", String(pid), "-o", "command="], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
-    if (result.status !== 0)
+    if (result2.status !== 0)
       return null;
-    return result.stdout.trim() || null;
+    return result2.stdout.trim() || null;
   } catch {
     return null;
   }
@@ -5047,7 +10801,7 @@ async function isOwnedProcess(state) {
   const command = await processCommandLine(state.pid);
   if (!command)
     return false;
-  return command.includes(state.configPath) && command.includes(basename(state.binaryPath));
+  return command.includes(state.configPath) && command.includes(basename2(state.binaryPath));
 }
 async function readState(profileId) {
   const paths = profilePaths(profileId);
@@ -5063,15 +10817,15 @@ async function writeState(profileId, state) {
 }
 async function withLock(lock, action) {
   const until = Date.now() + LOCK_TIMEOUT_MS;
-  const token = randomUUID();
+  const token = randomUUID3();
   let createdAt = 0;
-  await mkdirPrivate(dirname2(lock));
+  await mkdirPrivate(dirname3(lock));
   for (;; ) {
     try {
-      await mkdir3(lock, { mode: 448 });
+      await mkdir4(lock, { mode: 448 });
       createdAt = Date.now();
       try {
-        await writePrivateJson(join4(lock, "owner.json"), {
+        await writePrivateJson(join7(lock, "owner.json"), {
           pid: process.pid,
           token,
           createdAt,
@@ -5108,10 +10862,10 @@ async function withLock(lock, action) {
 }
 async function refreshOwnedLock(lock, token, createdAt) {
   try {
-    const owner = await readJson(join4(lock, "owner.json"), null);
+    const owner = await readJson(join7(lock, "owner.json"), null);
     if (owner?.token !== token || owner.pid !== process.pid)
       return;
-    await writePrivateJson(join4(lock, "owner.json"), {
+    await writePrivateJson(join7(lock, "owner.json"), {
       pid: process.pid,
       token,
       createdAt,
@@ -5121,19 +10875,19 @@ async function refreshOwnedLock(lock, token, createdAt) {
 }
 async function removeLockIfOwned(lock, token) {
   try {
-    const owner = await readJson(join4(lock, "owner.json"), null);
+    const owner = await readJson(join7(lock, "owner.json"), null);
     if (owner?.token !== token || owner.pid !== process.pid)
       return;
     await rm2(lock, { recursive: true, force: true });
   } catch {}
 }
 async function canReclaimLock(lock) {
-  const owner = await readJson(join4(lock, "owner.json"), null);
+  const owner = await readJson(join7(lock, "owner.json"), null);
   if (owner && Number.isInteger(owner.pid) && owner.pid > 0) {
     return !isPidAlive(owner.pid);
   }
   try {
-    const lockStat = await stat(lock);
+    const lockStat = await stat2(lock);
     return Date.now() - lockStat.mtimeMs > ORPHAN_LOCK_GRACE_MS;
   } catch {
     return false;
@@ -5143,7 +10897,7 @@ async function withStartupLock(profileId, action) {
   return withLock(profilePaths(profileId).lock, action);
 }
 function proxyProcessEnvironment() {
-  const env2 = { ...process.env };
+  const env3 = { ...process.env };
   for (const key of [
     "OPENAI_API_KEY",
     "CODEX_API_KEY",
@@ -5154,18 +10908,27 @@ function proxyProcessEnvironment() {
     "GOOGLE_API_KEY",
     "OPENCODE_API_KEY"
   ]) {
-    delete env2[key];
+    delete env3[key];
   }
-  for (const key of Object.keys(env2)) {
+  for (const key of Object.keys(env3)) {
     const upper = key.toUpperCase();
     if (upper === "HOME_JWT" || upper === "MANAGEMENT_PASSWORD" || upper === "DEPLOY" || upper.startsWith("PGSTORE_") || upper.startsWith("GITSTORE_") || upper.startsWith("OBJECTSTORE_") || upper.startsWith("DEPLOY_")) {
-      delete env2[key];
+      delete env3[key];
     }
   }
-  return env2;
+  return env3;
 }
-function startProxy(binaryPath, configPath, managedDirectory, spawnCommand = spawn) {
-  const proc = spawnCommand(binaryPath, ["-config", configPath], {
+function startProxy(binaryPath, configPath, managedDirectory, spawnCommand = spawn, subscriptionProfileId) {
+  const script = process.argv[1];
+  const scriptEntrypoint = subscriptionProfileId && script && !script.includes("$bunfs") && (!process.versions.bun || /\.[cm]?[jt]s$/.test(realpathSync(script)));
+  const args = subscriptionProfileId ? [
+    ...scriptEntrypoint ? [resolve2(script)] : [],
+    "__subscription-proxy",
+    subscriptionProfileId,
+    binaryPath,
+    configPath
+  ] : ["-config", configPath];
+  const proc = spawnCommand(subscriptionProfileId ? process.execPath : binaryPath, args, {
     detached: true,
     stdio: "ignore",
     cwd: managedDirectory,
@@ -5174,6 +10937,42 @@ function startProxy(binaryPath, configPath, managedDirectory, spawnCommand = spa
   proc.on("error", () => {});
   proc.unref?.();
   return proc;
+}
+async function runManagedSubscriptionProxy(profileId, binaryPath, configPath) {
+  const paths = profilePaths(profileId);
+  const managed = await readExistingManagedEnv(profileId);
+  if (resolve2(configPath) !== paths.configFile || !isSubscriptionUpstream(managed.upstream) || !managed.subscriptionPort) {
+    throw new Error("Invalid managed subscription proxy invocation");
+  }
+  const server = await serveSubscriptionBridge({
+    directory: paths.dir,
+    upstream: managed.upstream,
+    apiKey: managed.apiKey,
+    port: managed.subscriptionPort
+  });
+  const child = spawn(binaryPath, ["-config", configPath], { cwd: paths.dir, stdio: "ignore", env: proxyProcessEnvironment() });
+  let timer;
+  const stop = () => {
+    server.close();
+    child.kill("SIGTERM");
+    timer ??= setTimeout(() => child.kill("SIGKILL"), 3000);
+    timer.unref();
+  };
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+  try {
+    await new Promise((resolveExit, reject) => {
+      child.once("error", reject);
+      child.once("exit", () => resolveExit());
+    });
+  } finally {
+    if (timer)
+      clearTimeout(timer);
+    process.off("SIGTERM", stop);
+    process.off("SIGINT", stop);
+    server.closeAllConnections();
+    await new Promise((resolveClose) => server.close(() => resolveClose()));
+  }
 }
 function stopChildWeStarted(proc) {
   try {
@@ -5188,7 +10987,7 @@ async function ensureManagedCLIProxyAPI(profile) {
 async function ensureManagedCLIProxyAPIUnlocked(profile) {
   const paths = profilePaths(profile.profileId);
   const state = await readState(profile.profileId);
-  const managed = await readExistingManagedEnv(profile.profileId);
+  let managed = await readExistingManagedEnv(profile.profileId);
   assertCLIProxyAPICompatibility(profile.binaryPath, managed.upstream);
   if (state) {
     const alive = isPidAlive(state.pid);
@@ -5211,11 +11010,27 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
     }
     await rm2(paths.stateFile, { force: true });
   }
+  if (isSubscriptionUpstream(managed.upstream)) {
+    const models2 = await listSubscriptionModels(paths.dir, managed.upstream);
+    const ids = models2.map(({ id }) => id);
+    await updateManagedCLIProxyAPISetup(profile.profileId, {
+      models: pickSubscriptionModels(ids, managed),
+      upstreamModels: ids,
+      subscriptionPort: await findAvailablePort()
+    });
+    managed = await readExistingManagedEnv(profile.profileId);
+  }
   for (let attempt = 0;attempt < 3; attempt += 1) {
+    if (attempt > 0 && isSubscriptionUpstream(managed.upstream)) {
+      await updateManagedCLIProxyAPISetup(profile.profileId, { subscriptionPort: await findAvailablePort() });
+      managed = await readExistingManagedEnv(profile.profileId);
+    }
     const port = await findAvailablePort();
+    if (port === managed.subscriptionPort)
+      continue;
     await writeRuntimeConfig(profile.profileId, port);
     const startedAt = Date.now();
-    const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
+    const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir, spawn, isSubscriptionUpstream(managed.upstream) ? profile.profileId : undefined);
     const ready = await waitForProxy(port, managed.apiKey);
     if (!ready) {
       stopChildWeStarted(proc);
@@ -5255,7 +11070,7 @@ async function managedCLIProxyAPIHasActiveLeases(profileId) {
   const paths = profilePaths(profileId);
   let entries;
   try {
-    entries = await readdir(paths.sessionsDir, { withFileTypes: true });
+    entries = await readdir2(paths.sessionsDir, { withFileTypes: true });
   } catch {
     return false;
   }
@@ -5263,7 +11078,7 @@ async function managedCLIProxyAPIHasActiveLeases(profileId) {
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".json"))
       continue;
-    const leasePath = join4(paths.sessionsDir, entry.name);
+    const leasePath = join7(paths.sessionsDir, entry.name);
     const lease = await readJson(leasePath, null);
     if (lease && Number.isInteger(lease.pid) && isPidAlive(lease.pid)) {
       active = true;
@@ -5282,7 +11097,7 @@ async function acquireManagedCLIProxyAPILease(profile) {
       throw new Error(`No valid CLIProxyAPI ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`);
     }
     await mkdirPrivate(paths.sessionsDir);
-    const leasePath = join4(paths.sessionsDir, `${randomUUID()}.json`);
+    const leasePath = join7(paths.sessionsDir, `${randomUUID3()}.json`);
     await writePrivateJson(leasePath, {
       pid: process.pid,
       createdAt: Date.now()
@@ -5297,38 +11112,38 @@ async function acquireManagedCLIProxyAPILease(profile) {
 async function authFiles(path) {
   let entries;
   try {
-    entries = await readdir(path, { withFileTypes: true });
+    entries = await readdir2(path, { withFileTypes: true });
   } catch {
     return [];
   }
-  const result = [];
+  const result2 = [];
   for (const entry of entries) {
-    const child = join4(path, entry.name);
+    const child = join7(path, entry.name);
     if (entry.isDirectory()) {
-      result.push(...await authFiles(child));
+      result2.push(...await authFiles(child));
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".json"))
       continue;
     try {
-      if ((await stat(child)).size > 0)
-        result.push(child);
+      if ((await stat2(child)).size > 0)
+        result2.push(child);
     } catch {}
   }
-  return result;
+  return result2;
 }
-function collectIdentityValues(value, result = []) {
+function collectIdentityValues(value, result2 = []) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return result;
+    return result2;
   }
   for (const [key, child] of Object.entries(value)) {
     const lower = key.toLowerCase();
     const identityKey = /^(email|sub|account_?id|user_?id|chatgpt_account_?id|chatgpt_user_?id|organization_?id)$/.test(lower);
     if (identityKey && (typeof child === "string" || typeof child === "number")) {
-      result.push(`${lower}=${String(child)}`);
+      result2.push(`${lower}=${String(child)}`);
     }
   }
-  return result;
+  return result2;
 }
 function decodeJwtPayload(token) {
   if (typeof token !== "string")
@@ -5348,7 +11163,7 @@ async function readSingleAuthFile(authDir, authType) {
   if (files.length !== 1)
     return null;
   try {
-    const parsed = JSON.parse(await readFile2(files[0], "utf-8"));
+    const parsed = JSON.parse(await readFile4(files[0], "utf-8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       return null;
     const auth = parsed;
@@ -5372,7 +11187,7 @@ async function inspectAuthDirectory(authDir, authType) {
     return { valid: false, identity: null };
   return {
     valid: true,
-    identity: createHash2("sha256").update(values.join(`
+    identity: createHash6("sha256").update(values.join(`
 `)).digest("hex")
   };
 }
@@ -5396,6 +11211,8 @@ async function hasManagedCLIProxyAPILogin(profileId) {
     return (await inspectAuthDirectory(profilePaths(profileId).authDir, "codex")).valid;
   }
   const spec = CLI_PROXY_API_UPSTREAMS[managed.upstream];
+  if (isSubscriptionUpstream(managed.upstream))
+    return hasSubscriptionLogin(profilePaths(profileId).dir, managed.upstream);
   if (!spec.authType)
     return Boolean(managed.upstreamKey);
   return (await inspectAuthDirectory(profilePaths(profileId).authDir, spec.authType)).valid;
@@ -5406,6 +11223,36 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
   await mkdirPrivate(CLI_PROXY_API_DIR);
   const upstream = (await readExistingManagedEnv(profile.profileId)).upstream;
   const spec = CLI_PROXY_API_UPSTREAMS[upstream];
+  if (isSubscriptionUpstream(upstream)) {
+    if (!process.stdin.isTTY) {
+      throw new Error(`${spec.label} login needs an interactive terminal to choose a login method. Run the same command in your terminal first.`);
+    }
+    return withStartupLock(profile.profileId, async () => {
+      if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
+        throw new Error("End this account's Claude Code sessions before refreshing its login.");
+      }
+      await stopManagedCLIProxyAPIUnlocked(profile);
+      const staging = join7(paths.dir, `.login-${randomUUID3()}`);
+      await mkdirPrivate(staging);
+      try {
+        const methods = await subscriptionLoginMethods(staging, upstream);
+        if (!methods.length)
+          throw new Error(`${spec.label} has no supported login methods.`);
+        const method = await esm_default5({
+          message: `${spec.label} login`,
+          choices: methods.map(({ label }, value) => ({ name: label, value }))
+        });
+        const identity2 = await loginSubscriptionPlugin(staging, upstream, method, info);
+        if (expectedIdentity && identity2 !== expectedIdentity) {
+          return { success: false, identity: null, identityMismatch: true };
+        }
+        await rename2(join7(staging, SUBSCRIPTION_AUTH_FILE), join7(paths.dir, SUBSCRIPTION_AUTH_FILE));
+        return { success: true, identity: identity2, identityMismatch: false };
+      } finally {
+        await rm2(staging, { recursive: true, force: true });
+      }
+    });
+  }
   if (!spec.loginFlag || !spec.authType) {
     throw new Error(`${spec.label} accounts use an API key and have no CLIProxyAPI login.`);
   }
@@ -5414,8 +11261,8 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
       throw new Error("A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before refreshing the login.");
     }
-    const stagingAuthDir = join4(paths.dir, `.login-${randomUUID()}`);
-    const loginConfig = join4(paths.dir, "login-runtime.yaml");
+    const stagingAuthDir = join7(paths.dir, `.login-${randomUUID3()}`);
+    const loginConfig = join7(paths.dir, "login-runtime.yaml");
     const apiPort = await findAvailablePort();
     if (callbackPort && !await portIsAvailable(callbackPort)) {
       throw new Error(`CLIProxyAPI ${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`);
@@ -5424,15 +11271,15 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
     const config = await readExistingManagedEnv(profile.profileId);
     await writePrivate(loginConfig, renderRuntimeConfig(stagingAuthDir, config, apiPort));
     const shimDir = createOpenShimDir();
-    const env2 = proxyProcessEnvironment();
+    const env3 = proxyProcessEnvironment();
     if (shimDir)
-      env2.PATH = `${shimDir}:${env2.PATH ?? ""}`;
+      env3.PATH = `${shimDir}:${env3.PATH ?? ""}`;
     try {
       const proc = spawnCommand(profile.binaryPath, [
         "-config",
         loginConfig,
         loginFlag
-      ], { stdio: "inherit", cwd: paths.dir, env: env2 });
+      ], { stdio: "inherit", cwd: paths.dir, env: env3 });
       const exitCode = await new Promise((resolveCode, reject) => {
         proc.on("close", resolveCode);
         proc.on("error", reject);
@@ -5450,20 +11297,20 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
         };
       }
       await stopManagedCLIProxyAPIUnlocked(profile);
-      const backup = join4(paths.dir, `.auth-backup-${randomUUID()}`);
+      const backup = join7(paths.dir, `.auth-backup-${randomUUID3()}`);
       let movedCurrent = false;
       try {
         if (await fileExists(paths.authDir)) {
-          await rename(paths.authDir, backup);
+          await rename2(paths.authDir, backup);
           movedCurrent = true;
         }
-        await rename(stagingAuthDir, paths.authDir);
+        await rename2(stagingAuthDir, paths.authDir);
         if (movedCurrent)
           await rm2(backup, { recursive: true, force: true });
       } catch (err) {
         if (movedCurrent && !await fileExists(paths.authDir)) {
           try {
-            await rename(backup, paths.authDir);
+            await rename2(backup, paths.authDir);
           } catch {}
         }
         throw err;
@@ -5485,13 +11332,13 @@ async function inspectManagedCLIProxyAPI(profile, options = {}) {
   } catch {}
   const state = managed ? await readState(profile.profileId) : null;
   const configured = await isExpectedRuntimeConfig(paths, state, managed);
-  const running = Boolean(state && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state));
-  const healthy = options.probe && running && state && managed ? await probeProxy(state.port, managed.apiKey) : null;
+  const running2 = Boolean(state && state.binaryPath === profile.binaryPath && state.configPath === paths.configFile && await isOwnedProcess(state));
+  const healthy = options.probe && running2 && state && managed ? await probeProxy(state.port, managed.apiKey) : null;
   return {
     installed: Boolean(findCLIProxyAPIBinary(profile.binaryPath)),
     loggedIn: await hasManagedCLIProxyAPILogin(profile.profileId),
     environmentValid: managed !== null,
-    running,
+    running: running2,
     configured,
     healthy,
     port: state?.port ?? null
@@ -5578,7 +11425,7 @@ async function cleanupFailedManagedCLIProxyAPI(profileId) {
   const paths = profilePaths(profileId);
   await rm2(paths.dir, { recursive: true, force: true });
   try {
-    await rmdir(dirname2(paths.lock));
+    await rmdir(dirname3(paths.lock));
   } catch {}
 }
 function commandWorks(command) {
@@ -5592,15 +11439,15 @@ function commandWorks(command) {
 }
 function resolvedCommand(command) {
   if (command.includes("/") || command.includes("\\")) {
-    return resolve(command);
+    return resolve2(command);
   }
-  const locator = platform3() === "win32" ? "where" : "which";
+  const locator = platform4() === "win32" ? "where" : "which";
   try {
-    const result = spawnSync4(locator, [command], {
+    const result2 = spawnSync4(locator, [command], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
-    const first = result.stdout.trim().split(/\r?\n/)[0]?.trim();
+    const first = result2.stdout.trim().split(/\r?\n/)[0]?.trim();
     return first || command;
   } catch {
     return command;
@@ -5626,145 +11473,6 @@ async function installCLIProxyAPIWithHomebrew(spawnCommand = spawn) {
   return exitCode === 0;
 }
 
-// src/lib/ui.ts
-var icons = {
-  active: source_default.green("▸"),
-  inactive: source_default.dim(" "),
-  success: source_default.green("✓"),
-  error: source_default.red("✗"),
-  arrow: source_default.cyan("→"),
-  info: source_default.blue("●")
-};
-function header(text) {
-  return source_default.bold(text);
-}
-function success(text) {
-  console.log(`  ${icons.success} ${text}`);
-}
-function error(text) {
-  console.error(`  ${icons.error} ${source_default.red(text)}`);
-}
-function warn(text) {
-  console.log(`  ${source_default.yellow("⚠")} ${source_default.yellow(text)}`);
-}
-function info(text) {
-  console.log(`  ${icons.info} ${text}`);
-}
-function hint(text) {
-  console.log(source_default.dim(`  ${text}`));
-}
-function blank() {
-  console.log();
-}
-function sectionHeader(text) {
-  console.log(`  ${source_default.dim("──")} ${source_default.bold(text)} ${source_default.dim("──")}`);
-}
-function formatType(type) {
-  switch (type) {
-    case "oauth":
-      return source_default.blue("oauth");
-    case "api-key":
-      return source_default.yellow("api-key");
-    case "local-cliproxyapi":
-      return source_default.green("local CLIProxyAPI");
-    case "chatgpt":
-      return source_default.green("chatgpt");
-    case "apikey":
-      return source_default.yellow("apikey");
-    default:
-      return source_default.dim(type);
-  }
-}
-function formatPlan(plan) {
-  if (!plan)
-    return source_default.dim("unknown");
-  const map = {
-    max: source_default.magenta("Max"),
-    pro: source_default.cyan("Pro"),
-    free: source_default.dim("Free"),
-    plus: source_default.green("Plus"),
-    team: source_default.blue("Team"),
-    business: source_default.blue("Business"),
-    enterprise: source_default.yellow("Enterprise"),
-    edu: source_default.cyan("Edu")
-  };
-  return map[plan.toLowerCase()] ?? source_default.dim(plan);
-}
-function formatProvider(provider) {
-  switch (provider) {
-    case "claude":
-      return source_default.magenta("Claude");
-    case "codex":
-      return source_default.green("Codex");
-    case "opencode":
-      return source_default.cyan("OpenCode");
-  }
-}
-function maskKey(key) {
-  if (key.length <= 12)
-    return "••••";
-  return key.slice(0, 7) + "••••" + key.slice(-4);
-}
-function formatUsage(usage, note) {
-  if (usage) {
-    const parts = [];
-    if (usage.fiveHourUsedPercent !== null) {
-      parts.push(`${source_default.dim("5h")} ${colorRemaining(100 - usage.fiveHourUsedPercent)}`);
-    }
-    if (usage.weeklyUsedPercent !== null) {
-      parts.push(`${source_default.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}${formatWeeklyReset(usage.weeklyResetsAt)}`);
-    }
-    if (usage.monthlyUsedPercent !== null && usage.monthlyUsedPercent !== undefined) {
-      parts.push(`${source_default.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`);
-    }
-    if (parts.length > 0)
-      return parts.join(source_default.dim(" · "));
-  }
-  return note ? source_default.dim(note) : "";
-}
-var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-function formatWeeklyReset(resetsAt) {
-  if (resetsAt === null || !Number.isFinite(resetsAt))
-    return "";
-  const date = new Date(Math.round(resetsAt / 3600000) * 3600000);
-  const hour = String(date.getHours()).padStart(2, "0");
-  return ` ${source_default.dim(`${WEEKDAYS[date.getDay()]}${hour}`)}`;
-}
-function colorRemaining(percent) {
-  const value = Math.round(Math.min(100, Math.max(0, percent)));
-  const text = `${value}%`;
-  if (value >= 50)
-    return source_default.green(text);
-  if (value >= 20)
-    return source_default.yellow(text);
-  return source_default.red(text);
-}
-function formatBalance(balance) {
-  if (!balance)
-    return "";
-  const keyPart = formatBalanceSide(balance.key);
-  const acctPart = formatBalanceSide(balance.account);
-  if (keyPart && acctPart) {
-    return [
-      `${source_default.dim("key")} ${keyPart}`,
-      `${source_default.dim("acct")} ${acctPart}`
-    ].join(source_default.dim(" · "));
-  }
-  return keyPart || acctPart;
-}
-function formatBalanceSide(side) {
-  if (!side)
-    return "";
-  const dollars = (v) => `$${v.toFixed(2)}`;
-  if (side.unlimited) {
-    return side.usedUsd === null ? source_default.dim("∞") : source_default.dim(`${dollars(side.usedUsd)} used`);
-  }
-  if (side.remainingUsd === null)
-    return "";
-  const colored = side.remainingUsd >= 10 ? source_default.green(dollars(side.remainingUsd)) : side.remainingUsd >= 1 ? source_default.yellow(dollars(side.remainingUsd)) : source_default.red(dollars(side.remainingUsd));
-  return `${colored} ${source_default.dim("left")}`;
-}
-
 // src/providers/claude/profiles.ts
 var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
   ".credentials.json",
@@ -5772,12 +11480,12 @@ var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
   "backups"
 ]);
 async function ensureDir2(path) {
-  await mkdir4(path, { recursive: true });
+  await mkdir5(path, { recursive: true });
 }
 async function ensurePrivateDir(path) {
-  await mkdir4(path, { recursive: true, mode: 448 });
+  await mkdir5(path, { recursive: true, mode: 448 });
   try {
-    await chmod3(path, 448);
+    await chmod4(path, 448);
   } catch {}
 }
 async function readState2() {
@@ -5823,38 +11531,38 @@ async function updateClaudeProfileConfig(name, patch) {
   if (!await profileExists(name)) {
     throw new Error(`Profile "${name}" does not exist`);
   }
-  const current = await readProfileData(name);
-  const fields = patch.fields ?? {};
-  const pick = (key, fallback) => (key in fields) ? fields[key] : fallback;
-  const env2 = patch.env === undefined ? current.env : patch.env;
+  const current2 = await readProfileData(name);
+  const fields2 = patch.fields ?? {};
+  const pick2 = (key, fallback) => (key in fields2) ? fields2[key] : fallback;
+  const env3 = patch.env === undefined ? current2.env : patch.env;
   let next;
-  if (current.type === "api-key") {
+  if (current2.type === "api-key") {
     next = normalizeApiKeyProfileData({
-      apiKey: pick("apiKey", current.apiKey) ?? "",
-      baseUrl: pick("baseUrl", current.baseUrl),
-      authToken: pick("authToken", current.authToken),
-      model: pick("model", current.model),
-      defaultFableModel: pick("defaultFableModel", current.defaultFableModel),
-      defaultSonnetModel: pick("defaultSonnetModel", current.defaultSonnetModel),
-      defaultOpusModel: pick("defaultOpusModel", current.defaultOpusModel),
-      defaultHaikuModel: pick("defaultHaikuModel", current.defaultHaikuModel),
-      subagentModel: pick("subagentModel", current.subagentModel),
-      env: env2
+      apiKey: pick2("apiKey", current2.apiKey) ?? "",
+      baseUrl: pick2("baseUrl", current2.baseUrl),
+      authToken: pick2("authToken", current2.authToken),
+      model: pick2("model", current2.model),
+      defaultFableModel: pick2("defaultFableModel", current2.defaultFableModel),
+      defaultSonnetModel: pick2("defaultSonnetModel", current2.defaultSonnetModel),
+      defaultOpusModel: pick2("defaultOpusModel", current2.defaultOpusModel),
+      defaultHaikuModel: pick2("defaultHaikuModel", current2.defaultHaikuModel),
+      subagentModel: pick2("subagentModel", current2.subagentModel),
+      env: env3
     });
     if (!next.apiKey) {
       throw new Error("API key cannot be empty");
     }
-  } else if (current.type === "local-cliproxyapi") {
-    const defaultModel = normalizeOptionalValue(pick("defaultModel", current.defaultModel));
+  } else if (current2.type === "local-cliproxyapi") {
+    const defaultModel = normalizeOptionalValue(pick2("defaultModel", current2.defaultModel));
     if (!defaultModel) {
       throw new Error("Default model cannot be empty");
     }
-    const { env: _previousEnv, ...rest } = current;
-    next = { ...rest, defaultModel, ...withCustomEnv(env2) };
+    const { env: _previousEnv, ...rest } = current2;
+    next = { ...rest, defaultModel, ...withCustomEnv(env3) };
   } else {
     next = normalizeOAuthProfileData({
-      defaultModel: pick("defaultModel", current.defaultModel),
-      env: env2
+      defaultModel: pick2("defaultModel", current2.defaultModel),
+      env: env3
     });
   }
   await writeProfileData(name, next);
@@ -5909,23 +11617,23 @@ async function saveLocalCLIProxyAPIProfile(name, config) {
   await writeProfileData(name, config);
 }
 async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
-  const current = await readProfileData(name);
-  if (current.type !== "local-cliproxyapi") {
+  const current2 = await readProfileData(name);
+  if (current2.type !== "local-cliproxyapi") {
     throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
   }
-  await writeProfileData(name, { ...current, authIdentity });
+  await writeProfileData(name, { ...current2, authIdentity });
 }
 async function replaceLocalCLIProxyAPIBinary(name, binaryPath) {
-  const current = await readProfileData(name);
-  if (current.type !== "local-cliproxyapi") {
+  const current2 = await readProfileData(name);
+  if (current2.type !== "local-cliproxyapi") {
     throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
   }
   const resolved = findCLIProxyAPIBinary(binaryPath);
   if (!resolved)
     throw new Error("The replacement CLIProxyAPI executable is unavailable.");
-  assertCLIProxyAPICompatibility(resolved, current.upstream);
-  const next = { ...current, binaryPath: resolved };
-  await replaceManagedCLIProxyAPIBinary(current, resolved, () => writeProfileData(name, next));
+  assertCLIProxyAPICompatibility(resolved, current2.upstream);
+  const next = { ...current2, binaryPath: resolved };
+  await replaceManagedCLIProxyAPIBinary(current2, resolved, () => writeProfileData(name, next));
   return next;
 }
 async function switchProfile(name) {
@@ -6083,28 +11791,28 @@ async function prepareIsolatedOAuthConfig(name) {
 async function linkSharedClaudeConfigEntries(configDir) {
   let entries;
   try {
-    entries = await readdir2(CLAUDE_DIR, { withFileTypes: true });
+    entries = await readdir3(CLAUDE_DIR, { withFileTypes: true });
   } catch {
     return;
   }
   for (const entry of entries) {
     if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name))
       continue;
-    const source = join5(CLAUDE_DIR, entry.name);
-    const destination = join5(configDir, entry.name);
+    const source = join8(CLAUDE_DIR, entry.name);
+    const destination = join8(configDir, entry.name);
     const type = entry.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
     await ensureSymlinkOrCopy(source, destination, type);
   }
 }
 async function ensureSymlinkOrCopy(source, destination, type) {
   try {
-    const stat2 = await lstat(destination);
-    if (!stat2.isSymbolicLink())
+    const stat3 = await lstat(destination);
+    if (!stat3.isSymbolicLink())
       return;
     const existing = await readlink(destination);
     if (existing === source)
       return;
-    await unlink(destination);
+    await unlink2(destination);
   } catch {}
   try {
     await symlink(source, destination, type);
@@ -6242,8 +11950,8 @@ function normalizeOAuthProfileData(config) {
     ...withCustomEnv(config.env)
   };
 }
-function withCustomEnv(env2) {
-  const normalized = normalizeCustomEnv(env2);
+function withCustomEnv(env3) {
+  const normalized = normalizeCustomEnv(env3);
   return Object.keys(normalized).length > 0 ? { env: normalized } : {};
 }
 function sameCustomEnv(expected, actual) {
@@ -6261,11 +11969,11 @@ function sameApiConfig(expected, actual) {
 }
 
 // src/providers/codex/registry.ts
-import { mkdir as mkdir6 } from "fs/promises";
+import { mkdir as mkdir7 } from "fs/promises";
 
 // src/providers/codex/config.ts
-import { chmod as chmod4, mkdir as mkdir5, readFile as readFile3, writeFile as writeFile3 } from "fs/promises";
-import { dirname as dirname3 } from "path";
+import { chmod as chmod5, mkdir as mkdir6, readFile as readFile5, writeFile as writeFile4 } from "fs/promises";
+import { dirname as dirname4 } from "path";
 
 // src/lib/toml.ts
 function parseKeyPath(path) {
@@ -6315,13 +12023,13 @@ function splitArrayElements(inner) {
   const elements = [];
   let depth = 0;
   let inString = false;
-  let current = "";
+  let current2 = "";
   for (let i = 0;i < inner.length; i++) {
     const ch = inner[i];
     if (inString) {
-      current += ch;
+      current2 += ch;
       if (ch === "\\" && i + 1 < inner.length) {
-        current += inner[++i];
+        current2 += inner[++i];
       } else if (ch === '"') {
         inString = false;
       }
@@ -6329,22 +12037,22 @@ function splitArrayElements(inner) {
     }
     if (ch === '"') {
       inString = true;
-      current += ch;
+      current2 += ch;
     } else if (ch === "[") {
       depth++;
-      current += ch;
+      current2 += ch;
     } else if (ch === "]") {
       depth--;
-      current += ch;
+      current2 += ch;
     } else if (ch === "," && depth === 0) {
-      elements.push(current);
-      current = "";
+      elements.push(current2);
+      current2 = "";
     } else {
-      current += ch;
+      current2 += ch;
     }
   }
-  if (current.trim())
-    elements.push(current);
+  if (current2.trim())
+    elements.push(current2);
   return elements;
 }
 function parseValue(raw) {
@@ -6359,28 +12067,28 @@ function parseValue(raw) {
     return splitArrayElements(inner).map((el) => parseValue(el.trim()));
   }
   if (raw.startsWith('"')) {
-    let result = "";
+    let result2 = "";
     let i = 1;
     while (i < raw.length && raw[i] !== '"') {
       if (raw[i] === "\\" && i + 1 < raw.length) {
         i++;
         if (raw[i] === "n")
-          result += `
+          result2 += `
 `;
         else if (raw[i] === "t")
-          result += "\t";
+          result2 += "\t";
         else
-          result += raw[i];
+          result2 += raw[i];
       } else {
-        result += raw[i];
+        result2 += raw[i];
       }
       i++;
     }
-    return result;
+    return result2;
   }
-  const num = Number(raw);
-  if (!Number.isNaN(num) && raw !== "")
-    return num;
+  const num2 = Number(raw);
+  if (!Number.isNaN(num2) && raw !== "")
+    return num2;
   return raw;
 }
 var SCALAR_NUMBER_RE = /^[+-]?(?:\d[\d_]*)(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?$/;
@@ -6391,33 +12099,33 @@ function parseScalarArray(text) {
   const inner = trimmed.slice(1, -1).trim();
   if (!inner)
     return [];
-  const result = [];
+  const result2 = [];
   for (const rawEl of splitArrayElements(inner)) {
     const el = rawEl.trim();
     if (!el)
       return null;
     const isQuoted = el.length >= 2 && (el.startsWith('"') && el.endsWith('"') || el.startsWith("'") && el.endsWith("'"));
     if (isQuoted || el === "true" || el === "false" || SCALAR_NUMBER_RE.test(el)) {
-      result.push(parseValue(el));
+      result2.push(parseValue(el));
     } else {
       return null;
     }
   }
-  return result;
+  return result2;
 }
 function ensureTable(root, keys) {
-  let current = root;
+  let current2 = root;
   for (const key of keys) {
-    if (!(key in current) || typeof current[key] !== "object") {
-      current[key] = {};
+    if (!(key in current2) || typeof current2[key] !== "object") {
+      current2[key] = {};
     }
-    current = current[key];
+    current2 = current2[key];
   }
-  return current;
+  return current2;
 }
 function parseToml(input) {
   const root = {};
-  let current = root;
+  let current2 = root;
   for (const raw of input.split(/\r?\n/)) {
     const commentIdx = findCommentStart(raw);
     const line = (commentIdx >= 0 ? raw.slice(0, commentIdx) : raw).trim();
@@ -6425,7 +12133,7 @@ function parseToml(input) {
       continue;
     const headerMatch = line.match(/^\[(.+)\]$/);
     if (headerMatch) {
-      current = ensureTable(root, parseKeyPath(headerMatch[1]));
+      current2 = ensureTable(root, parseKeyPath(headerMatch[1]));
       continue;
     }
     const eqIdx = line.indexOf("=");
@@ -6434,7 +12142,7 @@ function parseToml(input) {
     const keyPart = line.slice(0, eqIdx).trim();
     const valuePart = line.slice(eqIdx + 1).trim();
     const key = keyPart.startsWith('"') ? parseValue(keyPart) : keyPart;
-    current[key] = parseValue(valuePart);
+    current2[key] = parseValue(valuePart);
   }
   return root;
 }
@@ -6468,7 +12176,7 @@ async function readCodexConfig() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return {};
   try {
-    const content = await readFile3(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile5(CODEX_CONFIG_FILE, "utf-8");
     return cloneConfig(parseToml(content));
   } catch {
     return {};
@@ -6615,7 +12323,7 @@ async function renderCodexRunConfig(provider, apiKey) {
 async function repairCodexStringifiedArrays() {
   if (!await fileExists(CODEX_CONFIG_FILE))
     return false;
-  const content = await readFile3(CODEX_CONFIG_FILE, "utf-8");
+  const content = await readFile5(CODEX_CONFIG_FILE, "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
   for (let i = 0;i < lines.length; i++) {
@@ -6638,7 +12346,7 @@ async function repairCodexStringifiedArrays() {
     changed = true;
   }
   if (changed) {
-    await writeFile3(CODEX_CONFIG_FILE, lines.join(`
+    await writeFile4(CODEX_CONFIG_FILE, lines.join(`
 `), { mode: 384 });
   }
   return changed;
@@ -6646,14 +12354,14 @@ async function repairCodexStringifiedArrays() {
 async function writeCodexConfig(config) {
   const content = renderCodexConfig(config);
   try {
-    if (await readFile3(CODEX_CONFIG_FILE, "utf-8") === content) {
-      await chmod4(CODEX_CONFIG_FILE, 384);
+    if (await readFile5(CODEX_CONFIG_FILE, "utf-8") === content) {
+      await chmod5(CODEX_CONFIG_FILE, 384);
       return;
     }
   } catch {}
-  await mkdir5(dirname3(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile3(CODEX_CONFIG_FILE, content, { mode: 384 });
-  await chmod4(CODEX_CONFIG_FILE, 384);
+  await mkdir6(dirname4(CODEX_CONFIG_FILE), { recursive: true });
+  await writeFile4(CODEX_CONFIG_FILE, content, { mode: 384 });
+  await chmod5(CODEX_CONFIG_FILE, 384);
 }
 
 // src/providers/codex/registry.ts
@@ -6670,7 +12378,7 @@ var DEFAULT_REGISTRY = {
   accounts: []
 };
 async function ensureAccountsDir() {
-  await mkdir6(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir7(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function loadRegistry(options = {}) {
   if (!await fileExists(CODEX_REGISTRY_FILE)) {
@@ -6774,15 +12482,15 @@ function managedProviderNames(reg) {
 }
 
 // src/providers/opencode/profiles.ts
-import { chmod as chmod5, mkdir as mkdir7, rename as rename2, rm as rm5, writeFile as writeFile4 } from "fs/promises";
-import { randomUUID as randomUUID3 } from "crypto";
-import { dirname as dirname4 } from "path";
+import { chmod as chmod6, mkdir as mkdir8, rename as rename3, rm as rm5, writeFile as writeFile5 } from "fs/promises";
+import { randomUUID as randomUUID5 } from "crypto";
+import { dirname as dirname5 } from "path";
 
 // src/providers/opencode/native.ts
-import { execFile } from "child_process";
+import { execFile as execFile2 } from "child_process";
 import { promisify } from "util";
-import { join as join6 } from "path";
-var execFileAsync = promisify(execFile);
+import { join as join9 } from "path";
+var execFileAsync = promisify(execFile2);
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -6790,7 +12498,7 @@ function nativeOpenCodeDatabaseFile() {
   const override = process.env.OPENCODE_DB?.trim();
   if (override)
     return override;
-  return join6(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+  return join9(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
 }
 async function queryRows(dbPath, sql) {
   try {
@@ -6884,20 +12592,20 @@ async function readNativeOpenCodeGoCredentials() {
 }
 
 // src/providers/opencode/lock.ts
-import { randomUUID as randomUUID2 } from "crypto";
-import { open, readFile as readFile4, rm as rm4, stat as stat2 } from "fs/promises";
+import { randomUUID as randomUUID4 } from "crypto";
+import { open as open2, readFile as readFile6, rm as rm4, stat as stat3 } from "fs/promises";
 async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
   const timeoutAt = Date.now() + timeoutMs;
-  const token = randomUUID2();
+  const token = randomUUID4();
   while (Date.now() < timeoutAt) {
     try {
-      const handle = await open(lockPath, "wx", 384);
+      const handle = await open2(lockPath, "wx", 384);
       await handle.writeFile(JSON.stringify({ pid: process.pid, token, createdAt: Date.now() }));
       await handle.close();
       return async () => {
         try {
-          const current = JSON.parse(await readFile4(lockPath, "utf8"));
-          if (current.token === token)
+          const current2 = JSON.parse(await readFile6(lockPath, "utf8"));
+          if (current2.token === token)
             await rm4(lockPath, { force: true });
         } catch {}
       };
@@ -6907,7 +12615,7 @@ async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
       }
     }
     try {
-      const owner = JSON.parse(await readFile4(lockPath, "utf8"));
+      const owner = JSON.parse(await readFile6(lockPath, "utf8"));
       if (typeof owner.pid === "number" && Number.isInteger(owner.pid)) {
         try {
           process.kill(owner.pid, 0);
@@ -6918,14 +12626,14 @@ async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
           }
         }
       } else {
-        const age = Date.now() - (await stat2(lockPath)).mtimeMs;
+        const age = Date.now() - (await stat3(lockPath)).mtimeMs;
         if (age > 30000) {
           await rm4(lockPath, { force: true });
           continue;
         }
       }
     } catch {}
-    await new Promise((resolve2) => setTimeout(resolve2, 25));
+    await new Promise((resolve3) => setTimeout(resolve3, 25));
   }
   throw new Error(`Timed out waiting for this alias's private OpenCode ${resourceName} lock.`);
 }
@@ -6944,15 +12652,15 @@ function isOpenCodeAuthInfo(value) {
 }
 async function ensureProfileDir(profileId) {
   const directory = openCodeProfileDir(profileId);
-  await mkdir7(directory, { recursive: true, mode: 448 });
-  await chmod5(directory, 448);
+  await mkdir8(directory, { recursive: true, mode: 448 });
+  await chmod6(directory, 448);
 }
 async function writeProfileData2(profileId, data) {
   await ensureProfileDir(profileId);
   await writeJsonSecure(openCodeProfileDataFile(profileId), data);
 }
 function createOpenCodeProfileId() {
-  return `go-${randomUUID3()}`;
+  return `go-${randomUUID5()}`;
 }
 function normalizeOpenCodeGoModel(input) {
   const model = input.trim();
@@ -6965,7 +12673,7 @@ async function readOpenCodeState() {
   return readJson(OPENCODE_STATE_FILE, emptyState());
 }
 async function writeOpenCodeState(state) {
-  await mkdir7(OPENCODE_PROFILES_DIR, { recursive: true, mode: 448 });
+  await mkdir8(OPENCODE_PROFILES_DIR, { recursive: true, mode: 448 });
   await writeJsonSecure(OPENCODE_STATE_FILE, state);
 }
 async function setActiveOpenCodeProfile(profileId) {
@@ -6984,16 +12692,16 @@ async function getOpenCodeProfileData(profileId) {
   return data;
 }
 async function updateOpenCodeProfileDefaultModel(profileId, defaultModel) {
-  const current = await getOpenCodeProfileData(profileId);
-  const next = { ...current, defaultModel };
+  const current2 = await getOpenCodeProfileData(profileId);
+  const next = { ...current2, defaultModel };
   await writeProfileData2(profileId, next);
   return next;
 }
 function openCodeSetupEnvironment(profileId) {
-  const env2 = { ...process.env };
-  delete env2.OPENCODE_AUTH_CONTENT;
-  env2.XDG_DATA_HOME = openCodeProfileDataHome(profileId);
-  return env2;
+  const env3 = { ...process.env };
+  delete env3.OPENCODE_AUTH_CONTENT;
+  env3.XDG_DATA_HOME = openCodeProfileDataHome(profileId);
+  return env3;
 }
 async function openCodeRunEnvironment(profileId) {
   const auth = await readJson(openCodeProfileAuthFile(profileId), {});
@@ -7001,11 +12709,11 @@ async function openCodeRunEnvironment(profileId) {
   if (!isOpenCodeAuthInfo(credential)) {
     throw new Error("OpenCode Go credential is missing from this profile.");
   }
-  const env2 = { ...process.env };
-  env2.OPENCODE_AUTH_CONTENT = JSON.stringify({
+  const env3 = { ...process.env };
+  env3.OPENCODE_AUTH_CONTENT = JSON.stringify({
     [OPENCODE_GO_PROVIDER_ID]: credential
   });
-  return env2;
+  return env3;
 }
 async function hasOpenCodeGoCredential(profileId) {
   const profile = await readJson(openCodeProfileDataFile(profileId), null);
@@ -7037,20 +12745,20 @@ async function saveOpenCodeGoCredential(profileId, credential) {
   if (!isOpenCodeAuthInfo(credential)) {
     throw new Error("The saved OpenCode Go credential is invalid.");
   }
-  const authFile = openCodeProfileAuthFile(profileId);
-  await mkdir7(openCodeProfileDataHome(profileId), {
+  const authFile2 = openCodeProfileAuthFile(profileId);
+  await mkdir8(openCodeProfileDataHome(profileId), {
     recursive: true,
     mode: 448
   });
-  await mkdir7(dirname4(authFile), {
+  await mkdir8(dirname5(authFile2), {
     recursive: true,
     mode: 448
   });
-  const temporaryFile = `${authFile}.${randomUUID3()}.tmp`;
+  const temporaryFile = `${authFile2}.${randomUUID5()}.tmp`;
   try {
-    await writeFile4(temporaryFile, JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2), { mode: 384, flag: "wx" });
-    await chmod5(temporaryFile, 384);
-    await rename2(temporaryFile, authFile);
+    await writeFile5(temporaryFile, JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2), { mode: 384, flag: "wx" });
+    await chmod6(temporaryFile, 384);
+    await rename3(temporaryFile, authFile2);
   } finally {
     await rm5(temporaryFile, { force: true });
   }
@@ -7068,7 +12776,7 @@ async function removeOpenCodeProfile(profileId) {
   const profile = await readJson(openCodeProfileDataFile(profileId), null);
   let release;
   if (profile?.console) {
-    await mkdir7(OPENCODE_LOCKS_DIR, { recursive: true, mode: 448 });
+    await mkdir8(OPENCODE_LOCKS_DIR, { recursive: true, mode: 448 });
     release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account", 100);
   }
   try {
@@ -7085,17 +12793,17 @@ async function removeOpenCodeProfile(profileId) {
 
 // src/commands/add.ts
 import { spawn as spawn6, spawnSync as spawnSync7 } from "child_process";
-import { platform as platform4 } from "os";
+import { platform as platform5 } from "os";
 
 // src/accounts/create.ts
-import { createHash as createHash3 } from "crypto";
+import { createHash as createHash7 } from "crypto";
 
 // src/providers/codex/auth.ts
-import { chmod as chmod6, copyFile as copyFile2, mkdir as mkdir8, readFile as readFile5, rename as rename3, unlink as unlink2, writeFile as writeFile5 } from "fs/promises";
-import { randomUUID as randomUUID4 } from "crypto";
-import { dirname as dirname5 } from "path";
+import { chmod as chmod7, copyFile as copyFile2, mkdir as mkdir9, readFile as readFile7, rename as rename4, unlink as unlink3, writeFile as writeFile6 } from "fs/promises";
+import { randomUUID as randomUUID6 } from "crypto";
+import { dirname as dirname6 } from "path";
 async function ensureAccountsDir2() {
-  await mkdir8(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir9(CODEX_ACCOUNTS_DIR, { recursive: true });
 }
 async function readActiveAuth() {
   if (!await fileExists(CODEX_AUTH_FILE))
@@ -7113,7 +12821,7 @@ async function switchToAccount(accountKey) {
   if (!await fileExists(srcPath)) {
     throw new Error(`Auth file not found for account: ${accountKey}`);
   }
-  const srcContent = await readFile5(srcPath, "utf-8");
+  const srcContent = await readFile7(srcPath, "utf-8");
   const auth = parseAuthContent(srcContent);
   if (auth?.auth_mode === "apikey") {
     const normalized = normalizeAuthForCodexCli(auth);
@@ -7136,23 +12844,23 @@ async function writeAuthFileIfChanged(path, authData) {
 }
 async function writeRawAuthFileIfChanged(path, content) {
   try {
-    if (await readFile5(path, "utf-8") === content) {
-      await chmod6(path, 384);
+    if (await readFile7(path, "utf-8") === content) {
+      await chmod7(path, 384);
       return;
     }
   } catch {}
   await writeRawAuthFile(path, content);
 }
 async function writeRawAuthFile(path, content) {
-  await mkdir8(dirname5(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${randomUUID4()}.tmp`;
+  await mkdir9(dirname6(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${randomUUID6()}.tmp`;
   try {
-    await writeFile5(tempPath, content, { mode: 384 });
-    await rename3(tempPath, path);
-    await chmod6(path, 384);
+    await writeFile6(tempPath, content, { mode: 384 });
+    await rename4(tempPath, path);
+    await chmod7(path, 384);
   } catch (err) {
     try {
-      await unlink2(tempPath);
+      await unlink3(tempPath);
     } catch {}
     throw err;
   }
@@ -7189,12 +12897,12 @@ function decodeIdToken(idToken) {
       return null;
     const authInfo = payload["https://api.openai.com/auth"] ?? {};
     const profileInfo = payload["https://api.openai.com/profile"] ?? {};
-    const str = (v) => typeof v === "string" ? v : undefined;
+    const str2 = (v) => typeof v === "string" ? v : undefined;
     return {
-      email: str(payload.email) ?? str(profileInfo.email),
-      chatgpt_user_id: str(authInfo.chatgpt_user_id) ?? str(authInfo.user_id) ?? str(payload.sub),
-      chatgpt_account_id: str(authInfo.chatgpt_account_id) ?? str(authInfo.account_id) ?? str(payload.account_id),
-      plan_type: str(authInfo.chatgpt_plan_type) ?? str(authInfo.plan_type)
+      email: str2(payload.email) ?? str2(profileInfo.email),
+      chatgpt_user_id: str2(authInfo.chatgpt_user_id) ?? str2(authInfo.user_id) ?? str2(payload.sub),
+      chatgpt_account_id: str2(authInfo.chatgpt_account_id) ?? str2(authInfo.account_id) ?? str2(payload.account_id),
+      plan_type: str2(authInfo.chatgpt_plan_type) ?? str2(authInfo.plan_type)
     };
   } catch {
     return null;
@@ -7209,13 +12917,13 @@ function decodeCodexPlan(tokens) {
 function authMatchesAccount(auth, account) {
   if (auth.auth_mode !== "chatgpt" || !auth.tokens?.id_token)
     return false;
-  const identity = decodeIdToken(auth.tokens.id_token);
-  const userId = identity?.chatgpt_user_id;
-  const accountId = identity?.chatgpt_account_id ?? auth.tokens.account_id;
+  const identity2 = decodeIdToken(auth.tokens.id_token);
+  const userId = identity2?.chatgpt_user_id;
+  const accountId = identity2?.chatgpt_account_id ?? auth.tokens.account_id;
   if (userId && accountId) {
     return userId === account.chatgpt_user_id && accountId === account.chatgpt_account_id;
   }
-  return Boolean(identity?.email && account.email && identity.email.toLowerCase() === account.email.toLowerCase());
+  return Boolean(identity2?.email && account.email && identity2.email.toLowerCase() === account.email.toLowerCase());
 }
 function sameChatGptIdentity(left, right) {
   if (left.auth_mode !== "chatgpt" || right.auth_mode !== "chatgpt") {
@@ -7256,7 +12964,7 @@ async function syncActiveAuthSnapshot(reg) {
 async function removeAccountAuthFile(accountKey) {
   const path = codexAccountAuthFile(accountKey);
   try {
-    await unlink2(path);
+    await unlink3(path);
   } catch {}
 }
 
@@ -7330,7 +13038,7 @@ async function createCodexApiKeyAccount(input) {
   await addAlias(alias, { provider: "codex", accountKey });
 }
 function codexApiAccountKey(apiKey) {
-  const keyHash = createHash3("sha256").update(apiKey.trim()).digest("hex").slice(0, 16);
+  const keyHash = createHash7("sha256").update(apiKey.trim()).digest("hex").slice(0, 16);
   return `apikey::${keyHash}`;
 }
 async function assertAliasUsable(alias) {
@@ -7346,24 +13054,24 @@ async function assertAliasUsable(alias) {
 import { spawn as spawn2 } from "child_process";
 
 // src/providers/codex/isolated-home.ts
-import { chmod as chmod7, copyFile as copyFile3, mkdtemp, readFile as readFile6, rm as rm6, writeFile as writeFile6 } from "fs/promises";
-import { tmpdir as tmpdir2 } from "os";
-import { join as join7 } from "path";
+import { chmod as chmod8, copyFile as copyFile3, mkdtemp, readFile as readFile8, rm as rm6, writeFile as writeFile7 } from "fs/promises";
+import { tmpdir as tmpdir3 } from "os";
+import { join as join10 } from "path";
 var AUTH_FILE_NAME = "auth.json";
 async function prepareIsolatedCodexHome(auth = null) {
-  const home = await mkdtemp(join7(tmpdir2(), "claudex-codex-"));
-  await chmod7(home, 448);
+  const home = await mkdtemp(join10(tmpdir3(), "claudex-codex-"));
+  await chmod8(home, 448);
   if (await fileExists(CODEX_CONFIG_FILE)) {
-    await copyFile3(CODEX_CONFIG_FILE, join7(home, "config.toml"));
+    await copyFile3(CODEX_CONFIG_FILE, join10(home, "config.toml"));
   }
   if (auth) {
-    await writeFile6(join7(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
+    await writeFile7(join10(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
   }
   return home;
 }
 async function readIsolatedCodexAuth(home) {
   try {
-    return JSON.parse(await readFile6(join7(home, AUTH_FILE_NAME), "utf-8"));
+    return JSON.parse(await readFile8(join10(home, AUTH_FILE_NAME), "utf-8"));
   } catch {
     return null;
   }
@@ -7376,16 +13084,16 @@ async function cleanupIsolatedCodexHome(home) {
 async function runIsolatedCodexLogin() {
   const codexHome = await prepareIsolatedCodexHome();
   const shimDir = createOpenShimDir();
-  const env2 = { ...process.env, CODEX_HOME: codexHome };
+  const env3 = { ...process.env, CODEX_HOME: codexHome };
   if (shimDir)
-    env2.PATH = `${shimDir}:${process.env.PATH}`;
-  delete env2.OPENAI_API_KEY;
-  delete env2.CODEX_API_KEY;
-  delete env2.CODEX_ACCESS_TOKEN;
+    env3.PATH = `${shimDir}:${process.env.PATH}`;
+  delete env3.OPENAI_API_KEY;
+  delete env3.CODEX_API_KEY;
+  delete env3.CODEX_ACCESS_TOKEN;
   try {
-    const proc = spawn2("codex", ["login", "-c", 'cli_auth_credentials_store="file"'], { stdio: "inherit", env: env2 });
-    const exitCode = await new Promise((resolve2, reject) => {
-      proc.on("close", resolve2);
+    const proc = spawn2("codex", ["login", "-c", 'cli_auth_credentials_store="file"'], { stdio: "inherit", env: env3 });
+    const exitCode = await new Promise((resolve3, reject) => {
+      proc.on("close", resolve3);
       proc.on("error", reject);
     });
     const auth = exitCode === 0 ? await readIsolatedCodexAuth(codexHome) : null;
@@ -7397,8 +13105,8 @@ async function runIsolatedCodexLogin() {
 }
 
 // src/lib/oneapi.ts
-import { mkdir as mkdir9 } from "fs/promises";
-import { dirname as dirname6 } from "path";
+import { mkdir as mkdir10 } from "fs/promises";
+import { dirname as dirname7 } from "path";
 var FETCH_TIMEOUT_MS = 4000;
 var UNLIMITED_THRESHOLD_USD = 1e7;
 var DEFAULT_QUOTA_PER_UNIT = 500000;
@@ -7427,8 +13135,8 @@ async function fetchKeyBalance(origin, apiKey) {
     const end = new Date;
     const start = new Date(end.getTime() - 90 * 86400000);
     const day = (d) => d.toISOString().slice(0, 10);
-    const usage = await getJson(`${origin}${prefix}/dashboard/billing/usage?start_date=${day(start)}&end_date=${day(end)}`, headers);
-    const usedUsd = typeof usage?.total_usage === "number" ? usage.total_usage / 100 : null;
+    const usage2 = await getJson(`${origin}${prefix}/dashboard/billing/usage?start_date=${day(start)}&end_date=${day(end)}`, headers);
+    const usedUsd = typeof usage2?.total_usage === "number" ? usage2.total_usage / 100 : null;
     const unlimited = totalUsd >= UNLIMITED_THRESHOLD_USD;
     return {
       unlimited,
@@ -7449,7 +13157,7 @@ async function getRelayConfig(origin) {
 async function saveRelayConfig(origin, config) {
   const relays = await readJson(RELAYS_FILE, {});
   relays[origin] = config;
-  await mkdir9(dirname6(RELAYS_FILE), { recursive: true });
+  await mkdir10(dirname7(RELAYS_FILE), { recursive: true });
   await writeJsonSecure(RELAYS_FILE, relays);
 }
 async function detectRelay(origin) {
@@ -7529,9 +13237,9 @@ async function runOpenCodeTui(profileId, spawnCommand = spawn3) {
     stdio: "inherit",
     env: openCodeSetupEnvironment(profileId)
   });
-  return new Promise((resolve2) => {
-    proc.once("error", () => resolve2(127));
-    proc.once("close", (code) => resolve2(code ?? 1));
+  return new Promise((resolve3) => {
+    proc.once("error", () => resolve3(127));
+    proc.once("close", (code) => resolve3(code ?? 1));
   });
 }
 
@@ -7553,16 +13261,16 @@ function isSupportedOpenCodeVersion(version) {
 }
 function detectOpenCodeVersion() {
   try {
-    const result = spawnSync6("opencode", ["--version"], {
+    const result2 = spawnSync6("opencode", ["--version"], {
       encoding: "utf-8",
       windowsHide: true,
       timeout: 5000,
       killSignal: "SIGTERM"
     });
-    if (result.status !== 0 || result.error)
+    if (result2.status !== 0 || result2.error)
       return null;
-    return parseOpenCodeVersion(`${result.stdout ?? ""}
-${result.stderr ?? ""}`);
+    return parseOpenCodeVersion(`${result2.stdout ?? ""}
+${result2.stderr ?? ""}`);
   } catch {
     return null;
   }
@@ -7570,22 +13278,22 @@ ${result.stderr ?? ""}`);
 
 // src/providers/opencode/console.ts
 import { spawn as spawn5 } from "child_process";
-import { chmod as chmod9, mkdir as mkdir11 } from "fs/promises";
-import { join as join10 } from "path";
+import { chmod as chmod10, mkdir as mkdir12 } from "fs/promises";
+import { join as join13 } from "path";
 
 // src/providers/opencode/catalog.ts
-import { createHash as createHash4, randomUUID as randomUUID5 } from "crypto";
-import { link, readFile as readFile7, rename as rename4, rm as rm7, stat as stat3, writeFile as writeFile7 } from "fs/promises";
-import { join as join8 } from "path";
+import { createHash as createHash8, randomUUID as randomUUID7 } from "crypto";
+import { link, readFile as readFile9, rename as rename5, rm as rm7, stat as stat4, writeFile as writeFile8 } from "fs/promises";
+import { join as join11 } from "path";
 var OPENCODE_GO_CATALOG_URL = "https://opencode.ai/zen/go/v1/models";
-async function prepareOpenCodeModelCatalog(env2) {
-  const offline = env2.OPENCODE_DISABLE_MODELS_FETCH;
-  env2.OPENCODE_DISABLE_MODELS_FETCH = "1";
-  if (env2.OPENCODE_MODELS_PATH || !env2.XDG_CACHE_HOME)
+async function prepareOpenCodeModelCatalog(env3) {
+  const offline = env3.OPENCODE_DISABLE_MODELS_FETCH;
+  env3.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  if (env3.OPENCODE_MODELS_PATH || !env3.XDG_CACHE_HOME)
     return;
-  const path = join8(env2.XDG_CACHE_HOME, "claudex-models.json");
+  const path = join11(env3.XDG_CACHE_HOME, "claudex-models.json");
   let cached;
-  let fresh = false;
+  let fresh2 = false;
   const valid = (data) => {
     if (!data || typeof data !== "object" || Array.isArray(data))
       return false;
@@ -7593,15 +13301,15 @@ async function prepareOpenCodeModelCatalog(env2) {
     return !!provider && typeof provider === "object" && !Array.isArray(provider) && !!provider.models && typeof provider.models === "object" && !Array.isArray(provider.models) && Object.keys(provider.models).length > 0;
   };
   try {
-    const text = await readFile7(path, "utf8");
+    const text = await readFile9(path, "utf8");
     if (valid(JSON.parse(text)))
       cached = text;
-    fresh = cached !== undefined && Date.now() - (await stat3(path)).mtimeMs < 5 * 60000;
+    fresh2 = cached !== undefined && Date.now() - (await stat4(path)).mtimeMs < 5 * 60000;
   } catch {}
-  if (!fresh && offline !== "1" && offline !== "true") {
-    const temporary = `${path}.${randomUUID5()}.tmp`;
+  if (!fresh2 && offline !== "1" && offline !== "true") {
+    const temporary = `${path}.${randomUUID7()}.tmp`;
     try {
-      const base = env2.OPENCODE_MODELS_URL || "https://models.opencode.ai";
+      const base = env3.OPENCODE_MODELS_URL || "https://models.opencode.ai";
       const response = await fetch(`${base.replace(/\/$/, "")}/api.json`, {
         signal: AbortSignal.timeout(5000),
         redirect: "error"
@@ -7609,8 +13317,8 @@ async function prepareOpenCodeModelCatalog(env2) {
       if (response.ok) {
         const text = await response.text();
         if (valid(JSON.parse(text))) {
-          await writeFile7(temporary, text, { mode: 384 });
-          await rename4(temporary, path);
+          await writeFile8(temporary, text, { mode: 384 });
+          await rename5(temporary, path);
           cached = text;
         }
       }
@@ -7619,18 +13327,18 @@ async function prepareOpenCodeModelCatalog(env2) {
     }
   }
   if (cached) {
-    const digest = createHash4("sha256").update(cached).digest("hex");
-    const snapshot = join8(env2.XDG_CACHE_HOME, `claudex-models-${digest}.json`);
-    const temporary = `${path}.${randomUUID5()}.tmp`;
+    const digest = createHash8("sha256").update(cached).digest("hex");
+    const snapshot = join11(env3.XDG_CACHE_HOME, `claudex-models-${digest}.json`);
+    const temporary = `${path}.${randomUUID7()}.tmp`;
     try {
-      await writeFile7(temporary, cached, { mode: 384 });
+      await writeFile8(temporary, cached, { mode: 384 });
       try {
         await link(temporary, snapshot);
       } catch (error2) {
         if (error2.code !== "EEXIST")
           throw error2;
       }
-      env2.OPENCODE_MODELS_PATH = snapshot;
+      env3.OPENCODE_MODELS_PATH = snapshot;
     } finally {
       await rm7(temporary, { force: true });
     }
@@ -7649,27 +13357,27 @@ async function fetchOpenCodeGoCatalogIds() {
     return null;
   }
 }
-function matchOpenCodeGoModel(input, catalog) {
+function matchOpenCodeGoModel(input, catalog2) {
   const model = normalizeOpenCodeGoModel(input);
   const id = model.slice(OPENCODE_GO_PROVIDER_ID.length + 1);
-  if (catalog.has(id))
+  if (catalog2.has(id))
     return model;
   const wanted = id.toLowerCase().replace(/\s+/g, "-");
-  const match = [...catalog].find((candidate) => candidate.toLowerCase() === wanted);
+  const match = [...catalog2].find((candidate) => candidate.toLowerCase() === wanted);
   if (match)
     return `${OPENCODE_GO_PROVIDER_ID}/${match}`;
-  throw new Error(`OpenCode Go has no model "${id}". Available: ${[...catalog].sort().join(", ")}.`);
+  throw new Error(`OpenCode Go has no model "${id}". Available: ${[...catalog2].sort().join(", ")}.`);
 }
 async function resolveOpenCodeGoModel(input) {
-  const catalog = await fetchOpenCodeGoCatalogIds();
-  return catalog ? matchOpenCodeGoModel(input, catalog) : normalizeOpenCodeGoModel(input);
+  const catalog2 = await fetchOpenCodeGoCatalogIds();
+  return catalog2 ? matchOpenCodeGoModel(input, catalog2) : normalizeOpenCodeGoModel(input);
 }
 
 // src/providers/opencode/runtime.ts
-import { randomBytes as randomBytes2, randomUUID as randomUUID6 } from "crypto";
+import { randomBytes as randomBytes5, randomUUID as randomUUID8 } from "crypto";
 import { spawn as spawn4 } from "child_process";
-import { join as join9 } from "path";
-import { chmod as chmod8, mkdir as mkdir10, readFile as readFile8, rename as rename5, rm as rm8, writeFile as writeFile8 } from "fs/promises";
+import { join as join12 } from "path";
+import { chmod as chmod9, mkdir as mkdir11, readFile as readFile10, rename as rename6, rm as rm8, writeFile as writeFile9 } from "fs/promises";
 var OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 var OPENCODE_FREE_PROVIDER_ID = "opencode";
 function isOpenCodeFreeModel(model) {
@@ -7695,11 +13403,11 @@ function parseConfigContent(content) {
     throw new Error("Could not merge OpenCode V2 launch settings with OPENCODE_CONFIG_CONTENT. Use valid JSON in that environment variable and retry.");
   }
 }
-function stringArray(value, field) {
+function stringArray(value, field3) {
   if (value === undefined)
     return [];
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new Error(`OpenCode V2 ${field} must be an array of provider IDs.`);
+    throw new Error(`OpenCode V2 ${field3} must be an array of provider IDs.`);
   }
   return value;
 }
@@ -7739,11 +13447,11 @@ function buildOpenCodeV2Config(source, selectedModel, managedModels = []) {
     const normalized = normalizeOpenCodeGoModel(model);
     modelIds.add(normalized.slice(OPENCODE_GO_PROVIDER_ID.length + 1));
   }
-  const models = Object.fromEntries([...modelIds].map((modelId) => [modelId, {}]));
+  const models2 = Object.fromEntries([...modelIds].map((modelId) => [modelId, {}]));
   providers[OPENCODE_V2_MANAGED_PROVIDER_ID] = {
     name: "OpenCode Go (claudex-switch)",
     canonical: OPENCODE_GO_PROVIDER_ID,
-    models
+    models: models2
   };
   config.providers = providers;
   return restrictOpenCodeProviders(config, OPENCODE_V2_MANAGED_PROVIDER_ID);
@@ -7801,7 +13509,7 @@ function restrictOpenCodeProviders(config, providerId) {
 async function readModelInventory(file) {
   let contents;
   try {
-    contents = await readFile8(file, "utf8");
+    contents = await readFile10(file, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return [];
@@ -7822,12 +13530,12 @@ async function readModelInventory(file) {
     throw new Error("This alias's private OpenCode model history contains an invalid model ID.");
   }
 }
-async function writeModelInventory(file, models) {
-  const temporaryFile = `${file}.${randomUUID6()}.tmp`;
+async function writeModelInventory(file, models2) {
+  const temporaryFile = `${file}.${randomUUID8()}.tmp`;
   try {
-    await writeFile8(temporaryFile, JSON.stringify(models, null, 2), { flag: "wx", mode: 384 });
-    await chmod8(temporaryFile, 384);
-    await rename5(temporaryFile, file);
+    await writeFile9(temporaryFile, JSON.stringify(models2, null, 2), { flag: "wx", mode: 384 });
+    await chmod9(temporaryFile, 384);
+    await rename6(temporaryFile, file);
   } catch {
     throw new Error("Could not save this alias's private OpenCode model history.");
   } finally {
@@ -7842,8 +13550,8 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
   }
   const selectedGoModel = `${OPENCODE_GO_PROVIDER_ID}/${managedModel.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1)}`;
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
-  await mkdir10(runtimeRoot, { recursive: true, mode: 448 });
-  await chmod8(runtimeRoot, 448);
+  await mkdir11(runtimeRoot, { recursive: true, mode: 448 });
+  await chmod9(runtimeRoot, 448);
   const inventoryFile = openCodeProfileV2ModelInventoryFile(profileId);
   const release = await acquireProfileLock(`${inventoryFile}.lock`, "model history");
   try {
@@ -7859,7 +13567,7 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
 async function readOwnedCredentialIds(file) {
   let contents;
   try {
-    contents = await readFile8(file, "utf8");
+    contents = await readFile10(file, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return [];
@@ -7877,14 +13585,14 @@ async function readOwnedCredentialIds(file) {
   return [...new Set(value.credentialIds)];
 }
 async function writeOwnedCredentialIds(file, credentialIds) {
-  const temporaryFile = `${file}.${randomUUID6()}.tmp`;
+  const temporaryFile = `${file}.${randomUUID8()}.tmp`;
   try {
-    await writeFile8(temporaryFile, JSON.stringify({ version: 1, credentialIds }, null, 2), {
+    await writeFile9(temporaryFile, JSON.stringify({ version: 1, credentialIds }, null, 2), {
       flag: "wx",
       mode: 384
     });
-    await chmod8(temporaryFile, 384);
-    await rename5(temporaryFile, file);
+    await chmod9(temporaryFile, 384);
+    await rename6(temporaryFile, file);
   } catch {
     throw new Error("Could not update this alias's private OpenCode credential index.");
   } finally {
@@ -7912,7 +13620,7 @@ function serverUrlFromLine(line) {
   return url.origin;
 }
 function waitForLocalServer(child, timeoutMs) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     let output = "";
     let settled = false;
     const finish = (error2, url) => {
@@ -7926,7 +13634,7 @@ function waitForLocalServer(child, timeoutMs) {
       if (error2)
         reject(error2);
       else
-        resolve2(url);
+        resolve3(url);
     };
     const onData = (chunk) => {
       output += chunk.toString();
@@ -7954,11 +13662,11 @@ function waitForLocalServer(child, timeoutMs) {
 function waitForChildClose(child, timeoutMs) {
   if (child.exitCode !== null || child.signalCode !== null)
     return Promise.resolve(true);
-  return new Promise((resolve2) => {
+  return new Promise((resolve3) => {
     const finish = (closed) => {
       clearTimeout(timer);
       child.off("close", onClose);
-      resolve2(closed);
+      resolve3(closed);
     };
     const onClose = () => finish(true);
     const timer = setTimeout(() => finish(false), timeoutMs);
@@ -7997,9 +13705,9 @@ async function fetchOpenCodeApi(fetcher, baseUrl2, path, password, init = {}) {
     throw new Error("Could not sync the selected OpenCode Go key to this alias's private database.");
   }
 }
-async function withOpenCodePrivateServer(env2, callback, spawnCommand = spawn4) {
-  const password = randomBytes2(32).toString("base64url");
-  const serverEnv = { ...env2 };
+async function withOpenCodePrivateServer(env3, callback, spawnCommand = spawn4) {
+  const password = randomBytes5(32).toString("base64url");
+  const serverEnv = { ...env3 };
   delete serverEnv.OPENCODE_AUTH_CONTENT;
   delete serverEnv[OPENCODE_NATIVE_GO_KEY_ENV];
   serverEnv.OPENCODE_PASSWORD = password;
@@ -8141,7 +13849,7 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
       agent = candidate;
       break;
     }
-    await new Promise((resolve2) => setTimeout(resolve2, 100));
+    await new Promise((resolve3) => setTimeout(resolve3, 100));
   }
   if (!agent) {
     throw new Error("OpenCode V2's configured default agent is unavailable in this location.");
@@ -8172,18 +13880,18 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
         method: "GET"
       });
     } catch {
-      await new Promise((resolve2) => setTimeout(resolve2, 100));
+      await new Promise((resolve3) => setTimeout(resolve3, 100));
       continue;
     }
     if (!response.ok) {
-      await new Promise((resolve2) => setTimeout(resolve2, 100));
+      await new Promise((resolve3) => setTimeout(resolve3, 100));
       continue;
     }
     const modelData = locationData(await responseJson(response));
     if (!Array.isArray(modelData)) {
       throw new Error("OpenCode V2 returned an unexpected model inventory.");
     }
-    const models = [];
+    const models2 = [];
     const windows = new Map;
     const freeModelIds = [];
     for (const item of modelData) {
@@ -8202,16 +13910,16 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
         windows.set(id, basis ?? OPENCODE_COMPACTION_FALLBACK_WINDOW);
         continue;
       }
-      models.push({ providerID: item.providerID, id: item.id, context: basis });
+      models2.push({ providerID: item.providerID, id: item.id, context: basis });
       if (basis !== undefined)
         windows.set(item.id, basis);
     }
     const signature = JSON.stringify({
-      go: models.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
+      go: models2.toSorted((left, right) => `${left.providerID}/${left.id}`.localeCompare(`${right.providerID}/${right.id}`)),
       free: freeModelIds.toSorted().map((id) => [id, windows.get(id)])
     });
-    const onlyManaged = models.every((model) => model.providerID === providerId);
-    const actual = new Set(models.map((model) => model.id));
+    const onlyManaged = models2.every((model) => model.providerID === providerId);
+    const actual = new Set(models2.map((model) => model.id));
     const sameInventory = onlyManaged && (!agentModelId?.startsWith(`${OPENCODE_FREE_PROVIDER_ID}/`) || freeModelIds.includes(agentModelId)) && actual.size === expected.size && [...expected].every((id) => actual.has(id));
     lastUnexpectedProvider = !onlyManaged;
     stablePolls = sameInventory && signature === previousSignature ? stablePolls + 1 : sameInventory ? 1 : 0;
@@ -8225,7 +13933,7 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
         freeModelIds
       };
     }
-    await new Promise((resolve2) => setTimeout(resolve2, 150));
+    await new Promise((resolve3) => setTimeout(resolve3, 150));
   }
   if (lastUnexpectedProvider) {
     throw new Error("OpenCode V2's effective provider inventory includes another provider; refusing this Go alias launch.");
@@ -8240,11 +13948,11 @@ async function waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password) {
     try {
       response = await fetchOpenCodeApi(fetcher, baseUrl2, path, password, { method: "GET" });
     } catch {
-      await new Promise((resolve2) => setTimeout(resolve2, 100));
+      await new Promise((resolve3) => setTimeout(resolve3, 100));
       continue;
     }
     if (response.status === 404 || response.status === 503) {
-      await new Promise((resolve2) => setTimeout(resolve2, 100));
+      await new Promise((resolve3) => setTimeout(resolve3, 100));
       continue;
     }
     if (!response.ok) {
@@ -8257,14 +13965,14 @@ async function waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password) {
     if (integration.methods.some((method) => isRecord2(method) && method.type === "key")) {
       return;
     }
-    await new Promise((resolve2) => setTimeout(resolve2, 100));
+    await new Promise((resolve3) => setTimeout(resolve3, 100));
   }
   throw new Error("OpenCode V2's managed Go key method did not become ready; refusing to launch.");
 }
-async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, spawnCommand = spawn4, fetcher = fetch) {
+async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env3, spawnCommand = spawn4, fetcher = fetch) {
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
-  await mkdir10(runtimeRoot, { recursive: true, mode: 448 });
-  await chmod8(runtimeRoot, 448);
+  await mkdir11(runtimeRoot, { recursive: true, mode: 448 });
+  await chmod9(runtimeRoot, 448);
   const credentialStateFile = openCodeProfileV2CredentialStateFile(profileId);
   const release = await acquireProfileLock(`${credentialStateFile}.lock`, "credential sync");
   try {
@@ -8274,10 +13982,10 @@ async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, s
   }
   async function syncLocked() {
     const ownedIds = await readOwnedCredentialIds(credentialStateFile);
-    const label = `claudex-switch-${profileId}-${randomUUID6()}`;
-    return await withOpenCodePrivateServer(env2, async (baseUrl2, password) => {
+    const label = `claudex-switch-${profileId}-${randomUUID8()}`;
+    return await withOpenCodePrivateServer(env3, async (baseUrl2, password) => {
       await waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password);
-      const config = parseConfigContent(env2.OPENCODE_CONFIG_CONTENT);
+      const config = parseConfigContent(env3.OPENCODE_CONFIG_CONTENT);
       const model = config.model;
       if (typeof model !== "string" || !model.startsWith(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/`)) {
         throw new Error("OpenCode V2's managed Go model is not configured for this alias.");
@@ -8295,11 +14003,11 @@ async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, s
       if (connected.status !== 204) {
         throw new Error("OpenCode V2 could not store the selected key in this alias's private database.");
       }
-      const current = await fetchOpenCodeApi(fetcher, baseUrl2, `/api/integration/${encodedId}`, password, { method: "GET" });
-      if (!current.ok) {
+      const current2 = await fetchOpenCodeApi(fetcher, baseUrl2, `/api/integration/${encodedId}`, password, { method: "GET" });
+      if (!current2.ok) {
         throw new Error("Could not verify the selected key in this alias's private database.");
       }
-      const integration = locationData(await responseJson(current));
+      const integration = locationData(await responseJson(current2));
       if (!isRecord2(integration) || integration.id !== OPENCODE_V2_MANAGED_PROVIDER_ID || !Array.isArray(integration.connections)) {
         throw new Error("OpenCode V2 returned an unexpected private credential response.");
       }
@@ -8331,47 +14039,47 @@ async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env2, s
     }, spawnCommand);
   }
 }
-async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credentialSync = (id, key, env2) => syncOpenCodeV2CredentialToPrivateDatabase(id, key, env2)) {
+async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credentialSync = (id, key, env3) => syncOpenCodeV2CredentialToPrivateDatabase(id, key, env3)) {
   const key = await readOpenCodeGoApiKey(profileId);
   if (!key)
     throw new Error("OpenCode Go credential is missing from this profile.");
   const sourceConfig = process.env.OPENCODE_CONFIG_CONTENT;
   const history = await rememberOpenCodeV2Model(profileId, sourceConfig, selectedModel);
-  const catalog = await fetchOpenCodeGoCatalogIds();
+  const catalog2 = await fetchOpenCodeGoCatalogIds();
   const managedModels = [...new Set([
     ...history,
-    ...[...catalog ?? []].map((id) => `${OPENCODE_GO_PROVIDER_ID}/${id}`)
+    ...[...catalog2 ?? []].map((id) => `${OPENCODE_GO_PROVIDER_ID}/${id}`)
   ])];
   const managedConfig = buildOpenCodeV2Config(sourceConfig, selectedModel, managedModels);
   const serializedConfig = JSON.stringify(managedConfig);
   const selectedManagedModelId = typeof managedConfig.model === "string" && managedConfig.model.startsWith(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/`) ? managedConfig.model.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1) : undefined;
   const privateRoot = openCodeProfileV2RuntimeDir(profileId);
   const dataHome = openCodeProfileV2DataHome(profileId);
-  const stateHome = join9(privateRoot, "state");
-  const cacheHome = join9(privateRoot, "cache");
-  const legacyAuthFile = join9(dataHome, "opencode", "auth.json");
+  const stateHome = join12(privateRoot, "state");
+  const cacheHome = join12(privateRoot, "cache");
+  const legacyAuthFile = join12(dataHome, "opencode", "auth.json");
   if (await fileExists(legacyAuthFile)) {
     throw new Error("OpenCode V2 found a legacy auth.json in this alias's private runtime data. It will not import that file into this alias's SQLite database; preserve or remove it before retrying.");
   }
-  await mkdir10(privateRoot, { recursive: true, mode: 448 });
-  await chmod8(privateRoot, 448);
-  await Promise.all([dataHome, join9(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir10(path, { recursive: true, mode: 448 })));
-  const env2 = { ...process.env };
-  delete env2.OPENCODE_AUTH_CONTENT;
-  delete env2[OPENCODE_NATIVE_GO_KEY_ENV];
-  delete env2.OPENCODE_PASSWORD;
-  env2.OPENCODE_DB = openCodeProfileV2DatabaseFile(profileId);
-  env2.XDG_DATA_HOME = dataHome;
-  env2.XDG_STATE_HOME = stateHome;
-  env2.XDG_CACHE_HOME = cacheHome;
-  env2.OPENCODE_CONFIG_CONTENT = serializedConfig;
-  await prepareOpenCodeModelCatalog(env2);
-  const routing = await credentialSync(profileId, key, env2);
+  await mkdir11(privateRoot, { recursive: true, mode: 448 });
+  await chmod9(privateRoot, 448);
+  await Promise.all([dataHome, join12(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir11(path, { recursive: true, mode: 448 })));
+  const env3 = { ...process.env };
+  delete env3.OPENCODE_AUTH_CONTENT;
+  delete env3[OPENCODE_NATIVE_GO_KEY_ENV];
+  delete env3.OPENCODE_PASSWORD;
+  env3.OPENCODE_DB = openCodeProfileV2DatabaseFile(profileId);
+  env3.XDG_DATA_HOME = dataHome;
+  env3.XDG_STATE_HOME = stateHome;
+  env3.XDG_CACHE_HOME = cacheHome;
+  env3.OPENCODE_CONFIG_CONTENT = serializedConfig;
+  await prepareOpenCodeModelCatalog(env3);
+  const routing = await credentialSync(profileId, key, env3);
   if (!routing)
-    return { env: env2 };
+    return { env: env3 };
   const applied = applyManagedCompactionPolicy(serializedConfig, routing, selectedManagedModelId);
-  env2.OPENCODE_CONFIG_CONTENT = applied.configContent;
-  return { env: env2, compactionGuard: applied.guard };
+  env3.OPENCODE_CONFIG_CONTENT = applied.configContent;
+  return { env: env3, compactionGuard: applied.guard };
 }
 
 // src/providers/opencode/console.ts
@@ -8383,21 +14091,21 @@ function record(value) {
 async function openCodeConsoleEnvironment(profileId) {
   const root = openCodeProfileV2RuntimeDir(profileId);
   const data = openCodeProfileV2DataHome(profileId);
-  for (const path of [root, data, join10(data, "opencode"), join10(root, "state"), join10(root, "cache"), OPENCODE_LOCKS_DIR]) {
-    await mkdir11(path, { recursive: true, mode: 448 });
-    await chmod9(path, 448);
+  for (const path of [root, data, join13(data, "opencode"), join13(root, "state"), join13(root, "cache"), OPENCODE_LOCKS_DIR]) {
+    await mkdir12(path, { recursive: true, mode: 448 });
+    await chmod10(path, 448);
   }
-  const env2 = { ...process.env };
-  delete env2.OPENCODE_AUTH_CONTENT;
-  delete env2.OPENCODE_API_KEY;
-  delete env2.OPENCODE_PASSWORD;
-  env2.OPENCODE_DB = openCodeProfileV2DatabaseFile(profileId);
-  env2.XDG_DATA_HOME = data;
-  env2.XDG_STATE_HOME = join10(root, "state");
-  env2.XDG_CACHE_HOME = join10(root, "cache");
-  env2.OPENCODE_DISABLE_AUTOUPDATE = "1";
-  await prepareOpenCodeModelCatalog(env2);
-  return env2;
+  const env3 = { ...process.env };
+  delete env3.OPENCODE_AUTH_CONTENT;
+  delete env3.OPENCODE_API_KEY;
+  delete env3.OPENCODE_PASSWORD;
+  env3.OPENCODE_DB = openCodeProfileV2DatabaseFile(profileId);
+  env3.XDG_DATA_HOME = data;
+  env3.XDG_STATE_HOME = join13(root, "state");
+  env3.XDG_CACHE_HOME = join13(root, "cache");
+  env3.OPENCODE_DISABLE_AUTOUPDATE = "1";
+  await prepareOpenCodeModelCatalog(env3);
+  return env3;
 }
 function consoleUrl(credential, path) {
   const url = new URL(`${credential.value.metadata.server.replace(/\/$/, "")}${path}`);
@@ -8423,7 +14131,7 @@ function parseOpenCodeConsoleStatus(data, now = Date.now()) {
     return { active: false, usage: null };
   }
   const meters = record(access2.meters) ? access2.meters : {};
-  const meter = (value) => {
+  const meter2 = (value) => {
     if (!record(value) || typeof value.limitMicroCents !== "string" || typeof value.usedMicroCents !== "string" || !/^\d+$/.test(value.limitMicroCents) || !/^\d+$/.test(value.usedMicroCents))
       return null;
     const limit = Number(value.limitMicroCents), used = Number(value.usedMicroCents);
@@ -8432,7 +14140,7 @@ function parseOpenCodeConsoleStatus(data, now = Date.now()) {
     const resetsAt = typeof value.resetsAt === "string" ? Date.parse(value.resetsAt) : NaN;
     return { used: Math.min(100, used / limit * 100), resetsAt: Number.isFinite(resetsAt) ? resetsAt : null };
   };
-  const fiveHour = meter(meters.fiveHour), week = meter(meters.week), month = meter(meters.month);
+  const fiveHour = meter2(meters.fiveHour), week = meter2(meters.week), month = meter2(meters.month);
   return { active: true, usage: !fiveHour && !week && !month ? null : {
     fiveHourUsedPercent: fiveHour?.used ?? null,
     fiveHourResetsAt: fiveHour?.resetsAt ?? null,
@@ -8454,17 +14162,17 @@ async function requireSubscription(credential) {
   return status.usage;
 }
 async function readPinnedConsoleCredential(profileId, profile) {
-  const identity = (profile ?? await getOpenCodeProfileData(profileId)).console;
-  if (!identity)
+  const identity2 = (profile ?? await getOpenCodeProfileData(profileId)).console;
+  if (!identity2)
     throw new Error("This profile has no OpenCode subscription login.");
-  const credential = (await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(profileId))).find((item) => item.id === identity.credentialId);
-  if (!credential || credential.value.metadata.accountID !== identity.accountId || credential.value.metadata.orgID !== identity.orgId) {
+  const credential = (await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(profileId))).find((item) => item.id === identity2.credentialId);
+  if (!credential || credential.value.metadata.accountID !== identity2.accountId || credential.value.metadata.orgID !== identity2.orgId) {
     throw new Error("OpenCode subscription identity is missing or changed; reconnect this alias.");
   }
   return credential;
 }
-async function nativeModels(env2, credentialId) {
-  return withOpenCodePrivateServer(env2, async (baseUrl2, password) => {
+async function nativeModels(env3, credentialId) {
+  return withOpenCodePrivateServer(env3, async (baseUrl2, password) => {
     const activated = await fetchOpenCodeApi(fetch, baseUrl2, `/api/credential/${encodeURIComponent(credentialId)}/activate`, password, { method: "POST" });
     if (activated.status !== 204)
       throw new Error("Could not select this alias's OpenCode subscription.");
@@ -8474,29 +14182,29 @@ async function nativeModels(env2, credentialId) {
     while (Date.now() < deadline) {
       const response = await fetchOpenCodeApi(fetch, baseUrl2, "/api/model", password);
       if (response.ok) {
-        const models = locationData(await response.json());
-        if (Array.isArray(models) && models.some((item) => record(item) && item.providerID === OPENCODE_GO_PROVIDER_ID && item.enabled !== false)) {
+        const models2 = locationData(await response.json());
+        if (Array.isArray(models2) && models2.some((item) => record(item) && item.providerID === OPENCODE_GO_PROVIDER_ID && item.enabled !== false)) {
           const integrationResponse = await fetchOpenCodeApi(fetch, baseUrl2, "/api/integration/opencode", password);
           const integration = integrationResponse.ok ? locationData(await integrationResponse.json()) : null;
           if (record(integration) && Array.isArray(integration.connections) && record(integration.connections[0]) && integration.connections[0].id === credentialId && record(integration.connections[0].status) && integration.connections[0].status.status === "needs_auth") {
             throw new ConsoleReconnectError("OpenCode subscription authorization needs reconnecting.");
           }
-          const stored = (await readOpenCodeConsoleCredentials(env2.OPENCODE_DB)).find((item) => item.id === credentialId);
+          const stored = (await readOpenCodeConsoleCredentials(env3.OPENCODE_DB)).find((item) => item.id === credentialId);
           if (stored && stored.value.expires > Date.now() + 5 * 60000 && record(integration) && Array.isArray(integration.connections) && record(integration.connections[0]) && integration.connections[0].id === credentialId && !integration.connections[0].status) {
-            const nextSignature = JSON.stringify(models);
+            const nextSignature = JSON.stringify(models2);
             stable = nextSignature === signature ? stable + 1 : 0;
             signature = nextSignature;
             if (stable >= 2)
-              return models.filter(record);
+              return models2.filter(record);
           }
         }
       }
-      await new Promise((resolve2) => setTimeout(resolve2, 100));
+      await new Promise((resolve3) => setTimeout(resolve3, 100));
     }
     throw new Error("OpenCode could not load this workspace's subscription models; reconnect or retry.");
   });
 }
-async function fetchOpenCodeConsoleGoModels(models, credential) {
+async function fetchOpenCodeConsoleGoModels(models2, credential) {
   const configResponse = await consoleGet(credential, "/api/v2/config");
   if (!configResponse.ok)
     throw new Error("Could not verify the workspace's Console model configuration.");
@@ -8506,7 +14214,7 @@ async function fetchOpenCodeConsoleGoModels(models, credential) {
   const ids = await fetchOpenCodeGoCatalogIds();
   if (!ids)
     throw new Error("Could not load OpenCode's Go model catalog.");
-  const available = models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) && item.enabled !== false && typeof item.id === "string" && ids.has(item.id));
+  const available = models2.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) && item.enabled !== false && typeof item.id === "string" && ids.has(item.id));
   if (available.length === 0)
     throw new Error("This Console workspace has no available Go models; check its subscription and retry.");
   return available;
@@ -8536,7 +14244,7 @@ function validateConsoleProvider(provider) {
     }
   }
 }
-function buildOpenCodeConsoleConfig(source, model, models, go) {
+function buildOpenCodeConsoleConfig(source, model, models2, go) {
   const config = source?.trim() ? JSON.parse(source) : {};
   if (!record(config))
     throw new Error("Invalid OpenCode configuration.");
@@ -8555,7 +14263,7 @@ function buildOpenCodeConsoleConfig(source, model, models, go) {
     throw new Error("Invalid OpenCode model configuration.");
   const allowed = new Set(go.map((item) => item.id));
   const selectedOverrides = { ...overrides };
-  const allIds = new Set([...Object.keys(overrides), ...models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID).map((item) => String(item.id))]);
+  const allIds = new Set([...Object.keys(overrides), ...models2.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID).map((item) => String(item.id))]);
   for (const id of allIds) {
     const previous = selectedOverrides[id] ?? {};
     if (!record(previous))
@@ -8570,8 +14278,8 @@ function buildOpenCodeConsoleConfig(source, model, models, go) {
   const nativeOverrides = native.models ?? {};
   if (!record(nativeOverrides))
     throw new Error("Invalid native OpenCode model configuration.");
-  const free = new Set(models.filter(isOpenCodeFreeModel).map((item) => String(item.id)));
-  const nativeIds = new Set([...Object.keys(nativeOverrides), ...models.filter((item) => item.providerID === OPENCODE_FREE_PROVIDER_ID).map((item) => String(item.id))]);
+  const free = new Set(models2.filter(isOpenCodeFreeModel).map((item) => String(item.id)));
+  const nativeIds = new Set([...Object.keys(nativeOverrides), ...models2.filter((item) => item.providerID === OPENCODE_FREE_PROVIDER_ID).map((item) => String(item.id))]);
   const nativeModels2 = {};
   for (const id of nativeIds) {
     const previous = nativeOverrides[id] ?? {};
@@ -8587,7 +14295,7 @@ async function loginOpenCodeConsole(profileId, previous) {
   const stagedId = createOpenCodeProfileId();
   const stagedEnv = await openCodeConsoleEnvironment(stagedId);
   stagedEnv.OPENCODE_CONFIG_CONTENT = "{}";
-  stagedEnv.XDG_CONFIG_HOME = join10(openCodeProfileV2RuntimeDir(stagedId), "config");
+  stagedEnv.XDG_CONFIG_HOME = join13(openCodeProfileV2RuntimeDir(stagedId), "config");
   stagedEnv.OPENCODE_CONFIG_PROJECT_DISABLE = "1";
   delete stagedEnv.OPENCODE_CONFIG;
   delete stagedEnv.OPENCODE_CONFIG_DIR;
@@ -8596,8 +14304,8 @@ async function loginOpenCodeConsole(profileId, previous) {
     stagedEnv.PATH = `${shimDir}:${stagedEnv.PATH}`;
   try {
     const child = spawn5("opencode", ["auth", "login", "opencode", "--method", "device", "--standalone"], { stdio: "inherit", env: stagedEnv });
-    const code = await new Promise((resolve2, reject) => {
-      child.once("close", resolve2);
+    const code = await new Promise((resolve3, reject) => {
+      child.once("close", resolve3);
       child.once("error", () => reject(new Error("Could not start OpenCode subscription login.")));
     });
     if (code !== 0)
@@ -8610,14 +14318,14 @@ async function loginOpenCodeConsole(profileId, previous) {
       throw new Error("Login selected a different account or workspace; the saved account was not replaced.");
     }
     await requireSubscription(credential);
-    const models = await nativeModels(stagedEnv, credential.id);
+    const models2 = await nativeModels(stagedEnv, credential.id);
     const latest = (await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(stagedId))).find((item) => item.id === credential.id);
     if (!latest)
       throw new Error("The verified OpenCode credential disappeared.");
     if (latest.value.metadata.accountID !== metadata.accountID || latest.value.metadata.orgID !== metadata.orgID) {
       throw new Error("OpenCode changed the account or workspace during verification; nothing was replaced.");
     }
-    const available = await fetchOpenCodeConsoleGoModels(models, latest);
+    const available = await fetchOpenCodeConsoleGoModels(models2, latest);
     const preferred = previous?.defaultModel ? normalizeOpenCodeConsoleModel(previous.defaultModel) : null;
     const defaultModel = available.some((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}` === preferred) ? preferred : `${OPENCODE_GO_PROVIDER_ID}/${available[0].id}`;
     const profile = { type: "go", defaultModel, console: {
@@ -8627,30 +14335,30 @@ async function loginOpenCodeConsole(profileId, previous) {
       orgId: metadata.orgID,
       orgName: metadata.orgName ?? metadata.orgID
     } };
-    const env2 = await openCodeConsoleEnvironment(profileId);
-    env2.OPENCODE_CONFIG_CONTENT = "{}";
-    env2.XDG_CONFIG_HOME = stagedEnv.XDG_CONFIG_HOME;
-    env2.OPENCODE_CONFIG_PROJECT_DISABLE = "1";
-    delete env2.OPENCODE_CONFIG;
-    delete env2.OPENCODE_CONFIG_DIR;
+    const env3 = await openCodeConsoleEnvironment(profileId);
+    env3.OPENCODE_CONFIG_CONTENT = "{}";
+    env3.XDG_CONFIG_HOME = stagedEnv.XDG_CONFIG_HOME;
+    env3.OPENCODE_CONFIG_PROJECT_DISABLE = "1";
+    delete env3.OPENCODE_CONFIG;
+    delete env3.OPENCODE_CONFIG_DIR;
     const release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account");
     try {
       if (previous?.console) {
-        const current = await getOpenCodeProfileData(profileId);
-        if (current.console?.credentialId !== previous.console.credentialId) {
+        const current2 = await getOpenCodeProfileData(profileId);
+        if (current2.console?.credentialId !== previous.console.credentialId) {
           throw new Error("This account changed while browser login was open; retry refresh.");
         }
-        if (current.defaultModel && available.some((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}` === normalizeOpenCodeConsoleModel(current.defaultModel))) {
-          profile.defaultModel = normalizeOpenCodeConsoleModel(current.defaultModel);
+        if (current2.defaultModel && available.some((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}` === normalizeOpenCodeConsoleModel(current2.defaultModel))) {
+          profile.defaultModel = normalizeOpenCodeConsoleModel(current2.defaultModel);
         }
       }
-      await withOpenCodePrivateServer(env2, async (baseUrl2, password) => {
-        const request = (path, init) => fetchOpenCodeApi(fetch, baseUrl2, path, password, init);
-        const response = await request("/api/credential", { method: "POST", body: JSON.stringify({ id: latest.id, integrationID: "opencode", label: latest.label, value: latest.value, activate: false }) });
+      await withOpenCodePrivateServer(env3, async (baseUrl2, password) => {
+        const request2 = (path, init) => fetchOpenCodeApi(fetch, baseUrl2, path, password, init);
+        const response = await request2("/api/credential", { method: "POST", body: JSON.stringify({ id: latest.id, integrationID: "opencode", label: latest.label, value: latest.value, activate: false }) });
         if (!response.ok)
           throw new Error("Could not save the verified OpenCode subscription credential.");
         try {
-          const activated = await request(`/api/credential/${encodeURIComponent(latest.id)}/activate`, { method: "POST" });
+          const activated = await request2(`/api/credential/${encodeURIComponent(latest.id)}/activate`, { method: "POST" });
           if (activated.status !== 204)
             throw new Error("Could not activate the verified OpenCode subscription.");
           const stored = (await readOpenCodeConsoleCredentials(openCodeProfileV2DatabaseFile(profileId))).find((item) => item.id === latest.id && item.active);
@@ -8659,7 +14367,7 @@ async function loginOpenCodeConsole(profileId, previous) {
           await saveOpenCodeConsoleProfile(profileId, profile);
         } catch (error2) {
           if (previous?.console)
-            await request(`/api/credential/${encodeURIComponent(previous.console.credentialId)}/activate`, { method: "POST" }).catch(() => {});
+            await request2(`/api/credential/${encodeURIComponent(previous.console.credentialId)}/activate`, { method: "POST" }).catch(() => {});
           throw error2;
         }
       });
@@ -8673,22 +14381,22 @@ async function loginOpenCodeConsole(profileId, previous) {
   }
 }
 async function prepareOpenCodeConsoleRun(profileId, selectedModel) {
-  const env2 = await openCodeConsoleEnvironment(profileId);
+  const env3 = await openCodeConsoleEnvironment(profileId);
   const release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account");
   try {
     const profile = await getOpenCodeProfileData(profileId);
     const credential = await readPinnedConsoleCredential(profileId, profile);
-    const source = env2.OPENCODE_CONFIG_CONTENT;
-    env2.OPENCODE_CONFIG_CONTENT = "{}";
-    const models = await nativeModels(env2, credential.id);
+    const source = env3.OPENCODE_CONFIG_CONTENT;
+    env3.OPENCODE_CONFIG_CONTENT = "{}";
+    const models2 = await nativeModels(env3, credential.id);
     const latest = await readPinnedConsoleCredential(profileId, profile);
     await requireSubscription(latest);
-    const available = await fetchOpenCodeConsoleGoModels(models, latest);
+    const available = await fetchOpenCodeConsoleGoModels(models2, latest);
     const resolvedModel = normalizeOpenCodeConsoleModel(selectedModel ?? profile.defaultModel ?? `${OPENCODE_GO_PROVIDER_ID}/${available[0].id}`);
-    const serializedConfig = JSON.stringify(buildOpenCodeConsoleConfig(source, resolvedModel, models, available));
-    env2.OPENCODE_CONFIG_CONTENT = serializedConfig;
+    const serializedConfig = JSON.stringify(buildOpenCodeConsoleConfig(source, resolvedModel, models2, available));
+    env3.OPENCODE_CONFIG_CONTENT = serializedConfig;
     let compactionGuard;
-    await withOpenCodePrivateServer(env2, async (baseUrl2, password) => {
+    await withOpenCodePrivateServer(env3, async (baseUrl2, password) => {
       const routing = await verifyEffectiveOpenCodeRouting(fetch, baseUrl2, password, available.map((item) => `${OPENCODE_GO_PROVIDER_ID}/${item.id}`), OPENCODE_GO_PROVIDER_ID, (entries) => {
         if (!Array.isArray(entries))
           throw new Error("Invalid OpenCode effective configuration.");
@@ -8699,14 +14407,14 @@ async function prepareOpenCodeConsoleRun(profileId, selectedModel) {
         }
       });
       const applied = applyManagedCompactionPolicy(serializedConfig, routing, resolvedModel.slice(OPENCODE_GO_PROVIDER_ID.length + 1));
-      env2.OPENCODE_CONFIG_CONTENT = applied.configContent;
+      env3.OPENCODE_CONFIG_CONTENT = applied.configContent;
       compactionGuard = applied.guard;
       const response = await fetchOpenCodeApi(fetch, baseUrl2, `/api/provider/${OPENCODE_GO_PROVIDER_ID}`, password);
       const provider = response.ok ? locationData(await response.json()) : null;
       if (!record(provider) || provider.integrationID !== "opencode")
         throw new Error("OpenCode Console is not using this alias's subscription integration.");
     });
-    return { env: env2, release, compactionGuard };
+    return { env: env3, release, compactionGuard };
   } catch (error2) {
     await release();
     throw error2;
@@ -8716,11 +14424,11 @@ async function fetchOpenCodeConsoleUsage(profileId) {
   try {
     let credential = await readPinnedConsoleCredential(profileId);
     if (credential.value.expires <= Date.now() + 5 * 60000) {
-      const env2 = await openCodeConsoleEnvironment(profileId);
-      env2.OPENCODE_CONFIG_CONTENT = "{}";
+      const env3 = await openCodeConsoleEnvironment(profileId);
+      env3.OPENCODE_CONFIG_CONTENT = "{}";
       const release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account");
       try {
-        await nativeModels(env2, credential.id);
+        await nativeModels(env3, credential.id);
         credential = await readPinnedConsoleCredential(profileId);
       } finally {
         await release();
@@ -8787,10 +14495,10 @@ async function fetchOpenCodeUsage(profileId) {
 function parseOpenCodeUsageResponse(data) {
   if (!data || typeof data !== "object")
     return null;
-  const usage = data.usage;
-  if (!usage || typeof usage !== "object")
+  const usage2 = data.usage;
+  if (!usage2 || typeof usage2 !== "object")
     return null;
-  const windows = usage;
+  const windows = usage2;
   const rolling = parseWindow(windows.rolling);
   const weekly = parseWindow(windows.weekly);
   const monthly = parseWindow(windows.monthly);
@@ -8865,8 +14573,8 @@ async function resolveOpenCodeV2Key(options) {
     }
     const probe = await probeOpenCodeGoKey(key);
     if (probe.status === "valid") {
-      const usage = formatUsage(probe.usage, null);
-      success(`OpenCode Go key verified (${sourceLabel})${usage ? `  ${usage}` : ""}`);
+      const usage2 = formatUsage(probe.usage, null);
+      success2(`OpenCode Go key verified (${sourceLabel})${usage2 ? `  ${usage2}` : ""}`);
       return key;
     }
     if (probe.status === "unreachable") {
@@ -8900,13 +14608,13 @@ async function promptForKey(message) {
 
 // src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result = spawnSync7("claude", ["auth", "status"], {
+  const result2 = spawnSync7("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
-  if (result.status !== 0)
+  if (result2.status !== 0)
     return null;
   try {
-    return JSON.parse(result.stdout);
+    return JSON.parse(result2.stdout);
   } catch {
     return null;
   }
@@ -8999,7 +14707,7 @@ async function addOpenCodeSubscription(alias) {
     const profile = await loginOpenCodeConsole(profileId);
     await addAlias(alias, { provider: "opencode", profileId });
     await setActiveOpenCodeProfile(profileId);
-    success(`${source_default.bold(alias)} created  ${profile.console.email} · ${profile.console.orgName}  Go subscription verified`);
+    success2(`${source_default.bold(alias)} created  ${profile.console.email} · ${profile.console.orgName}  Go subscription verified`);
     hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to use this subscription (${profile.defaultModel}).`);
     blank();
   } catch (err) {
@@ -9065,7 +14773,7 @@ async function addOpenCodeGo(alias) {
     await addAlias(alias, { provider: "opencode", profileId });
     await setActiveOpenCodeProfile(profileId);
     blank();
-    success(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
+    success2(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
     const historyHint = openCodeVersion.major === 2 ? "OpenCode V2 keeps /resume history private to this alias." : "OpenCode V1 Go aliases share /resume history.";
     hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`);
     if (openCodeVersion.major === 2) {
@@ -9106,7 +14814,7 @@ async function addClaudeOAuth(alias) {
       await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel: defaultModel2 });
       await addAlias(alias, { provider: "claude", profileName: alias });
       blank();
-      success(`${source_default.bold(alias)} created from current Claude session`);
+      success2(`${source_default.bold(alias)} created from current Claude session`);
       blank();
       return;
     }
@@ -9127,9 +14835,9 @@ async function addClaudeOAuth(alias) {
   info("Opening Claude login...");
   blank();
   const browserScript = createPrivateBrowserScript();
-  const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
-  const proc = spawn6("claude", ["auth", "login"], { stdio: "inherit", env: env2 });
-  const exitCode = await new Promise((resolve2) => proc.on("close", resolve2));
+  const env3 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
+  const proc = spawn6("claude", ["auth", "login"], { stdio: "inherit", env: env3 });
+  const exitCode = await new Promise((resolve3) => proc.on("close", resolve3));
   cleanupBrowserScript(browserScript);
   const newCreds = await readCredentials(CREDENTIALS_FILE);
   if (exitCode !== 0 || !newCreds) {
@@ -9142,14 +14850,14 @@ async function addClaudeOAuth(alias) {
   await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
-  success(`${source_default.bold(alias)} created`);
+  success2(`${source_default.bold(alias)} created`);
   blank();
 }
 async function addClaudeApiKey(alias) {
   const config = await promptClaudeApiConfig();
   await createClaudeApiKeyAccount({ alias, ...config });
   blank();
-  success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(config.apiKey))}`);
+  success2(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(config.apiKey))}`);
   await maybeSetupRelayBalance(config.baseUrl);
   blank();
 }
@@ -9187,7 +14895,7 @@ async function addLocalCLIProxyAPI(alias) {
     profileWritten = true;
     await addAlias(alias, { provider: "claude", profileName });
     blank();
-    success(`${source_default.bold(alias)} created  ${source_default.dim("ChatGPT via local CLIProxyAPI")}`);
+    success2(`${source_default.bold(alias)} created  ${source_default.dim("ChatGPT via local CLIProxyAPI")}`);
     hint(`Default mapping: fable → ${CLI_PROXY_API_DEFAULTS.fableModel}, opus/sonnet → ${CLI_PROXY_API_DEFAULTS.opusModel}, haiku → ${CLI_PROXY_API_DEFAULTS.haikuModel}.`);
     hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start Claude Code; its normal skills, MCP servers, hooks, and CLAUDE.md remain enabled.`);
     blank();
@@ -9209,7 +14917,7 @@ async function resolveCLIProxyAPIBinaryForAdd() {
   const existing = findCLIProxyAPIBinary();
   if (existing)
     return existing;
-  if (platform4() === "darwin" && hasHomebrew()) {
+  if (platform5() === "darwin" && hasHomebrew()) {
     const install = await esm_default2({
       message: "CLIProxyAPI is not installed. Install it with Homebrew now?",
       default: true
@@ -9270,7 +14978,7 @@ async function maybeSetupRelayBalance(baseUrl2) {
     const balance = await fetchAccountBalanceWith(origin, config);
     if (balance) {
       await saveRelayConfig(origin, config);
-      success(`Relay account balance: ${formatBalanceSide(balance)}`);
+      success2(`Relay account balance: ${formatBalanceSide(balance)}`);
       return;
     }
     error("The relay rejected the token/user ID.");
@@ -9417,7 +15125,7 @@ async function addCodexChatGPT(alias) {
   await applyCodexApiProvider(null, undefined, defaultModel);
   await addAlias(alias, { provider: "codex", accountKey });
   blank();
-  success(`${source_default.bold(alias)} created  ${source_default.dim(email)}`);
+  success2(`${source_default.bold(alias)} created  ${source_default.dim(email)}`);
   blank();
 }
 async function addCodexApiKey(alias) {
@@ -9445,7 +15153,7 @@ async function addCodexApiKey(alias) {
     process.exit(1);
   }
   blank();
-  success(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key))}`);
+  success2(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(key))}`);
   await maybeSetupRelayBalance(apiProvider.base_url ?? undefined);
   blank();
 }
@@ -9541,23 +15249,23 @@ async function promptCodexApiProvider() {
 }
 
 // src/providers/codex/sessions.ts
-import { execFile as execFile2 } from "child_process";
+import { execFile as execFile3 } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import {
-  open as open2,
-  readdir as readdir3,
-  realpath,
-  rename as rename6,
+  open as open3,
+  readdir as readdir4,
+  realpath as realpath2,
+  rename as rename7,
   rm as rm9,
-  stat as stat4,
+  stat as stat5,
   utimes
 } from "fs/promises";
-import { join as join11 } from "path";
-import { pipeline } from "stream/promises";
+import { join as join14 } from "path";
+import { pipeline as pipeline2 } from "stream/promises";
 import { promisify as promisify2 } from "util";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
-  join11("sqlite", "state_5.sqlite"),
+  join14("sqlite", "state_5.sqlite"),
   "state_5.sqlite"
 ];
 var FIRST_LINE_MAX_BYTES = 4 * 1024 * 1024;
@@ -9569,12 +15277,12 @@ async function listJsonlFiles(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = await readdir3(dir, { withFileTypes: true });
+      entries = await readdir4(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = join11(dir, entry.name);
+      const fullPath = join14(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
@@ -9585,7 +15293,7 @@ async function listJsonlFiles(root) {
   return results;
 }
 async function readFirstLine(filePath) {
-  const handle = await open2(filePath, "r");
+  const handle = await open3(filePath, "r");
   try {
     const chunks = [];
     let total = 0;
@@ -9636,10 +15344,10 @@ function rewriteSessionMetaLine(line, targetProvider, managedProviders) {
   if (record2?.type !== "session_meta" || typeof record2.payload !== "object" || record2.payload === null) {
     return null;
   }
-  const current = record2.payload.model_provider;
-  if (current === targetProvider)
+  const current2 = record2.payload.model_provider;
+  if (current2 === targetProvider)
     return null;
-  if (typeof current === "string" && current !== "" && !managedProviders.has(current.toLowerCase())) {
+  if (typeof current2 === "string" && current2 !== "" && !managedProviders.has(current2.toLowerCase())) {
     return null;
   }
   record2.payload.model_provider = targetProvider;
@@ -9652,21 +15360,21 @@ async function rewriteRolloutProvider(filePath, targetProvider, managedProviders
   const updatedLine = rewriteSessionMetaLine(first.line, targetProvider, managedProviders);
   if (updatedLine === null)
     return false;
-  const { mode, size, atime, mtime } = await stat4(filePath);
+  const { mode, size, atime, mtime } = await stat5(filePath);
   const tmpPath = `${filePath}.claudex-sync.${process.pid}.tmp`;
   try {
     const out = createWriteStream(tmpPath, { mode });
-    await new Promise((resolve2, reject) => {
-      out.write(updatedLine + first.separator, (err) => err ? reject(err) : resolve2());
+    await new Promise((resolve3, reject) => {
+      out.write(updatedLine + first.separator, (err) => err ? reject(err) : resolve3());
     });
     if (first.restOffset < size) {
-      await pipeline(createReadStream(filePath, { start: first.restOffset }), out);
+      await pipeline2(createReadStream(filePath, { start: first.restOffset }), out);
     } else {
-      await new Promise((resolve2, reject) => {
-        out.end((err) => err ? reject(err) : resolve2());
+      await new Promise((resolve3, reject) => {
+        out.end((err) => err ? reject(err) : resolve3());
       });
     }
-    await rename6(tmpPath, filePath);
+    await rename7(tmpPath, filePath);
     await utimes(filePath, atime, mtime).catch(() => {});
     return true;
   } catch (err) {
@@ -9696,7 +15404,7 @@ async function openSqlite(dbPath) {
     return null;
   }
 }
-var execFileAsync2 = promisify2(execFile2);
+var execFileAsync2 = promisify2(execFile3);
 function sqlQuote(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -9714,7 +15422,7 @@ async function updateProvidersViaSqliteCli(dbPath, targetProvider, managedProvid
 async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   let dbPath = null;
   for (const candidate of STATE_DB_CANDIDATES) {
-    const fullPath = join11(CODEX_DIR, candidate);
+    const fullPath = join14(CODEX_DIR, candidate);
     if (await fileExists(fullPath)) {
       dbPath = fullPath;
       break;
@@ -9736,21 +15444,21 @@ async function updateSqliteThreadProviders(targetProvider, managedProviders) {
   }
 }
 function parseLsofPaths(stdout) {
-  const open3 = new Set;
+  const open4 = new Set;
   for (const line of stdout.split(`
 `)) {
     if (line.startsWith("n") && line.endsWith(".jsonl")) {
-      open3.add(line.slice(1));
+      open4.add(line.slice(1));
     }
   }
-  return open3;
+  return open4;
 }
 var LSOF_CHUNK_SIZE = 100;
 async function scanOpenFiles(paths) {
   const byRealPath = new Map;
   for (const path of paths) {
     try {
-      byRealPath.set(await realpath(path), path);
+      byRealPath.set(await realpath2(path), path);
     } catch {
       byRealPath.set(path, path);
     }
@@ -9774,11 +15482,11 @@ async function scanOpenFiles(paths) {
         openReal.add(path);
     }
   }
-  const open3 = new Set;
+  const open4 = new Set;
   for (const real of openReal) {
-    open3.add(byRealPath.get(real) ?? real);
+    open4.add(byRealPath.get(real) ?? real);
   }
-  return { ok: true, paths: open3 };
+  return { ok: true, paths: open4 };
 }
 async function anyCodexProcessRunning() {
   try {
@@ -9794,7 +15502,7 @@ async function anyCodexProcessRunning() {
 async function syncCodexSessionProviders(targetProvider, managedProviders) {
   const candidates = [];
   for (const dirName of SESSION_DIRS) {
-    const root = join11(CODEX_DIR, dirName);
+    const root = join14(CODEX_DIR, dirName);
     for (const filePath of await listJsonlFiles(root)) {
       try {
         const first = await readFirstLine(filePath);
@@ -9855,7 +15563,7 @@ async function use(aliasOrName) {
 async function switchOpenCode(alias, profileId) {
   await ensureOpenCodeProfileReady(alias, profileId);
   await setActiveOpenCodeProfile(profileId);
-  success(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
+  success2(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
   hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
   blank();
 }
@@ -9891,7 +15599,7 @@ async function switchClaude(alias, profileName) {
     const creds = await readCredentials(claudeProfileCredentials(profileName));
     label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
   }
-  success(`Switched to ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType(data.type)}  ${label}`);
+  success2(`Switched to ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType(data.type)}  ${label}`);
   blank();
 }
 async function switchCodex(alias, accountKey) {
@@ -9920,7 +15628,7 @@ async function switchCodex(alias, accountKey) {
   await syncSessionVisibility(account, managedProviderNames(reg));
   const plan = formatPlan(account.plan ?? account.last_usage?.plan_type ?? null);
   const email = account.email ? source_default.dim(account.email) : "";
-  success(`Switched to ${source_default.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
+  success2(`Switched to ${source_default.bold(alias)}  ${formatProvider("codex")}  ${plan}  ${email}`);
   if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
     const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
     if (!process.env[envKey]) {
@@ -9934,9 +15642,9 @@ async function syncSessionVisibility(account, managedProviders) {
   if (!targetProvider)
     return;
   try {
-    const result = await syncCodexSessionProviders(targetProvider, managedProviders);
-    if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
-      info(`Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`);
+    const result2 = await syncCodexSessionProviders(targetProvider, managedProviders);
+    if (result2.rolloutFilesUpdated > 0 || result2.sqliteRowsUpdated > 0) {
+      info(`Synced ${result2.rolloutFilesUpdated} session file(s) and ${result2.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`);
       hint("Sessions from both API and subscription could be /resume now.");
     }
   } catch {}
@@ -10099,12 +15807,12 @@ async function model(aliasOrName, defaultModel) {
     process.exit(1);
   }
   blank();
-  success(`Updated ${source_default.bold(entry.alias)}  ${formatProvider(entry.target.provider)}  ${formatType(authMode)}  ${source_default.dim(normalizedModel)}`);
+  success2(`Updated ${source_default.bold(entry.alias)}  ${formatProvider(entry.target.provider)}  ${formatType(authMode)}  ${source_default.dim(normalizedModel)}`);
   blank();
 }
 
 // src/providers/cliproxyapi/links.ts
-import { mkdir as mkdir12 } from "fs/promises";
+import { mkdir as mkdir13 } from "fs/promises";
 function linkKey(target) {
   return target.provider === "codex" ? `codex:${target.accountKey}` : `opencode:${target.profileId}`;
 }
@@ -10116,7 +15824,7 @@ async function readLinks() {
   return file;
 }
 async function writeLinks(file) {
-  await mkdir12(CLAUDEX_DIR, { recursive: true });
+  await mkdir13(CLAUDEX_DIR, { recursive: true });
   await writeJsonSecure(CLI_PROXY_API_LINKS_FILE, file);
 }
 async function getLinkedClaudeProfile(target) {
@@ -10153,6 +15861,9 @@ var ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
 function isAntigravityName(name) {
   return ANTIGRAVITY_KEYWORDS.has(name.toLowerCase());
 }
+function isSubscriptionName(name) {
+  return isSubscriptionUpstream(name.toLowerCase());
+}
 function isClaudeCodeClient(value) {
   return CLAUDE_CODE_CLIENTS.has(value.toLowerCase());
 }
@@ -10162,14 +15873,22 @@ async function resolveCLIProxyClaudeEntry(aliasOrName, options = {}) {
     if (isAntigravityName(aliasOrName)) {
       return createAntigravityAlias(aliasOrName, options);
     }
+    if (isSubscriptionName(aliasOrName)) {
+      return createSubscriptionAlias(aliasOrName, aliasOrName.toLowerCase(), options);
+    }
     throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
-      `Use a Codex or OpenCode Go alias, or ${source_default.cyan("agy")} for Antigravity.`
+      `Use a Codex or OpenCode Go alias, agy for Antigravity, or workbuddy / workbuddy-ai / cursor.`
     ]);
   }
   if (entry.target.provider === "claude") {
     const data = await profileExists(entry.target.profileName) ? await getProfileData(entry.target.profileName) : null;
-    if (data?.type === "local-cliproxyapi")
+    if (data?.type === "local-cliproxyapi") {
+      if (isSubscriptionUpstream(data.upstream) && !await hasManagedCLIProxyAPILogin(data.profileId)) {
+        const identity2 = await loginOrThrow(data.profileId, data.binaryPath, upstreamLabel(data.upstream), undefined, data.authIdentity);
+        await updateLocalCLIProxyAPIProfileIdentity(entry.target.profileName, identity2);
+      }
       return entry;
+    }
     throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
       `Run ${source_default.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`
     ]);
@@ -10223,10 +15942,10 @@ async function createManagedProfile(binaryPath, setup, login, save) {
   let saved = false;
   try {
     await initializeManagedCLIProxyAPI(profileId, setup);
-    const identity = login ? await login(profileId) : undefined;
-    if (identity)
-      profile.authIdentity = identity;
-    const runtime = setup.upstream === "antigravity" ? await ensureManagedCLIProxyAPI(profile) : undefined;
+    const identity2 = login ? await login(profileId) : undefined;
+    if (identity2)
+      profile.authIdentity = identity2;
+    const runtime = setup.upstream === "antigravity" || isSubscriptionUpstream(setup.upstream) ? await ensureManagedCLIProxyAPI(profile) : undefined;
     await saveLocalCLIProxyAPIProfile(profileName, profile);
     saved = true;
     await save(profileName, profile);
@@ -10243,8 +15962,8 @@ async function createManagedProfile(binaryPath, setup, login, save) {
     throw err;
   }
 }
-async function loginOrThrow(profileId, binaryPath, label, expectedAccount) {
-  const login = await runManagedCLIProxyAPILogin({ profileId, binaryPath }, undefined, undefined, expectedAccount);
+async function loginOrThrow(profileId, binaryPath, label, expectedAccount, expectedIdentity) {
+  const login = await runManagedCLIProxyAPILogin({ profileId, binaryPath }, undefined, expectedIdentity, expectedAccount);
   if (login.identityMismatch) {
     throw new UserFacingError(`${label} login completed for a different account; nothing was changed.`, [
       "Log in with the same account as the alias and retry."
@@ -10272,7 +15991,7 @@ async function createCodexLink(alias, target, options) {
   blank();
   const expected = { accountId: account.chatgpt_account_id, email: account.email };
   const { profileName } = await createManagedProfile(binaryPath, { upstream: "codex" }, (profileId) => loginOrThrow(profileId, binaryPath, "ChatGPT", expected), (name) => setLinkedClaudeProfile(target, name));
-  success(`Linked ${source_default.bold(alias)} to Claude Code`);
+  success2(`Linked ${source_default.bold(alias)} to Claude Code`);
   return profileName;
 }
 async function ensureCodexLinkLogin(alias, target, profile, profileName) {
@@ -10281,11 +16000,11 @@ async function ensureCodexLinkLogin(alias, target, profile, profileName) {
   const account = await codexAccountFor(target);
   info(`Claude Code's ChatGPT login for ${source_default.bold(alias)} is missing; logging in again...`);
   blank();
-  const identity = await loginOrThrow(profile.profileId, profile.binaryPath, "ChatGPT", {
+  const identity2 = await loginOrThrow(profile.profileId, profile.binaryPath, "ChatGPT", {
     accountId: account.chatgpt_account_id,
     email: account.email
   });
-  await updateLocalCLIProxyAPIProfileIdentity(profileName, identity);
+  await updateLocalCLIProxyAPIProfileIdentity(profileName, identity2);
 }
 async function goKeyOrThrow(alias, profileId) {
   const go = await getOpenCodeProfileData(profileId);
@@ -10305,22 +16024,22 @@ async function goKeyOrThrow(alias, profileId) {
 async function createOpenCodeGoLink(alias, target, options) {
   const key = await goKeyOrThrow(alias, target.profileId);
   const binaryPath = await requireBinary(options);
-  const catalog = await fetchOpenCodeGoCatalogIds();
-  const models = pickOpenCodeGoModels(catalog);
+  const catalog2 = await fetchOpenCodeGoCatalogIds();
+  const models2 = pickOpenCodeGoModels(catalog2);
   const { profileName } = await createManagedProfile(binaryPath, {
     upstream: "opencode-go",
-    models,
+    models: models2,
     upstreamKey: key,
-    upstreamModels: catalog ? [...catalog].sort() : []
+    upstreamModels: catalog2 ? [...catalog2].sort() : []
   }, null, (name) => setLinkedClaudeProfile(target, name));
-  success(`Linked ${source_default.bold(alias)} to Claude Code`);
-  printMapping(models);
+  success2(`Linked ${source_default.bold(alias)} to Claude Code`);
+  printMapping(models2);
   return profileName;
 }
 async function syncOpenCodeGoKey(goProfileId, profile) {
   const key = await readOpenCodeGoApiKey(goProfileId);
-  const current = await readManagedCLIProxyAPIUpstream(profile.profileId);
-  if (!key || !current || current.upstreamKey === key)
+  const current2 = await readManagedCLIProxyAPIUpstream(profile.profileId);
+  if (!key || !current2 || current2.upstreamKey === key)
     return;
   const managed = { profileId: profile.profileId, binaryPath: profile.binaryPath };
   if (await hasActiveManagedCLIProxyAPI(managed)) {
@@ -10344,34 +16063,45 @@ async function createAntigravityAlias(alias, options) {
   info("Opening CLIProxyAPI's own Antigravity login in your browser...");
   blank();
   const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
-  const models = await getLocalCLIProxyAPISettings(profile, runtime);
-  success(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
-  printMapping(models);
+  const models2 = await getLocalCLIProxyAPISettings(profile, runtime);
+  success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
+  printMapping(models2);
   return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
 }
-function printMapping(models) {
-  hint(`opus/default → ${models.opusModel} · sonnet → ${models.sonnetModel} · haiku → ${models.haikuModel}`);
+async function createSubscriptionAlias(alias, upstream, options) {
+  const rejection = checkAlias(await loadAliases(), alias);
+  if (rejection)
+    throw new UserFacingError(describeAliasRejection(rejection, alias));
+  const binaryPath = await requireBinary(options);
+  info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
+  const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream }, (profileId) => loginOrThrow(profileId, binaryPath, upstreamLabel(upstream)), (name) => addAlias(alias, { provider: "claude", profileName: name }));
+  success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel(upstream)}`)}`);
+  printMapping(await getLocalCLIProxyAPISettings(profile, runtime));
+  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
+}
+function printMapping(models2) {
+  hint(`opus/default → ${models2.opusModel} · sonnet → ${models2.sonnetModel} · haiku → ${models2.haikuModel}`);
 }
 function upstreamLabel(upstream) {
   return CLI_PROXY_API_UPSTREAMS[upstream ?? "codex"].label;
 }
 
 // src/commands/run.ts
-import { join as join13 } from "path";
+import { join as join16 } from "path";
 
 // src/providers/codex/run-home.ts
 import {
-  chmod as chmod10,
+  chmod as chmod11,
   lstat as lstat2,
-  mkdir as mkdir13,
-  readdir as readdir4,
+  mkdir as mkdir14,
+  readdir as readdir5,
   readlink as readlink2,
-  rename as rename7,
+  rename as rename8,
   symlink as symlink2,
-  unlink as unlink3,
-  writeFile as writeFile9
+  unlink as unlink4,
+  writeFile as writeFile10
 } from "fs/promises";
-import { join as join12 } from "path";
+import { join as join15 } from "path";
 var AUTH_FILE = "auth.json";
 var CONFIG_FILE = "config.toml";
 var PRIVATE_ENTRIES = new Set([AUTH_FILE, CONFIG_FILE, "accounts"]);
@@ -10389,26 +16119,26 @@ async function isDefaultCodexAccount(reg, account) {
 }
 async function prepareCodexRunHome(account) {
   const home = codexRunHome(account.account_key);
-  await mkdir13(home, { recursive: true, mode: 448 });
-  await chmod10(home, 448);
-  await mkdir13(CODEX_DIR, { recursive: true });
+  await mkdir14(home, { recursive: true, mode: 448 });
+  await chmod11(home, 448);
+  await mkdir14(CODEX_DIR, { recursive: true });
   await syncCodexRunAuth(account);
   const auth = await readAccountAuth(account.account_key);
   if (!auth) {
     throw new Error(`Auth file not found for account: ${account.account_key}`);
   }
-  await writeFile9(join12(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
-  await chmod10(join12(home, AUTH_FILE), 384);
+  await writeFile10(join15(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
+  await chmod11(join15(home, AUTH_FILE), 384);
   const privateConfig = await renderCodexRunConfig(account.auth_mode === "apikey" ? account.api_provider : null, auth.auth_mode === "apikey" ? auth.OPENAI_API_KEY ?? undefined : undefined);
-  const configPath = join12(home, CONFIG_FILE);
+  const configPath = join15(home, CONFIG_FILE);
   await removeEntry(configPath);
   if (privateConfig === null) {
-    if (await fileExists(join12(CODEX_DIR, CONFIG_FILE))) {
-      await linkEntry(join12(CODEX_DIR, CONFIG_FILE), configPath);
+    if (await fileExists(join15(CODEX_DIR, CONFIG_FILE))) {
+      await linkEntry(join15(CODEX_DIR, CONFIG_FILE), configPath);
     }
   } else {
-    await writeFile9(configPath, privateConfig, { mode: 384 });
-    await chmod10(configPath, 384);
+    await writeFile10(configPath, privateConfig, { mode: 384 });
+    await chmod11(configPath, 384);
   }
   await linkSharedEntries(home);
   return home;
@@ -10416,7 +16146,7 @@ async function prepareCodexRunHome(account) {
 async function syncCodexRunAuth(account) {
   if (account.auth_mode !== "chatgpt")
     return;
-  const runAuth = await readJson(join12(codexRunHome(account.account_key), AUTH_FILE), null);
+  const runAuth = await readJson(join15(codexRunHome(account.account_key), AUTH_FILE), null);
   if (!runAuth || !authMatchesAccount(runAuth, account))
     return;
   const snapshot = await readAccountAuth(account.account_key);
@@ -10432,30 +16162,30 @@ async function finishCodexRunHome(account) {
   await linkSharedEntries(codexRunHome(account.account_key));
 }
 async function linkSharedEntries(home) {
-  for (const entry of await readdir4(home, { withFileTypes: true })) {
+  for (const entry of await readdir5(home, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name) || entry.isSymbolicLink())
       continue;
-    const shared = join12(CODEX_DIR, entry.name);
-    if (await exists(shared))
+    const shared = join15(CODEX_DIR, entry.name);
+    if (await exists2(shared))
       continue;
     try {
-      await rename7(join12(home, entry.name), shared);
+      await rename8(join15(home, entry.name), shared);
     } catch {}
   }
-  for (const entry of await readdir4(CODEX_DIR, { withFileTypes: true })) {
+  for (const entry of await readdir5(CODEX_DIR, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name))
       continue;
-    await linkEntry(join12(CODEX_DIR, entry.name), join12(home, entry.name));
+    await linkEntry(join15(CODEX_DIR, entry.name), join15(home, entry.name));
   }
 }
 async function linkEntry(source, destination) {
   try {
-    const stat5 = await lstat2(destination);
-    if (!stat5.isSymbolicLink())
+    const stat6 = await lstat2(destination);
+    if (!stat6.isSymbolicLink())
       return;
     if (await readlink2(destination) === source)
       return;
-    await unlink3(destination);
+    await unlink4(destination);
   } catch {}
   const sourceStat = await lstat2(source);
   const type = sourceStat.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
@@ -10465,10 +16195,10 @@ async function linkEntry(source, destination) {
 }
 async function removeEntry(path) {
   try {
-    await unlink3(path);
+    await unlink4(path);
   } catch {}
 }
-async function exists(path) {
+async function exists2(path) {
   try {
     await lstat2(path);
     return true;
@@ -10663,12 +16393,12 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   let resolvedModel = runOptions.modelOverride ? profile?.type === "local-cliproxyapi" ? undefined : isOpenCode ? openCodeProfile?.console ? normalizeOpenCodeConsoleModel(runOptions.modelOverride) : normalizeOpenCodeGoModel(runOptions.modelOverride) : resolveModelShorthand(entry.target.provider, runOptions.modelOverride) : profile?.type === "oauth" || profile?.type === "local-cliproxyapi" ? profile.type === "local-cliproxyapi" ? undefined : profile.defaultModel : openCodeProfile?.defaultModel;
   if (openCodeProfileId && openCodeProfile && !openCodeProfile.console && resolvedModel) {
     try {
-      const canonical = await resolveOpenCodeGoModel(resolvedModel);
-      if (!runOptions.modelOverride && canonical !== resolvedModel) {
-        await updateOpenCodeProfileDefaultModel(openCodeProfileId, canonical);
-        info(`Corrected the saved default model to ${source_default.cyan(canonical)}.`);
+      const canonical2 = await resolveOpenCodeGoModel(resolvedModel);
+      if (!runOptions.modelOverride && canonical2 !== resolvedModel) {
+        await updateOpenCodeProfileDefaultModel(openCodeProfileId, canonical2);
+        info(`Corrected the saved default model to ${source_default.cyan(canonical2)}.`);
       }
-      resolvedModel = canonical;
+      resolvedModel = canonical2;
     } catch (err) {
       error(err instanceof Error ? err.message : String(err));
       blank();
@@ -10722,9 +16452,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   let localLease;
   if (isolatedClaudeOAuth && claudeProfileName) {
     try {
-      const context = await prepareIsolatedOAuthRun(claudeProfileName);
-      secureStorageDir = context.secureStorageDir;
-      configDir = context.configDir;
+      const context2 = await prepareIsolatedOAuthRun(claudeProfileName);
+      secureStorageDir = context2.secureStorageDir;
+      configDir = context2.configDir;
     } catch (err) {
       error(err instanceof Error ? err.message : String(err));
       hint(`Run ${source_default.cyan(`claudex-switch ${aliasOrName}`)} to switch globally, then log in with ${source_default.cyan("claude")}.`);
@@ -10742,9 +16472,9 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   if (isolatedLocalCLIProxyAPI && profile?.type === "local-cliproxyapi") {
     try {
-      const context = await prepareIsolatedLocalCLIProxyAPIRun(claudeProfileName);
-      secureStorageDir = context.secureStorageDir;
-      configDir = context.configDir;
+      const context2 = await prepareIsolatedLocalCLIProxyAPIRun(claudeProfileName);
+      secureStorageDir = context2.secureStorageDir;
+      configDir = context2.configDir;
       await stopStaleManagedCLIProxyAPI({
         profileId: profile.profileId,
         binaryPath: profile.binaryPath
@@ -10764,7 +16494,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       }
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, {
         inheritModel: inheritProxyModel,
-        savedModel: (await readJson(join13(configDir, "settings.json"), {})).model
+        savedModel: (await readJson(join16(configDir, "settings.json"), {})).model
       });
     } catch (err) {
       try {
@@ -10820,21 +16550,21 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     return 1;
   }
   const autoreviewEnabled = supportsAutoreview ? runOptions.autoreviewOverride ?? false : undefined;
-  const env2 = applyAutoreview(codexHome ? { ...baseEnv ?? process.env, CODEX_HOME: codexHome } : baseEnv, autoreviewEnabled);
+  const env3 = applyAutoreview(codexHome ? { ...baseEnv ?? process.env, CODEX_HOME: codexHome } : baseEnv, autoreviewEnabled);
   if (codexHome) {
     info(`Default Codex account unchanged; this session uses ${source_default.dim(codexHome)}`);
   }
   if (openCodeCompactionGuard) {
-    const { id, context, buffer, managed } = openCodeCompactionGuard;
-    const triggerPercent = Math.round((context - buffer) / context * 100);
-    info(managed ? `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; session buffer ${buffer}, fires near ${triggerPercent}%).` : `OpenCode auto-compaction stays on for this session (model "${id}" window ${context} < 500000 tokens; keeping your buffer ${buffer}, fires near ${triggerPercent}%).`);
+    const { id, context: context2, buffer, managed } = openCodeCompactionGuard;
+    const triggerPercent = Math.round((context2 - buffer) / context2 * 100);
+    info(managed ? `OpenCode auto-compaction stays on for this session (model "${id}" window ${context2} < 500000 tokens; session buffer ${buffer}, fires near ${triggerPercent}%).` : `OpenCode auto-compaction stays on for this session (model "${id}" window ${context2} < 500000 tokens; keeping your buffer ${buffer}, fires near ${triggerPercent}%).`);
   }
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
   if (supportsAutoreview) {
     const source = runOptions.autoreviewOverride === undefined ? "default" : "this session";
     info(`Autoreview: ${autoreviewEnabled ? "on" : "off"} (${source})`);
   }
-  return new Promise((resolve2) => {
+  return new Promise((resolve3) => {
     let settled = false;
     let removeSignalHandlers = () => {};
     const finish = async (code) => {
@@ -10846,11 +16576,11 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         await localLease?.release();
         await releaseOpenCode?.();
       } catch {}
-      resolve2(code);
+      resolve3(code);
     };
     let proc;
     try {
-      proc = spawnCommand(command, args, { stdio: "inherit", env: env2 });
+      proc = spawnCommand(command, args, { stdio: "inherit", env: env3 });
     } catch (err) {
       error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
       blank();
@@ -11024,88 +16754,88 @@ function parseRunArgumentOptions(args) {
 function applyAutoreview(baseEnv, override) {
   if (override === undefined)
     return baseEnv;
-  const env2 = { ...baseEnv ?? process.env };
+  const env3 = { ...baseEnv ?? process.env };
   if (override) {
-    delete env2[CODEX_COMPLETION_REVIEW_DISABLED_ENV];
+    delete env3[CODEX_COMPLETION_REVIEW_DISABLED_ENV];
   } else {
-    env2[CODEX_COMPLETION_REVIEW_DISABLED_ENV] = "1";
+    env3[CODEX_COMPLETION_REVIEW_DISABLED_ENV] = "1";
   }
-  return env2;
+  return env3;
 }
 function buildClaudeOAuthEnvironment(secureStorageDir, configDir, extraEnv) {
   if (!secureStorageDir && !configDir && !CLAUDE_ENV_KEYS.some((key) => process.env[key]) && Object.keys(normalizeCustomEnv(extraEnv)).length === 0) {
     return;
   }
-  const env2 = { ...process.env };
+  const env3 = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
-    delete env2[key];
+    delete env3[key];
   }
-  applyCustomEnv(env2, extraEnv);
+  applyCustomEnv(env3, extraEnv);
   if (secureStorageDir) {
-    env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
+    env3.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
   if (configDir) {
-    env2.CLAUDE_CONFIG_DIR = configDir;
+    env3.CLAUDE_CONFIG_DIR = configDir;
   }
-  return env2;
+  return env3;
 }
 function buildClaudeApiEnvironment(config) {
-  const env2 = { ...process.env };
+  const env3 = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
-    delete env2[key];
+    delete env3[key];
   }
-  setOptionalEnv(env2, "ANTHROPIC_API_KEY", config.apiKey);
-  setOptionalEnv(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
-  setOptionalEnv(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
-  setOptionalEnv(env2, "ANTHROPIC_MODEL", config.model);
-  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
-  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
-  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
-  setOptionalEnv(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
-  setOptionalEnv(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
-  applyCustomEnv(env2, config.env);
-  return env2;
+  setOptionalEnv(env3, "ANTHROPIC_API_KEY", config.apiKey);
+  setOptionalEnv(env3, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setOptionalEnv(env3, "ANTHROPIC_AUTH_TOKEN", config.authToken);
+  setOptionalEnv(env3, "ANTHROPIC_MODEL", config.model);
+  setOptionalEnv(env3, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
+  setOptionalEnv(env3, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
+  setOptionalEnv(env3, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
+  setOptionalEnv(env3, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
+  setOptionalEnv(env3, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
+  applyCustomEnv(env3, config.env);
+  return env3;
 }
 function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir, extraEnv) {
-  const env2 = { ...process.env };
+  const env3 = { ...process.env };
   for (const key of CLAUDE_ENV_KEYS) {
-    delete env2[key];
+    delete env3[key];
   }
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
-    delete env2[key];
+    delete env3[key];
   }
-  applyCustomEnv(env2, extraEnv);
+  applyCustomEnv(env3, localCLIProxyAPIExtraEnv(extraEnv));
   if (secureStorageDir) {
-    env2.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
+    env3.CLAUDE_SECURESTORAGE_CONFIG_DIR = secureStorageDir;
   }
   if (configDir) {
-    env2.CLAUDE_CONFIG_DIR = configDir;
+    env3.CLAUDE_CONFIG_DIR = configDir;
   }
-  return env2;
+  return env3;
 }
-function applyCustomEnv(env2, extraEnv) {
+function applyCustomEnv(env3, extraEnv) {
   for (const [key, value] of Object.entries(normalizeCustomEnv(extraEnv))) {
-    env2[key] = value;
+    env3[key] = value;
   }
 }
 function applyClaudeAttributionHeader(baseEnv, headerEnabled) {
   if (headerEnabled === undefined) {
     return baseEnv;
   }
-  const env2 = baseEnv ? { ...baseEnv } : { ...process.env };
+  const env3 = baseEnv ? { ...baseEnv } : { ...process.env };
   if (headerEnabled) {
-    delete env2[CLAUDE_ATTRIBUTION_HEADER_ENV];
-    return env2;
+    delete env3[CLAUDE_ATTRIBUTION_HEADER_ENV];
+    return env3;
   }
-  env2[CLAUDE_ATTRIBUTION_HEADER_ENV] = "0";
-  return env2;
+  env3[CLAUDE_ATTRIBUTION_HEADER_ENV] = "0";
+  return env3;
 }
-function setOptionalEnv(env2, key, value) {
+function setOptionalEnv(env3, key, value) {
   if (value) {
-    env2[key] = value;
+    env3[key] = value;
     return;
   }
-  delete env2[key];
+  delete env3[key];
 }
 
 // src/commands/list.ts
@@ -11135,26 +16865,26 @@ async function fetchClaudeUsage(profileName, isActiveProfile) {
       await writeCredentials(next, CREDENTIALS_FILE);
     }
   };
-  let refreshed = false;
+  let refreshed2 = false;
   if (expiresAt(creds) - EXPIRY_SKEW_MS < Date.now()) {
-    const result = await refreshOAuthToken(creds);
-    if (result === "denied")
+    const result2 = await refreshOAuthToken(creds);
+    if (result2 === "denied")
       return { usage: null, note: "login expired" };
-    if (result === "unavailable")
+    if (result2 === "unavailable")
       return { usage: null, note: "usage n/a" };
-    await persist(result);
-    creds = result;
-    refreshed = true;
+    await persist(result2);
+    creds = result2;
+    refreshed2 = true;
   }
   let response = await requestUsage(creds.claudeAiOauth.accessToken);
-  if (response === "unauthorized" && !refreshed) {
-    const result = await refreshOAuthToken(creds);
-    if (result === "denied")
+  if (response === "unauthorized" && !refreshed2) {
+    const result2 = await refreshOAuthToken(creds);
+    if (result2 === "denied")
       return { usage: null, note: "login expired" };
-    if (result === "unavailable")
+    if (result2 === "unavailable")
       return { usage: null, note: "usage n/a" };
-    await persist(result);
-    response = await requestUsage(result.claudeAiOauth.accessToken);
+    await persist(result2);
+    response = await requestUsage(result2.claudeAiOauth.accessToken);
   }
   if (response === "unauthorized")
     return { usage: null, note: "login expired" };
@@ -11245,7 +16975,7 @@ async function refreshOAuthToken(creds) {
 
 // src/lib/usage-cache.ts
 import { spawn as spawn8 } from "child_process";
-import { mkdir as mkdir14, open as open3, readFile as readFile9, rename as rename8, stat as stat5, unlink as unlink4, writeFile as writeFile10 } from "fs/promises";
+import { mkdir as mkdir15, open as open4, readFile as readFile11, rename as rename9, stat as stat6, unlink as unlink5, writeFile as writeFile11 } from "fs/promises";
 var LOCK_STALE_MS = 2 * 60000;
 var TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
 function emptyUsageCache() {
@@ -11253,7 +16983,7 @@ function emptyUsageCache() {
 }
 async function readUsageCache() {
   try {
-    const parsed = JSON.parse(await readFile9(USAGE_CACHE_FILE, "utf-8"));
+    const parsed = JSON.parse(await readFile11(USAGE_CACHE_FILE, "utf-8"));
     if (parsed?.version !== 1 || !parsed.entries || typeof parsed.entries !== "object") {
       return emptyUsageCache();
     }
@@ -11263,24 +16993,24 @@ async function readUsageCache() {
   }
 }
 async function writeUsageCache(cache) {
-  await mkdir14(CLAUDEX_DIR, { recursive: true });
+  await mkdir15(CLAUDEX_DIR, { recursive: true });
   const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
-  await writeFile10(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
-  await rename8(tmp, USAGE_CACHE_FILE);
+  await writeFile11(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
+  await rename9(tmp, USAGE_CACHE_FILE);
 }
 async function usageCacheMtime() {
   try {
-    return (await stat5(USAGE_CACHE_FILE)).mtimeMs;
+    return (await stat6(USAGE_CACHE_FILE)).mtimeMs;
   } catch {
     return 0;
   }
 }
-function nextCacheEntry(previous, result, now) {
-  if (result.usage || result.balance) {
+function nextCacheEntry(previous, result2, now) {
+  if (result2.usage || result2.balance) {
     return {
-      usage: result.usage,
-      balance: result.balance,
-      plan: result.plan ?? previous?.plan ?? null,
+      usage: result2.usage,
+      balance: result2.balance,
+      plan: result2.plan ?? previous?.plan ?? null,
       dataAt: now,
       note: null,
       checkedAt: now
@@ -11289,9 +17019,9 @@ function nextCacheEntry(previous, result, now) {
   return {
     usage: previous?.usage ?? null,
     balance: previous?.balance ?? null,
-    plan: result.plan ?? previous?.plan ?? null,
+    plan: result2.plan ?? previous?.plan ?? null,
     dataAt: previous?.dataAt ?? null,
-    note: result.note,
+    note: result2.note,
     checkedAt: now
   };
 }
@@ -11321,27 +17051,27 @@ function formatAge(ms) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 async function acquireRefreshLock() {
-  await mkdir14(CLAUDEX_DIR, { recursive: true });
+  await mkdir15(CLAUDEX_DIR, { recursive: true });
   for (let attempt = 0;attempt < 2; attempt++) {
     try {
-      const handle = await open3(USAGE_REFRESH_LOCK, "wx", 384);
+      const handle = await open4(USAGE_REFRESH_LOCK, "wx", 384);
       await handle.writeFile(`${process.pid} ${Date.now()}
 `);
       await handle.close();
       return async () => {
-        await unlink4(USAGE_REFRESH_LOCK).catch(() => {});
+        await unlink5(USAGE_REFRESH_LOCK).catch(() => {});
       };
     } catch {
       if (!await isRefreshLockStale())
         return null;
-      await unlink4(USAGE_REFRESH_LOCK).catch(() => {});
+      await unlink5(USAGE_REFRESH_LOCK).catch(() => {});
     }
   }
   return null;
 }
 async function isRefreshRunning() {
   try {
-    await stat5(USAGE_REFRESH_LOCK);
+    await stat6(USAGE_REFRESH_LOCK);
   } catch {
     return false;
   }
@@ -11349,7 +17079,7 @@ async function isRefreshRunning() {
 }
 async function isRefreshLockStale() {
   try {
-    return Date.now() - (await stat5(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
+    return Date.now() - (await stat6(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
   } catch {
     return true;
   }
@@ -11370,15 +17100,15 @@ function spawnBackgroundRefresh() {
 }
 
 // src/lib/activity.ts
-import { execFile as execFile3 } from "child_process";
-import { mkdir as mkdir15, readdir as readdir5, readFile as readFile10, realpath as realpath2, rename as rename9, stat as stat6, writeFile as writeFile11 } from "fs/promises";
-import { join as join14 } from "path";
+import { execFile as execFile4 } from "child_process";
+import { mkdir as mkdir16, readdir as readdir6, readFile as readFile12, realpath as realpath3, rename as rename10, stat as stat7, writeFile as writeFile12 } from "fs/promises";
+import { join as join17 } from "path";
 import { promisify as promisify3 } from "util";
 var ACTIVITY_DAYS = 30;
 var REFRESH_INTERVAL_MS = 10 * 60000;
 var STALE_START_MS = 2 * 60000;
 var GIT_TIMEOUT_MS = 30000;
-var execFileAsync3 = promisify3(execFile3);
+var execFileAsync3 = promisify3(execFile4);
 var CODE_EXTENSIONS = [
   "py",
   "ts",
@@ -11416,7 +17146,7 @@ function emptyActivityCache() {
 }
 async function readActivityCache() {
   try {
-    const parsed = JSON.parse(await readFile10(ACTIVITY_CACHE_FILE, "utf-8"));
+    const parsed = JSON.parse(await readFile12(ACTIVITY_CACHE_FILE, "utf-8"));
     if (parsed?.version !== 1 || !parsed.days || typeof parsed.days !== "object") {
       return emptyActivityCache();
     }
@@ -11426,10 +17156,10 @@ async function readActivityCache() {
   }
 }
 async function writeActivityCache(cache) {
-  await mkdir15(CLAUDEX_DIR, { recursive: true });
+  await mkdir16(CLAUDEX_DIR, { recursive: true });
   const tmp = `${ACTIVITY_CACHE_FILE}.${process.pid}.tmp`;
-  await writeFile11(tmp, JSON.stringify(cache), { mode: 384 });
-  await rename9(tmp, ACTIVITY_CACHE_FILE);
+  await writeFile12(tmp, JSON.stringify(cache), { mode: 384 });
+  await rename10(tmp, ACTIVITY_CACHE_FILE);
 }
 function localDay(ms) {
   const d = new Date(ms);
@@ -11446,12 +17176,12 @@ function activityWindow(now) {
 async function refreshActivityCache(now = Date.now()) {
   const cache = await readActivityCache();
   const started = cache.startedAt ?? 0;
-  const running = started > (cache.finishedAt ?? 0) && now - started < STALE_START_MS;
-  if (running || now - (cache.finishedAt ?? 0) < REFRESH_INTERVAL_MS)
+  const running2 = started > (cache.finishedAt ?? 0) && now - started < STALE_START_MS;
+  if (running2 || now - (cache.finishedAt ?? 0) < REFRESH_INTERVAL_MS)
     return false;
   await writeActivityCache({ ...cache, startedAt: now });
-  const result = await computeActivity(now);
-  await writeActivityCache({ version: 1, startedAt: now, finishedAt: Date.now(), ...result });
+  const result2 = await computeActivity(now);
+  await writeActivityCache({ version: 1, startedAt: now, finishedAt: Date.now(), ...result2 });
   return true;
 }
 async function computeActivity(now) {
@@ -11478,26 +17208,26 @@ async function recentJsonlFiles(roots, since) {
   const walk = async (dir) => {
     let real;
     try {
-      real = await realpath2(dir);
+      real = await realpath3(dir);
     } catch {
       return;
     }
     if (seenDirs.has(real))
       return;
     seenDirs.add(real);
-    const entries = await readdir5(real, { withFileTypes: true }).catch(() => []);
+    const entries = await readdir6(real, { withFileTypes: true }).catch(() => []);
     await Promise.all(entries.map(async (entry) => {
-      const path = join14(real, entry.name);
+      const path = join17(real, entry.name);
       if (entry.isDirectory() || entry.isSymbolicLink()) {
-        const info2 = await stat6(path).catch(() => null);
+        const info2 = await stat7(path).catch(() => null);
         if (info2?.isDirectory())
           return walk(path);
         if (!info2 || !entry.name.endsWith(".jsonl"))
           return;
         if (info2.mtimeMs >= since)
-          files.add(await realpath2(path));
+          files.add(await realpath3(path));
       } else if (entry.name.endsWith(".jsonl")) {
-        const info2 = await stat6(path).catch(() => null);
+        const info2 = await stat7(path).catch(() => null);
         if (info2 && info2.mtimeMs >= since)
           files.add(path);
       }
@@ -11507,13 +17237,13 @@ async function recentJsonlFiles(roots, since) {
   return [...files];
 }
 async function collectClaudeTokens(since, addTokens, cwds) {
-  const roots = [join14(CLAUDE_DIR, "projects")];
-  for (const profile of await readdir5(CLAUDE_PROFILES_DIR).catch(() => [])) {
-    roots.push(join14(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
+  const roots = [join17(CLAUDE_DIR, "projects")];
+  for (const profile of await readdir6(CLAUDE_PROFILES_DIR).catch(() => [])) {
+    roots.push(join17(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
   }
   const seen = new Set;
   for (const file of await recentJsonlFiles(roots, since)) {
-    const text = await readFile10(file, "utf-8").catch(() => "");
+    const text = await readFile12(file, "utf-8").catch(() => "");
     for (const line of text.split(`
 `)) {
       if (!line.includes('"usage"'))
@@ -11524,9 +17254,9 @@ async function collectClaudeTokens(since, addTokens, cwds) {
       } catch {
         continue;
       }
-      const usage = record2?.message?.usage;
+      const usage2 = record2?.message?.usage;
       const at = Date.parse(record2?.timestamp);
-      if (!usage || !(at >= since))
+      if (!usage2 || !(at >= since))
         continue;
       const key = `${record2.message.id}:${record2.requestId}`;
       if (seen.has(key))
@@ -11534,14 +17264,14 @@ async function collectClaudeTokens(since, addTokens, cwds) {
       seen.add(key);
       if (typeof record2.cwd === "string")
         cwds.add(record2.cwd);
-      addTokens(at, num(usage.input_tokens) + num(usage.output_tokens) + num(usage.cache_creation_input_tokens) + num(usage.cache_read_input_tokens));
+      addTokens(at, num2(usage2.input_tokens) + num2(usage2.output_tokens) + num2(usage2.cache_creation_input_tokens) + num2(usage2.cache_read_input_tokens));
     }
   }
 }
 async function collectCodexTokens(since, addTokens, cwds) {
-  const files = await recentJsonlFiles([join14(CODEX_DIR, "sessions"), join14(CODEX_DIR, "archived_sessions")], since);
+  const files = await recentJsonlFiles([join17(CODEX_DIR, "sessions"), join17(CODEX_DIR, "archived_sessions")], since);
   for (const file of files) {
-    const text = await readFile10(file, "utf-8").catch(() => "");
+    const text = await readFile12(file, "utf-8").catch(() => "");
     let previous = 0;
     for (const line of text.split(`
 `)) {
@@ -11556,7 +17286,7 @@ async function collectCodexTokens(since, addTokens, cwds) {
       }
       const payload = record2?.payload;
       if (tokenEvent) {
-        const total = num(payload?.info?.total_token_usage?.total_tokens);
+        const total = num2(payload?.info?.total_token_usage?.total_tokens);
         if (total <= previous)
           continue;
         const at = Date.parse(record2.timestamp);
@@ -11571,12 +17301,12 @@ async function collectCodexTokens(since, addTokens, cwds) {
 }
 async function collectOpenCodeTokens(since, addTokens, cwds) {
   const dbs = [nativeOpenCodeDatabaseFile()];
-  for (const profileId of await readdir5(OPENCODE_PROFILES_DIR).catch(() => [])) {
+  for (const profileId of await readdir6(OPENCODE_PROFILES_DIR).catch(() => [])) {
     dbs.push(openCodeProfileV2DatabaseFile(profileId));
   }
   const seen = new Set;
   for (const db of dbs) {
-    if (!await stat6(db).catch(() => null))
+    if (!await stat7(db).catch(() => null))
       continue;
     const messages = await queryRows(db, `SELECT id, time_created AS at,
          coalesce(json_extract(data, '$.tokens.input'), 0) + coalesce(json_extract(data, '$.tokens.output'), 0) +
@@ -11587,7 +17317,7 @@ async function collectOpenCodeTokens(since, addTokens, cwds) {
       if (typeof row.id !== "string" || seen.has(row.id))
         continue;
       seen.add(row.id);
-      addTokens(num(row.at), num(row.tokens));
+      addTokens(num2(row.at), num2(row.tokens));
     }
     const sessions = await queryRows(db, `SELECT DISTINCT directory FROM session_v2 WHERE time_updated >= ${Math.floor(since)}`);
     for (const row of sessions ?? []) {
@@ -11610,7 +17340,7 @@ async function git(args) {
 async function collectCommittedLines(cwds, since, days) {
   const repos = new Map;
   await Promise.all([...cwds].map(async (cwd) => {
-    if (!(await stat6(cwd).catch(() => null))?.isDirectory())
+    if (!(await stat7(cwd).catch(() => null))?.isDirectory())
       return;
     const out = await git(["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel"]);
     const [common2, top] = out?.trim().split(`
@@ -11647,22 +17377,22 @@ async function collectCommittedLines(cwds, since, days) {
     for (const line of out.split(`
 `)) {
       if (line.startsWith("@")) {
-        const [hash, date] = line.slice(1).split(" ");
-        day = hash && !seenCommits.has(hash) ? days[date ?? ""] : undefined;
-        if (hash)
-          seenCommits.add(hash);
+        const [hash2, date] = line.slice(1).split(" ");
+        day = hash2 && !seenCommits.has(hash2) ? days[date ?? ""] : undefined;
+        if (hash2)
+          seenCommits.add(hash2);
         continue;
       }
       const [added, deleted, path] = line.split("\t");
       if (!day || path === undefined || added === "-" || GENERATED_PATH.test(path))
         continue;
-      day.added += num(Number(added));
-      day.deleted += num(Number(deleted));
+      day.added += num2(Number(added));
+      day.deleted += num2(Number(deleted));
     }
   }));
   return counted;
 }
-function num(value) {
+function num2(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
 var SPARK = "▁▂▃▄▅▆▇█";
@@ -11724,7 +17454,7 @@ var activeServers = 0;
 var serverWaiters = [];
 async function acquireServerSlot() {
   if (activeServers >= MAX_CONCURRENT_SERVERS) {
-    await new Promise((resolve2) => serverWaiters.push(resolve2));
+    await new Promise((resolve3) => serverWaiters.push(resolve3));
   }
   activeServers += 1;
   return () => {
@@ -11756,12 +17486,12 @@ async function readCodexRateLimits(auth, spawnAppServer = spawn9) {
   }
 }
 async function requestRateLimits(codexHome, spawnAppServer) {
-  const env2 = { ...process.env, CODEX_HOME: codexHome };
-  delete env2.OPENAI_API_KEY;
-  delete env2.CODEX_API_KEY;
-  delete env2.CODEX_ACCESS_TOKEN;
-  return new Promise((resolve2, reject) => {
-    const proc = spawnAppServer("codex", ["app-server", "-c", 'cli_auth_credentials_store="file"'], { stdio: ["pipe", "pipe", "pipe"], env: env2 });
+  const env3 = { ...process.env, CODEX_HOME: codexHome };
+  delete env3.OPENAI_API_KEY;
+  delete env3.CODEX_API_KEY;
+  delete env3.CODEX_ACCESS_TOKEN;
+  return new Promise((resolve3, reject) => {
+    const proc = spawnAppServer("codex", ["app-server", "-c", 'cli_auth_credentials_store="file"'], { stdio: ["pipe", "pipe", "pipe"], env: env3 });
     const stdout = proc.stdout;
     const stdin = proc.stdin;
     if (!stdout || !stdin) {
@@ -11782,7 +17512,7 @@ async function requestRateLimits(codexHome, spawnAppServer) {
       if (error2)
         reject(error2);
       else
-        resolve2(response ?? {});
+        resolve3(response ?? {});
     };
     const send = (message) => {
       stdin.write(`${JSON.stringify(message)}
@@ -11861,9 +17591,9 @@ async function fetchCodexUsage(accountKey, isActive, rateLimitsReader = readCode
   try {
     const { response, refreshedAuth } = await rateLimitsReader(auth);
     await persistRefreshedAuth(accountKey, isActive, auth, refreshedAuth);
-    const usage = parseRateLimitsResponse(response);
+    const usage2 = parseRateLimitsResponse(response);
     const plan = parseRateLimitsPlan(response);
-    return usage ? { usage, note: null, plan } : { usage: null, note: "usage n/a", plan };
+    return usage2 ? { usage: usage2, note: null, plan } : { usage: null, note: "usage n/a", plan };
   } catch (err) {
     if (err instanceof CodexRateLimitsReadError) {
       await persistRefreshedAuth(accountKey, isActive, auth, err.refreshedAuth);
@@ -11963,11 +17693,11 @@ async function list(options = {}) {
     const infos = await Promise.all(ctx.entries.map((entry) => accountInfo(ctx, entry, withUsage, options, true)));
     if (!offlineJson)
       await persistDisplayedCodexPlans(ctx.entries, infos, ctx.codexReg);
-    const result = {
+    const result2 = {
       schemaVersion: 1,
       accounts: infos.map(toJsonListAccount).sort(compareJsonAccounts)
     };
-    console.log(JSON.stringify(result));
+    console.log(JSON.stringify(result2));
     return;
   }
   const baseInfos = await Promise.all(ctx.entries.map((entry) => accountInfo(ctx, entry, false, options, false)));
@@ -12003,10 +17733,10 @@ async function refreshUsageCache(options = {}) {
     const keys = new Set(ctx.entries.map(cacheKey));
     cache.entries = Object.fromEntries(Object.entries(cache.entries).filter(([key]) => keys.has(key)));
     cache.refreshStartedAt = Date.now();
-    let writes = writeUsageCache(cache);
+    let writes2 = writeUsageCache(cache);
     const save = () => {
-      writes = writes.catch(() => {}).then(() => writeUsageCache(cache));
-      return writes;
+      writes2 = writes2.catch(() => {}).then(() => writeUsageCache(cache));
+      return writes2;
     };
     const infos = await Promise.all(ctx.entries.map(async (entry) => {
       const info2 = await accountInfo(ctx, entry, true, options, false);
@@ -12031,7 +17761,7 @@ async function refreshUsageCache(options = {}) {
   }
 }
 var DEFAULT_WAIT_MS = 2000;
-var POLL_MS = 100;
+var POLL_MS2 = 100;
 var CACHED_REFRESH_MIN_INTERVAL_MS = 30000;
 async function loadListContext(aliases, offlineJson) {
   const byProvider = (provider) => aliases.filter((a) => a.target.provider === provider);
@@ -12125,25 +17855,25 @@ async function startBackgroundRefreshIfIdle(cache, spawnRefresh) {
 async function renderWhileRefreshing(entries, baseInfos, activity, startedAt, waitMs) {
   let cache = await readUsageCache();
   const finished = () => (cache.refreshFinishedAt ?? 0) >= startedAt;
-  const current = (refreshing) => renderLines(withCachedQuota(entries, baseInfos, cache), refreshing, activity);
-  const initial = current(true);
+  const current2 = (refreshing) => renderLines(withCachedQuota(entries, baseInfos, cache), refreshing, activity);
+  const initial = current2(true);
   const live = process.stdout.isTTY === true && visualLineCount(initial) < (process.stdout.rows || 24);
   let drawn = live ? redraw(initial, 0) : 0;
   let lastMtime = await usageCacheMtime();
   while (!finished() && Date.now() - startedAt < waitMs) {
-    await new Promise((resolve2) => setTimeout(resolve2, POLL_MS));
+    await new Promise((resolve3) => setTimeout(resolve3, POLL_MS2));
     const mtime = await usageCacheMtime();
     if (mtime === lastMtime)
       continue;
     lastMtime = mtime;
     cache = await readUsageCache();
     if (live)
-      drawn = redraw(current(!finished()), drawn);
+      drawn = redraw(current2(!finished()), drawn);
   }
   if (live)
-    redraw(current(false), drawn);
+    redraw(current2(false), drawn);
   else
-    printLines(current(false));
+    printLines(current2(false));
 }
 function redraw(lines, previousLineCount) {
   const clear = previousLineCount > 0 ? `\x1B[${previousLineCount}A\x1B[0J` : "";
@@ -12231,9 +17961,9 @@ async function getOpenCodeAccountInfo(entry, activeProfile, withUsage, usageFetc
       info2.usageNote = "reconnect required";
       info2.status = "missing-credential";
     } else if (withUsage) {
-      const result = await usageFetcher(profileId);
-      info2.usage = result.usage;
-      info2.usageNote = result.note;
+      const result2 = await usageFetcher(profileId);
+      info2.usage = result2.usage;
+      info2.usageNote = result2.note;
     }
   } catch {
     info2.authMode = "missing profile";
@@ -12254,9 +17984,9 @@ function renderSection(infos) {
     const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
     const linkedClient = info2.linkedClient ? `  ${source_default.dim(`· ${info2.linkedClient}`)}` : "";
     const model2 = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
-    const usage = formatUsage(info2.usage, info2.usageNote);
+    const usage2 = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
-    const quota = usage || balance;
+    const quota = usage2 || balance;
     const age = quota && info2.quotaAt && Date.now() - info2.quotaAt >= 60000 ? source_default.dim(` · ${formatAge(Date.now() - info2.quotaAt)}`) : "";
     const quotaStr = quota ? `  ${quota}${age}` : "";
     console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${linkedClient}${model2}${quotaStr}`);
@@ -12312,9 +18042,9 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
       const account = await readJson(claudeProfileAccountFile(profileName), null);
       info2.email = account?.emailAddress ?? null;
       if (withUsage) {
-        const result = await fetchClaudeUsage(profileName, isActive);
-        info2.usage = result.usage;
-        info2.usageNote = result.note;
+        const result2 = await fetchClaudeUsage(profileName, isActive);
+        info2.usage = result2.usage;
+        info2.usageNote = result2.note;
       }
       const creds = await readFreshestOAuthCredentials(profileName, isActive);
       info2.plan = creds?.claudeAiOauth?.subscriptionType ?? null;
@@ -12374,10 +18104,10 @@ async function getCodexAccountInfo(entry, codexReg, withUsage, codexUsageFetcher
         }
       }
     } else {
-      const result = await codexUsageFetcher(accountKey, isActive);
-      info2.usage = result.usage;
-      info2.usageNote = result.note;
-      serverPlan = result.plan ?? null;
+      const result2 = await codexUsageFetcher(accountKey, isActive);
+      info2.usage = result2.usage;
+      info2.usageNote = result2.note;
+      serverPlan = result2.plan ?? null;
     }
   }
   if (account.auth_mode !== "apikey" || inspectCredentials) {
@@ -12550,12 +18280,12 @@ async function remove(aliasName) {
   }
   await removeAlias(aliasName);
   blank();
-  success(`${source_default.bold(aliasName)} alias removed`);
+  success2(`${source_default.bold(aliasName)} alias removed`);
   blank();
 }
 
 // src/commands/rename.ts
-async function rename10(currentAlias, nextAlias) {
+async function rename11(currentAlias, nextAlias) {
   blank();
   const reg = await loadAliases();
   const entry = findAlias(reg, currentAlias);
@@ -12581,12 +18311,12 @@ async function rename10(currentAlias, nextAlias) {
   }
   await renameAlias(currentAlias, nextAlias);
   blank();
-  success(`${source_default.bold(currentAlias)} renamed to ${source_default.bold(nextAlias)}`);
+  success2(`${source_default.bold(currentAlias)} renamed to ${source_default.bold(nextAlias)}`);
   blank();
 }
 
 // src/accounts/purge.ts
-import { rm as rm10, unlink as unlink5 } from "fs/promises";
+import { rm as rm10, unlink as unlink6 } from "fs/promises";
 async function planPurge(aliasName) {
   const reg = await loadAliases();
   const entry = findAlias(reg, aliasName);
@@ -12617,9 +18347,9 @@ async function purgeAccount(aliasName) {
       if (removed) {
         await saveRegistry(codexReg);
       }
-      const authFile = codexAccountAuthFile(entry.target.accountKey);
-      if (await fileExists(authFile)) {
-        await unlink5(authFile);
+      const authFile2 = codexAccountAuthFile(entry.target.accountKey);
+      if (await fileExists(authFile2)) {
+        await unlink6(authFile2);
       }
       await rm10(codexRunHome(entry.target.accountKey), {
         recursive: true,
@@ -12661,12 +18391,12 @@ async function purge(aliasName) {
     process.exit(1);
   }
   blank();
-  success(`${source_default.bold(aliasName)} account purged`);
+  success2(`${source_default.bold(aliasName)} account purged`);
   blank();
 }
 
 // src/commands/current.ts
-async function current() {
+async function current2() {
   const aliasReg = await loadAliases();
   const claudeState = await readState2();
   let codexReg = null;
@@ -12703,7 +18433,7 @@ async function current() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir6 } from "fs/promises";
+import { readdir as readdir7 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -12720,7 +18450,7 @@ async function importAccounts() {
   await saveAliases(reg);
   blank();
   if (imported > 0) {
-    success(`Imported ${imported} account(s)`);
+    success2(`Imported ${imported} account(s)`);
   } else {
     info("No new accounts to import");
   }
@@ -12734,7 +18464,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir6(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir7(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
@@ -12872,7 +18602,7 @@ async function refreshOpenCode(alias, profileId) {
         info(`Sign in again as ${profile.console.email} and authorize ${profile.console.orgName}.`);
         await loginOpenCodeConsole(profileId, profile);
         await setActiveOpenCodeProfile(profileId);
-        success(`${source_default.bold(alias)} OpenCode subscription reconnected`);
+        success2(`${source_default.bold(alias)} OpenCode subscription reconnected`);
       } catch (err) {
         error(err instanceof Error ? err.message : String(err));
         process.exit(1);
@@ -12904,7 +18634,7 @@ async function refreshOpenCode(alias, profileId) {
       return;
     }
     await setActiveOpenCodeProfile(profileId);
-    success(`${source_default.bold(alias)} OpenCode Go key replaced`);
+    success2(`${source_default.bold(alias)} OpenCode Go key replaced`);
     blank();
     return;
   }
@@ -12921,7 +18651,7 @@ async function refreshOpenCode(alias, profileId) {
     return;
   }
   await setActiveOpenCodeProfile(profileId);
-  success(`${source_default.bold(alias)} OpenCode Go credential refreshed`);
+  success2(`${source_default.bold(alias)} OpenCode Go credential refreshed`);
   blank();
 }
 async function refreshClaude(alias, profileName) {
@@ -12978,7 +18708,7 @@ async function refreshClaude(alias, profileName) {
   const account = await readOAuthAccount();
   const label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
   const email = account?.emailAddress ? `  ${source_default.dim(account.emailAddress)}` : "";
-  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("oauth")}  ${label}${email}`);
+  success2(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("oauth")}  ${label}${email}`);
   blank();
 }
 async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
@@ -12989,12 +18719,12 @@ async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
     process.exit(1);
   }
   const upstream = CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"];
-  if (!upstream.loginFlag) {
+  if (!upstream.loginFlag && !isSubscriptionUpstream(profile.upstream)) {
     error(`${upstream.label} uses the key of its own alias; refresh that alias instead.`);
     blank();
     process.exit(1);
   }
-  info(`Opening CLIProxyAPI's own ${upstream.label} login for ${source_default.bold(alias)}...`);
+  info(`Opening ${upstream.label} login for ${source_default.bold(alias)}...`);
   blank();
   let login;
   try {
@@ -13013,7 +18743,7 @@ async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
   if ((await readState2()).active === profileName) {
     await switchProfile(profileName);
   }
-  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("local-cliproxyapi")}`);
+  success2(`Refreshed ${source_default.bold(alias)}  ${formatProvider("claude")}  ${formatType("local-cliproxyapi")}`);
   blank();
 }
 async function refreshCodex(alias, accountKey) {
@@ -13094,7 +18824,7 @@ async function refreshCodex(alias, accountKey) {
     await updateAlias(alias, { provider: "codex", accountKey });
     await removeAccountAuthFile(oldKey);
   }
-  success(`Refreshed ${source_default.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${source_default.dim(account.email || "")}`);
+  success2(`Refreshed ${source_default.bold(alias)}  ${formatProvider("codex")}  ${formatPlan(account.plan ?? null)}  ${source_default.dim(account.email || "")}`);
   blank();
 }
 function matchesClaudeAccount(expected, actual) {
@@ -13111,11 +18841,11 @@ function formatClaudeIdentity(account) {
 }
 async function runLoginCommand(command, args) {
   const browserScript = createPrivateBrowserScript();
-  const env2 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
+  const env3 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
-    const proc = spawn10(command, args, { stdio: "inherit", env: env2 });
-    return await new Promise((resolve2, reject) => {
-      proc.on("close", resolve2);
+    const proc = spawn10(command, args, { stdio: "inherit", env: env3 });
+    return await new Promise((resolve3, reject) => {
+      proc.on("close", resolve3);
       proc.on("error", reject);
     });
   } catch (err) {
@@ -13128,19 +18858,19 @@ async function runLoginCommand(command, args) {
 }
 
 // src/lib/update.ts
-import { realpathSync } from "fs";
-import { join as join15 } from "path";
+import { realpathSync as realpathSync2 } from "fs";
+import { join as join18 } from "path";
 import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.25.8",
+  version: "1.26.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
     "claudex-switch": "./dist/claudex-switch.js"
   },
-  files: ["dist", "scripts/guard-package-manager.js", "LICENSE", "COMMERCIAL-LICENSING.md"],
+  files: ["dist", "scripts/guard-package-manager.js", "LICENSE", "COMMERCIAL-LICENSING.md", "THIRD-PARTY-NOTICES.md"],
   scripts: {
     build: "bun build ./src/index.ts --target node --outfile ./dist/claudex-switch.js",
     "build:binary": "bun build ./src/index.ts --compile --outfile ./dist/claudex-switch",
@@ -13169,8 +18899,10 @@ var package_default = {
     bun: ">=1.3.5"
   },
   dependencies: {
-    chalk: "^5.4.1",
-    "@inquirer/prompts": "^7.5.0"
+    "@inquirer/prompts": "^7.5.0",
+    "@magpie-community/opencode-cursor-auth": "0.2.19",
+    "@magpie-community/opencode-workbuddy-auth": "0.1.30",
+    chalk: "^5.4.1"
   },
   devDependencies: {
     "@types/bun": "^1.2.0",
@@ -13261,7 +18993,7 @@ function detectInstallMethod(argv = process.argv, execPath = process.execPath, r
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     }));
-    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join15(bunGlobalBin, "claudex-switch")))) {
+    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join18(bunGlobalBin, "claudex-switch")))) {
       return "bun";
     }
   }
@@ -13298,19 +19030,19 @@ function resolveRealPath(path) {
   if (!path)
     return null;
   try {
-    return realpathSync(path);
+    return realpathSync2(path);
   } catch {
     return path;
   }
 }
 async function checkForLatestUpdate(options = {}, settings = {}) {
   const argv = options.argv ?? process.argv;
-  const env2 = options.env ?? process.env;
+  const env3 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
   const runCommand = options.runCommand ?? spawnSync8;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
-  if (respectDisableEnv && (env2[SKIP_AUTO_UPDATE_ENV] === "1" || env2[DISABLE_AUTO_UPDATE_ENV] === "1")) {
+  if (respectDisableEnv && (env3[SKIP_AUTO_UPDATE_ENV] === "1" || env3[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {
       status: "disabled",
       currentVersion: CURRENT_VERSION
@@ -13345,7 +19077,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
     latestVersion,
     installMethod,
     argv,
-    env: env2,
+    env: env3,
     execPath,
     runCommand
   };
@@ -13373,40 +19105,40 @@ async function runAutoUpdateIfNeeded(options = {}) {
   });
   return { action: "restart", exitCode: restart.status ?? 1 };
 }
-function createUpdateEnv(env2) {
+function createUpdateEnv(env3) {
   return {
-    ...env2,
+    ...env3,
     [SKIP_AUTO_UPDATE_ENV]: "1"
   };
 }
-function updateWithHomebrew(runCommand, env2) {
-  const result = runCommand("brew", ["install", "--formula", HOMEBREW_FORMULA_URL], {
-    env: env2,
+function updateWithHomebrew(runCommand, env3) {
+  const result2 = runCommand("brew", ["install", "--formula", HOMEBREW_FORMULA_URL], {
+    env: env3,
     stdio: "inherit"
   });
-  return result.status === 0 && !result.error;
+  return result2.status === 0 && !result2.error;
 }
-function updateWithBun(version, runCommand, env2) {
+function updateWithBun(version, runCommand, env3) {
   const installArgs = [
     "install",
     "-g",
     `${BUN_INSTALL_SPEC}#v${normalizeVersion(version)}`
   ];
   const remove2 = runCommand("bun", ["remove", "-g", "claudex-switch"], {
-    env: env2,
+    env: env3,
     stdio: "inherit"
   });
   if (remove2.status !== 0 || remove2.error) {
     return false;
   }
   const install = runCommand("bun", installArgs, {
-    env: env2,
+    env: env3,
     stdio: "inherit"
   });
   return install.status === 0 && !install.error;
 }
-function readCommandStdout(result) {
-  return typeof result.stdout === "string" ? result.stdout.trim() : "";
+function readCommandStdout(result2) {
+  return typeof result2.stdout === "string" ? result2.stdout.trim() : "";
 }
 function resolveCliPath(argv, execPath) {
   const scriptPath = argv[1];
@@ -13424,14 +19156,14 @@ function version() {
 // src/commands/update.ts
 async function update() {
   blank();
-  const result = await checkForLatestUpdate({}, {
+  const result2 = await checkForLatestUpdate({}, {
     respectDisableEnv: false
   });
-  switch (result.status) {
+  switch (result2.status) {
     case "available": {
-      info(`Updating claudex-switch from v${result.currentVersion} to v${result.latestVersion}`);
+      info(`Updating claudex-switch from v${result2.currentVersion} to v${result2.latestVersion}`);
       hint("Running self-update...");
-      const installed = installLatestUpdate(result);
+      const installed = installLatestUpdate(result2);
       if (!installed.ok) {
         blank();
         error("Update failed.");
@@ -13439,16 +19171,16 @@ async function update() {
         blank();
         process.exit(1);
       }
-      success(`Updated to v${result.latestVersion}`);
+      success2(`Updated to v${result2.latestVersion}`);
       blank();
       return;
     }
     case "up-to-date":
-      info(`claudex-switch is already up to date (v${result.currentVersion})`);
+      info(`claudex-switch is already up to date (v${result2.currentVersion})`);
       blank();
       return;
     case "unsupported":
-      if (result.unsupportedInstallMethod === "npm") {
+      if (result2.unsupportedInstallMethod === "npm") {
         error("This claudex-switch command is installed through npm/nvm, which is not supported.");
         hint(`Reinstall with the installer script or ${source_default.cyan("bun install -g git+https://github.com/Holden-Lin/claudex-switch.git")}.`);
       } else {
@@ -13463,15 +19195,15 @@ async function update() {
       blank();
       process.exit(1);
     case "disabled":
-      info(`claudex-switch is already up to date (v${result.currentVersion})`);
+      info(`claudex-switch is already up to date (v${result2.currentVersion})`);
       blank();
       return;
   }
 }
 
 // src/webconfig/server.ts
-import { createServer as createServer2 } from "http";
-import { randomBytes as randomBytes3, timingSafeEqual } from "crypto";
+import { createServer as createServer3 } from "http";
+import { randomBytes as randomBytes6, timingSafeEqual as timingSafeEqual2 } from "crypto";
 
 // src/webconfig/page.ts
 var PAGE = `<!doctype html>
@@ -14730,9 +20462,9 @@ function requireValidUrl(value) {
     throw new Error(`请求地址不是合法 URL：${trimmed}`);
   }
 }
-function validateCustomEnv(env2) {
-  const result = {};
-  for (const [rawKey, rawValue] of Object.entries(env2 ?? {})) {
+function validateCustomEnv(env3) {
+  const result2 = {};
+  for (const [rawKey, rawValue] of Object.entries(env3 ?? {})) {
     const key = String(rawKey).trim();
     if (!key)
       continue;
@@ -14742,9 +20474,9 @@ function validateCustomEnv(env2) {
     if (!isValidCustomEnvKey(key)) {
       throw new Error(`"${key}" 上面已有专门的输入框，请填在那里`);
     }
-    result[key] = typeof rawValue === "string" ? rawValue.trim() : "";
+    result2[key] = typeof rawValue === "string" ? rawValue.trim() : "";
   }
-  return result;
+  return result2;
 }
 
 // src/webconfig/snapshot.ts
@@ -14934,34 +20666,34 @@ async function applyChange(change) {
   if (!entry) {
     throw new Error(`别名 "${change.alias}" 不存在`);
   }
-  const fields = sanitizeFields(change.fields);
-  const env2 = change.env === undefined ? undefined : validateCustomEnv(change.env);
+  const fields2 = sanitizeFields(change.fields);
+  const env3 = change.env === undefined ? undefined : validateCustomEnv(change.env);
   if (entry.target.provider === "claude") {
-    validateClaudeFields(fields);
-    const { reapplied } = await updateClaudeProfileConfig(entry.target.profileName, { fields, env: env2 });
+    validateClaudeFields(fields2);
+    const { reapplied } = await updateClaudeProfileConfig(entry.target.profileName, { fields: fields2, env: env3 });
     return { alias: entry.alias, ok: true, reapplied };
   }
   if (entry.target.provider === "opencode") {
     throw new Error("OpenCode Go 请使用 claudex-switch refresh <alias> 后在 TUI 中管理");
   }
-  return applyCodexChange(entry.target.accountKey, entry.alias, fields);
+  return applyCodexChange(entry.target.accountKey, entry.alias, fields2);
 }
-async function applyCodexChange(accountKey, alias, fields) {
-  if (fields.baseUrl !== undefined)
-    requireValidUrl(fields.baseUrl);
+async function applyCodexChange(accountKey, alias, fields2) {
+  if (fields2.baseUrl !== undefined)
+    requireValidUrl(fields2.baseUrl);
   const registry = await loadRegistry();
   const existing = findAccountByKey(registry, accountKey);
-  if (existing?.api_provider?.type === "custom" && fields.baseUrl !== undefined && !fields.baseUrl.trim()) {
+  if (existing?.api_provider?.type === "custom" && fields2.baseUrl !== undefined && !fields2.baseUrl.trim()) {
     throw new Error("中转站账号的请求地址不能为空");
   }
   const account = updateAccountConfig(registry, accountKey, {
-    defaultModel: fields.defaultModel,
-    baseUrl: fields.baseUrl,
-    model: fields.model,
-    envKey: fields.envKey
+    defaultModel: fields2.defaultModel,
+    baseUrl: fields2.baseUrl,
+    model: fields2.model,
+    envKey: fields2.envKey
   });
-  if (fields.apiKey !== undefined && account.auth_mode === "apikey") {
-    const key = fields.apiKey.trim();
+  if (fields2.apiKey !== undefined && account.auth_mode === "apikey") {
+    const key = fields2.apiKey.trim();
     if (!key)
       throw new Error("API Key 不能为空");
     const auth = await readAccountAuth(accountKey);
@@ -14979,19 +20711,19 @@ async function applyCodexChange(accountKey, alias, fields) {
   }
   return { alias, ok: true, reapplied };
 }
-function sanitizeFields(fields) {
-  const result = {};
-  for (const [key, value] of Object.entries(fields ?? {})) {
+function sanitizeFields(fields2) {
+  const result2 = {};
+  for (const [key, value] of Object.entries(fields2 ?? {})) {
     if (typeof value !== "string")
       continue;
-    result[key] = value;
+    result2[key] = value;
   }
-  return result;
+  return result2;
 }
-function validateClaudeFields(fields) {
-  if (fields.baseUrl !== undefined)
-    requireValidUrl(fields.baseUrl);
-  if (fields.apiKey !== undefined && !fields.apiKey.trim()) {
+function validateClaudeFields(fields2) {
+  if (fields2.baseUrl !== undefined)
+    requireValidUrl(fields2.baseUrl);
+  if (fields2.apiKey !== undefined && !fields2.apiKey.trim()) {
     throw new Error("API Key 不能为空");
   }
 }
@@ -14999,46 +20731,46 @@ function validateClaudeFields(fields) {
 // src/webconfig/create.ts
 var PROVIDER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 var ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-async function createAccount(request) {
-  const alias = request.alias.trim();
-  const fields = request.fields ?? {};
+async function createAccount(request2) {
+  const alias = request2.alias.trim();
+  const fields2 = request2.fields ?? {};
   const registry = await loadAliases();
   const rejection = checkAlias(registry, alias);
   if (rejection)
     throw new Error(aliasRejectionMessage(rejection));
-  if (request.provider === "claude") {
-    await createClaude(request, alias, fields);
+  if (request2.provider === "claude") {
+    await createClaude(request2, alias, fields2);
     return;
   }
-  await createCodex(request, alias, fields);
+  await createCodex(request2, alias, fields2);
 }
-async function createClaude(request, alias, fields) {
-  const apiKey = (fields.apiKey ?? "").trim();
+async function createClaude(request2, alias, fields2) {
+  const apiKey = (fields2.apiKey ?? "").trim();
   if (!apiKey)
     throw new Error("API Key 不能为空");
-  const baseUrl2 = optional(fields.baseUrl);
+  const baseUrl2 = optional(fields2.baseUrl);
   if (baseUrl2)
     requireValidUrl(baseUrl2);
   await createClaudeApiKeyAccount({
     alias,
     apiKey,
     baseUrl: baseUrl2,
-    authToken: optional(fields.authToken),
-    model: optional(fields.model),
-    defaultFableModel: optional(fields.defaultFableModel),
-    defaultSonnetModel: optional(fields.defaultSonnetModel),
-    defaultOpusModel: optional(fields.defaultOpusModel),
-    defaultHaikuModel: optional(fields.defaultHaikuModel),
-    subagentModel: optional(fields.subagentModel),
-    env: validateCustomEnv(request.env)
+    authToken: optional(fields2.authToken),
+    model: optional(fields2.model),
+    defaultFableModel: optional(fields2.defaultFableModel),
+    defaultSonnetModel: optional(fields2.defaultSonnetModel),
+    defaultOpusModel: optional(fields2.defaultOpusModel),
+    defaultHaikuModel: optional(fields2.defaultHaikuModel),
+    subagentModel: optional(fields2.subagentModel),
+    env: validateCustomEnv(request2.env)
   });
 }
-async function createCodex(request, alias, fields) {
-  const apiKey = (fields.apiKey ?? "").trim();
+async function createCodex(request2, alias, fields2) {
+  const apiKey = (fields2.apiKey ?? "").trim();
   if (!apiKey)
     throw new Error("API Key 不能为空");
-  const provider = resolveCodexProvider(fields);
-  const defaultModel = (fields.defaultModel ?? "").trim();
+  const provider = resolveCodexProvider(fields2);
+  const defaultModel = (fields2.defaultModel ?? "").trim();
   if (!defaultModel)
     throw new Error("默认模型不能为空");
   const existing = findAliasByTarget(await loadAliases(), {
@@ -15050,8 +20782,8 @@ async function createCodex(request, alias, fields) {
   }
   await createCodexApiKeyAccount({ alias, apiKey, provider, defaultModel });
 }
-function resolveCodexProvider(fields) {
-  const providerType = (fields.providerType ?? "").trim();
+function resolveCodexProvider(fields2) {
+  const providerType = (fields2.providerType ?? "").trim();
   if (providerType !== "official" && providerType !== "custom") {
     throw new Error("请选择 Provider 类型（OpenAI 官方 / 自定义中转）");
   }
@@ -15064,20 +20796,20 @@ function resolveCodexProvider(fields) {
       env_key: null
     };
   }
-  const name = (fields.providerName ?? "").trim();
+  const name = (fields2.providerName ?? "").trim();
   if (!name)
     throw new Error("Provider 名称不能为空");
   if (!PROVIDER_NAME_PATTERN.test(name)) {
     throw new Error("Provider 名称只能用字母、数字、连字符和下划线");
   }
-  const baseUrl2 = (fields.baseUrl ?? "").trim();
+  const baseUrl2 = (fields2.baseUrl ?? "").trim();
   if (!baseUrl2)
     throw new Error("中转站的请求地址不能为空");
   requireValidUrl(baseUrl2);
-  const model2 = (fields.model ?? "").trim();
+  const model2 = (fields2.model ?? "").trim();
   if (!model2)
     throw new Error("Provider 模型不能为空");
-  const envKey = (fields.envKey ?? "OPENAI_API_KEY").trim();
+  const envKey = (fields2.envKey ?? "OPENAI_API_KEY").trim();
   if (!ENV_KEY_PATTERN.test(envKey)) {
     throw new Error("环境变量名只能是字母、数字和下划线，且不能以数字开头");
   }
@@ -15091,20 +20823,20 @@ function resolveCodexProvider(fields) {
 }
 
 // src/webconfig/server.ts
-var MAX_BODY_BYTES = 1e6;
+var MAX_BODY_BYTES2 = 1e6;
 async function startWebConfigServer(options = {}) {
   const host = options.host ?? "127.0.0.1";
-  const token = randomBytes3(32).toString("base64url");
-  const server = createServer2((req, res) => {
+  const token = randomBytes6(32).toString("base64url");
+  const server = createServer3((req, res) => {
     handleRequest(req, res, token, host).catch(() => {
       sendJson(res, 500, { error: "internal error" });
     });
   });
-  await new Promise((resolve2, reject) => {
+  await new Promise((resolve3, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? 0, host, () => {
       server.removeListener("error", reject);
-      resolve2();
+      resolve3();
     });
   });
   const address = server.address();
@@ -15117,9 +20849,9 @@ async function startWebConfigServer(options = {}) {
   };
 }
 function closeServer(server) {
-  return new Promise((resolve2) => {
+  return new Promise((resolve3) => {
     server.closeAllConnections?.();
-    server.close(() => resolve2());
+    server.close(() => resolve3());
   });
 }
 async function handleRequest(req, res, token, host) {
@@ -15237,7 +20969,7 @@ function safeEqual(a, b) {
   const right = Buffer.from(b);
   if (left.length !== right.length)
     return false;
-  return timingSafeEqual(left, right);
+  return timingSafeEqual2(left, right);
 }
 async function readJsonBody(req) {
   const chunks = [];
@@ -15245,7 +20977,7 @@ async function readJsonBody(req) {
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > MAX_BODY_BYTES)
+    if (size > MAX_BODY_BYTES2)
       throw new Error("request body too large");
     chunks.push(buffer);
   }
@@ -15307,18 +21039,18 @@ async function webconfig(args = []) {
     blank();
     process.exit(1);
   }
-  success(`Config UI running at ${source_default.cyan(server.url)}`);
+  success2(`Config UI running at ${source_default.cyan(server.url)}`);
   hint("The link carries a one-time token and only works from this machine.");
   hint(`Press ${source_default.cyan("Ctrl-C")} to stop.`);
   blank();
   if (options.open !== false && !openExternalUrl(server.url)) {
     info("Could not open a browser automatically — open the link above.");
   }
-  await new Promise((resolve2) => {
+  await new Promise((resolve3) => {
     const stop = () => {
       server.close().then(() => {
         blank();
-        resolve2();
+        resolve3();
       });
     };
     process.once("SIGINT", stop);
@@ -15352,7 +21084,7 @@ async function doctor(aliasOrName, options = {}) {
   if (options.binaryPath) {
     try {
       profile = await replaceLocalCLIProxyAPIBinary(profileName, options.binaryPath);
-      success("Updated this account's CLIProxyAPI binary; existing login and settings were preserved.");
+      success2("Updated this account's CLIProxyAPI binary; existing login and settings were preserved.");
     } catch (err) {
       fail(err instanceof Error ? err.message : String(err));
       return;
@@ -15432,14 +21164,14 @@ async function doctor(aliasOrName, options = {}) {
       fail(`${liveName} live verification failed. The local proxy is reachable; ${reason}.`);
       return;
     }
-    success(`${source_default.bold(entry.alias)} ${liveName} live verification passed`);
+    success2(`${source_default.bold(entry.alias)} ${liveName} live verification passed`);
     blank();
     return;
   }
   if (options.restart && status.running) {
-    success(`${source_default.bold(entry.alias)} managed proxy restarted`);
+    success2(`${source_default.bold(entry.alias)} managed proxy restarted`);
   } else {
-    success(`${source_default.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
+    success2(`${source_default.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
     hint(`Use ${source_default.cyan(`claudex-switch doctor ${entry.alias} --live`)} for a small, quota-consuming model request.`);
   }
   blank();
@@ -15458,7 +21190,7 @@ var HELP = `
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
-    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on a Codex / OpenCode Go alias (or "agy" for Antigravity) via a local CLIProxyAPI
+    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -15492,22 +21224,22 @@ function isHelpCommand(command) {
 function isRepoLocalEntrypoint(scriptPath) {
   if (!scriptPath)
     return false;
-  const entry = resolve2(scriptPath);
-  const entryName = basename2(entry);
-  const parentName = basename2(dirname7(entry));
+  const entry = resolve3(scriptPath);
+  const entryName = basename3(entry);
+  const parentName = basename3(dirname8(entry));
   let root = null;
   if (parentName === "src" && entryName === "index.ts") {
-    root = dirname7(dirname7(entry));
+    root = dirname8(dirname8(entry));
   } else if (parentName === "dist" && (entryName === "claudex-switch.js" || entryName === "claudex-switch")) {
-    root = dirname7(dirname7(entry));
+    root = dirname8(dirname8(entry));
   }
   if (!root)
     return false;
-  const packageFile = join16(root, "package.json");
+  const packageFile = join19(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {
-    const pkg = JSON.parse(readFileSync(packageFile, "utf-8"));
+    const pkg = JSON.parse(readFileSync2(packageFile, "utf-8"));
     return pkg.name === "claudex-switch";
   } catch {
     return false;
@@ -15534,14 +21266,14 @@ function enforceRepoLocalHomeSafety(command, machineReadable = false) {
   process.exit(1);
 }
 function parseListOptions(args) {
-  let json = false;
-  let usage = true;
+  let json2 = false;
+  let usage2 = true;
   let cached = false;
   for (const arg of args) {
     if (arg === "--json") {
-      json = true;
+      json2 = true;
     } else if (arg === "--no-usage") {
-      usage = false;
+      usage2 = false;
     } else if (arg === "--cached") {
       cached = true;
     } else {
@@ -15550,7 +21282,7 @@ function parseListOptions(args) {
       return null;
     }
   }
-  return { json, usage, cached, background: true };
+  return { json: json2, usage: usage2, cached, background: true };
 }
 async function interactivePicker() {
   const aliasReg = await loadAliases();
@@ -15597,6 +21329,12 @@ async function main() {
   try {
     const jsonListCommand = (command === "list" || command === "ls") && args.includes("--json");
     enforceRepoLocalHomeSafety(command, jsonListCommand);
+    if (command === "__subscription-proxy") {
+      if (args.length !== 3)
+        throw new Error("Invalid subscription proxy arguments");
+      await runManagedSubscriptionProxy(args[0], args[1], args[2]);
+      return;
+    }
     if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
@@ -15692,7 +21430,7 @@ async function main() {
 `));
           process.exit(1);
         }
-        await rename10(args[0], args[1]);
+        await rename11(args[0], args[1]);
         break;
       case "purge":
         if (!args[0]) {
@@ -15704,7 +21442,7 @@ async function main() {
         await purge(args[0]);
         break;
       case "current":
-        await current();
+        await current2();
         break;
       case "refresh":
         if (!args[0]) {
@@ -15773,8 +21511,8 @@ async function main() {
         } else {
           console.error(source_default.red(`
   Unknown command: "${command}"`));
-          if (isAntigravityName(command)) {
-            hint(`Antigravity runs through the proxy: ${source_default.cyan(`claudex-switch ${command} --run --cliproxy claudecode`)}`);
+          if (isAntigravityName(command) || isSubscriptionName(command)) {
+            hint(`Run through the proxy: ${source_default.cyan(`claudex-switch ${command} --run --cliproxy claudecode`)}`);
           }
           console.log(HELP);
           process.exit(1);

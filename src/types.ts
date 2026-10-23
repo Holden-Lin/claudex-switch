@@ -112,7 +112,7 @@ export interface LocalCLIProxyAPIProfileData {
   defaultModel: string;
   // Which subscription the proxy translates. Absent on profiles created
   // before other upstreams existed, which are all ChatGPT ("codex").
-  upstream?: "codex" | "antigravity" | "opencode-go";
+  upstream?: import("./providers/cliproxyapi/upstreams").CLIProxyAPIUpstream;
   env?: CustomEnv;
   // One-way identity fingerprint of the one credential in the managed auth
   // directory. It lets refresh reject a different ChatGPT account before it

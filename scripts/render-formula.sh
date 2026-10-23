@@ -65,7 +65,7 @@ class ClaudexSwitch < Formula
 
   def install
     bin.install "claudex-switch"
-    (share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md"
+    (share/"doc"/"claudex-switch").install "LICENSE", "COMMERCIAL-LICENSING.md", "THIRD-PARTY-NOTICES.md"
   end
 
   test do

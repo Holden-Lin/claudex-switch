@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-23",
+  "passed": true,
+  "syntheticUpstream": true,
+  "realSubscriptionVerified": false,
+  "claudeCodeVersion": "2.1.309",
+  "cliProxyAPIVersion": "7.3.15",
+  "permissionMode": "auto",
+  "extensionlessNodeLauncher": true,
+  "separateReadTurns": 2,
+  "proof": "disk nonce matched",
+  "scope": "Real Claude Code, built claudex-switch, real CLIProxyAPI and WorkBuddy plugin; synthetic vendor responses only",
+  "compiledBunSupervisor": true,
+  "nodeAndCompiledBridgeChecks": [
+    "tool-call SSE",
+    "429 body and retry-after",
+    "disconnect abort and reader cancellation"
+  ],
+  "interactiveCursorLoginCancellation": "no managed profile remains"
+}

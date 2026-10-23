@@ -3,7 +3,7 @@ set -euo pipefail
 
 OUTPUT_DIR="${1:-release}"
 
-for license_file in LICENSE COMMERCIAL-LICENSING.md; do
+for license_file in LICENSE COMMERCIAL-LICENSING.md THIRD-PARTY-NOTICES.md; do
   if [ ! -s "$license_file" ]; then
     printf 'Missing required release notice: %s\n' "$license_file" >&2
     exit 1
@@ -13,7 +13,7 @@ done
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 : > "$OUTPUT_DIR/checksums.txt"
-cp LICENSE COMMERCIAL-LICENSING.md "$OUTPUT_DIR/"
+cp LICENSE COMMERCIAL-LICENSING.md THIRD-PARTY-NOTICES.md "$OUTPUT_DIR/"
 
 targets=(
   "bun-darwin-arm64 darwin arm64"
@@ -32,8 +32,8 @@ for target in "${targets[@]}"; do
   mkdir -p "$work_dir"
 
   bun build ./src/index.ts --compile --target="$bun_target" --outfile="$work_dir/claudex-switch"
-  cp LICENSE COMMERCIAL-LICENSING.md "$work_dir/"
-  tar -C "$work_dir" -czf "$archive_path" claudex-switch LICENSE COMMERCIAL-LICENSING.md
+  cp LICENSE COMMERCIAL-LICENSING.md THIRD-PARTY-NOTICES.md "$work_dir/"
+  tar -C "$work_dir" -czf "$archive_path" claudex-switch LICENSE COMMERCIAL-LICENSING.md THIRD-PARTY-NOTICES.md
   shasum -a 256 "$archive_path" >> "$OUTPUT_DIR/checksums.txt"
 
   rm -rf "$work_dir"

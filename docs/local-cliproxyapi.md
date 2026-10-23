@@ -1,5 +1,29 @@
 # 本机 CLIProxyAPI：设计与使用
 
+## WorkBuddy / Cursor 订阅
+
+```bash
+claudex-switch workbuddy --run --cliproxy claudecode
+claudex-switch workbuddy-ai --run --cliproxy claudecode
+claudex-switch cursor --run --cliproxy claudecode
+```
+
+`workbuddy` 是国内版，`workbuddy-ai` 是国际版；两者登录与模型目录分别保存。首次运行选择登录方式，成功后建立别名；后续直接启动 Claude Code，在 `/model` 中选择该账号目录提供的模型。未指定 `--model` 时仍由 Claude Code 选择，不强制主模型；已保存但该订阅不存在的默认模型映射到该订阅的对应档位。不同版本的模型只要仍在订阅目录中就保留。
+
+内部复用 [Cursor](https://github.com/magpie-community/plugins/tree/main/packages/cursor) 与 [WorkBuddy](https://github.com/magpie-community/plugins/tree/main/packages/workbuddy) 独立插件，随 claudex-switch 分发，无需安装完整 magpie。插件负责订阅登录、续期和原生协议；CLIProxyAPI 负责 Anthropic Messages 转换。请求由本机发往对应订阅服务。
+
+浏览器登录使用 claudex-switch 私有目录中的 `plugin-auth.json`（0600）。选择沿用桌面应用 / Cursor Agent 登录时，只保存引用，**之后会跟随原应用当前登录的账号**，不复制其轮换令牌；希望账号固定时用浏览器登录。`refresh <alias>` 可重新登录，取消或登录错账号不会替换原凭据；使用中的会话会阻止刷新及删除。
+
+希望保存多个同类账号时，可先 `rename cursor cursor-work`，再运行首次命令建立另一个 `cursor` 别名。`--run` 不改变全局活跃账号。模型目录在代理启动时获取；订阅增加新模型后，结束该账号会话并运行 `doctor <alias> --restart` 刷新。已有代理供多窗口复用，不因另开窗口而重启。
+
+验证证据：[真实客户端配合合成上游](receipts/subscription-bridge-synthetic.json)，覆盖安装命令入口、auto 模式及两个独立 Read 回合。可在构建后运行 `bun scripts/verify-subscription-bridge.ts --binary <cliproxyapi路径> --claude <claude路径>` 复测；它使用临时 HOME 和合成授权，阻断外部请求，不验证真实订阅授权或额度。
+
+## auto mode 提示与 429 配额错误
+
+出现 “this session isn't eligible … requests go through 127.0.0.1” 表示网关无法提供新版服务端分类器，并非模型请求失败。对于本项目的协议转换上游，默认设置 `CLAUDE_CODE_AUTO_MODE_SERVER=0`，使用 Claude Code 原有的客户端分类检查。auto mode 保持可用；这**不会获得免费的服务端分类器，也不会免除客户端分类请求的用量**。需要显式覆盖时，可在账号自定义环境变量中设置该值；切换到其他类型账号会清理本项目生成的默认值。[官方说明](https://code.claude.com/docs/en/auto-mode-classifier-billing)
+
+截图中的 `429 / Individual quota reached / RESOURCE_EXHAUSTED` 是另一件事：Antigravity 个人配额耗尽，错误当时显示约 97 小时后重置。重启代理、重新登录及上述分类器设置都不能恢复配额；等待重置，或自行切换有可用额度的账号 / 模型。`doctor <alias> --live` 会消耗少量额度，配额耗尽时不应反复运行。
+
 本功能让已有 `claudex-switch <alias> --run` 工作流可在 Claude Code 中使用 ChatGPT 登录。v1.21.0 起同一套代理还支持 OpenCode Go 和 Antigravity，并可通过 `--cliproxy claudecode` 直接借用已有别名的额度，见文末[「多上游与 `--cliproxy`」](#多上游与---cliproxy)。新增账号时完成一次独立 OAuth 登录，此后代理启动、端口选择、客户端密钥和模型映射由项目管理。既有 Claude OAuth、Claude API Key 和 Codex 账号类型保持原用途。
 
 ## 输出约定

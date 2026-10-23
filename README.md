@@ -109,7 +109,14 @@ claudex-switch cx --run --cliproxy claudecode
 
 # 用 OpenCode Go 账号额度跑 Claude Code
 claudex-switch go-work --run --cliproxy claudecode
+
+# 用 WorkBuddy（国内版）、WorkBuddy AI（国际版）或 Cursor 订阅
+claudex-switch workbuddy --run --cliproxy claudecode
+claudex-switch workbuddy-ai --run --cliproxy claudecode
+claudex-switch cursor --run --cliproxy claudecode
 ```
+
+首次选择浏览器登录或沿用原应用登录，之后直接启动；在 Claude Code 的 `/model` 菜单选择该订阅可用的模型。无需安装 magpie。浏览器登录保存独立凭据；沿用原应用登录会跟随该应用的账号切换。详见[订阅接入说明](./docs/local-cliproxyapi.md#workbuddy--cursor-订阅)。
 
 ### 4. 刷新已过期登录
 当 OAuth 本地登录态过期时，无需重新添加账号，一键刷新：

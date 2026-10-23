@@ -2,7 +2,9 @@
 // lifecycle (private dir, key, port, locks, leases) is shared; only these
 // facts differ per upstream. Profiles written before upstreams existed have
 // no marker and are ChatGPT/Codex.
-export type CLIProxyAPIUpstream = "codex" | "antigravity" | "opencode-go";
+import type { SubscriptionUpstream } from "../subscription-plugins";
+
+export type CLIProxyAPIUpstream = "codex" | "antigravity" | "opencode-go" | SubscriptionUpstream;
 
 export interface CLIProxyAPIModelMap {
   fableModel: string;
@@ -27,7 +29,17 @@ export interface CLIProxyAPIUpstreamSpec {
   defaults: CLIProxyAPIModelMap;
 }
 
+// Plugin logins and account-specific model discovery happen outside the
+// converter. These tier placeholders never reach a running client.
+const SUBSCRIPTION_SPEC = {
+  loginFlag: null, callbackPort: null, authType: null,
+  defaults: { fableModel: "fable", opusModel: "opus", sonnetModel: "sonnet", haikuModel: "haiku" },
+};
+
 export const CLI_PROXY_API_UPSTREAMS: Record<CLIProxyAPIUpstream, CLIProxyAPIUpstreamSpec> = {
+  cursor: { ...SUBSCRIPTION_SPEC, label: "Cursor" },
+  workbuddy: { ...SUBSCRIPTION_SPEC, label: "WorkBuddy" },
+  "workbuddy-ai": { ...SUBSCRIPTION_SPEC, label: "WorkBuddy AI" },
   codex: {
     label: "ChatGPT",
     loginFlag: "-codex-login",
@@ -71,7 +83,27 @@ export const CLI_PROXY_API_UPSTREAMS: Record<CLIProxyAPIUpstream, CLIProxyAPIUps
 };
 
 export function parseUpstream(value: string | undefined): CLIProxyAPIUpstream {
-  return value === "antigravity" || value === "opencode-go" ? value : "codex";
+  if (!value || value === "codex") return "codex";
+  if (Object.hasOwn(CLI_PROXY_API_UPSTREAMS, value)) return value as CLIProxyAPIUpstream;
+  throw new Error(`Unknown managed proxy upstream: ${value}`);
+}
+
+/** Pick only IDs supplied by the subscription's account-specific catalog. */
+export function pickSubscriptionModels(ids: string[], current?: CLIProxyAPIModelMap): CLIProxyAPIModelMap {
+  if (!ids.length || ids.some((id) => !id.trim() || /[\r\n,=]/.test(id))) {
+    throw new Error("The subscription returned an empty or invalid model catalog. Sign in again; no guessed models will be used.");
+  }
+  const strongest = ids.includes("auto") ? "auto"
+    : newest(ids.filter((id) => /claude.*opus/i.test(id)))
+      ?? newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? ids[0]!;
+  const sonnet = newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? strongest;
+  const fast = newest(ids.filter((id) => /haiku|flash|mini/i.test(id))) ?? sonnet;
+  const keep = (tier: keyof CLIProxyAPIModelMap, fallback: string) =>
+    current && ids.includes(current[tier]) ? current[tier] : fallback;
+  return {
+    fableModel: keep("fableModel", strongest), opusModel: keep("opusModel", strongest),
+    sonnetModel: keep("sonnetModel", sonnet), haikuModel: keep("haikuModel", fast),
+  };
 }
 
 // OpenCode Go serves one base URL over two wire formats. Most models speak

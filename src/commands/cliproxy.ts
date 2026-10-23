@@ -43,6 +43,7 @@ import { fetchOpenCodeGoCatalogIds } from "../providers/opencode/catalog";
 import { resolveCLIProxyAPIBinaryForAdd } from "./add";
 import type { AliasEntry, LocalCLIProxyAPIProfileData } from "../types";
 import { assertCLIProxyAPICompatibility } from "../providers/cliproxyapi/version";
+import { isSubscriptionUpstream, type SubscriptionUpstream } from "../providers/subscription-plugins";
 
 // `--cliproxy <client>` names the CLI that consumes the upstream account. Only
 // Claude Code exists today; the value leaves room for Codex/OpenCode later.
@@ -55,6 +56,10 @@ const ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
 
 export function isAntigravityName(name: string): boolean {
   return ANTIGRAVITY_KEYWORDS.has(name.toLowerCase());
+}
+
+export function isSubscriptionName(name: string): boolean {
+  return isSubscriptionUpstream(name.toLowerCase());
 }
 
 export function isClaudeCodeClient(value: string): boolean {
@@ -81,8 +86,11 @@ export async function resolveCLIProxyClaudeEntry(
     if (isAntigravityName(aliasOrName)) {
       return createAntigravityAlias(aliasOrName, options);
     }
+    if (isSubscriptionName(aliasOrName)) {
+      return createSubscriptionAlias(aliasOrName, aliasOrName.toLowerCase() as SubscriptionUpstream, options);
+    }
     throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
-      `Use a Codex or OpenCode Go alias, or ${chalk.cyan("agy")} for Antigravity.`,
+      `Use a Codex or OpenCode Go alias, agy for Antigravity, or workbuddy / workbuddy-ai / cursor.`,
     ]);
   }
 
@@ -92,7 +100,13 @@ export async function resolveCLIProxyClaudeEntry(
       : null;
     // A proxy-backed Claude alias (e.g. one created by `agy`) already runs
     // this way; accept the flag so the same command keeps working.
-    if (data?.type === "local-cliproxyapi") return entry;
+    if (data?.type === "local-cliproxyapi") {
+      if (isSubscriptionUpstream(data.upstream) && !(await hasManagedCLIProxyAPILogin(data.profileId))) {
+        const identity = await loginOrThrow(data.profileId, data.binaryPath, upstreamLabel(data.upstream), undefined, data.authIdentity);
+        await updateLocalCLIProxyAPIProfileIdentity(entry.target.profileName, identity);
+      }
+      return entry;
+    }
     throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
       `Run ${chalk.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`,
     ]);
@@ -163,7 +177,8 @@ async function createManagedProfile(
     if (identity) profile.authIdentity = identity;
     // Discover models before publishing an Antigravity alias. A failed/empty
     // catalog must roll back first use rather than persist guessed IDs.
-    const runtime = setup.upstream === "antigravity" ? await ensureManagedCLIProxyAPI(profile) : undefined;
+    const runtime = setup.upstream === "antigravity" || isSubscriptionUpstream(setup.upstream)
+      ? await ensureManagedCLIProxyAPI(profile) : undefined;
     await saveLocalCLIProxyAPIProfile(profileName, profile);
     saved = true;
     await save(profileName, profile);
@@ -187,11 +202,12 @@ async function loginOrThrow(
   binaryPath: string,
   label: string,
   expectedAccount?: ExpectedCLIProxyAPIAccount,
+  expectedIdentity?: string,
 ): Promise<string> {
   const login = await runManagedCLIProxyAPILogin(
     { profileId, binaryPath },
     undefined,
-    undefined,
+    expectedIdentity,
     expectedAccount,
   );
   if (login.identityMismatch) {
@@ -342,6 +358,21 @@ async function createAntigravityAlias(
 
   success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
   printMapping(models);
+  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
+}
+
+async function createSubscriptionAlias(alias: string, upstream: SubscriptionUpstream, options: CLIProxyResolveOptions): Promise<AliasEntry> {
+  const rejection = checkAlias(await loadAliases(), alias);
+  if (rejection) throw new UserFacingError(describeAliasRejection(rejection, alias));
+  const binaryPath = await requireBinary(options);
+  info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
+  const { profileName, profile, runtime } = await createManagedProfile(
+    binaryPath, { upstream },
+    (profileId) => loginOrThrow(profileId, binaryPath, upstreamLabel(upstream)),
+    (name) => addAlias(alias, { provider: "claude", profileName: name }),
+  );
+  success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`Claude Code · ${upstreamLabel(upstream)}`)}`);
+  printMapping(await getLocalCLIProxyAPISettings(profile, runtime!));
   return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
 }
 

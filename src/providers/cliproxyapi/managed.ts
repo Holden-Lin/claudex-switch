@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "child_process";
+import { realpathSync } from "fs";
 import {
   chmod,
   mkdir,
@@ -34,7 +35,7 @@ import {
 import {
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   localCLIProxyAPIAuthEnv,
-  normalizeCustomEnv,
+  localCLIProxyAPIExtraEnv,
   type LocalCLIProxyAPISettings,
 } from "../claude/settings";
 import type { LocalCLIProxyAPIProfileData } from "../../types";
@@ -49,10 +50,22 @@ import {
   matchAntigravityModel,
   antigravityModelBase,
   reconcileAntigravityModels,
+  pickSubscriptionModels,
   type CLIProxyAPIModel,
   type CLIProxyAPIModelMap,
   type CLIProxyAPIUpstream,
 } from "./upstreams";
+import {
+  hasSubscriptionLogin,
+  isSubscriptionUpstream,
+  listSubscriptionModels,
+  loginSubscriptionPlugin,
+  serveSubscriptionBridge,
+  subscriptionLoginMethods,
+  SUBSCRIPTION_AUTH_FILE,
+} from "../subscription-plugins";
+import { select } from "@inquirer/prompts";
+import { info } from "../../lib/ui";
 
 export const CLI_PROXY_API_DEFAULTS = {
   ...CLI_PROXY_API_UPSTREAMS.codex.defaults,
@@ -69,6 +82,7 @@ const ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
 // API-key upstreams (OpenCode Go): the upstream key and the models to expose.
 const ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 const ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
+const ENV_SUBSCRIPTION_PORT = "CLAUDEX_CLIPROXYAPI_SUBSCRIPTION_PORT";
 const ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
 const ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 // Older accounts had the then-default Luna written into their .env. That
@@ -90,6 +104,7 @@ interface ManagedEnv extends CLIProxyAPIModelMap {
   upstreamKey: string | null;
   upstreamModels: string[];
   antigravitySensitiveWords: string[];
+  subscriptionPort: number | null;
 }
 
 export interface ManagedCLIProxyAPISetup {
@@ -98,6 +113,7 @@ export interface ManagedCLIProxyAPISetup {
   upstreamKey?: string;
   upstreamModels?: string[];
   antigravitySensitiveWords?: string[];
+  subscriptionPort?: number;
 }
 
 interface ManagedRuntimeState {
@@ -258,6 +274,10 @@ function parseManagedEnv(content: string): ManagedEnv {
   const upstream = parseUpstream(values[ENV_UPSTREAM]?.trim());
   const defaults = CLI_PROXY_API_UPSTREAMS[upstream].defaults;
   const upstreamKey = values[ENV_UPSTREAM_KEY]?.trim() || null;
+  const subscriptionPort = values[ENV_SUBSCRIPTION_PORT] ? Number(values[ENV_SUBSCRIPTION_PORT]) : null;
+  if (subscriptionPort !== null && (!Number.isInteger(subscriptionPort) || subscriptionPort < 1 || subscriptionPort > 65535)) {
+    throw new Error("Invalid subscription bridge port");
+  }
   if (upstream === "opencode-go" && !upstreamKey) {
     throw new Error(`Managed CLIProxyAPI configuration is missing ${ENV_UPSTREAM_KEY}`);
   }
@@ -265,6 +285,7 @@ function parseManagedEnv(content: string): ManagedEnv {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
     upstream,
     upstreamKey,
+    subscriptionPort,
     antigravitySensitiveWords: (values[ENV_ANTIGRAVITY_SENSITIVE_WORDS] ?? ANTIGRAVITY_SENSITIVE_WORDS.join(","))
       .split(",").map((word) => word.trim()).filter(Boolean),
     upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "")
@@ -302,6 +323,7 @@ function renderManagedEnv(
       `${ENV_ANTIGRAVITY_SENSITIVE_WORDS}=${(setup.antigravitySensitiveWords ?? ANTIGRAVITY_SENSITIVE_WORDS).join(",")}`,
     ] : []),
     ...(setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : []),
+    ...(setup.subscriptionPort ? [`${ENV_SUBSCRIPTION_PORT}=${setup.subscriptionPort}`] : []),
     ...(setup.upstreamModels?.length
       ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`]
       : []),
@@ -321,7 +343,7 @@ function yaml(value: string): string {
 
 function renderRuntimeConfig(
   authDir: string,
-  managed: Pick<ManagedEnv, "apiKey" | "upstream" | "upstreamKey" | "upstreamModels" | "antigravitySensitiveWords" | keyof CLIProxyAPIModelMap>,
+  managed: ManagedEnv,
   port: number,
 ): string {
   const header = [
@@ -337,6 +359,22 @@ function renderRuntimeConfig(
     "logging-to-file: false",
     "usage-statistics-enabled: false",
   ];
+  if (isSubscriptionUpstream(managed.upstream)) {
+    if (!managed.subscriptionPort || !managed.upstreamModels.length) {
+      throw new Error("Subscription models and bridge port must be discovered before proxy startup.");
+    }
+    return [...header,
+      "openai-compatibility:",
+      `  - name: ${yaml(managed.upstream)}`,
+      `    base-url: ${yaml(`${baseUrl(managed.subscriptionPort)}/v1`)}`,
+      "    headers:",
+      `      x-claudex-session: ${yaml("$X-Claude-Code-Session-Id")}`,
+      "    api-key-entries:", `      - api-key: ${yaml(managed.apiKey)}`,
+      "    models:",
+      ...managed.upstreamModels.flatMap((id) => [`      - name: ${yaml(id)}`, `        alias: ${yaml(id)}`]),
+      "",
+    ].join("\n");
+  }
   if (managed.upstream === "antigravity") {
     // CLIProxyAPI applies this only to system instructions, preserving user
     // text and tool results. Both Claude Code and Agent SDK identity lines
@@ -468,6 +506,7 @@ export async function updateManagedCLIProxyAPISetup(
       upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
       upstreamModels: patch.upstreamModels ?? current.upstreamModels,
       antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current.antigravitySensitiveWords,
+      subscriptionPort: patch.subscriptionPort ?? current.subscriptionPort ?? undefined,
     }),
   );
 }
@@ -621,7 +660,7 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   }
   // Extra env the user attached to this profile (e.g. CLAUDE_CODE_EFFORT_LEVEL)
   // is applied after the managed keys, and can never shadow one of them.
-  for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
+  for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env[key] = value;
   }
   await writePrivateJson(paths.claudeSettingsFile, {
@@ -633,17 +672,30 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
         replaceBuiltInOptions: true,
         // Retired Claude versions only answer "no longer available".
         options: runtime.models.filter((model) => !/image/i.test(model.id)
-          && !isSupersededAntigravityClaude(model.id, runtime.models!.map(({ id }) => id))).map((model) => ({
+          && (profile.upstream !== "antigravity"
+            || !isSupersededAntigravityClaude(model.id, runtime.models!.map(({ id }) => id)))).map((model) => ({
           model: model.id,
           label: model.display_name ?? model.id,
-          description: `Antigravity · ${model.id}`,
+          description: `${CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"].label} · ${model.id}`,
         })),
       },
-      modelOverrides: antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel),
+      modelOverrides: profile.upstream === "antigravity"
+        ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
+        : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel),
     } : {}),
     env,
   });
   return paths.claudeSettingsFile;
+}
+
+function subscriptionModelOverrides(ids: string[], tiers: CLIProxyAPIModelMap, savedModel?: string): Record<string, string> {
+  const overrides: Record<string, string> = {};
+  for (const id of [...CLAUDE_CODE_MODEL_IDS, ...(savedModel ? [savedModel] : [])]) {
+    if (ids.includes(id)) continue;
+    const family = id.match(/^claude-(fable|opus|sonnet|haiku)(?:-|$)/i)?.[1]?.toLowerCase();
+    overrides[id] = family ? tiers[`${family}Model` as keyof CLIProxyAPIModelMap] : tiers.fableModel;
+  }
+  return overrides;
 }
 
 function resolveLocalCLIProxyAPIModelFromConfig(
@@ -692,6 +744,10 @@ export async function resolveManagedLocalCLIProxyAPIModel(
 ): Promise<string> {
   const config = await readExistingManagedEnv(profile.profileId);
   const model = resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  if (isSubscriptionUpstream(config.upstream)) {
+    if (config.upstreamModels.includes(model)) return model;
+    throw new Error(`${CLI_PROXY_API_UPSTREAMS[config.upstream].label} model "${input}" is not in the account catalog. Use /model or one of: ${config.upstreamModels.join(", ")}`);
+  }
   if (config.upstream !== "antigravity") return model;
   if (!config.upstreamModels.length) {
     throw new Error("Antigravity's model catalog has not been synchronized. Start this account with --run --cliproxy claudecode once before setting its default model.");
@@ -706,6 +762,7 @@ export async function resolveManagedLocalCLIProxyAPIDefaultModel(
 ): Promise<string> {
   const config = await readExistingManagedEnv(profile.profileId);
   const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  if (isSubscriptionUpstream(config.upstream)) return config.upstreamModels.includes(model) ? model : config.fableModel;
   if (config.upstream !== "antigravity") return model;
   return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
 }
@@ -778,6 +835,12 @@ async function syncAntigravityModels(
   runtime: ManagedCLIProxyAPIRuntime,
   startedAt: number,
 ): Promise<ManagedCLIProxyAPIRuntime> {
+  if (isSubscriptionUpstream(managed.upstream)) {
+    const catalog = await listManagedCLIProxyAPICatalog({ ...runtime, baseUrl: baseUrl(managed.subscriptionPort!) });
+    const models = catalog.filter(({ id }) => managed.upstreamModels.includes(id));
+    if (!models.length) throw new Error("The subscription adapter has no available models. Check its login, then restart this account's proxy.");
+    return { ...runtime, models };
+  }
   if (managed.upstream !== "antigravity") return runtime;
   // HTTP readiness can precede auth/model registration on a new daemon. Then
   // CLIProxyAPI first serves the list compiled into its binary (retired Opus
@@ -1115,8 +1178,18 @@ function startProxy(
   configPath: string,
   managedDirectory: string,
   spawnCommand: SpawnCommand = spawn,
+  subscriptionProfileId?: string,
 ): ChildProcess {
-  const proc = spawnCommand(binaryPath, ["-config", configPath], {
+  const script = process.argv[1];
+  // Node preserves an extensionless installed bin symlink in argv[1]. Bun
+  // compiled executables instead carry a virtual $bunfs entrypoint.
+  const scriptEntrypoint = subscriptionProfileId && script && !script.includes("$bunfs")
+    && (!process.versions.bun || /\.[cm]?[jt]s$/.test(realpathSync(script)));
+  const args = subscriptionProfileId
+    ? [...(scriptEntrypoint ? [resolve(script!)] : []),
+      "__subscription-proxy", subscriptionProfileId, binaryPath, configPath]
+    : ["-config", configPath];
+  const proc = spawnCommand(subscriptionProfileId ? process.execPath : binaryPath, args, {
     detached: true,
     stdio: "ignore",
     cwd: managedDirectory,
@@ -1127,6 +1200,39 @@ function startProxy(
   proc.on("error", () => {});
   proc.unref?.();
   return proc;
+}
+
+/** One supervised process owns both the adapter and converter for a profile. */
+export async function runManagedSubscriptionProxy(profileId: string, binaryPath: string, configPath: string): Promise<void> {
+  const paths = profilePaths(profileId);
+  const managed = await readExistingManagedEnv(profileId);
+  if (resolve(configPath) !== paths.configFile || !isSubscriptionUpstream(managed.upstream) || !managed.subscriptionPort) {
+    throw new Error("Invalid managed subscription proxy invocation");
+  }
+  const server = await serveSubscriptionBridge({ directory: paths.dir, upstream: managed.upstream,
+    apiKey: managed.apiKey, port: managed.subscriptionPort });
+  const child = spawn(binaryPath, ["-config", configPath], { cwd: paths.dir, stdio: "ignore", env: proxyProcessEnvironment() });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = () => {
+    server.close();
+    child.kill("SIGTERM");
+    timer ??= setTimeout(() => child.kill("SIGKILL"), 3_000);
+    timer.unref();
+  };
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+  try {
+    await new Promise<void>((resolveExit, reject) => {
+      child.once("error", reject);
+      child.once("exit", () => resolveExit());
+    });
+  } finally {
+    if (timer) clearTimeout(timer);
+    process.off("SIGTERM", stop);
+    process.off("SIGINT", stop);
+    server.closeAllConnections();
+    await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+  }
 }
 
 function stopChildWeStarted(proc: ChildProcess): void {
@@ -1151,7 +1257,7 @@ async function ensureManagedCLIProxyAPIUnlocked(
 ): Promise<ManagedCLIProxyAPIRuntime> {
   const paths = profilePaths(profile.profileId);
   const state = await readState(profile.profileId);
-  const managed = await readExistingManagedEnv(profile.profileId);
+  let managed = await readExistingManagedEnv(profile.profileId);
 
   assertCLIProxyAPICompatibility(profile.binaryPath, managed.upstream);
 
@@ -1191,11 +1297,27 @@ async function ensureManagedCLIProxyAPIUnlocked(
     await rm(paths.stateFile, { force: true });
   }
 
+  if (isSubscriptionUpstream(managed.upstream)) {
+    const models = await listSubscriptionModels(paths.dir, managed.upstream);
+    const ids = models.map(({ id }) => id);
+    await updateManagedCLIProxyAPISetup(profile.profileId, {
+      models: pickSubscriptionModels(ids, managed), upstreamModels: ids,
+      subscriptionPort: await findAvailablePort(),
+    });
+    managed = await readExistingManagedEnv(profile.profileId);
+  }
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0 && isSubscriptionUpstream(managed.upstream)) {
+      await updateManagedCLIProxyAPISetup(profile.profileId, { subscriptionPort: await findAvailablePort() });
+      managed = await readExistingManagedEnv(profile.profileId);
+    }
     const port = await findAvailablePort();
+    if (port === managed.subscriptionPort) continue;
     await writeRuntimeConfig(profile.profileId, port);
     const startedAt = Date.now();
-    const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir);
+    const proc = startProxy(profile.binaryPath, paths.configFile, paths.dir, spawn,
+      isSubscriptionUpstream(managed.upstream) ? profile.profileId : undefined);
     const ready = await waitForProxy(port, managed.apiKey);
     if (!ready) {
       stopChildWeStarted(proc);
@@ -1432,6 +1554,7 @@ export async function hasManagedCLIProxyAPILogin(
     return (await inspectAuthDirectory(profilePaths(profileId).authDir, "codex")).valid;
   }
   const spec = CLI_PROXY_API_UPSTREAMS[managed.upstream];
+  if (isSubscriptionUpstream(managed.upstream)) return hasSubscriptionLogin(profilePaths(profileId).dir, managed.upstream);
   if (!spec.authType) return Boolean(managed.upstreamKey);
   return (await inspectAuthDirectory(profilePaths(profileId).authDir, spec.authType)).valid;
 }
@@ -1447,6 +1570,33 @@ export async function runManagedCLIProxyAPILogin(
   await mkdirPrivate(CLI_PROXY_API_DIR);
   const upstream = (await readExistingManagedEnv(profile.profileId)).upstream;
   const spec = CLI_PROXY_API_UPSTREAMS[upstream];
+  if (isSubscriptionUpstream(upstream)) {
+    if (!process.stdin.isTTY) {
+      throw new Error(`${spec.label} login needs an interactive terminal to choose a login method. Run the same command in your terminal first.`);
+    }
+    return withStartupLock(profile.profileId, async () => {
+      if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
+        throw new Error("End this account's Claude Code sessions before refreshing its login.");
+      }
+      await stopManagedCLIProxyAPIUnlocked(profile);
+      const staging = join(paths.dir, `.login-${randomUUID()}`);
+      await mkdirPrivate(staging);
+      try {
+        const methods = await subscriptionLoginMethods(staging, upstream);
+        if (!methods.length) throw new Error(`${spec.label} has no supported login methods.`);
+        const method = await select({ message: `${spec.label} login`,
+          choices: methods.map(({ label }, value) => ({ name: label, value })) });
+        const identity = await loginSubscriptionPlugin(staging, upstream, method, info);
+        if (expectedIdentity && identity !== expectedIdentity) {
+          return { success: false, identity: null, identityMismatch: true };
+        }
+        await rename(join(staging, SUBSCRIPTION_AUTH_FILE), join(paths.dir, SUBSCRIPTION_AUTH_FILE));
+        return { success: true, identity, identityMismatch: false };
+      } finally {
+        await rm(staging, { recursive: true, force: true });
+      }
+    });
+  }
   if (!spec.loginFlag || !spec.authType) {
     throw new Error(`${spec.label} accounts use an API key and have no CLIProxyAPI login.`);
   }
