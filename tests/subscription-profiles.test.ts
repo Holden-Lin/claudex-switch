@@ -35,6 +35,47 @@ describe("Claude Code subscription profiles", () => {
     await expect(resolveManagedLocalCLIProxyAPIModel(profile, "unlisted-model")).rejects.toThrow("not in the account catalog");
   });
 
+  test("compaction follows each model's subscription window instead of Claude Code's 200K guess", async () => {
+    // A 40% override compacted WorkBuddy AI's 1M deepseek-v4.1-flash at 72K.
+    const ids = ["default-model", "deepseek-v4.1-flash", "kimi-k2.6", "unsized"];
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi",
+      defaultModel: "fable", upstream: "workbuddy-ai",
+    };
+    await initializeManagedCLIProxyAPI(profile.profileId, {
+      upstream: "workbuddy-ai", models: pickSubscriptionModels(ids), upstreamModels: ids, subscriptionPort: 12345,
+      upstreamContext: { "default-model": 176_000, "deepseek-v4.1-flash": 1_000_000, "kimi-k2.6": 256_000 },
+    });
+    const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client",
+      models: ids.map((id) => ({ id })),
+    }, { inheritModel: true });
+    const settings = JSON.parse(await readFile(path, "utf8"));
+    expect(settings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBe("1000000");
+    const windows = Object.fromEntries(Object.entries(settings.modelSettings as Record<string, { autoCompactWindow: number }>)
+      .map(([id, value]) => [id, value.autoCompactWindow]));
+    expect(windows).toMatchObject({
+      "default-model": 176_000, "deepseek-v4.1-flash": 1_000_000, "kimi-k2.6": 256_000, unsized: 200_000,
+    });
+    // Claude Code's own IDs compact at the window of the catalog model they map to.
+    expect(windows[settings.modelOverrides["claude-opus-5-5"]]).toBe(windows["claude-opus-5-5"]);
+  });
+
+  test("subscription catalogs without windows keep Claude Code's defaults", async () => {
+    const ids = ["auto"];
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi",
+      defaultModel: "fable", upstream: "cursor",
+    };
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream: "cursor", models: pickSubscriptionModels(ids), upstreamModels: ids, subscriptionPort: 12345 });
+    const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: "auto" }],
+    }, { inheritModel: true });
+    const settings = JSON.parse(await readFile(path, "utf8"));
+    expect(settings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBeUndefined();
+    expect(settings.modelSettings).toBeUndefined();
+  });
+
   test("Cursor Auto and opaque model IDs are selected only from its catalog", () => {
     const ids = ["auto", "claude-4.6-opus-high", "gpt-5.5-high-fast"];
     expect(pickSubscriptionModels(ids).fableModel).toBe("auto");

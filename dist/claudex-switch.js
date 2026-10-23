@@ -9821,7 +9821,14 @@ async function models(ctx) {
   if (!Object.keys(catalog2).length || ctx.plugin.provider && catalog2 === ctx.provider.models) {
     throw new Error("Subscription model catalog is unavailable; retry after checking the account sign-in.");
   }
-  return Object.entries(catalog2).map(([id, value]) => ({ id, ...value.name ? { display_name: value.name } : {} }));
+  return Object.entries(catalog2).map(([id, value]) => {
+    const context2 = value.limit?.context;
+    return {
+      id,
+      ...value.name ? { display_name: value.name } : {},
+      ...typeof context2 === "number" && Number.isSafeInteger(context2) && context2 > 0 ? { context_window: context2 } : {}
+    };
+  });
 }
 async function listSubscriptionModels(directory, upstream, options = {}) {
   return models(await context(directory, upstream, options));
@@ -10195,6 +10202,7 @@ var ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
 var ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 var ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
 var ENV_SUBSCRIPTION_PORT = "CLAUDEX_CLIPROXYAPI_SUBSCRIPTION_PORT";
+var ENV_UPSTREAM_CONTEXT = "CLAUDEX_CLIPROXYAPI_UPSTREAM_CONTEXT";
 var ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
 var ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
@@ -10289,6 +10297,11 @@ function parseManagedEnv(content) {
     subscriptionPort,
     antigravitySensitiveWords: (values[ENV_ANTIGRAVITY_SENSITIVE_WORDS] ?? ANTIGRAVITY_SENSITIVE_WORDS.join(",")).split(",").map((word) => word.trim()).filter(Boolean),
     upstreamModels: (values[ENV_UPSTREAM_MODELS] ?? "").split(",").map((model) => model.trim()).filter(Boolean),
+    upstreamContext: values[ENV_UPSTREAM_CONTEXT] === undefined ? null : Object.fromEntries(values[ENV_UPSTREAM_CONTEXT].split(",").flatMap((pair) => {
+      const separator = pair.lastIndexOf("=");
+      const tokens = Number(pair.slice(separator + 1));
+      return separator > 0 && Number.isSafeInteger(tokens) && tokens > 0 ? [[pair.slice(0, separator).trim(), tokens]] : [];
+    })),
     fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
     opusModel: values[ENV_OPUS_MODEL]?.trim() || defaults.opusModel,
@@ -10315,6 +10328,7 @@ function renderManagedEnv(apiKey, setup = { upstream: "codex" }) {
     ...setup.upstreamKey ? [`${ENV_UPSTREAM_KEY}=${setup.upstreamKey}`] : [],
     ...setup.subscriptionPort ? [`${ENV_SUBSCRIPTION_PORT}=${setup.subscriptionPort}`] : [],
     ...setup.upstreamModels?.length ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`] : [],
+    ...setup.upstreamContext ? [`${ENV_UPSTREAM_CONTEXT}=${Object.entries(setup.upstreamContext).map(([id, tokens]) => `${id}=${tokens}`).join(",")}`] : [],
     `${ENV_FABLE_MODEL}=${models2.fableModel}`,
     `${ENV_SONNET_MODEL}=${models2.sonnetModel}`,
     `${ENV_OPUS_MODEL}=${models2.opusModel}`,
@@ -10438,6 +10452,7 @@ async function updateManagedCLIProxyAPISetup(profileId, patch) {
     models: patch.models ?? current2,
     upstreamKey: patch.upstreamKey ?? current2.upstreamKey ?? undefined,
     upstreamModels: patch.upstreamModels ?? current2.upstreamModels,
+    upstreamContext: patch.upstreamContext ?? current2.upstreamContext ?? undefined,
     antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current2.antigravitySensitiveWords,
     subscriptionPort: patch.subscriptionPort ?? current2.subscriptionPort ?? undefined
   }));
@@ -10541,6 +10556,10 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env3[key] = "";
   }
+  const overrides = runtime.models ? profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : {};
+  const windows = runtime.models && isSubscriptionUpstream(profile.upstream) ? subscriptionCompactWindows((await readExistingManagedEnv(profile.profileId)).upstreamContext ?? {}, runtime.models.map(({ id }) => id), overrides) : null;
+  if (windows)
+    env3.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env3[key] = value;
   }
@@ -10555,11 +10574,25 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
           description: `${CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"].label} · ${model.id}`
         }))
       },
-      modelOverrides: profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
+      modelOverrides: overrides,
+      ...windows ? { modelSettings: windows.modelSettings } : {}
     } : {},
     env: env3
   });
   return paths.claudeSettingsFile;
+}
+var UNKNOWN_MODEL_WINDOW = 200000;
+var MIN_COMPACT_WINDOW = 1e5;
+var MAX_COMPACT_WINDOW = 1e6;
+function subscriptionCompactWindows(context2, ids, overrides) {
+  if (!ids.some((id) => context2[id]))
+    return null;
+  const windowOf = (id) => Math.min(MAX_COMPACT_WINDOW, Math.max(MIN_COMPACT_WINDOW, context2[id] ?? UNKNOWN_MODEL_WINDOW));
+  const modelSettings = Object.fromEntries([
+    ...ids.map((id) => [id, { autoCompactWindow: windowOf(id) }]),
+    ...Object.entries(overrides).map(([id, target]) => [id, { autoCompactWindow: windowOf(target) }])
+  ]);
+  return { maxContext: Math.max(...ids.map(windowOf)), modelSettings };
 }
 function subscriptionModelOverrides(ids, tiers, savedModel) {
   const overrides = {};
@@ -11016,6 +11049,7 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
     await updateManagedCLIProxyAPISetup(profile.profileId, {
       models: pickSubscriptionModels(ids, managed),
       upstreamModels: ids,
+      upstreamContext: Object.fromEntries(models2.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : [])),
       subscriptionPort: await findAvailablePort()
     });
     managed = await readExistingManagedEnv(profile.profileId);
@@ -11401,7 +11435,8 @@ async function stopStaleManagedCLIProxyAPI(profile) {
     const state = await readState(profile.profileId);
     if (!state || !isPidAlive(state.pid))
       return false;
-    if (await isExpectedRuntimeConfig(paths, state, managed))
+    const missingWindows = isSubscriptionUpstream(managed.upstream) && managed.upstreamContext === null;
+    if (!missingWindows && await isExpectedRuntimeConfig(paths, state, managed))
       return false;
     return stopManagedCLIProxyAPIUnlocked(profile);
   });
@@ -18878,7 +18913,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.1",
+  version: "1.26.2",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

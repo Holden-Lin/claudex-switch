@@ -107,6 +107,9 @@ try {
   assert(events.filter((event) => event.type === "chat").every((event) => event.model === "claude-sonnet-5-5"), "The account-specific synthetic model must reach the real plugin.");
   assert(events.some((event) => event.type === "result" && event.proof === nonce && event.toolResults === 2));
   assert.equal(events.filter((event) => event.type === "blocked").length, 0, "Unexpected external request attempted.");
+  const settings = JSON.parse(await readFile(join(cliProxyAPIProfileDir(profileId), "claude-settings.json"), "utf8"));
+  assert.equal(settings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS, "200000", "The catalog's context window must reach Claude Code.");
+  assert.equal(settings.modelSettings?.["claude-sonnet-5-5"]?.autoCompactWindow, 200000);
   const receipt = { passed: true, syntheticUpstream: true, realSubscriptionVerified: false,
     realClaudeCode: claude, realCLIProxyAPI: binary, builtEntrypoint: entry,
     claudeCodeVersion: initialization?.claude_code_version, permissionMode: initialization?.permissionMode,

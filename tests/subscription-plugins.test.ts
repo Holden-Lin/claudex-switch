@@ -213,13 +213,14 @@ describe("subscription plugin adapter", () => {
       }
       if (url.pathname === "/v3/config") {
         expect(new Headers(init?.headers).get("authorization")).toBe("Bearer workbuddy-renewed");
-        return Response.json({ code: 0, data: { agents: [{ name: "cli", models: ["real-wb-model"] }], models: [{ id: "real-wb-model", name: "WorkBuddy live model" }] } });
+        return Response.json({ code: 0, data: { agents: [{ name: "cli", models: ["real-wb-model"] }], models: [{ id: "real-wb-model", name: "WorkBuddy live model", maxInputTokens: 1_000_000 }] } });
       }
       throw new Error("Unexpected network request in offline test.");
     }) as typeof fetch;
     try {
       const lists = await Promise.all([listSubscriptionModels(dir, "workbuddy"), listSubscriptionModels(dir, "workbuddy")]);
-      expect(lists).toEqual([[{ id: "real-wb-model", display_name: "WorkBuddy live model" }], [{ id: "real-wb-model", display_name: "WorkBuddy live model" }]]);
+      const live = { id: "real-wb-model", display_name: "WorkBuddy live model", context_window: 1_000_000 };
+      expect(lists).toEqual([[live], [live]]);
       expect(refreshes).toBe(1);
       const stored = JSON.parse(await readFile(join(dir, SUBSCRIPTION_AUTH_FILE), "utf8"));
       expect(stored.auth).toMatchObject({ type: "oauth", uid: "wb-user", accountId: "account-one", access: "workbuddy-renewed", refresh: "workbuddy-next-refresh" });

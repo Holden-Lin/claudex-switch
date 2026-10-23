@@ -11,7 +11,7 @@ import { openExternalUrl } from "../../lib/browser";
 
 export type SubscriptionUpstream = "cursor" | "workbuddy" | "workbuddy-ai";
 type Auth = { type: "oauth"; access?: string; refresh?: string; source?: string; [key: string]: unknown };
-type Model = { id: string; display_name?: string };
+type Model = { id: string; display_name?: string; context_window?: number };
 type Provider = { id: string; models: Record<string, { name?: string; [key: string]: unknown }>; [key: string]: unknown };
 type Authorization = {
   url?: string;
@@ -206,7 +206,14 @@ async function models(ctx: Context): Promise<Model[]> {
   if (!Object.keys(catalog).length || (ctx.plugin.provider && catalog === ctx.provider.models)) {
     throw new Error("Subscription model catalog is unavailable; retry after checking the account sign-in.");
   }
-  return Object.entries(catalog).map(([id, value]) => ({ id, ...(value.name ? { display_name: value.name } : {}) }));
+  return Object.entries(catalog).map(([id, value]) => {
+    const context = (value.limit as { context?: unknown } | undefined)?.context;
+    return {
+      id,
+      ...(value.name ? { display_name: value.name } : {}),
+      ...(typeof context === "number" && Number.isSafeInteger(context) && context > 0 ? { context_window: context } : {}),
+    };
+  });
 }
 
 export async function listSubscriptionModels(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<Model[]> {

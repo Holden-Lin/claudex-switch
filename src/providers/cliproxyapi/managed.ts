@@ -83,6 +83,8 @@ const ENV_UPSTREAM = "CLAUDEX_CLIPROXYAPI_UPSTREAM";
 const ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 const ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
 const ENV_SUBSCRIPTION_PORT = "CLAUDEX_CLIPROXYAPI_SUBSCRIPTION_PORT";
+// Subscription catalogs' context windows, as id=tokens pairs.
+const ENV_UPSTREAM_CONTEXT = "CLAUDEX_CLIPROXYAPI_UPSTREAM_CONTEXT";
 const ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
 const ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 // Older accounts had the then-default Luna written into their .env. That
@@ -103,6 +105,8 @@ interface ManagedEnv extends CLIProxyAPIModelMap {
   upstream: CLIProxyAPIUpstream;
   upstreamKey: string | null;
   upstreamModels: string[];
+  // null: written before windows were recorded; an idle daemon restarts to fetch them.
+  upstreamContext: Record<string, number> | null;
   antigravitySensitiveWords: string[];
   subscriptionPort: number | null;
 }
@@ -112,6 +116,7 @@ export interface ManagedCLIProxyAPISetup {
   models?: CLIProxyAPIModelMap;
   upstreamKey?: string;
   upstreamModels?: string[];
+  upstreamContext?: Record<string, number>;
   antigravitySensitiveWords?: string[];
   subscriptionPort?: number;
 }
@@ -292,6 +297,11 @@ function parseManagedEnv(content: string): ManagedEnv {
       .split(",")
       .map((model) => model.trim())
       .filter(Boolean),
+    upstreamContext: values[ENV_UPSTREAM_CONTEXT] === undefined ? null : Object.fromEntries(values[ENV_UPSTREAM_CONTEXT].split(",").flatMap((pair) => {
+      const separator = pair.lastIndexOf("=");
+      const tokens = Number(pair.slice(separator + 1));
+      return separator > 0 && Number.isSafeInteger(tokens) && tokens > 0 ? [[pair.slice(0, separator).trim(), tokens]] : [];
+    })),
     fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
     opusModel: values[ENV_OPUS_MODEL]?.trim() || defaults.opusModel,
@@ -326,6 +336,9 @@ function renderManagedEnv(
     ...(setup.subscriptionPort ? [`${ENV_SUBSCRIPTION_PORT}=${setup.subscriptionPort}`] : []),
     ...(setup.upstreamModels?.length
       ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`]
+      : []),
+    ...(setup.upstreamContext
+      ? [`${ENV_UPSTREAM_CONTEXT}=${Object.entries(setup.upstreamContext).map(([id, tokens]) => `${id}=${tokens}`).join(",")}`]
       : []),
     `${ENV_FABLE_MODEL}=${models.fableModel}`,
     `${ENV_SONNET_MODEL}=${models.sonnetModel}`,
@@ -505,6 +518,7 @@ export async function updateManagedCLIProxyAPISetup(
       models: patch.models ?? current,
       upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
       upstreamModels: patch.upstreamModels ?? current.upstreamModels,
+      upstreamContext: patch.upstreamContext ?? current.upstreamContext ?? undefined,
       antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current.antigravitySensitiveWords,
       subscriptionPort: patch.subscriptionPort ?? current.subscriptionPort ?? undefined,
     }),
@@ -658,6 +672,15 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env[key] = "";
   }
+  const overrides = runtime.models
+    ? profile.upstream === "antigravity"
+      ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
+      : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
+    : {};
+  const windows = runtime.models && isSubscriptionUpstream(profile.upstream)
+    ? subscriptionCompactWindows((await readExistingManagedEnv(profile.profileId)).upstreamContext ?? {}, runtime.models.map(({ id }) => id), overrides)
+    : null;
+  if (windows) env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
   // Extra env the user attached to this profile (e.g. CLAUDE_CODE_EFFORT_LEVEL)
   // is applied after the managed keys, and can never shadow one of them.
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
@@ -679,13 +702,37 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
           description: `${CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"].label} · ${model.id}`,
         })),
       },
-      modelOverrides: profile.upstream === "antigravity"
-        ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
-        : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel),
+      modelOverrides: overrides,
+      ...(windows ? { modelSettings: windows.modelSettings } : {}),
     } : {}),
     env,
   });
   return paths.claudeSettingsFile;
+}
+
+// Claude Code assumes 200K for a model ID it does not know, so a 1M model
+// compacted at 72K under a 40% override. CLAUDE_CODE_MAX_CONTEXT_TOKENS raises
+// that assumption for every unknown ID; each model's autoCompactWindow then
+// caps it at the window the subscription reports (Claude Code takes 100K-1M).
+// A [1m] suffix instead switches off proactive compaction (2.1.309).
+const UNKNOWN_MODEL_WINDOW = 200_000;
+const MIN_COMPACT_WINDOW = 100_000;
+const MAX_COMPACT_WINDOW = 1_000_000;
+
+function subscriptionCompactWindows(
+  context: Record<string, number>,
+  ids: string[],
+  overrides: Record<string, string>,
+): { maxContext: number; modelSettings: Record<string, { autoCompactWindow: number }> } | null {
+  if (!ids.some((id) => context[id])) return null;
+  const windowOf = (id: string) =>
+    Math.min(MAX_COMPACT_WINDOW, Math.max(MIN_COMPACT_WINDOW, context[id] ?? UNKNOWN_MODEL_WINDOW));
+  const modelSettings = Object.fromEntries([
+    ...ids.map((id) => [id, { autoCompactWindow: windowOf(id) }] as const),
+    // Claude Code's own IDs are mapped to a catalog model; compact at its window.
+    ...Object.entries(overrides).map(([id, target]) => [id, { autoCompactWindow: windowOf(target) }] as const),
+  ]);
+  return { maxContext: Math.max(...ids.map(windowOf)), modelSettings };
 }
 
 function subscriptionModelOverrides(ids: string[], tiers: CLIProxyAPIModelMap, savedModel?: string): Record<string, string> {
@@ -1302,6 +1349,7 @@ async function ensureManagedCLIProxyAPIUnlocked(
     const ids = models.map(({ id }) => id);
     await updateManagedCLIProxyAPISetup(profile.profileId, {
       models: pickSubscriptionModels(ids, managed), upstreamModels: ids,
+      upstreamContext: Object.fromEntries(models.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : [])),
       subscriptionPort: await findAvailablePort(),
     });
     managed = await readExistingManagedEnv(profile.profileId);
@@ -1819,7 +1867,9 @@ export async function stopStaleManagedCLIProxyAPI(
     }
     const state = await readState(profile.profileId);
     if (!state || !isPidAlive(state.pid)) return false;
-    if (await isExpectedRuntimeConfig(paths, state, managed)) return false;
+    // Subscription windows are read with the catalog when the daemon starts.
+    const missingWindows = isSubscriptionUpstream(managed.upstream) && managed.upstreamContext === null;
+    if (!missingWindows && await isExpectedRuntimeConfig(paths, state, managed)) return false;
     return stopManagedCLIProxyAPIUnlocked(profile);
   });
 }

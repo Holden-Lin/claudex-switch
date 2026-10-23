@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.26.2：订阅模型按目录窗口压缩。Claude Code 把未知模型 ID 当 200K，WorkBuddy 的 1M deepseek 在 40% 设置下约 72K 即压缩；现写入 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 与逐模型 `modelSettings.autoCompactWindow`，deepseek 约 392K 压缩。真实 Claude Code 2.1.309 逐模型核对有效窗口，订阅端到端脚本通过。
+
 本次版本 v1.26.1：裸 `workbuddy` 首次使用先选国际版（workbuddy.ai）或国内版（workbuddy.cn），修复国际版账号被带到国内版登录页的问题；`workbuddy-ai` 仍直达国际版。396 项测试、类型检查通过；两版登录接口实测均返回 HTTPS 登录页，选择国际版后实际进入 WorkBuddy AI 登录流程。
 
 本次版本 v1.26.0：支持 `workbuddy`、`workbuddy-ai`、`cursor --run --cliproxy claudecode`，复用独立订阅插件，无需安装 magpie。首次选择浏览器或原应用登录，模型菜单取账号目录，凭据及代理生命周期按账号隔离。本地转换代理默认采用官方客户端分类器兼容设置；截图 429 是独立的 agy 配额耗尽。395 项测试、1,835 断言、类型 / 文档检查及构建通过；真实 Claude Code + CLIProxyAPI + WorkBuddy 插件在合成上游完成两轮 Read，Node 与 Bun 编译版的流式回复、断线取消及代理启停皆通过。真实订阅登录仍待账号验证。
@@ -14,6 +16,7 @@
 
 ## Next
 
+- [ ] v1.26.2：结束现有 workbuddy 会话后重新运行 `claudex-switch workbuddy --run --cliproxy claudecode`，确认启动时无 “doesn't recognize the model” 警告，deepseek-v4.1-flash 长会话不再在约 70K 压缩。
 - [ ] v1.26.1：在本人终端运行 `claudex-switch workbuddy --run --cliproxy claudecode`，区域选国际版，完成浏览器登录，核对 `/model` 并做一次短对话及 Read 调用。
 - [ ] v1.26.0：在本人终端运行 `claudex-switch cursor --run --cliproxy claudecode`，完成真实订阅登录，核对 `/model` 并做一次短对话及 Read 调用；本机 Cursor 未登录、未检测到 WorkBuddy，当前证据为真实客户端配合合成上游。浏览器登录保存独立账号，原应用登录引用会跟随账号切换。
 

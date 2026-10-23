@@ -10,6 +10,8 @@ claudex-switch cursor --run --cliproxy claudecode
 
 首次运行 `workbuddy` 先选区域：国际版（workbuddy.ai）或国内版（workbuddy.cn），选定后该别名固定使用此版本；`workbuddy-ai` 直接使用国际版，无需选择。两个版本账号互不通用，登录与模型目录分别保存。之后选择登录方式，成功后建立别名；后续直接启动 Claude Code，在 `/model` 中选择该账号目录提供的模型。未指定 `--model` 时仍由 Claude Code 选择，不强制主模型；已保存但该订阅不存在的默认模型映射到该订阅的对应档位。不同版本的模型只要仍在订阅目录中就保留。
 
+上下文窗口取自订阅目录：Claude Code 不认识这些模型 ID，默认按 200K 计算，1M 的模型会过早压缩。现在每个模型按订阅报告的窗口压缩（如 WorkBuddy AI 的 deepseek-v4.1-flash 为 1M，kimi-k2.6 为 256K），`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` 等百分比设置按此窗口生效。旧账号在代理空闲时下次启动会自动重启并补齐窗口。
+
 内部复用 [Cursor](https://github.com/magpie-community/plugins/tree/main/packages/cursor) 与 [WorkBuddy](https://github.com/magpie-community/plugins/tree/main/packages/workbuddy) 独立插件，随 claudex-switch 分发，无需安装完整 magpie。插件负责订阅登录、续期和原生协议；CLIProxyAPI 负责 Anthropic Messages 转换。请求由本机发往对应订阅服务。
 
 浏览器登录使用 claudex-switch 私有目录中的 `plugin-auth.json`（0600）。选择沿用桌面应用 / Cursor Agent 登录时，只保存引用，**之后会跟随原应用当前登录的账号**，不复制其轮换令牌；希望账号固定时用浏览器登录。`refresh <alias>` 可重新登录，取消或登录错账号不会替换原凭据；使用中的会话会阻止刷新及删除。
