@@ -4364,8 +4364,8 @@ var SUBSCRIPTION_SPEC = {
 };
 var CLI_PROXY_API_UPSTREAMS = {
   cursor: { ...SUBSCRIPTION_SPEC, label: "Cursor" },
-  workbuddy: { ...SUBSCRIPTION_SPEC, label: "WorkBuddy" },
-  "workbuddy-ai": { ...SUBSCRIPTION_SPEC, label: "WorkBuddy AI" },
+  workbuddy: { ...SUBSCRIPTION_SPEC, label: "WorkBuddy (China)" },
+  "workbuddy-ai": { ...SUBSCRIPTION_SPEC, label: "WorkBuddy AI (international)" },
   codex: {
     label: "ChatGPT",
     loginFlag: "-codex-login",
@@ -16073,6 +16073,20 @@ async function createSubscriptionAlias(alias, upstream, options) {
   if (rejection)
     throw new UserFacingError(describeAliasRejection(rejection, alias));
   const binaryPath = await requireBinary(options);
+  if (upstream === "workbuddy") {
+    if (!options.chooseWorkBuddyRegion && !process.stdin.isTTY) {
+      throw new UserFacingError("WorkBuddy needs an interactive terminal to choose its region.", [
+        `Run it in your terminal, or name the build: ${source_default.cyan("workbuddy-ai")} (international).`
+      ]);
+    }
+    upstream = await (options.chooseWorkBuddyRegion ?? (() => esm_default5({
+      message: "WorkBuddy region",
+      choices: [
+        { name: "International (workbuddy.ai)", value: "workbuddy-ai" },
+        { name: "China (workbuddy.cn)", value: "workbuddy" }
+      ]
+    })))();
+  }
   info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
   const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream }, (profileId) => loginOrThrow(profileId, binaryPath, upstreamLabel(upstream)), (name) => addAlias(alias, { provider: "claude", profileName: name }));
   success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel(upstream)}`)}`);
@@ -18864,7 +18878,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.0",
+  version: "1.26.1",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

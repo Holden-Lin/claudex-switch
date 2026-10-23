@@ -23,7 +23,7 @@ function runCli(args: string[], extraEnv: NodeJS.ProcessEnv = {}) {
 }
 
 describe("alias dispatch for --cliproxy", () => {
-  test.each(["cursor", "workbuddy", "workbuddy-ai"])("first-use %s reaches plugin login and cancelled setup leaves no account", async (alias) => {
+  test.each(["cursor", "workbuddy-ai"])("first-use %s reaches plugin login and cancelled setup leaves no account", async (alias) => {
     await resetTestHome();
     const bin = join(TEST_HOME, "fixture-bin");
     await mkdir(bin, { recursive: true });
@@ -35,6 +35,21 @@ describe("alias dispatch for --cliproxy", () => {
     expect(output).not.toContain("Unknown command");
     expect(output).toContain("First use: sign in to");
     expect(output).toContain("login");
+    const managed = await readdir(join(TEST_HOME, ".claudex-switch", "cliproxyapi")).catch(() => []);
+    expect(managed).toEqual([]);
+  });
+
+  test("first-use bare workbuddy asks for its region and names workbuddy-ai without a terminal", async () => {
+    await resetTestHome();
+    const bin = join(TEST_HOME, "fixture-bin");
+    await mkdir(bin, { recursive: true });
+    await symlink(resolve("tests/fixtures/fake-cliproxyapi"), join(bin, "cliproxyapi"));
+    await symlink(resolve("tests/fixtures/fake-cliproxyapi.mjs"), join(bin, "fake-cliproxyapi.mjs"));
+    const result = runCli(["workbuddy", "--run", "--cliproxy", "claudecode"], { PATH: `${bin}:${process.env.PATH}` });
+    const output = `${result.stderr}${result.stdout}`;
+    expect(result.status).toBe(1);
+    expect(output).toContain("choose its region");
+    expect(output).toContain("workbuddy-ai");
     const managed = await readdir(join(TEST_HOME, ".claudex-switch", "cliproxyapi")).catch(() => []);
     expect(managed).toEqual([]);
   });

@@ -110,9 +110,9 @@ claudex-switch cx --run --cliproxy claudecode
 # 用 OpenCode Go 账号额度跑 Claude Code
 claudex-switch go-work --run --cliproxy claudecode
 
-# 用 WorkBuddy（国内版）、WorkBuddy AI（国际版）或 Cursor 订阅
+# 用 WorkBuddy 或 Cursor 订阅（workbuddy 首次会让你选国际版 / 国内版）
 claudex-switch workbuddy --run --cliproxy claudecode
-claudex-switch workbuddy-ai --run --cliproxy claudecode
+claudex-switch workbuddy-ai --run --cliproxy claudecode  # 直接用国际版
 claudex-switch cursor --run --cliproxy claudecode
 ```
 

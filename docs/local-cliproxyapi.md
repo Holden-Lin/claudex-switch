@@ -8,7 +8,7 @@ claudex-switch workbuddy-ai --run --cliproxy claudecode
 claudex-switch cursor --run --cliproxy claudecode
 ```
 
-`workbuddy` 是国内版，`workbuddy-ai` 是国际版；两者登录与模型目录分别保存。首次运行选择登录方式，成功后建立别名；后续直接启动 Claude Code，在 `/model` 中选择该账号目录提供的模型。未指定 `--model` 时仍由 Claude Code 选择，不强制主模型；已保存但该订阅不存在的默认模型映射到该订阅的对应档位。不同版本的模型只要仍在订阅目录中就保留。
+首次运行 `workbuddy` 先选区域：国际版（workbuddy.ai）或国内版（workbuddy.cn），选定后该别名固定使用此版本；`workbuddy-ai` 直接使用国际版，无需选择。两个版本账号互不通用，登录与模型目录分别保存。之后选择登录方式，成功后建立别名；后续直接启动 Claude Code，在 `/model` 中选择该账号目录提供的模型。未指定 `--model` 时仍由 Claude Code 选择，不强制主模型；已保存但该订阅不存在的默认模型映射到该订阅的对应档位。不同版本的模型只要仍在订阅目录中就保留。
 
 内部复用 [Cursor](https://github.com/magpie-community/plugins/tree/main/packages/cursor) 与 [WorkBuddy](https://github.com/magpie-community/plugins/tree/main/packages/workbuddy) 独立插件，随 claudex-switch 分发，无需安装完整 magpie。插件负责订阅登录、续期和原生协议；CLIProxyAPI 负责 Anthropic Messages 转换。请求由本机发往对应订阅服务。
 

@@ -435,6 +435,17 @@ describe("--cliproxy claudecode", () => {
     expect(await managedDirs()).toEqual([]);
   });
 
+  test("bare workbuddy signs in to the region the user picks", async () => {
+    let asked = 0;
+    const chooseWorkBuddyRegion = async () => { asked++; return "workbuddy-ai" as const; };
+    // Test stdin is not a terminal, so setup stops at the chosen build's login.
+    await expect(resolveCLIProxyClaudeEntry("workbuddy", { ...options, chooseWorkBuddyRegion }))
+      .rejects.toThrow("WorkBuddy AI (international) login needs an interactive terminal");
+    expect(asked).toBe(1);
+    expect((await loadAliases()).aliases.some((entry) => entry.alias === "workbuddy")).toBe(false);
+    expect(await managedDirs()).toEqual([]);
+  });
+
   test("agy catalog failure on reuse leaves mappings and active sessions intact", async () => {
     const entry = await resolveCLIProxyClaudeEntry("agy", options);
     const data = await getProfileData((entry.target as { profileName: string }).profileName) as LocalCLIProxyAPIProfileData;

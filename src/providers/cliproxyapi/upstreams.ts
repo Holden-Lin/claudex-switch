@@ -38,8 +38,8 @@ const SUBSCRIPTION_SPEC = {
 
 export const CLI_PROXY_API_UPSTREAMS: Record<CLIProxyAPIUpstream, CLIProxyAPIUpstreamSpec> = {
   cursor: { ...SUBSCRIPTION_SPEC, label: "Cursor" },
-  workbuddy: { ...SUBSCRIPTION_SPEC, label: "WorkBuddy" },
-  "workbuddy-ai": { ...SUBSCRIPTION_SPEC, label: "WorkBuddy AI" },
+  workbuddy: { ...SUBSCRIPTION_SPEC, label: "WorkBuddy (China)" },
+  "workbuddy-ai": { ...SUBSCRIPTION_SPEC, label: "WorkBuddy AI (international)" },
   codex: {
     label: "ChatGPT",
     loginFlag: "-codex-login",

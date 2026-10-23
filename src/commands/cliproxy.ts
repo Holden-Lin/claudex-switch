@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { confirm } from "@inquirer/prompts";
+import { confirm, select } from "@inquirer/prompts";
 import { addAlias, checkAlias, describeAliasRejection, findAlias, loadAliases } from "../alias/store";
 import { blank, hint, info, success, warn } from "../lib/ui";
 import {
@@ -69,6 +69,7 @@ export function isClaudeCodeClient(value: string): boolean {
 export interface CLIProxyResolveOptions {
   resolveBinary?: () => Promise<string | null>;
   confirmRisk?: () => Promise<boolean>;
+  chooseWorkBuddyRegion?: () => Promise<SubscriptionUpstream>;
 }
 
 /**
@@ -365,6 +366,22 @@ async function createSubscriptionAlias(alias: string, upstream: SubscriptionUpst
   const rejection = checkAlias(await loadAliases(), alias);
   if (rejection) throw new UserFacingError(describeAliasRejection(rejection, alias));
   const binaryPath = await requireBinary(options);
+  // Bare `workbuddy` names the product, not a build: an international account
+  // cannot sign in on the China build's page, so ask which one.
+  if (upstream === "workbuddy") {
+    if (!options.chooseWorkBuddyRegion && !process.stdin.isTTY) {
+      throw new UserFacingError("WorkBuddy needs an interactive terminal to choose its region.", [
+        `Run it in your terminal, or name the build: ${chalk.cyan("workbuddy-ai")} (international).`,
+      ]);
+    }
+    upstream = await (options.chooseWorkBuddyRegion ?? (() => select<SubscriptionUpstream>({
+      message: "WorkBuddy region",
+      choices: [
+        { name: "International (workbuddy.ai)", value: "workbuddy-ai" },
+        { name: "China (workbuddy.cn)", value: "workbuddy" },
+      ],
+    })))();
+  }
   info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
   const { profileName, profile, runtime } = await createManagedProfile(
     binaryPath, { upstream },

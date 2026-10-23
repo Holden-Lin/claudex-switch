@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.26.1：裸 `workbuddy` 首次使用先选国际版（workbuddy.ai）或国内版（workbuddy.cn），修复国际版账号被带到国内版登录页的问题；`workbuddy-ai` 仍直达国际版。396 项测试、类型检查通过；两版登录接口实测均返回 HTTPS 登录页，选择国际版后实际进入 WorkBuddy AI 登录流程。
+
 本次版本 v1.26.0：支持 `workbuddy`、`workbuddy-ai`、`cursor --run --cliproxy claudecode`，复用独立订阅插件，无需安装 magpie。首次选择浏览器或原应用登录，模型菜单取账号目录，凭据及代理生命周期按账号隔离。本地转换代理默认采用官方客户端分类器兼容设置；截图 429 是独立的 agy 配额耗尽。395 项测试、1,835 断言、类型 / 文档检查及构建通过；真实 Claude Code + CLIProxyAPI + WorkBuddy 插件在合成上游完成两轮 Read，Node 与 Bun 编译版的流式回复、断线取消及代理启停皆通过。真实订阅登录仍待账号验证。
 
 本次版本 v1.25.8：修 agy 仍报 `unknown provider for model claude-opus-5-5`。CLIProxyAPI 新启动时先给内置旧目录，数秒后才换远程目录；现等目录稳定，停用的 Claude 4.6 改到最新版，并映射 Claude Code 自身及已保存的模型 ID。升级后结束旧 agy 会话再运行 `claudex-switch agy --run --cliproxy claudecode`。
@@ -12,7 +14,8 @@
 
 ## Next
 
-- [ ] v1.26.0：在本人终端运行 `claudex-switch workbuddy --run --cliproxy claudecode` 和 `claudex-switch cursor --run --cliproxy claudecode`，完成真实订阅登录，核对 `/model` 并做一次短对话及 Read 调用；本机 Cursor 未登录、未检测到 WorkBuddy，当前证据为真实客户端配合合成上游。国际版用 `workbuddy-ai`。浏览器登录保存独立账号，原应用登录引用会跟随账号切换。
+- [ ] v1.26.1：在本人终端运行 `claudex-switch workbuddy --run --cliproxy claudecode`，区域选国际版，完成浏览器登录，核对 `/model` 并做一次短对话及 Read 调用。
+- [ ] v1.26.0：在本人终端运行 `claudex-switch cursor --run --cliproxy claudecode`，完成真实订阅登录，核对 `/model` 并做一次短对话及 Read 调用；本机 Cursor 未登录、未检测到 WorkBuddy，当前证据为真实客户端配合合成上游。浏览器登录保存独立账号，原应用登录引用会跟随账号切换。
 
 - [ ] 用户升级 v1.25.0 后跑 `claudex-switch list`，核对 `wk` 后的重置时间与各家官网/`/status` 显示一致（本次仅以测试数据验证，真实 HOME 被仓库保护拦截）。
 - [ ] 用户升级 v1.24.0 后开新终端，确认 `.zshrc` 里的 `list --cached` 第一次没有走势（缓存尚未生成），第二次起出现走势且启动无明显变慢。
