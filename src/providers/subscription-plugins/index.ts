@@ -46,6 +46,8 @@ const FACTORIES = { cursor: CursorAuthPlugin, workbuddy: WorkBuddyAuthPlugin, "w
 const writes = new Map<string, Promise<void>>();
 const contexts = new Map<string, Promise<Context>>();
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
+// WorkBuddy refuses non-stream chats (error 11101); the Cursor plugin answers them itself.
+const STREAM_ONLY = new Set<SubscriptionUpstream>(["workbuddy", "workbuddy-ai"]);
 export const SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
 
 export function isSubscriptionUpstream(value: unknown): value is SubscriptionUpstream {
@@ -323,13 +325,71 @@ async function bridgeResponse(input: {
   const headers: Record<string, string> = { "content-type": "application/json" };
   const session = input.headers.get("x-claudex-session");
   if (session) await ctx.plugin["chat.headers"]?.({ sessionID: session.slice(0, 256), model: { providerID: options.upstream } }, { headers });
-  const upstream = await pluginFetch!(endpoint, { method: "POST", headers, body, signal: input.signal });
+  // Claude Code's side queries (auto mode classifier, titles) and its non-streaming fallback ask for one JSON answer.
+  const collect = STREAM_ONLY.has(options.upstream) && (chat as { stream?: unknown }).stream !== true;
+  const sent = collect ? JSON.stringify({ ...chat, stream: true, stream_options: { include_usage: true } }) : body;
+  const upstream = await pluginFetch!(endpoint, { method: "POST", headers, body: sent, signal: input.signal });
+  if (collect && upstream.ok && !/json/i.test(upstream.headers.get("content-type") ?? "")) return collectedChat(await upstream.text());
   const responseHeaders = new Headers();
   const connectionHeaders = new Set((upstream.headers.get("connection") ?? "").toLowerCase().split(",").map((h) => h.trim()));
   upstream.headers.forEach((value, name) => {
     if (!HOP_HEADERS.has(name) && !connectionHeaders.has(name)) responseHeaders.set(name, value);
   });
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+}
+
+type ChunkChoice = {
+  index?: number;
+  delta?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ index?: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> };
+  finish_reason?: string | null;
+};
+
+// collectedChat folds a chat completion SSE stream into the chat.completion a non-stream request expects.
+function collectedChat(sse: string): Response {
+  let head: { id?: string; created?: number; model?: string } = {};
+  let usage: unknown;
+  const choices = new Map<number, { content: string; reasoning: string; calls: Map<number, { id?: string; type: string; function: { name: string; arguments: string } }>; finish: string | null }>();
+  for (const line of sse.split("\n")) {
+    const data = /^data:\s?(.*)$/.exec(line.trim())?.[1];
+    if (!data || data === "[DONE]") continue;
+    let chunk: { id?: string; created?: number; model?: string; usage?: unknown; error?: unknown; choices?: ChunkChoice[] };
+    try { chunk = JSON.parse(data); } catch { continue; }
+    if (chunk.error) return json(502, { error: typeof chunk.error === "object" ? chunk.error : { message: String(chunk.error) } });
+    if (!head.id && chunk.id) head = { id: chunk.id, created: chunk.created, model: chunk.model };
+    if (chunk.usage) usage = chunk.usage;
+    for (const c of chunk.choices ?? []) {
+      const index = c.index ?? 0;
+      const choice = choices.get(index) ?? { content: "", reasoning: "", calls: new Map(), finish: null };
+      choices.set(index, choice);
+      choice.content += c.delta?.content ?? "";
+      choice.reasoning += c.delta?.reasoning_content ?? "";
+      for (const t of c.delta?.tool_calls ?? []) {
+        const call = choice.calls.get(t.index ?? 0) ?? { type: "function", function: { name: "", arguments: "" } };
+        choice.calls.set(t.index ?? 0, call);
+        if (t.id) call.id = t.id;
+        if (t.function?.name) call.function.name = t.function.name;
+        call.function.arguments += t.function?.arguments ?? "";
+      }
+      if (c.finish_reason) choice.finish = c.finish_reason;
+    }
+  }
+  return json(200, {
+    id: head.id ?? `chatcmpl-${randomUUID()}`,
+    object: "chat.completion",
+    created: head.created ?? Math.floor(Date.now() / 1000),
+    model: head.model,
+    choices: [...choices].sort(([a], [b]) => a - b).map(([index, c]) => ({
+      index,
+      message: {
+        role: "assistant",
+        content: c.content || (c.calls.size ? null : ""),
+        ...(c.reasoning ? { reasoning_content: c.reasoning } : {}),
+        ...(c.calls.size ? { tool_calls: [...c.calls].sort(([a], [b]) => a - b).map(([, call]) => call) } : {}),
+      },
+      finish_reason: c.finish ?? "stop",
+    })),
+    ...(usage ? { usage } : {}),
+  });
 }
 
 function failure(error: unknown): Response {

@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.26.4：修 WorkBuddy 报 `11101 Non-stream chat request is currently not supported`。WorkBuddy 只接受流式请求，本地桥把 Claude Code 的非流式请求改为流式再合并成完整回复（含思考、工具调用、用量）；旧版桥空闲时下次启动自动重启。400 项测试通过；真实 WorkBuddy AI 账号经新桥的非流式文本与工具调用均返回完整 JSON；真实 Claude Code 2.1.309 + CLIProxyAPI 订阅端到端脚本新增非流式与旧桥重启核对并通过。
+
 本次版本 v1.26.3：WorkBuddy 的 auto mode 分类器默认用 `deepseek-v4.1-flash`，只写入该账号 `--run` 私有设置，账号 env 可覆盖。真实 Claude Code 2.1.309（含非 bare）核对分类请求全部走该模型。
 
 本次版本 v1.26.2：订阅模型按目录窗口压缩。Claude Code 把未知模型 ID 当 200K，WorkBuddy 的 1M deepseek 在 40% 设置下约 72K 即压缩；现写入 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 与逐模型 `modelSettings.autoCompactWindow`，deepseek 约 392K 压缩。真实 Claude Code 2.1.309 逐模型核对有效窗口，订阅端到端脚本通过。
@@ -18,6 +20,7 @@
 
 ## Next
 
+- [ ] v1.26.4：结束现有 workbuddy 会话后重新运行，确认不再出现 11101 报错。
 - [ ] v1.26.2：结束现有 workbuddy 会话后重新运行 `claudex-switch workbuddy --run --cliproxy claudecode`，确认启动时无 “doesn't recognize the model” 警告，deepseek-v4.1-flash 长会话不再在约 70K 压缩。
 - [ ] v1.26.1：在本人终端运行 `claudex-switch workbuddy --run --cliproxy claudecode`，区域选国际版，完成浏览器登录，核对 `/model` 并做一次短对话及 Read 调用。
 - [ ] v1.26.0：在本人终端运行 `claudex-switch cursor --run --cliproxy claudecode`，完成真实订阅登录，核对 `/model` 并做一次短对话及 Read 调用；本机 Cursor 未登录、未检测到 WorkBuddy，当前证据为真实客户端配合合成上游。浏览器登录保存独立账号，原应用登录引用会跟随账号切换。

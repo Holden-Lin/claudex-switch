@@ -110,6 +110,21 @@ try {
   const settings = JSON.parse(await readFile(join(cliProxyAPIProfileDir(profileId), "claude-settings.json"), "utf8"));
   assert.equal(settings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS, "200000", "The catalog's context window must reach Claude Code.");
   assert.equal(settings.modelSettings?.["claude-sonnet-5-5"]?.autoCompactWindow, 200000);
+  // Side queries and Claude Code's non-streaming fallback reach stream-only WorkBuddy as one JSON answer.
+  const runtime = await managed.ensureManagedCLIProxyAPI(profile);
+  const single = await fetch(`${runtime.baseUrl}/v1/messages`, { method: "POST",
+    headers: { "x-api-key": runtime.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 50, stream: false, messages: [{ role: "user", content: "Classify." }] }) });
+  const answer = await single.json();
+  assert.equal(single.status, 200, `Non-stream request failed: ${JSON.stringify(answer)}`);
+  assert.equal(answer.content?.[0]?.text, "allow");
+  // A bridge started before the current revision restarts on the next idle launch.
+  const stateFile = join(cliProxyAPIProfileDir(profileId), "state.json");
+  const { bridgeRevision, ...oldState } = JSON.parse(await readFile(stateFile, "utf8"));
+  assert.equal(bridgeRevision, 1);
+  assert.equal(await managed.stopStaleManagedCLIProxyAPI(profile), false);
+  await writeFile(stateFile, JSON.stringify(oldState), { mode: 0o600 });
+  assert.equal(await managed.stopStaleManagedCLIProxyAPI(profile), true);
   const receipt = { passed: true, syntheticUpstream: true, realSubscriptionVerified: false,
     realClaudeCode: claude, realCLIProxyAPI: binary, builtEntrypoint: entry,
     claudeCodeVersion: initialization?.claude_code_version, permissionMode: initialization?.permissionMode,

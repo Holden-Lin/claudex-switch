@@ -63,8 +63,8 @@ function fake(options: {
   };
 }
 
-async function bridge(dir: string, options: SubscriptionPluginOptions) {
-  const server = await serveSubscriptionBridge({ directory: dir, upstream: "cursor", apiKey: "test-key", port: 0, ...options });
+async function bridge(dir: string, options: SubscriptionPluginOptions, upstream: SubscriptionUpstream = "cursor") {
+  const server = await serveSubscriptionBridge({ directory: dir, upstream, apiKey: "test-key", port: 0, ...options });
   servers.push(server);
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Missing listener address");
@@ -176,6 +176,44 @@ describe("subscription plugin adapter", () => {
     expect(error.status).toBe(429);
     expect(error.headers.get("retry-after")).toBe("10");
     expect(await error.text()).toBe('{"error":{"message":"quota exhausted"}}');
+  });
+
+  test("WorkBuddy answers a non-stream chat by collecting its stream, and passes stream chats through", async () => {
+    const dir = await directory();
+    const options = fake({ upstream: "workbuddy-ai", fetch: async (_input, init) => {
+      const body = JSON.parse(String(init.body));
+      expect(body.stream).toBe(true);
+      if (body.model === "broken") return new Response('data: {"error":{"message":"quota exhausted"}}\n\n', { headers: { "content-type": "text/event-stream" } });
+      if (body.model === "rejected") return new Response('{"code":11101}', { status: 400, headers: { "content-type": "application/json" } });
+      const chunks = [
+        { id: "c1", created: 7, model: "deepseek-v4.1-flash", choices: [{ index: 0, delta: { role: "assistant", reasoning_content: "thin" } }] },
+        { id: "c1", choices: [{ index: 0, delta: { reasoning_content: "king", content: "Hel" } }] },
+        { id: "c1", choices: [{ index: 0, delta: { content: "lo", tool_calls: [{ index: 0, id: "call-1", type: "function", function: { name: "Read", arguments: '{"file' } }] } }] },
+        { id: "c1", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '_path":"a"}' } }] }, finish_reason: "tool_calls" }] },
+        { id: "c1", choices: [], usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 } },
+      ];
+      const sse = body.stream_options?.include_usage ? chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n" : "data: passthrough\n\n";
+      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
+    } });
+    await loginSubscriptionPlugin(dir, "workbuddy-ai", 0, () => {}, options);
+    const url = await bridge(dir, options, "workbuddy-ai");
+    const collected = await chat(url, { model: "deepseek-v4.1-flash", messages: [], stream: false });
+    expect(collected.status).toBe(200);
+    expect(await collected.json()).toEqual({
+      id: "c1", object: "chat.completion", created: 7, model: "deepseek-v4.1-flash",
+      choices: [{ index: 0, finish_reason: "tool_calls", message: {
+        role: "assistant", content: "Hello", reasoning_content: "thinking",
+        tool_calls: [{ id: "call-1", type: "function", function: { name: "Read", arguments: '{"file_path":"a"}' } }],
+      } }],
+      usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 },
+    });
+    expect(await (await chat(url, { model: "deepseek-v4.1-flash", messages: [], stream: true })).text()).toBe("data: passthrough\n\n");
+    const broken = await chat(url, { model: "broken", messages: [] });
+    expect(broken.status).toBe(502);
+    expect(await broken.json()).toEqual({ error: { message: "quota exhausted" } });
+    const rejected = await chat(url, { model: "rejected", messages: [] });
+    expect(rejected.status).toBe(400);
+    expect(await rejected.text()).toBe('{"code":11101}');
   });
 
   test("serializes concurrent auth.set updates and reads the latest auth on the next request", async () => {

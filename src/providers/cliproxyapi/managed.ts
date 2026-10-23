@@ -121,12 +121,17 @@ export interface ManagedCLIProxyAPISetup {
   subscriptionPort?: number;
 }
 
+// Bump when the subscription bridge changes behavior: 1 = WorkBuddy non-stream chats are collected from a stream.
+const SUBSCRIPTION_BRIDGE_REVISION = 1;
+
 interface ManagedRuntimeState {
   pid: number;
   port: number;
   binaryPath: string;
   configPath: string;
   startedAt: number;
+  // Subscription daemons outlive upgrades; a bridge older than SUBSCRIPTION_BRIDGE_REVISION restarts when idle.
+  bridgeRevision?: number;
 }
 
 interface LockOwner {
@@ -1391,6 +1396,7 @@ async function ensureManagedCLIProxyAPIUnlocked(
       binaryPath: profile.binaryPath,
       configPath: paths.configFile,
       startedAt,
+      ...(isSubscriptionUpstream(managed.upstream) ? { bridgeRevision: SUBSCRIPTION_BRIDGE_REVISION } : {}),
     });
     return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey }, startedAt);
   }
@@ -1877,8 +1883,9 @@ export async function stopStaleManagedCLIProxyAPI(
     const state = await readState(profile.profileId);
     if (!state || !isPidAlive(state.pid)) return false;
     // Subscription windows are read with the catalog when the daemon starts.
-    const missingWindows = isSubscriptionUpstream(managed.upstream) && managed.upstreamContext === null;
-    if (!missingWindows && await isExpectedRuntimeConfig(paths, state, managed)) return false;
+    const outdated = isSubscriptionUpstream(managed.upstream)
+      && (managed.upstreamContext === null || state.bridgeRevision !== SUBSCRIPTION_BRIDGE_REVISION);
+    if (!outdated && await isExpectedRuntimeConfig(paths, state, managed)) return false;
     return stopManagedCLIProxyAPIUnlocked(profile);
   });
 }

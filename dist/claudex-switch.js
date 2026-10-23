@@ -9661,6 +9661,7 @@ var FACTORIES = { cursor: CursorAuthPlugin, workbuddy: WorkBuddyAuthPlugin, "wor
 var writes = new Map;
 var contexts = new Map;
 var MAX_BODY_BYTES = 16 * 1024 * 1024;
+var STREAM_ONLY = new Set(["workbuddy", "workbuddy-ai"]);
 var SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
 function isSubscriptionUpstream(value) {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
@@ -9938,7 +9939,11 @@ async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
   const session = input.headers.get("x-claudex-session");
   if (session)
     await ctx.plugin["chat.headers"]?.({ sessionID: session.slice(0, 256), model: { providerID: options.upstream } }, { headers });
-  const upstream = await pluginFetch(endpoint, { method: "POST", headers, body, signal: input.signal });
+  const collect2 = STREAM_ONLY.has(options.upstream) && chat.stream !== true;
+  const sent = collect2 ? JSON.stringify({ ...chat, stream: true, stream_options: { include_usage: true } }) : body;
+  const upstream = await pluginFetch(endpoint, { method: "POST", headers, body: sent, signal: input.signal });
+  if (collect2 && upstream.ok && !/json/i.test(upstream.headers.get("content-type") ?? ""))
+    return collectedChat(await upstream.text());
   const responseHeaders = new Headers;
   const connectionHeaders = new Set((upstream.headers.get("connection") ?? "").toLowerCase().split(",").map((h) => h.trim()));
   upstream.headers.forEach((value, name) => {
@@ -9946,6 +9951,64 @@ async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
       responseHeaders.set(name, value);
   });
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+}
+function collectedChat(sse) {
+  let head = {};
+  let usage2;
+  const choices = new Map;
+  for (const line of sse.split(`
+`)) {
+    const data = /^data:\s?(.*)$/.exec(line.trim())?.[1];
+    if (!data || data === "[DONE]")
+      continue;
+    let chunk;
+    try {
+      chunk = JSON.parse(data);
+    } catch {
+      continue;
+    }
+    if (chunk.error)
+      return json(502, { error: typeof chunk.error === "object" ? chunk.error : { message: String(chunk.error) } });
+    if (!head.id && chunk.id)
+      head = { id: chunk.id, created: chunk.created, model: chunk.model };
+    if (chunk.usage)
+      usage2 = chunk.usage;
+    for (const c of chunk.choices ?? []) {
+      const index = c.index ?? 0;
+      const choice = choices.get(index) ?? { content: "", reasoning: "", calls: new Map, finish: null };
+      choices.set(index, choice);
+      choice.content += c.delta?.content ?? "";
+      choice.reasoning += c.delta?.reasoning_content ?? "";
+      for (const t of c.delta?.tool_calls ?? []) {
+        const call2 = choice.calls.get(t.index ?? 0) ?? { type: "function", function: { name: "", arguments: "" } };
+        choice.calls.set(t.index ?? 0, call2);
+        if (t.id)
+          call2.id = t.id;
+        if (t.function?.name)
+          call2.function.name = t.function.name;
+        call2.function.arguments += t.function?.arguments ?? "";
+      }
+      if (c.finish_reason)
+        choice.finish = c.finish_reason;
+    }
+  }
+  return json(200, {
+    id: head.id ?? `chatcmpl-${randomUUID2()}`,
+    object: "chat.completion",
+    created: head.created ?? Math.floor(Date.now() / 1000),
+    model: head.model,
+    choices: [...choices].sort(([a], [b]) => a - b).map(([index, c]) => ({
+      index,
+      message: {
+        role: "assistant",
+        content: c.content || (c.calls.size ? null : ""),
+        ...c.reasoning ? { reasoning_content: c.reasoning } : {},
+        ...c.calls.size ? { tool_calls: [...c.calls].sort(([a], [b]) => a - b).map(([, call2]) => call2) } : {}
+      },
+      finish_reason: c.finish ?? "stop"
+    })),
+    ...usage2 ? { usage: usage2 } : {}
+  });
 }
 function failure2(error) {
   const result2 = json(error instanceof HTTPError ? error.status : 502, { error: { message: error instanceof HTTPError ? error.message : "Subscription upstream request failed." } });
@@ -10214,6 +10277,7 @@ var ORPHAN_LOCK_GRACE_MS = 60000;
 var LOCK_HEARTBEAT_MS = 1e4;
 var LOOPBACK_HOST = "127.0.0.1";
 var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+var SUBSCRIPTION_BRIDGE_REVISION = 1;
 function assertProfileId(profileId) {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
     throw new Error("Invalid managed CLIProxyAPI profile id");
@@ -11083,7 +11147,8 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
       port,
       binaryPath: profile.binaryPath,
       configPath: paths.configFile,
-      startedAt
+      startedAt,
+      ...isSubscriptionUpstream(managed.upstream) ? { bridgeRevision: SUBSCRIPTION_BRIDGE_REVISION } : {}
     });
     return syncAntigravityModels(profile.profileId, managed, { port, baseUrl: baseUrl(port), apiKey: managed.apiKey }, startedAt);
   }
@@ -11439,8 +11504,8 @@ async function stopStaleManagedCLIProxyAPI(profile) {
     const state = await readState(profile.profileId);
     if (!state || !isPidAlive(state.pid))
       return false;
-    const missingWindows = isSubscriptionUpstream(managed.upstream) && managed.upstreamContext === null;
-    if (!missingWindows && await isExpectedRuntimeConfig(paths, state, managed))
+    const outdated = isSubscriptionUpstream(managed.upstream) && (managed.upstreamContext === null || state.bridgeRevision !== SUBSCRIPTION_BRIDGE_REVISION);
+    if (!outdated && await isExpectedRuntimeConfig(paths, state, managed))
       return false;
     return stopManagedCLIProxyAPIUnlocked(profile);
   });
@@ -18917,7 +18982,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.3",
+  version: "1.26.4",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
