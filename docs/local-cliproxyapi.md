@@ -12,6 +12,8 @@ claudex-switch cursor --run --cliproxy claudecode
 
 上下文窗口取自订阅目录：Claude Code 不认识这些模型 ID，默认按 200K 计算，1M 的模型会过早压缩。现在每个模型按订阅报告的窗口压缩（如 WorkBuddy AI 的 deepseek-v4.1-flash 为 1M，kimi-k2.6 为 256K），`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` 等百分比设置按此窗口生效。旧账号在代理空闲时下次启动会自动重启并补齐窗口。
 
+WorkBuddy（国内版与国际版）的 auto mode 权限分类器默认使用 `deepseek-v4.1-flash`（目录中存在时）；不设置时它跟随 sonnet 档位，即 WorkBuddy 的 Auto（积分未知、窗口 176K），每次判定工具调用都会请求一次。此设置只写入该账号 `--run` 的私有设置文件，不影响普通 Claude Code 及其他账号；可在账号自定义 env 中设置 `CLAUDE_CODE_AUTO_MODE_MODEL` 覆盖。
+
 内部复用 [Cursor](https://github.com/magpie-community/plugins/tree/main/packages/cursor) 与 [WorkBuddy](https://github.com/magpie-community/plugins/tree/main/packages/workbuddy) 独立插件，随 claudex-switch 分发，无需安装完整 magpie。插件负责订阅登录、续期和原生协议；CLIProxyAPI 负责 Anthropic Messages 转换。请求由本机发往对应订阅服务。
 
 浏览器登录使用 claudex-switch 私有目录中的 `plugin-auth.json`（0600）。选择沿用桌面应用 / Cursor Agent 登录时，只保存引用，**之后会跟随原应用当前登录的账号**，不复制其轮换令牌；希望账号固定时用浏览器登录。`refresh <alias>` 可重新登录，取消或登录错账号不会替换原凭据；使用中的会话会阻止刷新及删除。

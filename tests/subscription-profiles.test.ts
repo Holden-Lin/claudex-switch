@@ -61,6 +61,28 @@ describe("Claude Code subscription profiles", () => {
     expect(windows[settings.modelOverrides["claude-opus-5-5"]]).toBe(windows["claude-opus-5-5"]);
   });
 
+  test("WorkBuddy's auto mode classifier runs on deepseek-v4.1-flash only inside its own session settings", async () => {
+    const settingsFor = async (upstream: "workbuddy" | "workbuddy-ai" | "cursor", ids: string[], env?: Record<string, string>) => {
+      const profile: LocalCLIProxyAPIProfileData = {
+        type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi",
+        defaultModel: "fable", upstream, ...(env ? { env } : {}),
+      };
+      await initializeManagedCLIProxyAPI(profile.profileId, { upstream, models: pickSubscriptionModels(ids), upstreamModels: ids, subscriptionPort: 12345 });
+      const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+        port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: ids.map((id) => ({ id })),
+      }, { inheritModel: true });
+      return JSON.parse(await readFile(path, "utf8")).env as Record<string, string>;
+    };
+    const ids = ["default-model", "deepseek-v4.1-flash"];
+    expect((await settingsFor("workbuddy-ai", ids)).CLAUDE_CODE_AUTO_MODE_MODEL).toBe("deepseek-v4.1-flash");
+    expect((await settingsFor("workbuddy", ids)).CLAUDE_CODE_AUTO_MODE_MODEL).toBe("deepseek-v4.1-flash");
+    // The main model is still Claude Code's own choice.
+    expect((await settingsFor("workbuddy-ai", ids)).ANTHROPIC_MODEL).toBe("");
+    expect((await settingsFor("workbuddy-ai", ids, { CLAUDE_CODE_AUTO_MODE_MODEL: "kimi-k3" })).CLAUDE_CODE_AUTO_MODE_MODEL).toBe("kimi-k3");
+    expect((await settingsFor("workbuddy-ai", ["default-model"])).CLAUDE_CODE_AUTO_MODE_MODEL).toBeUndefined();
+    expect((await settingsFor("cursor", ids)).CLAUDE_CODE_AUTO_MODE_MODEL).toBeUndefined();
+  });
+
   test("subscription catalogs without windows keep Claude Code's defaults", async () => {
     const ids = ["auto"];
     const profile: LocalCLIProxyAPIProfileData = {

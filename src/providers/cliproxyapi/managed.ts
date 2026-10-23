@@ -643,6 +643,9 @@ export function antigravityModelOverrides(
   return overrides;
 }
 
+// WorkBuddy AI listed it free (x0.00) with a 1M window on 2026-10-23.
+const WORKBUDDY_AUTO_MODE_MODEL = "deepseek-v4.1-flash";
+
 // Claude Code accepts a settings file path. Keeping the generated client API
 // key in this 0600 file prevents it from appearing in argv, shell history, or
 // the `Running ...` line that claudex-switch prints for a session.
@@ -681,6 +684,12 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
     ? subscriptionCompactWindows((await readExistingManagedEnv(profile.profileId)).upstreamContext ?? {}, runtime.models.map(({ id }) => id), overrides)
     : null;
   if (windows) env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
+  // The auto mode classifier otherwise follows the sonnet tier, WorkBuddy's
+  // Auto router (unknown credits, 176K), on every tool call it judges.
+  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai")
+    && runtime.models?.some(({ id }) => id === WORKBUDDY_AUTO_MODE_MODEL)) {
+    env.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_AUTO_MODE_MODEL;
+  }
   // Extra env the user attached to this profile (e.g. CLAUDE_CODE_EFFORT_LEVEL)
   // is applied after the managed keys, and can never shadow one of them.
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {

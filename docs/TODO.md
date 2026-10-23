@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.26.3：WorkBuddy 的 auto mode 分类器默认用 `deepseek-v4.1-flash`，只写入该账号 `--run` 私有设置，账号 env 可覆盖。真实 Claude Code 2.1.309（含非 bare）核对分类请求全部走该模型。
+
 本次版本 v1.26.2：订阅模型按目录窗口压缩。Claude Code 把未知模型 ID 当 200K，WorkBuddy 的 1M deepseek 在 40% 设置下约 72K 即压缩；现写入 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 与逐模型 `modelSettings.autoCompactWindow`，deepseek 约 392K 压缩。真实 Claude Code 2.1.309 逐模型核对有效窗口，订阅端到端脚本通过。
 
 本次版本 v1.26.1：裸 `workbuddy` 首次使用先选国际版（workbuddy.ai）或国内版（workbuddy.cn），修复国际版账号被带到国内版登录页的问题；`workbuddy-ai` 仍直达国际版。396 项测试、类型检查通过；两版登录接口实测均返回 HTTPS 登录页，选择国际版后实际进入 WorkBuddy AI 登录流程。

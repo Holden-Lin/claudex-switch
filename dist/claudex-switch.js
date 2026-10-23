@@ -10539,6 +10539,7 @@ function antigravityModelOverrides(ids, tiers, savedModel) {
   }
   return overrides;
 }
+var WORKBUDDY_AUTO_MODE_MODEL = "deepseek-v4.1-flash";
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
@@ -10560,6 +10561,9 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   const windows = runtime.models && isSubscriptionUpstream(profile.upstream) ? subscriptionCompactWindows((await readExistingManagedEnv(profile.profileId)).upstreamContext ?? {}, runtime.models.map(({ id }) => id), overrides) : null;
   if (windows)
     env3.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
+  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && runtime.models?.some(({ id }) => id === WORKBUDDY_AUTO_MODE_MODEL)) {
+    env3.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_AUTO_MODE_MODEL;
+  }
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env3[key] = value;
   }
@@ -18913,7 +18917,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.2",
+  version: "1.26.3",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
