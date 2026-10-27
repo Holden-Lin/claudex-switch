@@ -35,12 +35,11 @@ const CODEX_MODEL_ALIASES: Record<string, string> = {
   "gpt-6": "gpt-6-astra",
 };
 
-// Named aliases track the newest generation of each tier. GPT-6 shipped no
-// Terra, so terra stays on 5.6; older ids remain reachable verbatim.
+// Named aliases track the newest generation of each tier; older ids remain reachable verbatim.
 const CODEX_NAMED_ALIASES: Record<string, string> = {
   astra: "gpt-6-astra",
   sol: "gpt-6.1-sol",
-  terra: "gpt-5.6-terra",
+  terra: "gpt-6.1-terra",
   luna: "gpt-6-luna",
 };
 

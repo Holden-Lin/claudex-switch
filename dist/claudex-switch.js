@@ -4373,8 +4373,8 @@ var CLI_PROXY_API_UPSTREAMS = {
     authType: "codex",
     defaults: {
       fableModel: "gpt-6-astra",
-      sonnetModel: "gpt-5.6-terra",
-      opusModel: "gpt-5.6-terra",
+      sonnetModel: "gpt-6.1-terra",
+      opusModel: "gpt-6.1-terra",
       haikuModel: "gpt-6-luna"
     }
   },
@@ -10454,7 +10454,7 @@ function renderRuntimeConfig(authDir, managed, port) {
     ...header2,
     "oauth-model-alias:",
     "  codex:",
-    `    - name: ${yaml("gpt-5.6-terra")}`,
+    `    - name: ${yaml(CLI_PROXY_API_DEFAULTS.opusModel)}`,
     `      alias: ${yaml(CLI_PROXY_API_DEFAULTS.subagentModel)}`,
     "      fork: true",
     "payload:",
@@ -15788,7 +15788,7 @@ var CODEX_MODEL_ALIASES = {
 var CODEX_NAMED_ALIASES = {
   astra: "gpt-6-astra",
   sol: "gpt-6.1-sol",
-  terra: "gpt-5.6-terra",
+  terra: "gpt-6.1-terra",
   luna: "gpt-6-luna"
 };
 var CLAUDE_LATEST_FABLE = "claude-fable-5-1";
@@ -18982,7 +18982,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.4",
+  version: "1.26.5",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -21313,7 +21313,7 @@ var HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra → gpt-6.1-terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login

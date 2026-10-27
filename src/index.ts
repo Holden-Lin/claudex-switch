@@ -41,7 +41,7 @@ const HELP = `
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
     claudex-switch rename <from> <to>  Rename an alias
-    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra, luna; OpenCode: provider/model)
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra, sol, terra → gpt-6.1-terra, luna; OpenCode: provider/model)
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login

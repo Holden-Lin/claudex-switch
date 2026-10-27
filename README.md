@@ -89,7 +89,7 @@ claudex-switch list
 # Claude 示例：裸数字直接映射 Opus（5.5 → claude-opus-5-5）
 claudex-switch work -run --model 5.5 max
 
-# Codex 示例：支持 astra / sol / luna / terra
+# Codex 示例：支持 astra / sol / luna / terra（terra → gpt-6.1-terra）
 claudex-switch cx -run --model sol xhigh
 ```
 

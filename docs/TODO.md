@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.26.5：Codex `terra` 指向 `gpt-6.1-terra`；新建 ChatGPT 本地代理的 Opus / Sonnet 和子代理映射也更新，已有保存的主模型映射保留。400 项测试、类型与文档检查、构建通过；隔离账号经构建版 `model cx terra` → `list --no-usage` 显示新模型。
+
 本次版本 v1.26.4：修 WorkBuddy 报 `11101 Non-stream chat request is currently not supported`。WorkBuddy 只接受流式请求，本地桥把 Claude Code 的非流式请求改为流式再合并成完整回复（含思考、工具调用、用量）；旧版桥空闲时下次启动自动重启。400 项测试通过；真实 WorkBuddy AI 账号经新桥的非流式文本与工具调用均返回完整 JSON；真实 Claude Code 2.1.309 + CLIProxyAPI 订阅端到端脚本新增非流式与旧桥重启核对并通过。
 
 本次版本 v1.26.3：WorkBuddy 的 auto mode 分类器默认用 `deepseek-v4.1-flash`，只写入该账号 `--run` 私有设置，账号 env 可覆盖。真实 Claude Code 2.1.309（含非 bare）核对分类请求全部走该模型。

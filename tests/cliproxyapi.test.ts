@@ -524,7 +524,9 @@ describe("managed local CLIProxyAPI", () => {
 
   test("resolves local mapping without changing existing Claude shorthand", () => {
     expect(resolveLocalCLIProxyAPIModel("fable")).toBe("gpt-6-astra");
-    expect(resolveLocalCLIProxyAPIModel("opus")).toBe("gpt-5.6-terra");
+    expect(resolveLocalCLIProxyAPIModel("opus")).toBe("gpt-6.1-terra");
+    expect(resolveLocalCLIProxyAPIModel("sonnet")).toBe("gpt-6.1-terra");
+    expect(resolveLocalCLIProxyAPIModel("gpt-5.6-terra")).toBe("gpt-5.6-terra");
     expect(resolveLocalCLIProxyAPIModel("haiku")).toBe("gpt-6-luna");
     expect(resolveLocalCLIProxyAPIModel("custom-model")).toBe("custom-model");
   });
@@ -539,7 +541,7 @@ describe("managed local CLIProxyAPI", () => {
     await writeFile(
       envFile,
       env.replace(
-        "CLAUDEX_CLIPROXYAPI_OPUS_MODEL=gpt-5.6-terra",
+        "CLAUDEX_CLIPROXYAPI_OPUS_MODEL=gpt-6.1-terra",
         "CLAUDEX_CLIPROXYAPI_OPUS_MODEL=custom-terra",
       ),
     );

@@ -71,8 +71,9 @@ describe("resolveModelShorthand", () => {
     expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6.1-sol");
     expect(resolveModelShorthand("codex", "Sol")).toBe("gpt-6.1-sol");
     expect(resolveModelShorthand("codex", "luna")).toBe("gpt-6-luna");
-    // GPT-6 shipped without a Terra tier.
-    expect(resolveModelShorthand("codex", "terra")).toBe("gpt-5.6-terra");
+    expect(resolveModelShorthand("codex", "terra")).toBe("gpt-6.1-terra");
+    expect(resolveModelShorthand("codex", "Terra")).toBe("gpt-6.1-terra");
+    expect(resolveModelShorthand("codex", "gpt-5.6-terra")).toBe("gpt-5.6-terra");
     expect(resolveModelShorthand("codex", "gpt-6-sol")).toBe("gpt-6-sol");
     expect(resolveModelShorthand("codex", "gpt-6.1-sol")).toBe("gpt-6.1-sol");
   });
@@ -113,6 +114,9 @@ describe("splitModelEffort", () => {
       model: "5.6",
       effort: "xhigh",
     });
+    const terra = splitModelEffort("terra high");
+    expect(resolveModelShorthand("codex", terra.model)).toBe("gpt-6.1-terra");
+    expect(terra.effort).toBe("high");
   });
 
   test("leaves non-effort suffixes untouched", () => {

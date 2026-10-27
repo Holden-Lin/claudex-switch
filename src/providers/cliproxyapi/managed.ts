@@ -414,7 +414,7 @@ function renderRuntimeConfig(
     ...header,
     "oauth-model-alias:",
     "  codex:",
-    `    - name: ${yaml("gpt-5.6-terra")}`,
+    `    - name: ${yaml(CLI_PROXY_API_DEFAULTS.opusModel)}`,
     `      alias: ${yaml(CLI_PROXY_API_DEFAULTS.subagentModel)}`,
     "      fork: true",
     "payload:",

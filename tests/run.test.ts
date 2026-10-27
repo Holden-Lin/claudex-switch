@@ -965,7 +965,7 @@ describe("run alias session", () => {
     ]);
   });
 
-  test("maps Codex max and ultra effort tiers to model_reasoning_effort", async () => {
+  test("maps Codex model shorthand and effort tiers to launch arguments", async () => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -1001,6 +1001,7 @@ describe("run alias session", () => {
       ["--model", "5.6 ultra", "--resume"],
       createSpawn(calls),
     );
+    await runAliasSession("cx", ["--model", "terra", "high"], createSpawn(calls));
 
     expect(calls.map((call) => call.args)).toEqual([
       [
@@ -1019,7 +1020,9 @@ describe("run alias session", () => {
         "model_reasoning_effort=ultra",
         "--resume",
       ],
+      ["--approve-for-me", "--model", "gpt-6.1-terra", "-c", "model_reasoning_effort=high"],
     ]);
+    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-6.1-terra");
   });
 
   test("re-enables the attribution header for a one-shot Claude run", async () => {

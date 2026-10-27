@@ -266,7 +266,7 @@ describe("--cliproxy claudecode", () => {
         "usage-statistics-enabled: false",
         "oauth-model-alias:",
         "  codex:",
-        '    - name: "gpt-5.6-terra"',
+        '    - name: "gpt-6.1-terra"',
         '      alias: "claudex-terra-max"',
         "      fork: true",
         "payload:",
