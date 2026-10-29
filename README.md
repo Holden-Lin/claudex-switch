@@ -116,7 +116,7 @@ claudex-switch workbuddy-ai --run --cliproxy claudecode  # 直接用国际版
 claudex-switch cursor --run --cliproxy claudecode
 ```
 
-首次选择浏览器登录或沿用原应用登录，之后直接启动；在 Claude Code 的 `/model` 菜单选择该订阅可用的模型。无需安装 magpie。浏览器登录保存独立凭据；沿用原应用登录会跟随该应用的账号切换。详见[订阅接入说明](./docs/local-cliproxyapi.md#workbuddy--cursor-订阅)。
+首次选择浏览器登录或沿用原应用登录，之后直接启动；在 Claude Code 的 `/model` 菜单选择该订阅可用的模型。WorkBuddy 未选模型时默认用免费（x0.00）模型，不消耗积分。无需安装 magpie。浏览器登录保存独立凭据；沿用原应用登录会跟随该应用的账号切换。详见[订阅接入说明](./docs/local-cliproxyapi.md#workbuddy--cursor-订阅)。
 
 ### 4. 刷新已过期登录
 当 OAuth 本地登录态过期时，无需重新添加账号，一键刷新：

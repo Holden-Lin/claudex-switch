@@ -85,6 +85,8 @@ const ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
 const ENV_SUBSCRIPTION_PORT = "CLAUDEX_CLIPROXYAPI_SUBSCRIPTION_PORT";
 // Subscription catalogs' context windows, as id=tokens pairs.
 const ENV_UPSTREAM_CONTEXT = "CLAUDEX_CLIPROXYAPI_UPSTREAM_CONTEXT";
+// The models a priced subscription catalog listed as free (x0.00) at the last sync.
+const ENV_UPSTREAM_FREE = "CLAUDEX_CLIPROXYAPI_UPSTREAM_FREE";
 const ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
 const ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 // Older accounts had the then-default Luna written into their .env. That
@@ -107,6 +109,8 @@ interface ManagedEnv extends CLIProxyAPIModelMap {
   upstreamModels: string[];
   // null: written before windows were recorded; an idle daemon restarts to fetch them.
   upstreamContext: Record<string, number> | null;
+  // null: no free models recorded; tiers are checked against prices at the next sync.
+  upstreamFree: string[] | null;
   antigravitySensitiveWords: string[];
   subscriptionPort: number | null;
 }
@@ -117,12 +121,14 @@ export interface ManagedCLIProxyAPISetup {
   upstreamKey?: string;
   upstreamModels?: string[];
   upstreamContext?: Record<string, number>;
+  upstreamFree?: string[];
   antigravitySensitiveWords?: string[];
   subscriptionPort?: number;
 }
 
-// Bump when the subscription bridge changes behavior: 1 = WorkBuddy non-stream chats are collected from a stream.
-const SUBSCRIPTION_BRIDGE_REVISION = 1;
+// Bump when the subscription bridge changes behavior: 1 = WorkBuddy non-stream chats are collected from a stream;
+// 2 = WorkBuddy's written reset times become Retry-After, and its 14018 names the free models.
+const SUBSCRIPTION_BRIDGE_REVISION = 2;
 
 interface ManagedRuntimeState {
   pid: number;
@@ -307,6 +313,8 @@ function parseManagedEnv(content: string): ManagedEnv {
       const tokens = Number(pair.slice(separator + 1));
       return separator > 0 && Number.isSafeInteger(tokens) && tokens > 0 ? [[pair.slice(0, separator).trim(), tokens]] : [];
     })),
+    upstreamFree: values[ENV_UPSTREAM_FREE] === undefined ? null
+      : values[ENV_UPSTREAM_FREE].split(",").map((model) => model.trim()).filter(Boolean),
     fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
     opusModel: values[ENV_OPUS_MODEL]?.trim() || defaults.opusModel,
@@ -345,6 +353,7 @@ function renderManagedEnv(
     ...(setup.upstreamContext
       ? [`${ENV_UPSTREAM_CONTEXT}=${Object.entries(setup.upstreamContext).map(([id, tokens]) => `${id}=${tokens}`).join(",")}`]
       : []),
+    ...(setup.upstreamFree?.length ? [`${ENV_UPSTREAM_FREE}=${setup.upstreamFree.join(",")}`] : []),
     `${ENV_FABLE_MODEL}=${models.fableModel}`,
     `${ENV_SONNET_MODEL}=${models.sonnetModel}`,
     `${ENV_OPUS_MODEL}=${models.opusModel}`,
@@ -524,6 +533,7 @@ export async function updateManagedCLIProxyAPISetup(
       upstreamKey: patch.upstreamKey ?? current.upstreamKey ?? undefined,
       upstreamModels: patch.upstreamModels ?? current.upstreamModels,
       upstreamContext: patch.upstreamContext ?? current.upstreamContext ?? undefined,
+      upstreamFree: patch.upstreamFree ?? current.upstreamFree ?? undefined,
       antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current.antigravitySensitiveWords,
       subscriptionPort: patch.subscriptionPort ?? current.subscriptionPort ?? undefined,
     }),
@@ -1361,9 +1371,11 @@ async function ensureManagedCLIProxyAPIUnlocked(
   if (isSubscriptionUpstream(managed.upstream)) {
     const models = await listSubscriptionModels(paths.dir, managed.upstream);
     const ids = models.map(({ id }) => id);
+    const upstreamContext = Object.fromEntries(models.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : []));
+    const upstreamFree = models.filter((model) => model.free).map(({ id }) => id);
     await updateManagedCLIProxyAPISetup(profile.profileId, {
-      models: pickSubscriptionModels(ids, managed), upstreamModels: ids,
-      upstreamContext: Object.fromEntries(models.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : [])),
+      models: pickSubscriptionModels(ids, managed, { free: upstreamFree, previousFree: managed.upstreamFree, context: upstreamContext }),
+      upstreamModels: ids, upstreamContext, upstreamFree,
       subscriptionPort: await findAvailablePort(),
     });
     managed = await readExistingManagedEnv(profile.profileId);

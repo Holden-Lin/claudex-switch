@@ -11,7 +11,7 @@ import { openExternalUrl } from "../../lib/browser";
 
 export type SubscriptionUpstream = "cursor" | "workbuddy" | "workbuddy-ai";
 type Auth = { type: "oauth"; access?: string; refresh?: string; source?: string; [key: string]: unknown };
-type Model = { id: string; display_name?: string; context_window?: number };
+type Model = { id: string; display_name?: string; context_window?: number; free?: boolean };
 type Provider = { id: string; models: Record<string, { name?: string; [key: string]: unknown }>; [key: string]: unknown };
 type Authorization = {
   url?: string;
@@ -214,6 +214,8 @@ async function models(ctx: Context): Promise<Model[]> {
       id,
       ...(value.name ? { display_name: value.name } : {}),
       ...(typeof context === "number" && Number.isSafeInteger(context) && context > 0 ? { context_window: context } : {}),
+      // WorkBuddy's plugin marks the models that cost no credits (x0.00).
+      ...(typeof value.free === "boolean" ? { free: value.free } : {}),
     };
   });
 }
@@ -335,7 +337,74 @@ async function bridgeResponse(input: {
   upstream.headers.forEach((value, name) => {
     if (!HOP_HEADERS.has(name) && !connectionHeaders.has(name)) responseHeaders.set(name, value);
   });
+  if (STREAM_ONLY.has(options.upstream) && upstream.status >= 400) {
+    const refusal = await workBuddyRefusal(await upstream.text(), () => freeModels(ctx));
+    if (upstream.status === 429 && refusal.retryAfter) responseHeaders.set("retry-after", String(refusal.retryAfter));
+    return new Response(refusal.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+  }
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+}
+
+// WorkBuddy's 6004 says in words when the model serves again, in China time,
+// as magpie's tests quote it: "…your usage will reset at 2026-10-11 12:37:53
+// UTC+8, alternatively…", "…将在 2026-10-11 20:16:02 UTC+8重置…", or "…will
+// reset in 1 minutes." CLIProxyAPI cools its one credential for a 429's
+// Retry-After; without one it doubles 1s up to 30 min, past the reset.
+const WRITTEN_RESET = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?\s*UTC\s*([+-])(\d{1,2})(?::?(\d{2}))?/i;
+const RESET_IN = /reset in (\d+) (second|minute|hour)s?\b/i;
+const MAX_RETRY_AFTER_SECONDS = 7 * 24 * 3600;
+
+/** Seconds until a written reset time; null when none, past, or implausibly far. */
+export function writtenRetryAfter(text: string, now = Date.now()): number | null {
+  const at = WRITTEN_RESET.exec(text);
+  const after = RESET_IN.exec(text);
+  let ms: number | null = null;
+  if (at) {
+    const [, year, month, day, hour, minute, second, sign, offsetHours, offsetMinutes] = at;
+    const offset = (sign === "-" ? -1 : 1) * (Number(offsetHours) * 60 + Number(offsetMinutes ?? 0));
+    ms = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second ?? 0)) - offset * 60_000 - now;
+  } else if (after) {
+    ms = Number(after[1]) * { second: 1, minute: 60, hour: 3600 }[after[2]!.toLowerCase() as "second"] * 1000;
+  }
+  if (ms === null || !(ms > 0) || ms > MAX_RETRY_AFTER_SECONDS * 1000) return null;
+  return Math.ceil(ms / 1000);
+}
+
+// 14018 (credits exhausted) refuses only models that cost credits: on
+// 2026-10-29 a free plan with every credit spent still served x0.00
+// deepseek-v4.1-flash and hy3. The plugin's hint says even free models need a package, which
+// sent its reader the wrong way; this one names the models that still answer.
+const EXHAUSTED_CODE = 14018;
+const EXHAUSTED_TEXT = /credits exhausted|额度已用尽/i;
+
+async function workBuddyRefusal(text: string, free: () => Promise<string[]>): Promise<{ body: string; retryAfter: number | null }> {
+  const retryAfter = writtenRetryAfter(text);
+  let parsed: { error?: { message?: unknown; code?: unknown; [key: string]: unknown } } | undefined;
+  try { parsed = JSON.parse(text); } catch {}
+  const error = parsed?.error && typeof parsed.error === "object" ? parsed.error : undefined;
+  if (!error || typeof error.message !== "string" || (Number(error.code) !== EXHAUSTED_CODE && !EXHAUSTED_TEXT.test(error.message))) {
+    return { body: text, retryAfter };
+  }
+  const models = await free();
+  const message = `${error.message.split(" — ")[0]!.trim()} — this model costs WorkBuddy credits and the account has none left; ${models.length
+    ? `models at x0.00 still answer: ${models.join(", ")}. Choose one with /model`
+    : "choose a model the account lists at x0.00 with /model"}.`;
+  return { body: JSON.stringify({ ...parsed, error: { ...error, message } }), retryAfter };
+}
+
+const FREE_MODELS_TTL_MS = 10 * 60_000;
+const freeModelCache = new WeakMap<Context, { at: number; ids: string[] }>();
+
+async function freeModels(ctx: Context): Promise<string[]> {
+  const cached = freeModelCache.get(ctx);
+  if (cached && Date.now() - cached.at < FREE_MODELS_TTL_MS) return cached.ids;
+  try {
+    const ids = (await models(ctx)).filter((model) => model.free).map(({ id }) => id);
+    freeModelCache.set(ctx, { at: Date.now(), ids });
+    return ids;
+  } catch {
+    return [];
+  }
 }
 
 type ChunkChoice = {

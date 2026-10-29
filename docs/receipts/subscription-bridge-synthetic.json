@@ -1,9 +1,9 @@
 {
-  "date": "2026-10-23",
+  "date": "2026-10-29",
   "passed": true,
   "syntheticUpstream": true,
   "realSubscriptionVerified": false,
-  "claudeCodeVersion": "2.1.309",
+  "claudeCodeVersion": "2.1.312",
   "cliProxyAPIVersion": "7.3.15",
   "permissionMode": "auto",
   "extensionlessNodeLauncher": true,
@@ -16,5 +16,9 @@
     "429 body and retry-after",
     "disconnect abort and reader cancellation"
   ],
-  "interactiveCursorLoginCancellation": "no managed profile remains"
+  "interactiveCursorLoginCancellation": "no managed profile remains",
+  "freeTier": "every Claude Code tier and unlisted Claude ID maps to the catalog's widest x0.00 model; the unpriced Auto and paid models are not used by default",
+  "writtenResetCooldownSeconds": 120,
+  "writtenResetUpstreamCalls": 1,
+  "creditsExhaustedMessage": "14018 names the x0.00 models that still answer"
 }

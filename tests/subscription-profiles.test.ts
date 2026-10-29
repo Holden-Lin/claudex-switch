@@ -106,6 +106,30 @@ describe("Claude Code subscription profiles", () => {
     expect(() => pickSubscriptionModels(["model\nINJECT=value"])).toThrow("empty or invalid");
   });
 
+  test("a priced catalog maps every tier to its widest free model and moves auto-picked paid tiers once", () => {
+    // WorkBuddy AI on 2026-10-29: Auto first and unpriced, two x0.00 models, a cheap paid flash.
+    const ids = ["default-model", "fast-model", "hy3", "deepseek-v4.1-flash", "glm-5.3-flash"];
+    const pricing = {
+      free: ["hy3", "deepseek-v4.1-flash"], previousFree: null,
+      context: { "default-model": 176_000, hy3: 192_000, "deepseek-v4.1-flash": 1_000_000, "glm-5.3-flash": 1_000_000 },
+    };
+    const allFree = { fableModel: "deepseek-v4.1-flash", opusModel: "deepseek-v4.1-flash", sonnetModel: "deepseek-v4.1-flash", haikuModel: "deepseek-v4.1-flash" };
+    // Without prices the old rule stands: Auto first, newest flash for haiku.
+    expect(pickSubscriptionModels(ids)).toEqual({ fableModel: "default-model", opusModel: "default-model", sonnetModel: "default-model", haikuModel: "glm-5.3-flash" });
+    expect(pickSubscriptionModels(ids, undefined, pricing)).toEqual(allFree);
+    // Paid tiers saved before prices were recorded were auto-picked: they move.
+    const old = pickSubscriptionModels(ids);
+    expect(pickSubscriptionModels(ids, old, pricing)).toEqual(allFree);
+    // A free choice stays; so does a paid tier that was already paid at the last sync (the user's edit).
+    const edited = { ...allFree, opusModel: "hy3", sonnetModel: "default-model" };
+    expect(pickSubscriptionModels(ids, edited, { ...pricing, previousFree: pricing.free })).toEqual(edited);
+    // A tier that was free at the last sync but costs credits now moves back to a free model.
+    expect(pickSubscriptionModels(ids, { ...allFree, haikuModel: "fast-model" }, { ...pricing, previousFree: ["fast-model", ...pricing.free] }).haikuModel)
+      .toBe("deepseek-v4.1-flash");
+    // A catalog with no free model keeps the old rule and the saved tiers.
+    expect(pickSubscriptionModels(ids, edited, { ...pricing, free: [] })).toEqual(edited);
+  });
+
   test("provider markers round-trip and unknown markers cannot silently become ChatGPT", () => {
     for (const id of ["cursor", "workbuddy", "workbuddy-ai"]) {
       expect(parseUpstream(id)).toBe(id);

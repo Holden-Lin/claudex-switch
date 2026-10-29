@@ -12,7 +12,9 @@ claudex-switch cursor --run --cliproxy claudecode
 
 上下文窗口取自订阅目录：Claude Code 不认识这些模型 ID，默认按 200K 计算，1M 的模型会过早压缩。现在每个模型按订阅报告的窗口压缩（如 WorkBuddy AI 的 deepseek-v4.1-flash 为 1M，kimi-k2.6 为 256K），`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` 等百分比设置按此窗口生效。旧账号在代理空闲时下次启动会自动重启并补齐窗口。
 
-WorkBuddy（国内版与国际版）的 auto mode 权限分类器默认使用 `deepseek-v4.1-flash`（目录中存在时）；不设置时它跟随 sonnet 档位，即 WorkBuddy 的 Auto（积分未知、窗口 176K），每次判定工具调用都会请求一次。此设置只写入该账号 `--run` 的私有设置文件，不影响普通 Claude Code 及其他账号；可在账号自定义 env 中设置 `CLAUDE_CODE_AUTO_MODE_MODEL` 覆盖。
+WorkBuddy 按积分计费。目录标出免费（x0.00）模型时，Claude Code 的四个档位以及它自己的模型 ID（包括共享设置里 `/model` 存下的 `claude-opus-5-5`）默认都映射到窗口最大的免费模型，WorkBuddy AI 上是 `deepseek-v4.1-flash`（1M）。此前主档位默认映射到目录第一项 Auto（`default-model`，按实际路由扣积分，窗口 176K），haiku 档映射到 `glm-5.3-flash`（x0.08），不带 `--model` 启动时会悄悄消耗积分。免费计划的积分用完后，这两个模型返回 `14018 Credits exhausted`，免费模型照常可用。已有账号的代理空闲时，下次启动会自动重启；此前自动选中的付费档位迁移一次。之后若在私有 `.env` 里把档位手动改成付费模型，会保留；也可以随时在 `/model` 里选付费模型。
+
+WorkBuddy（国内版与国际版）的 auto mode 权限分类器默认使用 `deepseek-v4.1-flash`（目录中存在时）；不设置时跟随 sonnet 档位，每次判定工具调用都会请求一次。此设置只写入该账号 `--run` 的私有设置文件，不影响普通 Claude Code 及其他账号；可在账号自定义 env 中设置 `CLAUDE_CODE_AUTO_MODE_MODEL` 覆盖。
 
 WorkBuddy 只接受流式请求（否则报 `11101 Non-stream chat request is currently not supported`）。Claude Code 的分类器、标题等附带请求及流式失败后的重试是非流式的，本地桥会改用流式请求再合并为一次完整回复。旧版桥在代理空闲时下次启动会自动重启。
 
@@ -27,6 +29,13 @@ WorkBuddy 只接受流式请求（否则报 `11101 Non-stream chat request is cu
 ## auto mode 提示与 429 配额错误
 
 出现 “this session isn't eligible … requests go through 127.0.0.1” 表示网关无法提供新版服务端分类器，并非模型请求失败。对于本项目的协议转换上游，默认设置 `CLAUDE_CODE_AUTO_MODE_SERVER=0`，使用 Claude Code 原有的客户端分类检查。auto mode 保持可用；这**不会获得免费的服务端分类器，也不会免除客户端分类请求的用量**。需要显式覆盖时，可在账号自定义环境变量中设置该值；切换到其他类型账号会清理本项目生成的默认值。[官方说明](https://code.claude.com/docs/en/auto-mode-classifier-billing)
+
+WorkBuddy 的 429 有两种：
+
+- `6004` 是频率上限，报文写明重置时间（UTC+8）。本地桥把它转成 `Retry-After`，CLIProxyAPI 于是只冷却该模型，正好冷却到重置时刻；期间本机直接拒绝，不再请求 WorkBuddy。此前没有 `Retry-After` 时，冷却从 1 秒起翻倍，最长 30 分钟，可能比实际重置晚近半小时恢复。冷却期间可在 `/model` 换另一个免费模型继续。
+- `14018` 是积分用尽，只拒绝收费模型，错误信息会列出仍可用的 x0.00 模型。
+
+Claude Code 收到 429 会自动重试，实测约 10 次、3 分钟后报错停下。
 
 截图中的 `429 / Individual quota reached / RESOURCE_EXHAUSTED` 是另一件事：Antigravity 个人配额耗尽，错误当时显示约 97 小时后重置。重启代理、重新登录及上述分类器设置都不能恢复配额；等待重置，或自行切换有可用额度的账号 / 模型。`doctor <alias> --live` 会消耗少量额度，配额耗尽时不应反复运行。
 

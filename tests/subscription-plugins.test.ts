@@ -11,6 +11,7 @@ import {
   serveSubscriptionBridge,
   SUBSCRIPTION_AUTH_FILE,
   subscriptionLoginMethods,
+  writtenRetryAfter,
   type SubscriptionPlugin,
   type SubscriptionBridgeServer,
   type SubscriptionPluginOptions,
@@ -216,6 +217,60 @@ describe("subscription plugin adapter", () => {
     expect(await rejected.text()).toBe('{"code":11101}');
   });
 
+  test("reads WorkBuddy's written reset time in either language as seconds", () => {
+    // WorkBuddy's 6004 wording, as magpie's tests quote it.
+    const now = Date.UTC(2026, 9, 11, 3, 0, 0); // 11:00 UTC+8
+    const en = "WorkBuddy AI: usage exceeds frequency limit, but don't worry, your usage will reset at 2026-10-11 12:37:53 UTC+8, alternatively, you can switch to the other models to continue using it.";
+    const zh = "WorkBuddy：您的使用量已超出频率限制，将在 2026-10-11 20:16:02 UTC+8重置，您也可以切换其他模型继续使用。";
+    expect(writtenRetryAfter(en, now)).toBe(97 * 60 + 53);
+    expect(writtenRetryAfter(zh, now)).toBe(9 * 3600 + 16 * 60 + 2);
+    expect(writtenRetryAfter(JSON.stringify({ error: { message: zh, code: "6004" } }).replace(/[^\x00-\x7f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`), now)).toBe(9 * 3600 + 16 * 60 + 2);
+    expect(writtenRetryAfter("Your usage limit for the original model will reset in 1 minutes.", now)).toBe(60);
+    expect(writtenRetryAfter(en.replace("2026-10-11 12:37:53", "2026-10-11 10:00:00"), now)).toBeNull();
+    expect(writtenRetryAfter(en.replace("2026-10-11", "2026-11-30"), now)).toBeNull();
+    expect(writtenRetryAfter(en.replace(" UTC+8", ""), now)).toBeNull();
+    expect(writtenRetryAfter("quota exhausted", now)).toBeNull();
+  });
+
+  test("WorkBuddy refusals: a written reset becomes Retry-After and 14018 names the free models", async () => {
+    const dir = await directory();
+    const resetAt = new Date(Date.now() + 3 * 3600_000 + 8 * 3600_000).toISOString().replace("T", " ").slice(0, 19);
+    const options = fake({
+      upstream: "workbuddy-ai",
+      models: { models: async () => ({
+        "default-model": { name: "Auto", free: false, rate: 0 },
+        "deepseek-v4.1-flash": { name: "Deepseek", free: true, rate: 0, limit: { context: 1_000_000 } },
+        "glm-5.3-flash": { name: "GLM", free: false, rate: 0.08 },
+        hy3: { name: "Hy3", free: true, rate: 0 },
+      }) },
+      fetch: async (_input, init) => {
+        const body = JSON.parse(String(init.body));
+        if (body.model === "limited") return Response.json({ error: { message: `WorkBuddy AI: usage exceeds frequency limit, but don't worry, your usage will reset at ${resetAt} UTC+8, alternatively, you can switch to the other models to continue using it.`, code: "6004" } }, { status: 429 });
+        // The plugin's own rewrite of 14018, hint included.
+        return Response.json({ error: { message: "Credits exhausted. Please visit the link below to purchase add-on packs and get more credits: https://www.codebuddy.ai/profile/usage  — WorkBuddy requires an active credit package even for 0-rate free models; check your account package balance", type: "insufficient_quota", code: 14018 } }, { status: 429 });
+      },
+    });
+    await loginSubscriptionPlugin(dir, "workbuddy-ai", 0, () => {}, options);
+    const url = await bridge(dir, options, "workbuddy-ai");
+    expect((await listSubscriptionModels(dir, "workbuddy-ai", options)).map(({ id, free }) => [id, free])).toEqual([
+      ["default-model", false], ["deepseek-v4.1-flash", true], ["glm-5.3-flash", false], ["hy3", true],
+    ]);
+    const limited = await chat(url, { model: "limited", messages: [], stream: true });
+    expect(limited.status).toBe(429);
+    const seconds = Number(limited.headers.get("retry-after"));
+    expect(seconds).toBeGreaterThan(3 * 3600 - 60);
+    expect(seconds).toBeLessThanOrEqual(3 * 3600);
+    expect((await limited.json()).error.code).toBe("6004");
+    const exhausted = await chat(url, { model: "glm-5.3-flash", messages: [], stream: true });
+    expect(exhausted.status).toBe(429);
+    expect(exhausted.headers.get("retry-after")).toBeNull();
+    const { error } = await exhausted.json();
+    expect(error).toMatchObject({ type: "insufficient_quota", code: 14018 });
+    expect(error.message).toStartWith("Credits exhausted. Please visit the link below");
+    expect(error.message).toContain("models at x0.00 still answer: deepseek-v4.1-flash, hy3. Choose one with /model.");
+    expect(error.message).not.toContain("even for 0-rate free models");
+  });
+
   test("serializes concurrent auth.set updates and reads the latest auth on the next request", async () => {
     const dir = await directory();
     await loginSubscriptionPlugin(dir, "cursor", 0, () => {}, fake());
@@ -251,14 +306,21 @@ describe("subscription plugin adapter", () => {
       }
       if (url.pathname === "/v3/config") {
         expect(new Headers(init?.headers).get("authorization")).toBe("Bearer workbuddy-renewed");
-        return Response.json({ code: 0, data: { agents: [{ name: "cli", models: ["real-wb-model"] }], models: [{ id: "real-wb-model", name: "WorkBuddy live model", maxInputTokens: 1_000_000 }] } });
+        return Response.json({ code: 0, data: { agents: [{ name: "cli", models: ["real-wb-model", "free-wb-model"] }], models: [
+          { id: "real-wb-model", name: "WorkBuddy live model", maxInputTokens: 1_000_000 },
+          { id: "free-wb-model", name: "WorkBuddy free model", maxInputTokens: 1_000_000, credits: "x0.00" },
+        ] } });
       }
       throw new Error("Unexpected network request in offline test.");
     }) as typeof fetch;
     try {
       const lists = await Promise.all([listSubscriptionModels(dir, "workbuddy"), listSubscriptionModels(dir, "workbuddy")]);
-      const live = { id: "real-wb-model", display_name: "WorkBuddy live model", context_window: 1_000_000 };
-      expect(lists).toEqual([[live], [live]]);
+      // A model with no readable price is not free.
+      const live = [
+        { id: "real-wb-model", display_name: "WorkBuddy live model", context_window: 1_000_000, free: false },
+        { id: "free-wb-model", display_name: "WorkBuddy free model", context_window: 1_000_000, free: true },
+      ];
+      expect(lists).toEqual([live, live]);
       expect(refreshes).toBe(1);
       const stored = JSON.parse(await readFile(join(dir, SUBSCRIPTION_AUTH_FILE), "utf8"));
       expect(stored.auth).toMatchObject({ type: "oauth", uid: "wb-user", accountId: "account-one", access: "workbuddy-renewed", refresh: "workbuddy-next-refresh" });

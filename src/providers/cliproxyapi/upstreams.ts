@@ -88,18 +88,39 @@ export function parseUpstream(value: string | undefined): CLIProxyAPIUpstream {
   throw new Error(`Unknown managed proxy upstream: ${value}`);
 }
 
+/** A priced catalog's free (x0.00) models now and at the last sync (null: never recorded). */
+export interface SubscriptionPricing {
+  free: string[];
+  previousFree: string[] | null;
+  context: Record<string, number>;
+}
+
+const FAST_MODEL = /haiku|flash|mini/i;
+
 /** Pick only IDs supplied by the subscription's account-specific catalog. */
-export function pickSubscriptionModels(ids: string[], current?: CLIProxyAPIModelMap): CLIProxyAPIModelMap {
+export function pickSubscriptionModels(ids: string[], current?: CLIProxyAPIModelMap, pricing?: SubscriptionPricing): CLIProxyAPIModelMap {
   if (!ids.length || ids.some((id) => !id.trim() || /[\r\n,=]/.test(id))) {
     throw new Error("The subscription returned an empty or invalid model catalog. Sign in again; no guessed models will be used.");
   }
-  const strongest = ids.includes("auto") ? "auto"
+  // WorkBuddy prices models in credits. Its Auto (default-model, first in the
+  // catalog) spent a free plan's credits through Claude Code's own IDs and
+  // then answered 14018, while x0.00 models kept serving (2026-10-29). When the
+  // catalog says which models are free, every tier defaults to the widest one.
+  const free = ids.filter((id) => pricing?.free.includes(id));
+  const widest = (list: string[]) => [...list].sort((a, b) => (pricing?.context[b] ?? 0) - (pricing?.context[a] ?? 0))[0];
+  const strongest = free.length ? widest(free)! : ids.includes("auto") ? "auto"
     : newest(ids.filter((id) => /claude.*opus/i.test(id)))
       ?? newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? ids[0]!;
-  const sonnet = newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? strongest;
-  const fast = newest(ids.filter((id) => /haiku|flash|mini/i.test(id))) ?? sonnet;
-  const keep = (tier: keyof CLIProxyAPIModelMap, fallback: string) =>
-    current && ids.includes(current[tier]) ? current[tier] : fallback;
+  const sonnet = free.length ? strongest : newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? strongest;
+  const fast = (free.length ? widest(free.filter((id) => FAST_MODEL.test(id))) : newest(ids.filter((id) => FAST_MODEL.test(id)))) ?? sonnet;
+  // A paid tier that was paid at the last sync too was the user's own edit;
+  // one never checked against prices, or free until now, moves to a free model.
+  const keep = (tier: keyof CLIProxyAPIModelMap, fallback: string) => {
+    const kept = current?.[tier];
+    if (!kept || !ids.includes(kept)) return fallback;
+    if (!free.length || free.includes(kept)) return kept;
+    return pricing?.previousFree && !pricing.previousFree.includes(kept) ? kept : fallback;
+  };
   return {
     fableModel: keep("fableModel", strongest), opusModel: keep("opusModel", strongest),
     sonnetModel: keep("sonnetModel", sonnet), haikuModel: keep("haikuModel", fast),

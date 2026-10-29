@@ -4412,14 +4412,24 @@ function parseUpstream(value) {
     return value;
   throw new Error(`Unknown managed proxy upstream: ${value}`);
 }
-function pickSubscriptionModels(ids, current) {
+var FAST_MODEL = /haiku|flash|mini/i;
+function pickSubscriptionModels(ids, current, pricing) {
   if (!ids.length || ids.some((id) => !id.trim() || /[\r\n,=]/.test(id))) {
     throw new Error("The subscription returned an empty or invalid model catalog. Sign in again; no guessed models will be used.");
   }
-  const strongest = ids.includes("auto") ? "auto" : newest(ids.filter((id) => /claude.*opus/i.test(id))) ?? newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? ids[0];
-  const sonnet = newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? strongest;
-  const fast = newest(ids.filter((id) => /haiku|flash|mini/i.test(id))) ?? sonnet;
-  const keep = (tier, fallback) => current && ids.includes(current[tier]) ? current[tier] : fallback;
+  const free = ids.filter((id) => pricing?.free.includes(id));
+  const widest = (list) => [...list].sort((a, b) => (pricing?.context[b] ?? 0) - (pricing?.context[a] ?? 0))[0];
+  const strongest = free.length ? widest(free) : ids.includes("auto") ? "auto" : newest(ids.filter((id) => /claude.*opus/i.test(id))) ?? newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? ids[0];
+  const sonnet = free.length ? strongest : newest(ids.filter((id) => /claude.*sonnet/i.test(id))) ?? strongest;
+  const fast = (free.length ? widest(free.filter((id) => FAST_MODEL.test(id))) : newest(ids.filter((id) => FAST_MODEL.test(id)))) ?? sonnet;
+  const keep = (tier, fallback) => {
+    const kept = current?.[tier];
+    if (!kept || !ids.includes(kept))
+      return fallback;
+    if (!free.length || free.includes(kept))
+      return kept;
+    return pricing?.previousFree && !pricing.previousFree.includes(kept) ? kept : fallback;
+  };
   return {
     fableModel: keep("fableModel", strongest),
     opusModel: keep("opusModel", strongest),
@@ -9829,7 +9839,8 @@ async function models(ctx) {
     return {
       id,
       ...value.name ? { display_name: value.name } : {},
-      ...typeof context2 === "number" && Number.isSafeInteger(context2) && context2 > 0 ? { context_window: context2 } : {}
+      ...typeof context2 === "number" && Number.isSafeInteger(context2) && context2 > 0 ? { context_window: context2 } : {},
+      ...typeof value.free === "boolean" ? { free: value.free } : {}
     };
   });
 }
@@ -9952,7 +9963,61 @@ async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
     if (!HOP_HEADERS.has(name) && !connectionHeaders.has(name))
       responseHeaders.set(name, value);
   });
+  if (STREAM_ONLY.has(options.upstream) && upstream.status >= 400) {
+    const refusal = await workBuddyRefusal(await upstream.text(), () => freeModels(ctx));
+    if (upstream.status === 429 && refusal.retryAfter)
+      responseHeaders.set("retry-after", String(refusal.retryAfter));
+    return new Response(refusal.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+  }
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+}
+var WRITTEN_RESET = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?\s*UTC\s*([+-])(\d{1,2})(?::?(\d{2}))?/i;
+var RESET_IN = /reset in (\d+) (second|minute|hour)s?\b/i;
+var MAX_RETRY_AFTER_SECONDS = 7 * 24 * 3600;
+function writtenRetryAfter(text, now = Date.now()) {
+  const at = WRITTEN_RESET.exec(text);
+  const after = RESET_IN.exec(text);
+  let ms = null;
+  if (at) {
+    const [, year, month, day, hour, minute, second, sign2, offsetHours, offsetMinutes] = at;
+    const offset = (sign2 === "-" ? -1 : 1) * (Number(offsetHours) * 60 + Number(offsetMinutes ?? 0));
+    ms = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second ?? 0)) - offset * 60000 - now;
+  } else if (after) {
+    ms = Number(after[1]) * { second: 1, minute: 60, hour: 3600 }[after[2].toLowerCase()] * 1000;
+  }
+  if (ms === null || !(ms > 0) || ms > MAX_RETRY_AFTER_SECONDS * 1000)
+    return null;
+  return Math.ceil(ms / 1000);
+}
+var EXHAUSTED_CODE = 14018;
+var EXHAUSTED_TEXT2 = /credits exhausted|额度已用尽/i;
+async function workBuddyRefusal(text, free) {
+  const retryAfter = writtenRetryAfter(text);
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {}
+  const error = parsed?.error && typeof parsed.error === "object" ? parsed.error : undefined;
+  if (!error || typeof error.message !== "string" || Number(error.code) !== EXHAUSTED_CODE && !EXHAUSTED_TEXT2.test(error.message)) {
+    return { body: text, retryAfter };
+  }
+  const models2 = await free();
+  const message = `${error.message.split(" — ")[0].trim()} — this model costs WorkBuddy credits and the account has none left; ${models2.length ? `models at x0.00 still answer: ${models2.join(", ")}. Choose one with /model` : "choose a model the account lists at x0.00 with /model"}.`;
+  return { body: JSON.stringify({ ...parsed, error: { ...error, message } }), retryAfter };
+}
+var FREE_MODELS_TTL_MS = 10 * 60000;
+var freeModelCache = new WeakMap;
+async function freeModels(ctx) {
+  const cached = freeModelCache.get(ctx);
+  if (cached && Date.now() - cached.at < FREE_MODELS_TTL_MS)
+    return cached.ids;
+  try {
+    const ids = (await models(ctx)).filter((model) => model.free).map(({ id }) => id);
+    freeModelCache.set(ctx, { at: Date.now(), ids });
+    return ids;
+  } catch {
+    return [];
+  }
 }
 function collectedChat(sse) {
   let head = {};
@@ -10268,6 +10333,7 @@ var ENV_UPSTREAM_KEY = "CLAUDEX_CLIPROXYAPI_UPSTREAM_KEY";
 var ENV_UPSTREAM_MODELS = "CLAUDEX_CLIPROXYAPI_UPSTREAM_MODELS";
 var ENV_SUBSCRIPTION_PORT = "CLAUDEX_CLIPROXYAPI_SUBSCRIPTION_PORT";
 var ENV_UPSTREAM_CONTEXT = "CLAUDEX_CLIPROXYAPI_UPSTREAM_CONTEXT";
+var ENV_UPSTREAM_FREE = "CLAUDEX_CLIPROXYAPI_UPSTREAM_FREE";
 var ENV_ANTIGRAVITY_SENSITIVE_WORDS = "CLAUDEX_CLIPROXYAPI_ANTIGRAVITY_SENSITIVE_WORDS";
 var ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 var LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
@@ -10279,7 +10345,7 @@ var ORPHAN_LOCK_GRACE_MS = 60000;
 var LOCK_HEARTBEAT_MS = 1e4;
 var LOOPBACK_HOST = "127.0.0.1";
 var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-var SUBSCRIPTION_BRIDGE_REVISION = 1;
+var SUBSCRIPTION_BRIDGE_REVISION = 2;
 function assertProfileId(profileId) {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
     throw new Error("Invalid managed CLIProxyAPI profile id");
@@ -10368,6 +10434,7 @@ function parseManagedEnv(content) {
       const tokens = Number(pair.slice(separator + 1));
       return separator > 0 && Number.isSafeInteger(tokens) && tokens > 0 ? [[pair.slice(0, separator).trim(), tokens]] : [];
     })),
+    upstreamFree: values[ENV_UPSTREAM_FREE] === undefined ? null : values[ENV_UPSTREAM_FREE].split(",").map((model) => model.trim()).filter(Boolean),
     fableModel: values[ENV_FABLE_MODEL]?.trim() || defaults.fableModel,
     sonnetModel: values[ENV_SONNET_MODEL]?.trim() || defaults.sonnetModel,
     opusModel: values[ENV_OPUS_MODEL]?.trim() || defaults.opusModel,
@@ -10395,6 +10462,7 @@ function renderManagedEnv(apiKey, setup = { upstream: "codex" }) {
     ...setup.subscriptionPort ? [`${ENV_SUBSCRIPTION_PORT}=${setup.subscriptionPort}`] : [],
     ...setup.upstreamModels?.length ? [`${ENV_UPSTREAM_MODELS}=${setup.upstreamModels.join(",")}`] : [],
     ...setup.upstreamContext ? [`${ENV_UPSTREAM_CONTEXT}=${Object.entries(setup.upstreamContext).map(([id, tokens]) => `${id}=${tokens}`).join(",")}`] : [],
+    ...setup.upstreamFree?.length ? [`${ENV_UPSTREAM_FREE}=${setup.upstreamFree.join(",")}`] : [],
     `${ENV_FABLE_MODEL}=${models2.fableModel}`,
     `${ENV_SONNET_MODEL}=${models2.sonnetModel}`,
     `${ENV_OPUS_MODEL}=${models2.opusModel}`,
@@ -10519,6 +10587,7 @@ async function updateManagedCLIProxyAPISetup(profileId, patch) {
     upstreamKey: patch.upstreamKey ?? current2.upstreamKey ?? undefined,
     upstreamModels: patch.upstreamModels ?? current2.upstreamModels,
     upstreamContext: patch.upstreamContext ?? current2.upstreamContext ?? undefined,
+    upstreamFree: patch.upstreamFree ?? current2.upstreamFree ?? undefined,
     antigravitySensitiveWords: patch.antigravitySensitiveWords ?? current2.antigravitySensitiveWords,
     subscriptionPort: patch.subscriptionPort ?? current2.subscriptionPort ?? undefined
   }));
@@ -11116,10 +11185,13 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
   if (isSubscriptionUpstream(managed.upstream)) {
     const models2 = await listSubscriptionModels(paths.dir, managed.upstream);
     const ids = models2.map(({ id }) => id);
+    const upstreamContext = Object.fromEntries(models2.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : []));
+    const upstreamFree = models2.filter((model) => model.free).map(({ id }) => id);
     await updateManagedCLIProxyAPISetup(profile.profileId, {
-      models: pickSubscriptionModels(ids, managed),
+      models: pickSubscriptionModels(ids, managed, { free: upstreamFree, previousFree: managed.upstreamFree, context: upstreamContext }),
       upstreamModels: ids,
-      upstreamContext: Object.fromEntries(models2.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : [])),
+      upstreamContext,
+      upstreamFree,
       subscriptionPort: await findAvailablePort()
     });
     managed = await readExistingManagedEnv(profile.profileId);
@@ -18984,7 +19056,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.6",
+  version: "1.26.7",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
