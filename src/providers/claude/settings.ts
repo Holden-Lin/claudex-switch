@@ -16,6 +16,8 @@ import type {
 type Settings = Record<string, unknown>;
 type SettingsEnv = Record<string, string>;
 
+export const CLAUDE_DEFAULT_OPUS_MODEL = "claude-opus-5-5";
+
 export interface LocalCLIProxyAPISettings {
   apiKey: string;
   baseUrl: string;
@@ -244,7 +246,7 @@ export async function applyApiConfig(
   setEnvValue(
     env,
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    config.defaultOpusModel,
+    config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL,
   );
   setEnvValue(
     env,
@@ -264,6 +266,7 @@ export async function applyOAuthConfig(
   const settings = await read();
   const env = await beginManagedEnv(settings);
 
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   setTopLevelModel(settings, model);
   await commitManagedEnv(settings, env, extraEnv);
 }
@@ -320,7 +323,8 @@ export async function prepareApiProfileClaudeSettings(
   env.ANTHROPIC_MODEL = config.model ?? "";
   env.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
   env.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
-  env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel ?? "";
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL =
+    config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL;
   env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
   env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
 
@@ -353,6 +357,7 @@ export async function prepareOAuthProfileClaudeSettings(
   for (const key of await readManagedExtraEnvKeys()) {
     env[key] = "";
   }
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
     env[key] = value;
   }
@@ -393,7 +398,7 @@ export async function getConfiguredModel(): Promise<string | undefined> {
 // env, so an isolated OAuth `-run` must neutralize any Anthropic API config
 // the active API-key profile wrote there. `--settings` env entries deep-merge
 // over settings.json, and Claude Code treats empty strings as unset.
-export async function getClaudeEnvNeutralizer(): Promise<string | null> {
+export async function getClaudeEnvNeutralizer(): Promise<string> {
   const settings = await read();
   const env = normalizeEnv(settings);
   const present: string[] = CLAUDE_ENV_KEYS.filter((key) => env[key]);
@@ -402,12 +407,13 @@ export async function getClaudeEnvNeutralizer(): Promise<string | null> {
   for (const key of await readManagedExtraEnvKeys()) {
     if (env[key] && !present.includes(key)) present.push(key);
   }
-  if (present.length === 0) return null;
-
   const override: SettingsEnv = {};
   for (const key of present) {
     override[key] = "";
   }
+  // Always supply the alias, even with clean global settings: older Claude
+  // clients otherwise resolve `opus` to their built-in previous generation.
+  override.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   return JSON.stringify({ env: override });
 }
 

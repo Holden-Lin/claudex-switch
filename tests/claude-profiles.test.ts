@@ -101,7 +101,7 @@ describe("claude profiles", () => {
     expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
       .toEqual({ oauthAccount: savedAccount });
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
-      env: { KEEP_ME: "1" },
+      env: { KEEP_ME: "1", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       theme: "dark",
     });
   });
@@ -287,7 +287,7 @@ describe("claude profiles", () => {
       ),
     ).toEqual(rotatedCreds);
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
-      {},
+      { env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" } },
     );
   });
 
@@ -571,7 +571,7 @@ describe("claude profiles", () => {
       {},
     );
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
-      env: { ANTHROPIC_API_KEY: "sk-ant-live" },
+      env: { ANTHROPIC_API_KEY: "sk-ant-live", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
     });
 
     await switchProfile("oauth");
@@ -582,7 +582,7 @@ describe("claude profiles", () => {
     expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
       .toEqual({ oauthAccount: account });
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
-      {},
+      { env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" } },
     );
   });
 
@@ -613,12 +613,14 @@ describe("claude profiles", () => {
     });
 
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       model: "claude-sonnet-4-20250514",
     });
 
     await switchProfile("oauth-model");
 
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       model: "claude-sonnet-4-20250514",
     });
   });
@@ -657,7 +659,7 @@ describe("claude profiles", () => {
       {},
     );
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
-      env: { ANTHROPIC_API_KEY: "sk-ant-live" },
+      env: { ANTHROPIC_API_KEY: "sk-ant-live", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
     });
   });
 });

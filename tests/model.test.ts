@@ -75,6 +75,7 @@ describe("model command", () => {
       defaultModel: "claude-sonnet-4-20250514",
     });
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+      env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       model: "claude-sonnet-4-20250514",
     });
   });
@@ -102,6 +103,7 @@ describe("model command", () => {
     expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
       env: {
         ANTHROPIC_API_KEY: "sk-ant-live",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5",
         ANTHROPIC_MODEL: "claude-opus-4-20250514",
       },
       model: "claude-opus-4-20250514",

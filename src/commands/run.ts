@@ -26,6 +26,7 @@ import {
 } from "../providers/claude/profiles";
 import {
   CLAUDE_ENV_KEYS,
+  CLAUDE_DEFAULT_OPUS_MODEL,
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   getClaudeEnvNeutralizer,
   localCLIProxyAPIExtraEnv,
@@ -986,7 +987,7 @@ function buildClaudeApiEnvironment(
   setOptionalEnv(
     env,
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    config.defaultOpusModel,
+    config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL,
   );
   setOptionalEnv(
     env,

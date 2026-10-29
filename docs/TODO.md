@@ -2,6 +2,8 @@
 
 ## Now
 
+本次版本 v1.26.6：原生 Claude OAuth 与未显式配置 Opus 映射的 API 账号，`opus` 默认指向 `claude-opus-5-5`；已保存的 API / 本地代理映射保留。403 项测试、类型 / 文档检查和构建通过；复制 satoshi 必要配置至临时 HOME，真实 Claude Code 2.1.312 非交互 `--model opus -p` 的初始化及响应模型皆为 `claude-opus-5-5`，答 `OPUS55_OK`，源账号文件哈希未变。
+
 本次版本 v1.26.5：Codex `terra` 指向 `gpt-6.1-terra`；新建 ChatGPT 本地代理的 Opus / Sonnet 和子代理映射也更新，已有保存的主模型映射保留。400 项测试、类型与文档检查、构建通过；隔离账号经构建版 `model cx terra` → `list --no-usage` 显示新模型。
 
 本次版本 v1.26.4：修 WorkBuddy 报 `11101 Non-stream chat request is currently not supported`。WorkBuddy 只接受流式请求，本地桥把 Claude Code 的非流式请求改为流式再合并成完整回复（含思考、工具调用、用量）；旧版桥空闲时下次启动自动重启。400 项测试通过；真实 WorkBuddy AI 账号经新桥的非流式文本与工具调用均返回完整 JSON；真实 Claude Code 2.1.309 + CLIProxyAPI 订阅端到端脚本新增非流式与旧桥重启核对并通过。

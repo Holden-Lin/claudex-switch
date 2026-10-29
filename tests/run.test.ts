@@ -66,6 +66,13 @@ function apiSettingsArgs(profileName: string): string[] {
   return ["--settings", claudeProfileClaudeSettingsFile(profileName)];
 }
 
+function oauthSettingsArgs(): string[] {
+  return [
+    "--settings",
+    JSON.stringify({ env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" } }),
+  ];
+}
+
 function createRegistry(accountKey: string): CodexRegistry {
   return {
     schema_version: 3,
@@ -205,6 +212,7 @@ describe("run alias session", () => {
     expect(calls[0]?.args).toEqual([
       "--permission-mode",
       "auto",
+      ...oauthSettingsArgs(),
       "--continue",
     ]);
     expect(calls[0]?.stdio).toBe("inherit");
@@ -282,7 +290,7 @@ describe("run alias session", () => {
     ).toEqual({ oauthAccount: accountB });
     expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
       .toEqual({ oauthAccount: accountA });
-    expect(calls[0]?.args).toEqual(["--permission-mode", "auto"]);
+    expect(calls[0]?.args).toEqual(["--permission-mode", "auto", ...oauthSettingsArgs()]);
   });
 
   test("neutralizes global API settings env for an isolated OAuth run", async () => {
@@ -325,6 +333,7 @@ describe("run alias session", () => {
     const override = JSON.parse(calls[0]?.args[settingsIndex + 1] ?? "{}");
     expect(override.env.ANTHROPIC_API_KEY).toBe("");
     expect(override.env.ANTHROPIC_MODEL).toBe("");
+    expect(override.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
   });
 
   test("applies the OAuth profile default model to isolated runs", async () => {
@@ -362,6 +371,7 @@ describe("run alias session", () => {
       "auto",
       "--model",
       "claude-opus-4-6",
+      ...oauthSettingsArgs(),
     ]);
   });
 
@@ -445,6 +455,7 @@ describe("run alias session", () => {
       expect(calls[0]?.args).toEqual([
         "--permission-mode",
         "auto",
+        ...oauthSettingsArgs(),
         "--continue",
       ]);
       expect(calls[0]?.env?.CLAUDE_CODE_ATTRIBUTION_HEADER).toBe("0");
@@ -495,7 +506,7 @@ describe("run alias session", () => {
         "https://proxy.example.com",
       );
       expect(calls[0]?.env?.ANTHROPIC_MODEL).toBe("claude-opus-4-6");
-      expect(calls[0]?.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeUndefined();
+      expect(calls[0]?.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
     } finally {
       if (oldApiKey === undefined) {
         delete process.env.ANTHROPIC_API_KEY;
@@ -566,8 +577,8 @@ describe("run alias session", () => {
     expect(override.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe(
       "deepseek-v4-flash",
     );
-    // Keys this profile does not own are blanked, not inherited.
-    expect(override.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("");
+    expect(override.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
+    // Other keys this profile does not own are blanked, not inherited.
     expect(override.env?.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("");
     expect(override.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe("");
     expect(override.env?.CLAUDE_CODE_SUBAGENT_MODEL_FORCE).toBe("");

@@ -3922,6 +3922,7 @@ async function writeOAuthAccount(account) {
 // src/providers/claude/settings.ts
 import { chmod, mkdir as mkdir2 } from "fs/promises";
 import { dirname } from "path";
+var CLAUDE_DEFAULT_OPUS_MODEL = "claude-opus-5-5";
 function localCLIProxyAPIAuthEnv(apiKey) {
   return { ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: apiKey };
 }
@@ -4056,7 +4057,7 @@ async function applyApiConfig(config) {
   setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL);
   setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
   setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
   setTopLevelModel(settings, config.model);
@@ -4065,6 +4066,7 @@ async function applyApiConfig(config) {
 async function applyOAuthConfig(model, extraEnv) {
   const settings = await read();
   const env2 = await beginManagedEnv(settings);
+  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   setTopLevelModel(settings, model);
   await commitManagedEnv(settings, env2, extraEnv);
 }
@@ -4100,7 +4102,7 @@ async function prepareApiProfileClaudeSettings(name, config) {
   env2.ANTHROPIC_MODEL = config.model ?? "";
   env2.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
   env2.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
-  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel ?? "";
+  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL;
   env2.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
   env2.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
   for (const [key, value] of Object.entries(normalizeCustomEnv(config.env))) {
@@ -4120,6 +4122,7 @@ async function prepareOAuthProfileClaudeSettings(name, profile) {
   for (const key of await readManagedExtraEnvKeys()) {
     env2[key] = "";
   }
+  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
     env2[key] = value;
   }
@@ -4153,12 +4156,11 @@ async function getClaudeEnvNeutralizer() {
     if (env2[key] && !present.includes(key))
       present.push(key);
   }
-  if (present.length === 0)
-    return null;
   const override = {};
   for (const key of present) {
     override[key] = "";
   }
+  override.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   return JSON.stringify({ env: override });
 }
 async function getApiConfig() {
@@ -16908,7 +16910,7 @@ function buildClaudeApiEnvironment(config) {
   setOptionalEnv(env3, "ANTHROPIC_MODEL", config.model);
   setOptionalEnv(env3, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
   setOptionalEnv(env3, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
-  setOptionalEnv(env3, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel);
+  setOptionalEnv(env3, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL);
   setOptionalEnv(env3, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
   setOptionalEnv(env3, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
   applyCustomEnv(env3, config.env);
@@ -18982,7 +18984,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.5",
+  version: "1.26.6",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
