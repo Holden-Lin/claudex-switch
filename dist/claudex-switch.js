@@ -18176,8 +18176,8 @@ function renderSection(infos) {
     const plan = formatPlan(info2.plan);
     const email = info2.email ? source_default.dim(info2.email) : "";
     const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-    const linkedClient = info2.linkedClient ? `  ${source_default.dim(`· ${info2.linkedClient}`)}` : "";
-    const model2 = info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
+    const linkedClient = info2.provider !== "opencode" && info2.linkedClient ? `  ${source_default.dim(`· ${info2.linkedClient}`)}` : "";
+    const model2 = info2.provider !== "opencode" && info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
     const usage2 = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage2 || balance;
@@ -18215,7 +18215,7 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
         binaryPath: profileData.binaryPath
       });
       const upstream = profileData.upstream ?? "codex";
-      const prefix = upstream === "codex" ? "CLIProxyAPI" : `CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[upstream].label}`;
+      const prefix = upstream === "codex" ? "CLIProxyAPI" : CLI_PROXY_API_UPSTREAMS[upstream].label;
       info2.apiProvider = status.loggedIn ? !status.environmentValid ? `${prefix} · invalid private env` : !status.configured ? `${prefix} · invalid config` : status.running ? `${prefix} · running` : `${prefix} · stopped` : `${prefix} · login required`;
       if (upstream !== "codex") {
         try {
@@ -19058,7 +19058,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.8",
+  version: "1.26.9",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

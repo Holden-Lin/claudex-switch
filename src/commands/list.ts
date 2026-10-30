@@ -604,10 +604,10 @@ function renderSection(infos: ListAccountInfo[]): void {
     const apiProvider = info.apiProvider
       ? `  ${chalk.dim(info.apiProvider)}`
       : "";
-    const linkedClient = info.linkedClient
+    const linkedClient = info.provider !== "opencode" && info.linkedClient
       ? `  ${chalk.dim(`· ${info.linkedClient}`)}`
       : "";
-    const model = info.defaultModel
+    const model = info.provider !== "opencode" && info.defaultModel
       ? `  ${chalk.dim(info.defaultModel)}`
       : "";
     const usage = formatUsage(info.usage, info.usageNote);
@@ -665,12 +665,12 @@ async function getClaudeAccountInfo(
         profileId: profileData.profileId,
         binaryPath: profileData.binaryPath,
       });
-      // ChatGPT rows keep their original label; newer upstreams name theirs.
+      // The auth type already names CLIProxyAPI; only name the upstream here.
       const upstream = profileData.upstream ?? "codex";
       const prefix =
         upstream === "codex"
           ? "CLIProxyAPI"
-          : `CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[upstream].label}`;
+          : CLI_PROXY_API_UPSTREAMS[upstream].label;
       info.apiProvider = status.loggedIn
         ? !status.environmentValid
           ? `${prefix} · invalid private env`

@@ -358,6 +358,16 @@ describe("--cliproxy claudecode", () => {
 
     // The same command keeps working once the alias exists.
     expect((await resolveCLIProxyClaudeEntry("agy", options)).target).toEqual(entry.target);
+    const lines: string[] = [];
+    const spy = spyOn(console, "log").mockImplementation((...args: unknown[]) => lines.push(args.join(" ")));
+    try {
+      await list({ noUsage: true });
+    } finally {
+      spy.mockRestore();
+    }
+    const agyLine = lines.find((line) => line.includes(" agy "));
+    expect(agyLine).toContain("Antigravity · running");
+    expect(agyLine).not.toContain("CLIProxyAPI · Antigravity");
   });
 
   test("a regular Claude alias is told to run without --cliproxy", async () => {
@@ -583,7 +593,7 @@ describe("--cliproxy claudecode", () => {
     expect((await loadRegistry()).accounts).toHaveLength(0);
   });
 
-  test("list tags upstream rows with their Claude Code proxy state", async () => {
+  test("list keeps OpenCode rows free of proxy state and model details", async () => {
     await resolveCLIProxyClaudeEntry("go", options);
     const lines: string[] = [];
     const spy = spyOn(console, "log").mockImplementation((...args: unknown[]) => {
@@ -594,8 +604,10 @@ describe("--cliproxy claudecode", () => {
     } finally {
       spy.mockRestore();
     }
-    const goLine = lines.find((line) => line.includes(" go "));
-    expect(goLine).toContain("claudecode: stopped");
+    const goLine = lines.join("\n").split("\n").find((line) => line.includes(" go "));
+    expect(goLine).toBeDefined();
+    expect(goLine).not.toContain("claudecode:");
+    expect(goLine).not.toContain("opencode-go/");
     // The internal profile has no alias and gets no row of its own.
     expect(lines.some((line) => line.includes("cliproxy-"))).toBe(false);
   });
