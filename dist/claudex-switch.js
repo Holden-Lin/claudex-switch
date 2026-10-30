@@ -10702,6 +10702,8 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env3[key] = value;
   }
+  if (profile.upstream === "antigravity")
+    env3.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = "";
   await writePrivateJson(paths.claudeSettingsFile, {
     model: options.inheritModel ? undefined : config.model,
     ...runtime.models ? {
@@ -19056,7 +19058,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.7",
+  version: "1.26.8",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

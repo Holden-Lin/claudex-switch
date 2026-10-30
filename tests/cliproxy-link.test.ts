@@ -521,6 +521,24 @@ describe("--cliproxy claudecode", () => {
     expect(args[args.indexOf("--permission-mode") + 1]).toBe("auto");
   });
 
+  test.each(["cx", "go", "agy"])("%s only clears the inherited compact percentage for agy", async (alias) => {
+    const entry = await resolveCLIProxyClaudeEntry(alias, options);
+    const name = (entry.target as { profileName: string }).profileName;
+    const profile = await getProfileData(name) as LocalCLIProxyAPIProfileData;
+    await writeFile(claudeProfileDataFile(name), JSON.stringify({
+      ...profile, env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40" },
+    }));
+    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+    await writeFile(SETTINGS_FILE, JSON.stringify({ env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40" } }));
+    const before = await readFile(SETTINGS_FILE, "utf8");
+    const calls: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }> = [];
+    expect(await runAliasSession(alias, ["--cliproxy", "claudecode"], fakeClaudeSpawn(calls) as never)).toBe(0);
+    const args = calls[0]!.args;
+    const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf8"));
+    expect(settings.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe(alias === "agy" ? "" : "40");
+    expect(await readFile(SETTINGS_FILE, "utf8")).toBe(before);
+  });
+
   test.each([undefined, "1"])("local classifier setting %s outranks inherited settings without changing the global account", async (override) => {
     const entry = await resolveCLIProxyClaudeEntry("cx", options);
     const name = (entry.target as { profileName: string }).profileName;

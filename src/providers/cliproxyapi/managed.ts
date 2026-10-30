@@ -710,6 +710,9 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env[key] = value;
   }
+  // agy sessions use Claude Code's normal compaction reserve instead of
+  // inheriting an early percentage from another account's global settings.
+  if (profile.upstream === "antigravity") env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = "";
   await writePrivateJson(paths.claudeSettingsFile, {
     model: options.inheritModel ? undefined : config.model,
     ...(runtime.models ? {

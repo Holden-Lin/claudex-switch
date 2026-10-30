@@ -27,6 +27,7 @@ describe("Claude Code subscription profiles", () => {
     expect(settings.model).toBeUndefined();
     expect(settings.env.ANTHROPIC_MODEL).toBe("");
     expect(settings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
+    expect(settings.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBeUndefined();
     expect(settings.modelPicker.options.map((option: { model: string }) => option.model)).toEqual(ids);
     expect(settings.modelPicker.options[0].description).toContain(CLI_PROXY_API_UPSTREAMS[upstream].label);
     expect(settings.modelOverrides["claude-opus-4-6"]).toBeUndefined();
