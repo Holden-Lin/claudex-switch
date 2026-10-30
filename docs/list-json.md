@@ -49,6 +49,8 @@ The `accounts` array contains one record per alias:
 
 `usage` uses fixed keys `fiveHourUsedPercent`, `fiveHourResetsAt`, `weeklyUsedPercent`, `weeklyResetsAt`, `monthlyUsedPercent`, and `monthlyResetsAt`. Percentages are provider-reported used-percent values from 0 to 100; reset values are Unix epoch milliseconds or `null`. Providers may omit a window. With `--no-usage`, `usage` is `null` and no provider quota request is made.
 
+From v1.26.10, Antigravity can additionally return `groups: [{ "name": "Claude/GPT", "usage": <window-fields> }]`, keeping each model family's limits separate. WorkBuddy can return `credits: { "used": 350, "total": 350 }`; these are credits, not dollars, and do not limit models priced at zero credits. Missing data remains `null`; human output omits unavailable plan and quota placeholders.
+
 `balance` is either `null` or `{ "key": <side-or-null>, "account": <side-or-null> }`. Each populated side is `{ "remainingUsd": <number-or-null>, "usedUsd": <number-or-null>, "unlimited": <boolean> }`. With `--no-usage`, no relay billing request is made and `balance` is `null`.
 
 ## Offline mode and data handling

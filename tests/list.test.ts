@@ -268,6 +268,19 @@ describe("list", () => {
     expect(output()).toContain("login expired");
   });
 
+  test.each([null, "unknown"])("omits unavailable Codex API plan %s", async (plan) => {
+    await saveAliases(codexAliases);
+    const registry = createRegistry();
+    registry.accounts[0]!.auth_mode = "apikey";
+    registry.accounts[0]!.plan = plan;
+    await saveRegistry(registry);
+
+    await list({ usage: false });
+
+    expect(output()).toContain("apikey  one@example.com  official");
+    expect(output()).not.toContain("unknown");
+  });
+
   test("skips usage for free-plan Codex accounts", async () => {
     await saveAliases(codexAliases);
     const registry = createRegistry();

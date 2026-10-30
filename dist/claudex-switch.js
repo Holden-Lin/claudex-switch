@@ -3443,7 +3443,7 @@ var esm_default5 = createPrompt((config, done) => {
 });
 // src/index.ts
 import { existsSync, readFileSync as readFileSync2 } from "fs";
-import { basename as basename3, dirname as dirname8, join as join19, resolve as resolve3 } from "path";
+import { basename as basename3, dirname as dirname8, join as join20, resolve as resolve3 } from "path";
 
 // src/alias/store.ts
 import { mkdir } from "fs/promises";
@@ -9847,6 +9847,32 @@ async function models(ctx) {
 async function listSubscriptionModels(directory, upstream, options = {}) {
   return models(await context(directory, upstream, options));
 }
+async function fetchSubscriptionUsage(directory, upstream, options = {}) {
+  try {
+    const { plugin, provider, getAuth: getAuth2 } = await context(directory, upstream, options);
+    const raw = await plugin.auth.usage?.(getAuth2, provider);
+    if (!raw || typeof raw !== "object")
+      return { usage: null, note: "usage n/a" };
+    const result2 = raw;
+    if (result2.error)
+      return { usage: null, note: "usage n/a" };
+    const plan = typeof result2.plan === "string" && /^[\w +.-]{1,64}$/.test(result2.plan) ? result2.plan : null;
+    const credits = Array.isArray(result2.windows) ? result2.windows.find((window) => window?.unit === "credits" && typeof window.amount === "number" && Number.isFinite(window.amount) && window.amount >= 0 && typeof window.limit === "number" && Number.isFinite(window.limit) && window.limit > 0) : undefined;
+    return {
+      usage: credits ? {
+        fiveHourUsedPercent: null,
+        fiveHourResetsAt: null,
+        weeklyUsedPercent: null,
+        weeklyResetsAt: null,
+        credits: { used: credits.amount, total: credits.limit }
+      } : null,
+      plan,
+      note: null
+    };
+  } catch {
+    return { usage: null, note: "usage n/a" };
+  }
+}
 function authorized(headers, key) {
   const bearer = headers.get("authorization");
   const token = bearer?.startsWith("Bearer ") ? bearer.slice(7) : headers.get("x-api-key");
@@ -10229,8 +10255,8 @@ function formatType(type) {
   }
 }
 function formatPlan(plan) {
-  if (!plan)
-    return source_default.dim("unknown");
+  if (!plan || plan.toLowerCase() === "unknown")
+    return "";
   const map = {
     max: source_default.magenta("Max"),
     pro: source_default.cyan("Pro"),
@@ -10270,10 +10296,21 @@ function formatUsage(usage2, note) {
     if (usage2.monthlyUsedPercent !== null && usage2.monthlyUsedPercent !== undefined) {
       parts.push(`${source_default.dim("mo")} ${colorRemaining(100 - usage2.monthlyUsedPercent)}`);
     }
+    for (const group of usage2.groups ?? []) {
+      const quota = formatUsage(group.usage, null);
+      if (quota)
+        parts.push(`${source_default.dim(group.name)} ${quota}`);
+    }
+    if (usage2.credits) {
+      const { used, total } = usage2.credits;
+      const left = Math.max(0, total - used);
+      const count = (value) => Number(value.toFixed(2)).toString();
+      parts.push(`${source_default.dim("credits")} ${colorRemaining(100 * left / total)} ${source_default.dim(`(${count(left)}/${count(total)} left)`)}`);
+    }
     if (parts.length > 0)
       return parts.join(source_default.dim(" · "));
   }
-  return note ? source_default.dim(note) : "";
+  return note && note !== "quota unavailable" && note !== "usage n/a" ? source_default.dim(note) : "";
 }
 var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 function formatWeeklyReset(resetsAt) {
@@ -17863,6 +17900,71 @@ function parseSnapshot(snapshot) {
   return any ? info2 : null;
 }
 
+// src/providers/cliproxyapi/usage.ts
+import { readFile as readFile13, readdir as readdir7 } from "node:fs/promises";
+import { join as join18 } from "node:path";
+async function fetchCLIProxyAPIUsage(profile) {
+  if (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") {
+    return fetchSubscriptionUsage(cliProxyAPIProfileDir(profile.profileId), profile.upstream);
+  }
+  if (profile.upstream !== "antigravity")
+    return { usage: null, note: null };
+  try {
+    const directory = cliProxyAPIAuthDir(profile.profileId);
+    const files = (await readdir7(directory)).filter((name) => name.endsWith(".json"));
+    if (files.length !== 1)
+      return { usage: null, note: "usage n/a" };
+    const auth = JSON.parse(await readFile13(join18(directory, files[0]), "utf8"));
+    if (auth.type !== "antigravity" || typeof auth.access_token !== "string" || !auth.access_token) {
+      return { usage: null, note: "usage n/a" };
+    }
+    const response = await fetch("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${auth.access_token}`, "Content-Type": "application/json", "User-Agent": "antigravity/1.19.6 darwin/arm64" },
+      body: JSON.stringify({ project: auth.project_id }),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok)
+      return { usage: null, note: "usage n/a" };
+    const usage2 = parseAntigravityQuota(await response.json());
+    return { usage: usage2, note: usage2 ? null : "usage n/a" };
+  } catch {
+    return { usage: null, note: "usage n/a" };
+  }
+}
+function parseAntigravityQuota(raw) {
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.groups))
+    return null;
+  const groups = [];
+  for (const group of raw.groups) {
+    if (!group || typeof group !== "object")
+      continue;
+    const { displayName, buckets } = group;
+    if (typeof displayName !== "string" || !displayName.trim() || displayName.length > 80 || /[\x00-\x1f\x7f]/.test(displayName) || !Array.isArray(buckets))
+      continue;
+    const usage2 = { fiveHourUsedPercent: null, fiveHourResetsAt: null, weeklyUsedPercent: null, weeklyResetsAt: null };
+    for (const bucket of buckets) {
+      if (!bucket || typeof bucket !== "object")
+        continue;
+      const { window, remainingFraction, resetTime } = bucket;
+      if (typeof remainingFraction !== "number" || !Number.isFinite(remainingFraction) || remainingFraction < 0 || remainingFraction > 1)
+        continue;
+      const reset = typeof resetTime === "string" ? Date.parse(resetTime) : NaN;
+      if (window === "5h") {
+        usage2.fiveHourUsedPercent = 100 * (1 - remainingFraction);
+        usage2.fiveHourResetsAt = Number.isFinite(reset) ? reset : null;
+      } else if (window === "weekly") {
+        usage2.weeklyUsedPercent = 100 * (1 - remainingFraction);
+        usage2.weeklyResetsAt = Number.isFinite(reset) ? reset : null;
+      }
+    }
+    if (usage2.fiveHourUsedPercent !== null || usage2.weeklyUsedPercent !== null) {
+      groups.push({ name: displayName.replace(/ models$/i, "").replace(/ and /gi, "/"), usage: usage2 });
+    }
+  }
+  return groups.length ? { fiveHourUsedPercent: null, fiveHourResetsAt: null, weeklyUsedPercent: null, weeklyResetsAt: null, groups } : null;
+}
+
 // src/commands/list.ts
 async function list(options = {}) {
   const withUsage = options.usage !== false;
@@ -17940,7 +18042,7 @@ async function refreshUsageCache(options = {}) {
           usage: info2.usage,
           balance: info2.balance,
           note: info2.usageNote,
-          plan: info2.provider === "codex" && info2.authMode === "chatgpt" ? info2.plan : null
+          plan: info2.authMode === "chatgpt" || info2.authMode === "local-cliproxyapi" ? info2.plan : null
         }, Date.now());
         await save().catch(() => {});
       }
@@ -18033,7 +18135,7 @@ function withCachedQuota(entries, baseInfos, cache) {
       usage: quota.usage,
       balance: quota.balance,
       usageNote: quota.note ?? info2.usageNote,
-      plan: info2.provider === "codex" && info2.authMode === "chatgpt" && quota.plan ? quota.plan : info2.plan,
+      plan: (info2.authMode === "chatgpt" || info2.authMode === "local-cliproxyapi") && quota.plan ? quota.plan : info2.plan,
       quotaAt: quota.dataAt
     };
   });
@@ -18175,15 +18277,15 @@ function renderSection(infos) {
     const type = formatType(info2.authMode);
     const plan = formatPlan(info2.plan);
     const email = info2.email ? source_default.dim(info2.email) : "";
-    const apiProvider = info2.apiProvider ? `  ${source_default.dim(info2.apiProvider)}` : "";
-    const linkedClient = info2.provider !== "opencode" && info2.linkedClient ? `  ${source_default.dim(`· ${info2.linkedClient}`)}` : "";
-    const model2 = info2.provider !== "opencode" && info2.defaultModel ? `  ${source_default.dim(info2.defaultModel)}` : "";
+    const apiProvider = info2.apiProvider ? source_default.dim(info2.apiProvider) : "";
+    const linkedClient = info2.provider !== "opencode" && info2.linkedClient ? source_default.dim(`· ${info2.linkedClient}`) : "";
+    const model2 = info2.provider !== "opencode" && info2.defaultModel ? source_default.dim(info2.defaultModel) : "";
     const usage2 = formatUsage(info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage2 || balance;
     const age = quota && info2.quotaAt && Date.now() - info2.quotaAt >= 60000 ? source_default.dim(` · ${formatAge(Date.now() - info2.quotaAt)}`) : "";
-    const quotaStr = quota ? `  ${quota}${age}` : "";
-    console.log(`  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${linkedClient}${model2}${quotaStr}`);
+    const details = [type, plan, email, apiProvider, linkedClient, model2, quota ? `${quota}${age}` : ""].filter(Boolean).join("  ");
+    console.log(`  ${icon} ${paddedName}  ${details}`);
   }
 }
 async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
@@ -18222,7 +18324,12 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
           info2.defaultModel = await resolveManagedLocalCLIProxyAPIDefaultModel(profileData);
         } catch {}
       }
-      info2.usageNote = "quota unavailable";
+      if (withUsage && status.loggedIn) {
+        const result2 = await fetchCLIProxyAPIUsage(profileData);
+        info2.usage = result2.usage;
+        info2.usageNote = result2.note;
+        info2.plan = result2.plan ?? null;
+      }
       if (!status.loggedIn)
         info2.status = "login-required";
     } else if (profileData.type === "api-key" && profileData.apiKey) {
@@ -18400,14 +18507,7 @@ function toJsonListAccount(info2) {
     defaultModel: safeDefaultModel(info2.defaultModel),
     isActive: info2.isActive,
     status: info2.status,
-    usage: info2.usage ? {
-      fiveHourUsedPercent: safePercent(info2.usage.fiveHourUsedPercent),
-      fiveHourResetsAt: safeTimestamp(info2.usage.fiveHourResetsAt),
-      weeklyUsedPercent: safePercent(info2.usage.weeklyUsedPercent),
-      weeklyResetsAt: safeTimestamp(info2.usage.weeklyResetsAt),
-      monthlyUsedPercent: safePercent(info2.usage.monthlyUsedPercent),
-      monthlyResetsAt: safeTimestamp(info2.usage.monthlyResetsAt)
-    } : null,
+    usage: jsonUsage(info2.usage),
     balance: info2.balance ? {
       key: info2.balance.key ? {
         remainingUsd: safeMoney(info2.balance.key.remainingUsd),
@@ -18420,6 +18520,20 @@ function toJsonListAccount(info2) {
         unlimited: info2.balance.account.unlimited === true
       } : null
     } : null
+  };
+}
+function jsonUsage(usage2) {
+  if (!usage2)
+    return null;
+  return {
+    fiveHourUsedPercent: safePercent(usage2.fiveHourUsedPercent),
+    fiveHourResetsAt: safeTimestamp(usage2.fiveHourResetsAt),
+    weeklyUsedPercent: safePercent(usage2.weeklyUsedPercent),
+    weeklyResetsAt: safeTimestamp(usage2.weeklyResetsAt),
+    monthlyUsedPercent: safePercent(usage2.monthlyUsedPercent),
+    monthlyResetsAt: safeTimestamp(usage2.monthlyResetsAt),
+    ...usage2.groups ? { groups: usage2.groups.map(({ name, usage: usage3 }) => ({ name, usage: jsonUsage(usage3) })) } : {},
+    ...usage2.credits ? { credits: { used: usage2.credits.used, total: usage2.credits.total } } : {}
   };
 }
 function compareJsonAccounts(left, right) {
@@ -18627,7 +18741,7 @@ async function current2() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir7 } from "fs/promises";
+import { readdir as readdir8 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -18658,7 +18772,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir7(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir8(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
@@ -19053,12 +19167,12 @@ async function runLoginCommand(command, args) {
 
 // src/lib/update.ts
 import { realpathSync as realpathSync2 } from "fs";
-import { join as join18 } from "path";
+import { join as join19 } from "path";
 import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.9",
+  version: "1.26.10",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -19187,7 +19301,7 @@ function detectInstallMethod(argv = process.argv, execPath = process.execPath, r
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     }));
-    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join18(bunGlobalBin, "claudex-switch")))) {
+    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join19(bunGlobalBin, "claudex-switch")))) {
       return "bun";
     }
   }
@@ -21429,7 +21543,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join19(root, "package.json");
+  const packageFile = join20(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {

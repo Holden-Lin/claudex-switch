@@ -39,6 +39,7 @@ import {
 } from "../providers/cliproxyapi/managed";
 import { getLinkedClaudeProfile } from "../providers/cliproxyapi/links";
 import { CLI_PROXY_API_UPSTREAMS } from "../providers/cliproxyapi/upstreams";
+import { fetchCLIProxyAPIUsage } from "../providers/cliproxyapi/usage";
 import {
   getOpenCodeProfileData,
   hasOpenCodeGoCredential,
@@ -66,6 +67,7 @@ import type {
   CodexRegistryAccount,
   CodexAuthFile,
   ProfileData,
+  UsageInfo,
 } from "../types";
 
 export interface ListOptions {
@@ -117,14 +119,7 @@ export interface JsonListAccount {
   defaultModel: string | null;
   isActive: boolean;
   status: ListAccountStatus;
-  usage: {
-    fiveHourUsedPercent: number | null;
-    fiveHourResetsAt: number | null;
-    weeklyUsedPercent: number | null;
-    weeklyResetsAt: number | null;
-    monthlyUsedPercent: number | null;
-    monthlyResetsAt: number | null;
-  } | null;
+  usage: UsageInfo | null;
   balance: {
     key: {
       remainingUsd: number | null;
@@ -265,7 +260,7 @@ export async function refreshUsageCache(
               balance: info.balance,
               note: info.usageNote,
               plan:
-                info.provider === "codex" && info.authMode === "chatgpt"
+                info.authMode === "chatgpt" || info.authMode === "local-cliproxyapi"
                   ? info.plan
                   : null,
             },
@@ -415,7 +410,7 @@ function withCachedQuota(
       balance: quota.balance,
       usageNote: quota.note ?? info.usageNote,
       plan:
-        info.provider === "codex" && info.authMode === "chatgpt" && quota.plan
+        (info.authMode === "chatgpt" || info.authMode === "local-cliproxyapi") && quota.plan
           ? quota.plan
           : info.plan,
       quotaAt: quota.dataAt,
@@ -602,13 +597,13 @@ function renderSection(infos: ListAccountInfo[]): void {
     const plan = formatPlan(info.plan);
     const email = info.email ? chalk.dim(info.email) : "";
     const apiProvider = info.apiProvider
-      ? `  ${chalk.dim(info.apiProvider)}`
+      ? chalk.dim(info.apiProvider)
       : "";
     const linkedClient = info.provider !== "opencode" && info.linkedClient
-      ? `  ${chalk.dim(`· ${info.linkedClient}`)}`
+      ? chalk.dim(`· ${info.linkedClient}`)
       : "";
     const model = info.provider !== "opencode" && info.defaultModel
-      ? `  ${chalk.dim(info.defaultModel)}`
+      ? chalk.dim(info.defaultModel)
       : "";
     const usage = formatUsage(info.usage, info.usageNote);
     const balance = formatBalance(info.balance);
@@ -617,10 +612,11 @@ function renderSection(infos: ListAccountInfo[]): void {
       quota && info.quotaAt && Date.now() - info.quotaAt >= 60_000
         ? chalk.dim(` · ${formatAge(Date.now() - info.quotaAt)}`)
         : "";
-    const quotaStr = quota ? `  ${quota}${age}` : "";
+    const details = [type, plan, email, apiProvider, linkedClient, model, quota ? `${quota}${age}` : ""]
+      .filter(Boolean).join("  ");
 
     console.log(
-      `  ${icon} ${paddedName}  ${type}  ${plan}  ${email}${apiProvider}${linkedClient}${model}${quotaStr}`,
+      `  ${icon} ${paddedName}  ${details}`,
     );
   }
 }
@@ -687,7 +683,12 @@ async function getClaudeAccountInfo(
           // Keep the stored value; status above already flags a broken env.
         }
       }
-      info.usageNote = "quota unavailable";
+      if (withUsage && status.loggedIn) {
+        const result = await fetchCLIProxyAPIUsage(profileData);
+        info.usage = result.usage;
+        info.usageNote = result.note;
+        info.plan = result.plan ?? null;
+      }
       if (!status.loggedIn) info.status = "login-required";
     } else if (profileData.type === "api-key" && profileData.apiKey) {
       info.plan = maskKey(profileData.apiKey);
@@ -936,16 +937,7 @@ function toJsonListAccount(info: ListAccountInfo): JsonListAccount {
     defaultModel: safeDefaultModel(info.defaultModel),
     isActive: info.isActive,
     status: info.status,
-    usage: info.usage
-      ? {
-          fiveHourUsedPercent: safePercent(info.usage.fiveHourUsedPercent),
-          fiveHourResetsAt: safeTimestamp(info.usage.fiveHourResetsAt),
-          weeklyUsedPercent: safePercent(info.usage.weeklyUsedPercent),
-          weeklyResetsAt: safeTimestamp(info.usage.weeklyResetsAt),
-          monthlyUsedPercent: safePercent(info.usage.monthlyUsedPercent),
-          monthlyResetsAt: safeTimestamp(info.usage.monthlyResetsAt),
-        }
-      : null,
+    usage: jsonUsage(info.usage),
     balance: info.balance
       ? {
           key: info.balance.key
@@ -964,6 +956,20 @@ function toJsonListAccount(info: ListAccountInfo): JsonListAccount {
             : null,
         }
       : null,
+  };
+}
+
+function jsonUsage(usage: UsageInfo | null): UsageInfo | null {
+  if (!usage) return null;
+  return {
+    fiveHourUsedPercent: safePercent(usage.fiveHourUsedPercent),
+    fiveHourResetsAt: safeTimestamp(usage.fiveHourResetsAt),
+    weeklyUsedPercent: safePercent(usage.weeklyUsedPercent),
+    weeklyResetsAt: safeTimestamp(usage.weeklyResetsAt),
+    monthlyUsedPercent: safePercent(usage.monthlyUsedPercent),
+    monthlyResetsAt: safeTimestamp(usage.monthlyResetsAt),
+    ...(usage.groups ? { groups: usage.groups.map(({ name, usage }) => ({ name, usage: jsonUsage(usage)! })) } : {}),
+    ...(usage.credits ? { credits: { used: usage.credits.used, total: usage.credits.total } } : {}),
   };
 }
 

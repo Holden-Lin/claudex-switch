@@ -1,5 +1,16 @@
 # 本机 CLIProxyAPI：设计与使用
 
+## 列表中的套餐与额度
+
+`list` 查询 Antigravity 的额度汇总接口，并按服务端返回的模型组分别显示 5 小时 / 每周剩余额度；不会将 Claude/GPT 组的额度当成 Gemini 的额度。WorkBuddy 复用已安装插件的套餐与积分查询。示例（数值会随用量变化）：
+
+```text
+agy        local CLIProxyAPI  Antigravity · running  …  Claude/GPT 5h 37% · wk 21% Thu20
+workbuddy  local CLIProxyAPI  Free  WorkBuddy AI (international) · running  …  credits 0% (0/350 left)
+```
+
+积分为零只表示收费模型的积分耗尽，不代表 x0.00 免费模型不能用。查不到的套餐、额度不显示 `unknown` / `quota unavailable`。接口超时或令牌尚未续期时，有历史额度就保留并标出时间，无历史数据就隐藏。Antigravity 的登录续期仍由 CLIProxyAPI 管理，查询不会另行轮换其令牌。`list --cached` 复用后台缓存；`--no-usage` 不请求额度。
+
 ## WorkBuddy / Cursor 订阅
 
 ```bash

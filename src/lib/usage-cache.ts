@@ -14,7 +14,7 @@ const TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
 export interface UsageCacheEntry {
   usage: UsageInfo | null;
   balance: RelayBalance | null;
-  /** Live Codex plan from the rate-limit response (ChatGPT accounts only). */
+  /** Live plan returned by the account's quota service. */
   plan: string | null;
   /** When usage/balance was last fetched successfully. */
   dataAt: number | null;

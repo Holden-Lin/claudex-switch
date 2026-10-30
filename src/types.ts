@@ -272,6 +272,8 @@ export interface UsageInfo {
   // existing providers on their native two-window quota contract.
   monthlyUsedPercent?: number | null;
   monthlyResetsAt?: number | null;
+  groups?: Array<{ name: string; usage: UsageInfo }>;
+  credits?: { used: number; total: number };
 }
 
 export interface UsageFetchResult {

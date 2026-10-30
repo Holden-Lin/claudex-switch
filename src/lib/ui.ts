@@ -66,7 +66,7 @@ export function formatType(type: ProfileType | string): string {
 }
 
 export function formatPlan(plan: string | null): string {
-  if (!plan) return chalk.dim("unknown");
+  if (!plan || plan.toLowerCase() === "unknown") return "";
   const map: Record<string, string> = {
     max: chalk.magenta("Max"),
     pro: chalk.cyan("Pro"),
@@ -121,9 +121,21 @@ export function formatUsage(
         `${chalk.dim("mo")} ${colorRemaining(100 - usage.monthlyUsedPercent)}`,
       );
     }
+    for (const group of usage.groups ?? []) {
+      const quota = formatUsage(group.usage, null);
+      if (quota) parts.push(`${chalk.dim(group.name)} ${quota}`);
+    }
+    if (usage.credits) {
+      const { used, total } = usage.credits;
+      const left = Math.max(0, total - used);
+      const count = (value: number) => Number(value.toFixed(2)).toString();
+      parts.push(`${chalk.dim("credits")} ${colorRemaining(100 * left / total)} ${chalk.dim(`(${count(left)}/${count(total)} left)`)}`);
+    }
     if (parts.length > 0) return parts.join(chalk.dim(" · "));
   }
-  return note ? chalk.dim(note) : "";
+  return note && note !== "quota unavailable" && note !== "usage n/a"
+    ? chalk.dim(note)
+    : "";
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

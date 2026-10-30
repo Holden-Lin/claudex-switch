@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { openExternalUrl } from "../../lib/browser";
+import type { UsageFetchResult } from "../../types";
 
 export type SubscriptionUpstream = "cursor" | "workbuddy" | "workbuddy-ai";
 type Auth = { type: "oauth"; access?: string; refresh?: string; source?: string; [key: string]: unknown };
@@ -29,6 +30,7 @@ export interface SubscriptionPlugin {
       baseURL?: string;
       fetch?: (input: string, init: RequestInit) => Promise<Response>;
     }>;
+    usage?: (getAuth: () => Promise<Auth | undefined>, provider: Provider) => Promise<unknown>;
   };
   config?: (config: { provider: Record<string, Partial<Provider>> }) => Promise<void>;
   provider?: { models: (provider: Provider, input: { auth: Auth }) => Promise<Provider["models"]> };
@@ -222,6 +224,33 @@ async function models(ctx: Context): Promise<Model[]> {
 
 export async function listSubscriptionModels(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<Model[]> {
   return models(await context(directory, upstream, options));
+}
+
+export async function fetchSubscriptionUsage(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<UsageFetchResult> {
+  try {
+    const { plugin, provider, getAuth } = await context(directory, upstream, options);
+    const raw = await plugin.auth.usage?.(getAuth, provider);
+    if (!raw || typeof raw !== "object") return { usage: null, note: "usage n/a" };
+    const result = raw as { error?: unknown; plan?: unknown; windows?: unknown };
+    if (result.error) return { usage: null, note: "usage n/a" };
+    const plan = typeof result.plan === "string" && /^[\w +.-]{1,64}$/.test(result.plan) ? result.plan : null;
+    const credits = Array.isArray(result.windows)
+      ? result.windows.find((window) => window?.unit === "credits"
+        && typeof window.amount === "number" && Number.isFinite(window.amount) && window.amount >= 0
+        && typeof window.limit === "number" && Number.isFinite(window.limit) && window.limit > 0)
+      : undefined;
+    return {
+      usage: credits ? {
+        fiveHourUsedPercent: null, fiveHourResetsAt: null,
+        weeklyUsedPercent: null, weeklyResetsAt: null,
+        credits: { used: credits.amount, total: credits.limit },
+      } : null,
+      plan,
+      note: null,
+    };
+  } catch {
+    return { usage: null, note: "usage n/a" };
+  }
 }
 
 function authorized(headers: Headers, key: string): boolean {
