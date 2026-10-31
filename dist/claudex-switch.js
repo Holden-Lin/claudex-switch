@@ -5,15 +5,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -2034,7 +2048,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
 // node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
@@ -2179,7 +2192,7 @@ var effectScheduler = {
 // node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
+    const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
         pointer.set(newValue);
         handleChange();
@@ -14427,11 +14440,12 @@ async function fetchOpenCodeConsoleGoModels(models2, credential) {
     throw new Error("Could not verify the workspace's Console model configuration.");
   const config = await configResponse.json();
   const provider = record(config) && record(config.providers) ? config.providers[OPENCODE_GO_PROVIDER_ID] : null;
-  const declaredModels = record(provider) && record(provider.models) ? new Set(Object.entries(provider.models).filter(([, model]) => record(model) && model.disabled !== true).map(([id]) => id)) : new Set;
+  const modelOverrides = record(provider) && (provider.models === undefined || record(provider.models)) ? provider.models ?? {} : null;
+  const disabledModels = modelOverrides ? new Set(Object.entries(modelOverrides).filter(([, model]) => record(model) && model.disabled === true).map(([id]) => id)) : new Set;
   const ids = await fetchOpenCodeGoCatalogIds();
   if (!ids)
     throw new Error("Could not load OpenCode's Go model catalog.");
-  const available = models2.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) && item.enabled !== false && typeof item.id === "string" && ids.has(item.id));
+  const available = modelOverrides === null ? [] : models2.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && item.enabled !== false && typeof item.id === "string" && !disabledModels.has(item.id) && ids.has(item.id));
   if (available.length === 0)
     throw new Error("This Console workspace has no available Go models; check its subscription and retry.");
   return available;
@@ -19172,7 +19186,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.10",
+  version: "1.26.11",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

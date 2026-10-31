@@ -2,6 +2,8 @@
 
 ## Now
 
+- [x] 2026-10-31：v1.26.11 修复 OpenCode Console 将 `opencode-go.models: {}` 改为“继承官方目录”后，`openlam42 --run` 误报没有 Go model。模型配置按 overlay 解释，仍排除显式禁用、未知目录及 Zen 路由。416 项测试、类型 / 文档检查、构建和真实 OpenCode 2.0.32 订阅验收通过；构建版已用真实 `openlam42` 进入显示 DeepSeek V4.1 Flash / OpenCode Go 的 TUI。
+
 - [x] 2026-10-30：v1.26.10 接入已实测的 agy 模型组额度与 WorkBuddy 套餐 / 积分；查不到的套餐和额度隐藏占位文字，保留有效登录与配置提示。416 项测试、类型 / 文档检查、构建通过；隔离 HOME 的构建版命令从真实接口拉数、写缓存并渲染，源登录文件哈希未变。
 
 - [x] 2026-10-30：v1.26.9 精简 list：agy / WorkBuddy 状态去掉重复 CLIProxyAPI；OpenCode 隐藏代理状态与模型，保留套餐及额度。代理渲染回归覆盖实际 list 输出。

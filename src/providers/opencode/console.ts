@@ -139,15 +139,20 @@ export async function fetchOpenCodeConsoleGoModels(models: JsonRecord[], credent
   if (!configResponse.ok) throw new Error("Could not verify the workspace's Console model configuration.");
   const config = await configResponse.json();
   const provider = record(config) && record(config.providers) ? config.providers[OPENCODE_GO_PROVIDER_ID] : null;
-  const declaredModels = record(provider) && record(provider.models)
-    ? new Set(Object.entries(provider.models).filter(([, model]) => record(model) && model.disabled !== true).map(([id]) => id))
-    : new Set();
+  const modelOverrides = record(provider) && (provider.models === undefined || record(provider.models))
+    ? provider.models ?? {}
+    : null;
+  const disabledModels = modelOverrides
+    ? new Set(Object.entries(modelOverrides).filter(([, model]) => record(model) && model.disabled === true).map(([id]) => id))
+    : new Set<string>();
   const ids = await fetchOpenCodeGoCatalogIds();
   if (!ids) throw new Error("Could not load OpenCode's Go model catalog.");
   // Console OAuth integration is "opencode", but its subscription provider is
-  // "opencode-go". Zen may declare the same IDs on a different billing route.
-  const available = models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID && declaredModels.has(String(item.id)) &&
-    item.enabled !== false && typeof item.id === "string" && ids.has(item.id));
+  // "opencode-go". Its model config is an overlay on OpenCode's catalog, not
+  // an allowlist: an empty object inherits every effective native Go model.
+  // Zen may declare the same IDs on a different billing route.
+  const available = modelOverrides === null ? [] : models.filter((item) => item.providerID === OPENCODE_GO_PROVIDER_ID &&
+    item.enabled !== false && typeof item.id === "string" && !disabledModels.has(item.id) && ids.has(item.id));
   if (available.length === 0) throw new Error("This Console workspace has no available Go models; check its subscription and retry.");
   return available;
 }

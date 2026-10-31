@@ -180,25 +180,32 @@ describe("OpenCode browser subscriptions", () => {
     expect((normal.providers as any).opencode.models["new-public-model"]).toEqual({});
   });
 
-  test("selects the production Console Go provider and rejects Zen even with matching model IDs", async () => {
+  test("treats Console model settings as overlays while rejecting disabled, unknown and Zen routes", async () => {
     await saveOpenCodeConsoleProfile(A, profile());
     await seed(openCodeProfileV2DatabaseFile(A));
     const credential = await consoleProvider.readPinnedConsoleCredential(A);
     const go = { providerID: "opencode-go", id: "minimax-m3", enabled: true };
-    const models = [go, { providerID: "opencode", id: "minimax-m3", enabled: true },
+    const inherited = { providerID: "opencode-go", id: "qwen3.8-max", enabled: true };
+    const models = [go, inherited, { providerID: "opencode", id: "minimax-m3", enabled: true },
       { providerID: "opencode-go", id: "zen-copy", modelID: "minimax-m3", enabled: true },
       { providerID: "opencode-go", id: "kimi-k3", enabled: false },
-      { providerID: "opencode-go", id: "glm-5.3", enabled: true }];
-    let includeGo = true;
+      { providerID: "opencode-go", id: "glm-5.3", enabled: true },
+      { providerID: "opencode-go", id: "not-in-go-catalog", enabled: true }];
     globalThis.fetch = (async (url: unknown) => {
       if (String(url).endsWith("/api/v2/config")) return Response.json({ providers: {
         opencode: { models: { "minimax-m3": {} } },
-        ...(includeGo ? { "opencode-go": { models: { "minimax-m3": {}, "zen-copy": { modelID: "minimax-m3" }, "kimi-k3": {}, "glm-5.3": { disabled: true } } } } : {}),
+        "opencode-go": { models: { "minimax-m3": {}, "zen-copy": { modelID: "minimax-m3" }, "kimi-k3": {}, "glm-5.3": { disabled: true } } },
       } });
-      return Response.json({ data: [{ id: "minimax-m3" }, { id: "kimi-k3" }, { id: "glm-5.3" }] });
+      return Response.json({ data: [{ id: "minimax-m3" }, { id: "kimi-k3" }, { id: "glm-5.3" }, { id: "qwen3.8-max" }] });
     }) as typeof fetch;
-    expect(await consoleProvider.fetchOpenCodeConsoleGoModels(models, credential)).toEqual([go]);
-    includeGo = false;
+    expect(await consoleProvider.fetchOpenCodeConsoleGoModels(models, credential)).toEqual([go, inherited]);
+    globalThis.fetch = (async (url: unknown) => String(url).endsWith("/api/v2/config")
+      ? Response.json({ providers: { "opencode-go": { models: {} } } })
+      : Response.json({ data: [{ id: "minimax-m3" }, { id: "qwen3.8-max" }] })) as typeof fetch;
+    expect(await consoleProvider.fetchOpenCodeConsoleGoModels(models, credential)).toEqual([go, inherited]);
+    globalThis.fetch = (async (url: unknown) => String(url).endsWith("/api/v2/config")
+      ? Response.json({ providers: {} })
+      : Response.json({ data: [{ id: "minimax-m3" }, { id: "qwen3.8-max" }] })) as typeof fetch;
     await expect(consoleProvider.fetchOpenCodeConsoleGoModels(models, credential)).rejects.toThrow("no available Go models");
   });
 
