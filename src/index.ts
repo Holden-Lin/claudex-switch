@@ -216,6 +216,12 @@ async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
 
   try {
+    const runIndex = args.findIndex(isRunFlag);
+    const ownArgs = runIndex < 0 ? args : args.slice(0, runIndex);
+    if (isHelpCommand(command) || ownArgs.includes("--help") || ownArgs.includes("-h")) {
+      console.log(HELP);
+      return;
+    }
     const jsonListCommand =
       (command === "list" || command === "ls") && args.includes("--json");
     enforceRepoLocalHomeSafety(command, jsonListCommand);

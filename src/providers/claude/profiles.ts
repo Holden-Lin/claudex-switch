@@ -37,7 +37,6 @@ import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
 import {
   applyApiConfig,
-  applyLocalCLIProxyAPIConfig,
   applyOAuthConfig,
   clearApiConfig,
   getApiConfig,
@@ -46,12 +45,12 @@ import {
 } from "./settings";
 import {
   ensureManagedCLIProxyAPI,
-  getLocalCLIProxyAPISettings,
   purgeManagedCLIProxyAPI,
   replaceManagedCLIProxyAPIBinary,
   findCLIProxyAPIBinary,
 } from "../cliproxyapi/managed";
 import { assertCLIProxyAPICompatibility } from "../cliproxyapi/version";
+import { loadAliases, findAliasByTarget } from "../../alias/store";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
@@ -195,7 +194,7 @@ export async function updateProfileDefaultModel(
   await writeProfileData(name, nextData);
 
   const state = await readState();
-  if (state.active === name) {
+  if (state.active === name && nextData.type !== "local-cliproxyapi") {
     await activateProfile(name, nextData);
   }
 
@@ -259,7 +258,7 @@ export async function updateClaudeProfileConfig(
   await writeProfileData(name, next);
 
   const state = await readState();
-  const reapplied = state.active === name;
+  const reapplied = state.active === name && next.type !== "local-cliproxyapi";
   if (reapplied) {
     await activateProfile(name, next);
   }
@@ -313,22 +312,11 @@ export async function addLocalCLIProxyAPIProfile(
   name: string,
   config: LocalCLIProxyAPIProfileData,
 ): Promise<void> {
-  const state = await readState();
-  if (
-    state.active &&
-    state.active !== name &&
-    (await profileExists(state.active))
-  ) {
-    const oldData = await readProfileData(state.active);
-    if (oldData.type === "oauth") {
-      await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
-    }
-  }
-
-  await ensureDir(claudeProfileDir(name));
-  await writeProfileData(name, config);
-  await activateProfile(name, config);
-  await writeState({ active: name });
+  await ensureManagedCLIProxyAPI({
+    profileId: config.profileId,
+    binaryPath: config.binaryPath,
+  });
+  await saveLocalCLIProxyAPIProfile(name, config);
 }
 
 // Profiles behind `<alias> --run --cliproxy claudecode` are reached through a
@@ -373,8 +361,9 @@ export async function switchProfile(name: string): Promise<ProfileData> {
     throw new Error(`Profile "${name}" does not exist`);
   }
 
-  const state = await readState();
   const targetData = await readProfileData(name);
+  await assertGlobalSwitchAllowed(name, targetData);
+  const state = await readState();
   if (state.active === name && (await isProfileApplied(name, targetData))) {
     return targetData;
   }
@@ -427,29 +416,22 @@ async function snapshotCurrentOAuthProfileIfLiveMatches(
   return true;
 }
 
+async function assertGlobalSwitchAllowed(name: string, data: ProfileData): Promise<void> {
+  if (data.type !== "local-cliproxyapi") return;
+  const entry = findAliasByTarget(await loadAliases(), { provider: "claude", profileName: name });
+  const alias = entry?.alias ?? name;
+  throw new Error(`Profile "${alias}" only supports isolated runs. Use "claudex-switch ${alias} --run" instead.`);
+}
+
 async function activateProfile(
   name: string,
   targetData: ProfileData,
 ): Promise<void> {
+  await assertGlobalSwitchAllowed(name, targetData);
   if (targetData.type === "api-key") {
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
-    return;
-  }
-
-  if (targetData.type === "local-cliproxyapi") {
-    // Start and verify the loopback daemon before touching the current Claude
-    // credential store. A broken local proxy must leave the prior account
-    // intact instead of producing a half-switched global configuration.
-    const runtime = await ensureManagedCLIProxyAPI({
-      profileId: targetData.profileId,
-      binaryPath: targetData.binaryPath,
-    });
-    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
-    await deleteCredentials(CREDENTIALS_FILE);
-    await writeOAuthAccount(null);
-    await applyLocalCLIProxyAPIConfig(config, targetData.env);
     return;
   }
 
@@ -713,9 +695,6 @@ async function isProfileApplied(
   targetData: ProfileData,
 ): Promise<boolean> {
   if (targetData.type === "local-cliproxyapi") {
-    // A process can disappear after a prior global switch. Re-activation is
-    // deliberately cheap when healthy and guarantees `claudex-switch <alias>`
-    // still ensures the per-account proxy on every invocation.
     return false;
   }
 

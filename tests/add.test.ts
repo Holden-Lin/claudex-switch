@@ -706,9 +706,7 @@ describe("add", () => {
         authIdentity: expect.any(String),
       });
       expect(profile.type === "local-cliproxyapi" && profile.profileId).toBeTruthy();
-      const settings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
-      expect(settings.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("gpt-6-astra");
-      expect(settings.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe("claudex-terra-max");
+      expect(await Bun.file(SETTINGS_FILE).exists()).toBe(false);
       expect(logSpy.mock.calls.flat().join("\n")).toContain("chatgpt-local created");
     } finally {
       if (profile?.type === "local-cliproxyapi") {
