@@ -3,3 +3,7 @@ node_modules/
 release/
 docs/req_changelog.md
 .claude
+
+# memory: local-only (public repo) — see CLAUDE.local.md; keep docs/memory/ and CLAUDE.local.md out of git
+docs/memory/
+CLAUDE.local.md
