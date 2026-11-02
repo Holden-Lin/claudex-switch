@@ -15,13 +15,15 @@ async function effective() {
   const overlay = source ? source.startsWith("{") ? JSON.parse(source) : await json(source) : {};
   const env = { ...process.env, ...shared.env, ...overlay.env };
   const modelIndex = args.indexOf("--model");
-  return { env, model: modelIndex < 0 ? env.ANTHROPIC_MODEL || overlay.model || shared.model || "default" : args[modelIndex + 1] };
+  return { env, settings: shared, model: modelIndex < 0 ? env.ANTHROPIC_MODEL || overlay.model || shared.model || "default" : args[modelIndex + 1] };
 }
 async function report(phase) {
-  const { env, model } = await effective();
+  const { env, model, settings } = await effective();
   const value = { phase, model, route: env.ANTHROPIC_BASE_URL || "oauth",
     opus: env.ANTHROPIC_DEFAULT_OPUS_MODEL, subagent: env.CLAUDE_CODE_SUBAGENT_MODEL || "",
-    force: env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE || "", classifier: env.CLAUDE_CODE_AUTO_MODE_SERVER || "" };
+    force: env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE || "", classifier: env.CLAUDE_CODE_AUTO_MODE_SERVER || "",
+    hooks: settings.hooks ?? {}, permissions: settings.permissions ?? {}, autoMode: settings.autoMode ?? {},
+    sharedRelaunch: env.SHARED_RELAUNCH ?? "" };
   console.log(`SESSION_REPORT ${JSON.stringify(value)}`);
   return { env, model };
 }

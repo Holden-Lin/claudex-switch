@@ -614,11 +614,12 @@ async function preparePrivateClaudeUserSettings(configDir: string): Promise<void
   const destination = join(configDir, "settings.json");
   try {
     const stat = await lstat(destination);
-    if (!stat.isSymbolicLink()) return;
-    await unlink(destination);
+    if (stat.isSymbolicLink()) await unlink(destination);
   } catch {
     // A first run has no user settings yet.
   }
+  // Refresh hooks and permission rules on every launch. Session writes stay
+  // private until the next launch replaces them from the shared source.
   const settings = await readJson<Record<string, unknown>>(join(CLAUDE_DIR, "settings.json"), {});
   await writeJson(destination, settings);
   await chmod(destination, 0o600).catch(() => {});

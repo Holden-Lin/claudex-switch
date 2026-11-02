@@ -12002,9 +12002,8 @@ async function preparePrivateClaudeUserSettings(configDir) {
   const destination = join8(configDir, "settings.json");
   try {
     const stat3 = await lstat(destination);
-    if (!stat3.isSymbolicLink())
-      return;
-    await unlink2(destination);
+    if (stat3.isSymbolicLink())
+      await unlink2(destination);
   } catch {}
   const settings = await readJson(join8(CLAUDE_DIR, "settings.json"), {});
   await writeJson(destination, settings);
@@ -19197,7 +19196,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.27.0",
+  version: "1.27.1",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

@@ -342,6 +342,17 @@ describe("managed local CLIProxyAPI", () => {
     expect((await lstat(privateSettings)).isSymbolicLink()).toBe(false);
     await writeFile(privateSettings, JSON.stringify({ model: "private-proxy-model" }));
     expect(await readFile(SETTINGS_FILE, "utf-8").catch(() => null)).toBe(sharedBefore);
+    const updated = {
+      model: "claude-opus-5-5",
+      hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf updated-proxy-hook" }] }] },
+      permissions: { deny: ["Bash(fixture-denied:*)"] },
+      autoMode: { rules: ["shared proxy rule"] },
+      env: { SHARED_PROXY_ONLY: "latest" },
+    };
+    await writeFile(SETTINGS_FILE, JSON.stringify(updated));
+    await prepareIsolatedLocalCLIProxyAPIRun(name);
+    expect(JSON.parse(await readFile(privateSettings, "utf-8"))).toEqual(updated);
+    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf-8"))).toEqual(updated);
     expect(context.secureStorageDir).toBe(claudeProfileSecureStorageDir(name));
     expect(fileMode((await stat(context.secureStorageDir)).mode)).toBe(0o700);
     expect(await lstat(join(context.configDir, "skills"))).toBeDefined();

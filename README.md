@@ -83,6 +83,8 @@ claudex-switch list
 
 `claudex-switch agy cc` 是 `agy -run --cliproxy claudecode` 的快捷写法，也支持其他代理 / Codex / Go 别名。别名后无法识别的参数会报错，不会切换账号。Claude `-run` 的 `/model` 只保存到该账号的私有用户设置，不会改全局默认模型；技能、hooks 和 CLAUDE.md 仍可正常使用。
 
+每次 `-run` 都重新读取当前共享用户设置，所以之后安装的 hooks 和权限规则会在下次启动生效。会话内的 `/model` 等用户设置写入会在重启时丢弃；用 `model` / `webconfig` 保存的账号配置保留。
+
 ---
 
 ## 🛠️ 常用进阶用法

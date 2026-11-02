@@ -176,6 +176,31 @@ try {
     console.log(`/model ${alias}: private user settings changed; global unchanged`);
   }
   for (const session of sessions) { await writeFile(session.signal, "exit"); assert.equal((await session.task.done).code, 0); }
+  const refreshed = {
+    ...globalBeforeWrite,
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf refreshed-hook" }] }] },
+    permissions: { deny: ["Bash(fixture-denied:*)"] },
+    autoMode: { rules: ["refreshed shared fixture rule"] },
+    env: { ...globalBeforeWrite.env, SHARED_RELAUNCH: "latest" },
+    sharedOnly: "preserved",
+  };
+  await put(".claude/settings.json", refreshed);
+  for (const { alias, signal } of sessions) {
+    await writeFile(signal, "relaunch");
+    const task = start([alias, "-run"], { CLAUDEX_SESSION_SIGNAL_FILE: signal, CLAUDEX_SESSION_ALIAS: alias });
+    await waitFor(task, '"phase":"relaunch"');
+    const report = JSON.parse(task.output().split("\n").find((line) => line.startsWith("SESSION_REPORT ")).slice(15));
+    assert.deepEqual(report.hooks, refreshed.hooks);
+    assert.deepEqual(report.permissions, refreshed.permissions);
+    assert.deepEqual(report.autoMode, refreshed.autoMode);
+    assert.equal(report.sharedRelaunch, "latest");
+    const entry = (await json(".claudex-switch/aliases.json")).aliases.find((item) => item.alias === alias);
+    assert.deepEqual(await json(`.claude-profiles/${entry.target.profileName}/config/settings.json`), refreshed);
+    assert.deepEqual(await json(".claude/settings.json"), refreshed);
+    await writeFile(signal, "exit");
+    assert.equal((await task.done).code, 0);
+    console.log(`relaunch ${alias}: current hooks/permissions/autoMode/env loaded; private writes discarded; global unchanged`);
+  }
   const before = await tree();
   assert((await run(["wb-ai", "--help"])).includes("Usage:"));
   assert.deepEqual(await tree(), before);
@@ -188,7 +213,7 @@ try {
     assert.deepEqual(await tree(), before);
     console.log(`${args.join(" ")}: exit=1; all fixture files byte-identical`);
   }
-  console.log("PASS: add -> list -> global switch -> bare claude -> OAuth restore -> live -run reload isolation");
+  console.log("PASS: add -> list -> global switch -> bare claude -> OAuth restore -> live -run reload isolation -> refreshed shared settings on relaunch");
 } finally {
   for (const task of launched) if (task.exitCode === null) task.kill("SIGTERM");
   // Only PIDs in our private fixture HOME can be signalled here.

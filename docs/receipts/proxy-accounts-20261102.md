@@ -1,5 +1,53 @@
 # 代理账号管理与独立会话：交付清单
 
+## FIX1 · v1.27.1：每次启动刷新共享设置
+
+本节为当前行为，后面的 v1.27.0 清单保留为历史；其中“私有用户设置首用复制、之后保留”的设计已被本节替代。
+
+- Dispatch：`CLAUDEX-PROXY-ACCOUNTS-FIX1-20261102`；Contract：`CLAUDEX-PROXY-ACCOUNTS-FIX1-20261102-v1`。
+- 合同 SHA-256：`2495337f716ecf4933ca3845182c227f136311db49c7b125747479e5803414f1`。
+- ACK：`2026-11-02T13:50:32.425491Z ACK dispatch_id=CLAUDEX-PROXY-ACCOUNTS-FIX1-20261102 contract_version=CLAUDEX-PROXY-ACCOUNTS-FIX1-20261102-v1 worktree=/Users/holden/code/claudex-switch/.worktrees/proxy-accounts-20261102`，已通过 signal 写入 worker.txt。
+- 基线：`d58ba87`（v1.27.0 的 formula 提交）；补丁发布提交用 `v1.27.1^{commit}` 解析。发布地址：<https://github.com/Holden-Lin/claudex-switch/releases/tag/v1.27.1>。
+
+用户原话沿用本清单下方两段，来源为本轮合同核实的 ROOT 会话原话。ROOT 本轮批准修复：私有设置必须在每次启动时重新加载当前共享设置；允许丢弃会话自己的 `/model` 选择，禁止手工改真实全局设置。未读取真实秘密、未改真实账号或共享设置。
+
+根因：v1.27.0 在私有用户设置已是普通文件时提前返回，导致后装的 hooks、权限规则和用户配置永远不能进入该账号。已去掉这条提前返回；OAuth、API Key、代理共用的准备入口现在每次都从当前共享设置重建私有副本，再由原有覆盖文件应用账号路由 / 模型 / env。旧 symlink 先断开，已是普通私有文件的账号也会刷新。共享文件中独有的键完整复制，权限仍为 0600。
+
+设置保留规则：
+
+- 私有用户 `settings.json` 中的全部会话写入（包括 `/model`、会话内修改的用户偏好、私有 hooks / 权限规则）只影响该私有文件，下次启动丢弃。
+- 当前共享用户设置中的 hooks、permissions、autoMode、env 和其他用户键进入下一次启动。账号自己的路由、模型和 env 继续由账号覆盖层决定。
+- `claudex-switch model` / `webconfig` 保存的账号配置继续保留；项目级配置文件写入仍正常保留。此修复只重建私有用户设置，不负责删除项目配置或会话数据。
+- 正在运行的会话仍与全局切换隔离；这次修复在账号下一次 `-run` 生效，不手工修改任何真实 profile 的私有文件。
+
+验证：
+
+- `TZ=UTC bun run verify`：437 pass / 0 fail，2,223 断言；类型检查、文档检查、构建、`git diff --check` 通过。
+- 原有 OAuth / API Key 的运行测试与代理配置测试增加“先写私有模型，再更新共享 hook、permissions、autoMode、env、独有键，重启后私有文件与当前共享设置完全一致”的断言。覆盖旧 symlink 和已转换的普通私有文件，且共享文件在会话内写入前后不变。
+- B 的全局写入键覆盖表和正在运行的会话切换隔离测试保留并通过。
+- 构建入口端到端验收：`/tmp/claudex-proxy-fix1-e2e.log`。OAuth、API Key、agy、Cursor 的客户端均实际读取并报告了重启后新增的共享配置，丢弃先前的私有模型写入，且全局设置保持不变。
+- 已安装入口显示 `1.27.1`，与构建 SHA-256 一致：`36dce90f60895fea511a876f1a60dea22f9f05866c60176a06ec4bced0bf3d4c`；完整安装验收通过，日志为 `/tmp/claudex-proxy-fix1-installed.log`。旧 v1.27.0 运行同一验收在新 hook 应加载处失败（实际 `{}`），新版本通过。
+
+复验（全部 synthetic HOME）：
+
+```sh
+TZ=UTC bun run test
+node tests/fixtures/proxy-accounts.mjs /Users/holden/.local/bin/claudex-switch
+```
+
+新增端到端输出：
+
+```text
+relaunch native: current hooks/permissions/autoMode/env loaded; private writes discarded; global unchanged
+relaunch api: current hooks/permissions/autoMode/env loaded; private writes discarded; global unchanged
+relaunch agy: current hooks/permissions/autoMode/env loaded; private writes discarded; global unchanged
+relaunch cursor: current hooks/permissions/autoMode/env loaded; private writes discarded; global unchanged
+```
+
+按 landing 记录 `--without-review R0`：已批准的单一共享入口修复，自审与全套回归、已安装 CLI 验收覆盖合同四项，ROOT 重跑验收。保留功能工作树及 FIX1 landing 工作树至 `2026-11-04T00:00:00Z`。派发 worker 不改共享 TODO / req_changelog / memory；请 integrator 记录本修复的当前行为，避免再次把私有副本变成永久配置源。以下为上一版本记录。
+
+---
+
 - Dispatch：`CLAUDEX-PROXY-ACCOUNTS-20261102B`（替代同名无 B 的旧派发）
 - Contract：`CLAUDEX-PROXY-ACCOUNTS-20261102B-v1`
 - v2 合同 SHA-256：`5dfbef8968a01c743b6ac06063b5ff3987f17049a3eb5d379d86548b87b6a5b6`

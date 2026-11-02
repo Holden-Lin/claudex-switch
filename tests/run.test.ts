@@ -356,10 +356,20 @@ describe("run alias session", () => {
     expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8")).hooks).toEqual(settings.hooks);
     expect(await readlink(join(config, "skills"))).toBe(join(dirname(SETTINGS_FILE), "skills"));
     expect(await readFile(join(config, "CLAUDE.md"), "utf8")).toBe("fixture user instructions");
-    await writeFile(join(config, "settings.json"), JSON.stringify({ ...settings, model: "private-only" }));
+    await writeFile(join(config, "settings.json"), JSON.stringify({ ...settings, model: "private-only", sessionOnly: true }));
     expect(JSON.parse(await readFile(SETTINGS_FILE, "utf8"))).toEqual(settings);
+    const updated = {
+      ...settings,
+      hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf updated-hook" }] }] },
+      permissions: { deny: ["Bash(fixture-denied:*)"] },
+      autoMode: { rules: ["shared fixture rule"] },
+      env: { SHARED_ONLY: "latest" },
+      sharedOnly: "preserved",
+    };
+    await writeFile(SETTINGS_FILE, JSON.stringify(updated));
     await runAliasSession("private", [], createSpawn(calls));
-    expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8")).model).toBe("private-only");
+    expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8"))).toEqual(updated);
+    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf8"))).toEqual(updated);
   });
 
   test("applies the OAuth profile default model to isolated runs", async () => {

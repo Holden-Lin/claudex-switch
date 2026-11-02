@@ -83,6 +83,8 @@ Instantly displays account status, 5-hour / weekly remaining quota percentages (
 
 `claudex-switch agy cc` is short for `agy -run --cliproxy claudecode`, also available for other proxy / Codex / Go aliases. Unrecognized arguments after an alias fail without switching accounts. In a Claude `-run` session, `/model` saves only to that account's private user settings; skills, hooks, and CLAUDE.md remain available.
 
+Each `-run` reloads the current shared user settings, so new hooks and permission rules take effect on the next launch. In-session user settings changes, including `/model`, are discarded on relaunch; account configuration saved through `model` / `webconfig` is retained.
+
 ---
 
 ## 🛠️ Common Workflows
