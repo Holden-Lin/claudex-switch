@@ -4,7 +4,6 @@ import { SETTINGS_FILE } from "../src/lib/paths";
 import {
   applyApiConfig,
   applyOAuthConfig,
-  getClaudeEnvNeutralizer,
   prepareApiProfileClaudeSettings,
   prepareOAuthProfileClaudeSettings,
 } from "../src/providers/claude/settings";
@@ -17,7 +16,7 @@ describe("Claude opus default", () => {
   afterEach(resetTestHome);
 
   test("supplies Opus 5.5 for OAuth even with clean global settings", async () => {
-    const override = JSON.parse(await getClaudeEnvNeutralizer()) as Settings;
+    const override = await readJson<Settings>(await prepareOAuthProfileClaudeSettings("plain", { type: "oauth" }), { env: {} });
     expect(override.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
     const file = await prepareOAuthProfileClaudeSettings("oauth", {
       type: "oauth", env: { CUSTOM_SETTING: "keep" },

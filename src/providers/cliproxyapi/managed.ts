@@ -34,6 +34,7 @@ import {
 } from "../../lib/browser";
 import {
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
+  getClaudeRunEnvOverrides,
   localCLIProxyAPIAuthEnv,
   localCLIProxyAPIExtraEnv,
   type LocalCLIProxyAPISettings,
@@ -625,7 +626,7 @@ export async function getLocalCLIProxyAPISettings(
 
 // Claude Code's own current IDs; it sends one when the shared settings saved a
 // /model default (2026-10-22: "claude-opus-5-5" → "unknown provider").
-const CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+const CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"];
 
 // A saved Claude model or a version-specific agent can still use a bare
 // Anthropic ID. Map it to the same registered version, including its tier;
@@ -672,6 +673,7 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
   const env: Record<string, string> = {
+    ...await getClaudeRunEnvOverrides(),
     ...localCLIProxyAPIAuthEnv(config.apiKey),
     ANTHROPIC_BASE_URL: config.baseUrl,
     ANTHROPIC_MODEL: options.inheritModel ? "" : config.model,

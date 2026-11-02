@@ -38,6 +38,7 @@ import { fileExists, readJson, writeJson } from "../../lib/fs";
 import {
   applyApiConfig,
   applyOAuthConfig,
+  applyLocalCLIProxyAPIConfig,
   clearApiConfig,
   getApiConfig,
   getConfiguredModel,
@@ -45,12 +46,12 @@ import {
 } from "./settings";
 import {
   ensureManagedCLIProxyAPI,
+  getLocalCLIProxyAPISettings,
   purgeManagedCLIProxyAPI,
   replaceManagedCLIProxyAPIBinary,
   findCLIProxyAPIBinary,
 } from "../cliproxyapi/managed";
 import { assertCLIProxyAPICompatibility } from "../cliproxyapi/version";
-import { loadAliases, findAliasByTarget } from "../../alias/store";
 import { maskKey } from "../../lib/ui";
 import type {
   ProfileState,
@@ -66,6 +67,7 @@ import type {
 } from "../../types";
 
 const PROFILE_CONFIG_LINK_EXCLUDES = new Set([
+  "settings.json",
   ".credentials.json",
   ".claude.json",
   "backups",
@@ -194,7 +196,7 @@ export async function updateProfileDefaultModel(
   await writeProfileData(name, nextData);
 
   const state = await readState();
-  if (state.active === name && nextData.type !== "local-cliproxyapi") {
+  if (state.active === name) {
     await activateProfile(name, nextData);
   }
 
@@ -258,7 +260,7 @@ export async function updateClaudeProfileConfig(
   await writeProfileData(name, next);
 
   const state = await readState();
-  const reapplied = state.active === name && next.type !== "local-cliproxyapi";
+  const reapplied = state.active === name;
   if (reapplied) {
     await activateProfile(name, next);
   }
@@ -362,7 +364,6 @@ export async function switchProfile(name: string): Promise<ProfileData> {
   }
 
   const targetData = await readProfileData(name);
-  await assertGlobalSwitchAllowed(name, targetData);
   const state = await readState();
   if (state.active === name && (await isProfileApplied(name, targetData))) {
     return targetData;
@@ -416,18 +417,18 @@ async function snapshotCurrentOAuthProfileIfLiveMatches(
   return true;
 }
 
-async function assertGlobalSwitchAllowed(name: string, data: ProfileData): Promise<void> {
-  if (data.type !== "local-cliproxyapi") return;
-  const entry = findAliasByTarget(await loadAliases(), { provider: "claude", profileName: name });
-  const alias = entry?.alias ?? name;
-  throw new Error(`Profile "${alias}" only supports isolated runs. Use "claudex-switch ${alias} --run" instead.`);
-}
-
 async function activateProfile(
   name: string,
   targetData: ProfileData,
 ): Promise<void> {
-  await assertGlobalSwitchAllowed(name, targetData);
+  if (targetData.type === "local-cliproxyapi") {
+    const runtime = await ensureManagedCLIProxyAPI(targetData);
+    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
+    await applyLocalCLIProxyAPIConfig(config, targetData.env);
+    return;
+  }
   if (targetData.type === "api-key") {
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
@@ -566,8 +567,8 @@ export async function prepareIsolatedOAuthRun(
   return { secureStorageDir: dir, configDir };
 }
 
-// Local CLIProxyAPI sessions use the user's skills/agents/hooks/settings via
-// the same linked configuration pattern as OAuth sessions, but never point
+// Local CLIProxyAPI sessions share the user's skills/agents/hooks and keep a
+// private user settings file, like OAuth sessions, but never point
 // Claude at the real global credential store. That keeps normal customization
 // and project discovery available without allowing an inherited OAuth login to
 // win over the generated loopback API credentials.
@@ -587,6 +588,7 @@ export async function prepareIsolatedLocalCLIProxyAPIRun(
   await ensureDir(configDir);
   await ensurePrivateDir(secureStorageDir);
   await linkSharedClaudeConfigEntries(configDir);
+  await preparePrivateClaudeUserSettings(configDir);
   await writeIsolatedLocalClaudeJson(name);
   return { secureStorageDir, configDir };
 }
@@ -595,7 +597,31 @@ async function prepareIsolatedOAuthConfig(name: string): Promise<void> {
   const configDir = claudeProfileConfigDir(name);
   await ensureDir(configDir);
   await linkSharedClaudeConfigEntries(configDir);
+  await preparePrivateClaudeUserSettings(configDir);
   await writeIsolatedClaudeJson(name);
+}
+
+export async function prepareIsolatedApiRun(name: string): Promise<string> {
+  const configDir = claudeProfileConfigDir(name);
+  await ensureDir(configDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await preparePrivateClaudeUserSettings(configDir);
+  await writeIsolatedLocalClaudeJson(name);
+  return configDir;
+}
+
+async function preparePrivateClaudeUserSettings(configDir: string): Promise<void> {
+  const destination = join(configDir, "settings.json");
+  try {
+    const stat = await lstat(destination);
+    if (!stat.isSymbolicLink()) return;
+    await unlink(destination);
+  } catch {
+    // A first run has no user settings yet.
+  }
+  const settings = await readJson<Record<string, unknown>>(join(CLAUDE_DIR, "settings.json"), {});
+  await writeJson(destination, settings);
+  await chmod(destination, 0o600).catch(() => {});
 }
 
 async function linkSharedClaudeConfigEntries(configDir: string): Promise<void> {

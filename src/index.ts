@@ -37,6 +37,7 @@ const HELP = `
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
+    claudex-switch <alias> cc [args...]  Same as '<alias> -run --cliproxy claudecode'
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -214,6 +215,10 @@ async function interactivePicker(): Promise<void> {
 
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
+  const shortcutIndex = command === "use" ? 1 : 0;
+  if ((command === "use" || command && !["add", "model", "rename", "remove", "rm", "purge", "refresh", "doctor", "list", "ls", "webconfig", "import", "update", "current"].includes(command)) && args[shortcutIndex] === "cc") {
+    args.splice(shortcutIndex, 1, "--run", "--cliproxy", "claudecode");
+  }
 
   try {
     const runIndex = args.findIndex(isRunFlag);
@@ -289,6 +294,10 @@ async function main(): Promise<void> {
         if (isRunFlag(args[1])) {
           const exitCode = await runAliasSession(args[0], args.slice(2));
           process.exit(exitCode);
+        }
+        if (args.length > 1) {
+          console.error(chalk.red("\n  Usage: claudex-switch use <alias> [-run [args...] | cc [args...]]\n"));
+          process.exit(1);
         }
         await use(args[0]);
         break;
@@ -426,6 +435,10 @@ async function main(): Promise<void> {
           if (isRunFlag(args[0])) {
             const exitCode = await runAliasSession(command, args.slice(1));
             process.exit(exitCode);
+          }
+          if (args.length > 0) {
+            console.error(chalk.red("\n  Usage: claudex-switch <alias> [-run [args...] | cc [args...]]\n"));
+            process.exit(1);
           }
           await use(command);
         } else if (isCliproxyRunInvocation(args)) {

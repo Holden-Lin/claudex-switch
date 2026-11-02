@@ -74,12 +74,14 @@ claudex-switch list
   ```bash
   claudex-switch work -run
   ```
-- **方式 B：切换全局默认账号**（Claude OAuth / API Key、Codex、OpenCode）
+- **方式 B：切换全局默认账号**（含 WorkBuddy、agy 等本机代理账号）
   ```bash
   claudex-switch personal
   ```
 
-WorkBuddy、agy 及其他本机 CLIProxyAPI 账号只支持 `--run` 独立运行。直接输入别名或 `use <alias>` 会拒绝切换，并提示对应的启动命令；`<alias> --help` / `-h` 只显示帮助。
+`claudex-switch add <alias>` 可添加 WorkBuddy（国际版 / 国内版）、Antigravity（agy）和 Cursor。直接输入别名或 `use <alias>` 会将它设为全局默认账号，之后裸 `claude` 使用该账号；`-run` 会话保留自己的模型和路由。未使用 `-run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享的 `settings.json`。`<alias> --help` / `-h` 只显示帮助。
+
+`claudex-switch agy cc` 是 `agy -run --cliproxy claudecode` 的快捷写法，也支持其他代理 / Codex / Go 别名。别名后无法识别的参数会报错，不会切换账号。Claude `-run` 的 `/model` 只保存到该账号的私有用户设置，不会改全局默认模型；技能、hooks 和 CLAUDE.md 仍可正常使用。
 
 ---
 
@@ -135,7 +137,7 @@ claudex-switch refresh <alias>
 | `claudex-switch` | - | 打开交互式账号选择菜单 |
 | `claudex-switch list` | `ls` | 查看所有账号、当前状态、5h/周额度与 30 天用量走势 |
 | `claudex-switch <alias> -run` | - | **【推荐】** 用该账号独立启动会话（凭证隔离、不影响全局） |
-| `claudex-switch <alias>` | `use` | 切换全局生效的默认账号（本机 CLIProxyAPI 账号除外） |
+| `claudex-switch <alias>` | `use` | 切换全局生效的默认账号（含本机 CLIProxyAPI 账号） |
 | `claudex-switch add <alias>` | - | 添加新账号（支持 OAuth 登录 / API Key / 中转站） |
 | `claudex-switch import` | - | 从 `claude-switch` / `codex-auth` 一键导入旧账号 |
 | `claudex-switch refresh <alias>` | - | 重新登录并刷新该账号过期的凭据快照 |

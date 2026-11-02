@@ -337,6 +337,11 @@ describe("managed local CLIProxyAPI", () => {
     );
 
     const context = await prepareIsolatedLocalCLIProxyAPIRun(name);
+    const sharedBefore = await readFile(SETTINGS_FILE, "utf-8").catch(() => null);
+    const privateSettings = join(context.configDir, "settings.json");
+    expect((await lstat(privateSettings)).isSymbolicLink()).toBe(false);
+    await writeFile(privateSettings, JSON.stringify({ model: "private-proxy-model" }));
+    expect(await readFile(SETTINGS_FILE, "utf-8").catch(() => null)).toBe(sharedBefore);
     expect(context.secureStorageDir).toBe(claudeProfileSecureStorageDir(name));
     expect(fileMode((await stat(context.secureStorageDir)).mode)).toBe(0o700);
     expect(await lstat(join(context.configDir, "skills"))).toBeDefined();

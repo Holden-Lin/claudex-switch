@@ -3,7 +3,7 @@
 // Tiny local stand-in for the managed-binary contract. It intentionally never
 // contacts OpenAI/ChatGPT: tests use it only to exercise config, locking,
 // ownership and staging-login behavior against loopback HTTP.
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 
 const args = process.argv.slice(2);
@@ -83,7 +83,7 @@ const startedAt = Date.now();
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port,
-  fetch(request) {
+  async fetch(request) {
     const path = new URL(request.url).pathname;
     if (path === "/v1/models") {
       // Optional fixture catalog, e.g. what a logged-in Antigravity lists.
@@ -94,6 +94,29 @@ const server = Bun.serve({
       return Response.json({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
     }
     if (path === "/v1/messages") {
+      if (process.env.CLAUDEX_FAKE_AUTO_LOG) {
+        const body = await request.json();
+        await appendFile(process.env.CLAUDEX_FAKE_AUTO_LOG, `${JSON.stringify(body)}\n`);
+        const catalog = (process.env.CLAUDEX_FAKE_MODELS ?? "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high").split(",");
+        if (!catalog.includes(body.model)) return Response.json({ error: { type: "invalid_request_error", message: `unknown provider for model ${body.model}` } }, { status: 400 });
+        const toolResult = body.messages?.some((message) => Array.isArray(message.content) && message.content.some((item) => item.type === "tool_result"));
+        const content = body.tools?.some((tool) => tool.name === "Bash") && !toolResult
+          ? [{ type: "tool_use", id: "fixture-bash", name: "Bash", input: { command: process.env.CLAUDEX_FAKE_BASH_COMMAND ?? "node -e \"require('fs').writeFileSync('auto-proof.txt', 'AUTO_MODE_OK')\"", description: "Write the requested fixture proof" } }]
+          : [{ type: "text", text: body.tools?.length ? "AUTO_MODE_OK"
+            : body.stop_sequences?.includes("</block>") ? "<block>no</block>" : "<severity>0</severity>" }];
+        const message = { id: "msg_fixture", type: "message", role: "assistant", model: body.model,
+          content, stop_reason: content[0].type === "tool_use" ? "tool_use" : "end_turn", stop_sequence: null,
+          usage: { input_tokens: 10, output_tokens: 10 } };
+        if (!body.stream) return Response.json(message);
+        const frames = [{ type: "message_start", message: { ...message, content: [] } }];
+        for (const [index, block] of content.entries()) {
+          frames.push({ type: "content_block_start", index, content_block: block.type === "tool_use" ? { ...block, input: {} } : { type: "text", text: "" } });
+          frames.push({ type: "content_block_delta", index, delta: block.type === "tool_use" ? { type: "input_json_delta", partial_json: JSON.stringify(block.input) } : { type: "text_delta", text: block.text } });
+          frames.push({ type: "content_block_stop", index });
+        }
+        frames.push({ type: "message_delta", delta: { stop_reason: message.stop_reason, stop_sequence: null }, usage: message.usage }, { type: "message_stop" });
+        return new Response(frames.map((frame) => `event: ${frame.type}\ndata: ${JSON.stringify(frame)}\n\n`).join(""), { headers: { "content-type": "text/event-stream" } });
+      }
       if (process.env.CLAUDEX_FAKE_LIVE_STATUS) {
         return Response.json({ error: { type: "fixture_error" } }, { status: Number(process.env.CLAUDEX_FAKE_LIVE_STATUS) });
       }

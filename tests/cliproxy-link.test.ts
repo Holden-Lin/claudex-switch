@@ -148,6 +148,10 @@ function fakeClaudeSpawn(calls: Array<{ command: string; args: string[]; env?: N
 }
 
 describe("--cliproxy claudecode", () => {
+  test("maps Claude Code's auto-mode classifier ID to a listed Antigravity model", () => {
+    const map = antigravityModelOverrides(AGY_LIVE.split(","), pickAntigravityModels(AGY_LIVE.split(",")));
+    expect(map["claude-sonnet-5"]).toBe("claude-sonnet-5-5-high");
+  });
   beforeEach(async () => {
     await resetTestHome();
     for (const key of FAKE_ENV) delete process.env[key];

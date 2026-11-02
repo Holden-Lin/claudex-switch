@@ -19,7 +19,7 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// ../../node_modules/yoctocolors-cjs/index.js
+// node_modules/yoctocolors-cjs/index.js
 var require_yoctocolors_cjs = __commonJS((exports, module) => {
   var tty2 = __require("node:tty");
   var hasColors = tty2?.WriteStream?.prototype?.hasColors?.() ?? false;
@@ -93,7 +93,7 @@ var require_yoctocolors_cjs = __commonJS((exports, module) => {
   module.exports = colors;
 });
 
-// ../../node_modules/cli-width/index.js
+// node_modules/cli-width/index.js
 var require_cli_width = __commonJS((exports, module) => {
   module.exports = cliWidth;
   function normalizeOpts(options) {
@@ -133,7 +133,7 @@ var require_cli_width = __commonJS((exports, module) => {
   }
 });
 
-// ../../node_modules/ansi-regex/index.js
+// node_modules/ansi-regex/index.js
 var require_ansi_regex = __commonJS((exports, module) => {
   module.exports = ({ onlyFirst = false } = {}) => {
     const pattern = [
@@ -144,13 +144,13 @@ var require_ansi_regex = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/strip-ansi/index.js
+// node_modules/strip-ansi/index.js
 var require_strip_ansi = __commonJS((exports, module) => {
   var ansiRegex = require_ansi_regex();
   module.exports = (string) => typeof string === "string" ? string.replace(ansiRegex(), "") : string;
 });
 
-// ../../node_modules/is-fullwidth-code-point/index.js
+// node_modules/is-fullwidth-code-point/index.js
 var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   var isFullwidthCodePoint = (codePoint) => {
     if (Number.isNaN(codePoint)) {
@@ -165,14 +165,14 @@ var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   module.exports.default = isFullwidthCodePoint;
 });
 
-// ../../node_modules/emoji-regex/index.js
+// node_modules/emoji-regex/index.js
 var require_emoji_regex = __commonJS((exports, module) => {
   module.exports = function() {
     return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73)\uDB40\uDC7F|\uD83D\uDC68(?:\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68\uD83C\uDFFB|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|[\u2695\u2696\u2708]\uFE0F|\uD83D[\uDC66\uDC67]|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708])\uFE0F|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C[\uDFFB-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)\uD83C\uDFFB|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB\uDFFC])|\uD83D\uDC69(?:\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB-\uDFFD])|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|(?:(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)\uFE0F|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\u200D[\u2640\u2642])|\uD83C\uDFF4\u200D\u2620)\uFE0F|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF4\uD83C\uDDF2|\uD83C\uDDF6\uD83C\uDDE6|[#\*0-9]\uFE0F\u20E3|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83D\uDC69(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270A-\u270D]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC70\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDCAA\uDD74\uDD7A\uDD90\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD36\uDDB5\uDDB6\uDDBB\uDDD2-\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5\uDEEB\uDEEC\uDEF4-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
   };
 });
 
-// ../../node_modules/string-width/index.js
+// node_modules/string-width/index.js
 var require_string_width = __commonJS((exports, module) => {
   var stripAnsi = require_strip_ansi();
   var isFullwidthCodePoint = require_is_fullwidth_code_point();
@@ -206,7 +206,7 @@ var require_string_width = __commonJS((exports, module) => {
   module.exports.default = stringWidth;
 });
 
-// ../../node_modules/color-name/index.js
+// node_modules/color-name/index.js
 var require_color_name = __commonJS((exports, module) => {
   module.exports = {
     aliceblue: [240, 248, 255],
@@ -360,7 +360,7 @@ var require_color_name = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/color-convert/conversions.js
+// node_modules/color-convert/conversions.js
 var require_conversions = __commonJS((exports, module) => {
   var cssKeywords = require_color_name();
   var reverseKeywords = {};
@@ -1029,7 +1029,7 @@ var require_conversions = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/color-convert/route.js
+// node_modules/color-convert/route.js
 var require_route = __commonJS((exports, module) => {
   var conversions = require_conversions();
   function buildGraph() {
@@ -1095,7 +1095,7 @@ var require_route = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/color-convert/index.js
+// node_modules/color-convert/index.js
 var require_color_convert = __commonJS((exports, module) => {
   var conversions = require_conversions();
   var route = require_route();
@@ -1154,7 +1154,7 @@ var require_color_convert = __commonJS((exports, module) => {
   module.exports = convert;
 });
 
-// ../../node_modules/ansi-styles/index.js
+// node_modules/ansi-styles/index.js
 var require_ansi_styles = __commonJS((exports, module) => {
   var wrapAnsi162 = (fn, offset) => (...args) => {
     const code = fn(...args);
@@ -1290,7 +1290,7 @@ var require_ansi_styles = __commonJS((exports, module) => {
   });
 });
 
-// ../../node_modules/wrap-ansi/index.js
+// node_modules/wrap-ansi/index.js
 var require_wrap_ansi = __commonJS((exports, module) => {
   var stringWidth = require_string_width();
   var stripAnsi = require_strip_ansi();
@@ -1426,7 +1426,7 @@ var require_wrap_ansi = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/mute-stream/lib/index.js
+// node_modules/mute-stream/lib/index.js
 var require_lib = __commonJS((exports, module) => {
   var Stream = __require("stream");
 
@@ -1546,7 +1546,7 @@ var require_lib = __commonJS((exports, module) => {
   module.exports = MuteStream;
 });
 
-// ../../node_modules/chalk/source/vendor/ansi-styles/index.js
+// node_modules/chalk/source/vendor/ansi-styles/index.js
 var ANSI_BACKGROUND_OFFSET = 10;
 var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
 var wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
@@ -1723,7 +1723,7 @@ function assembleStyles() {
 var ansiStyles = assembleStyles();
 var ansi_styles_default = ansiStyles;
 
-// ../../node_modules/chalk/source/vendor/supports-color/index.js
+// node_modules/chalk/source/vendor/supports-color/index.js
 import process2 from "node:process";
 import os from "node:os";
 import tty from "node:tty";
@@ -1855,7 +1855,7 @@ var supportsColor = {
 };
 var supports_color_default = supportsColor;
 
-// ../../node_modules/chalk/source/utilities.js
+// node_modules/chalk/source/utilities.js
 function stringReplaceAll(string, substring, replacer) {
   let index = string.indexOf(substring);
   if (index === -1) {
@@ -1888,7 +1888,7 @@ function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
   return returnValue;
 }
 
-// ../../node_modules/chalk/source/index.js
+// node_modules/chalk/source/index.js
 var { stdout: stdoutColor, stderr: stderrColor } = supports_color_default;
 var GENERATOR = Symbol("GENERATOR");
 var STYLER = Symbol("STYLER");
@@ -2035,14 +2035,14 @@ var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/key.js
+// node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
 var isBackspaceKey = (key) => key.name === "backspace";
 var isTabKey = (key) => key.name === "tab";
 var isNumberKey = (key) => "1234567890".includes(key.name);
 var isEnterKey = (key) => key.name === "enter" || key.name === "return";
-// ../../node_modules/@inquirer/core/dist/esm/lib/errors.js
+// node_modules/@inquirer/core/dist/esm/lib/errors.js
 class AbortPromptError extends Error {
   name = "AbortPromptError";
   message = "Prompt was aborted";
@@ -2068,10 +2068,10 @@ class HookError extends Error {
 class ValidationError extends Error {
   name = "ValidationError";
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// node_modules/@inquirer/core/dist/esm/lib/use-state.js
 import { AsyncResource as AsyncResource2 } from "node:async_hooks";
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
+// node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
 import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 var hookStorage = new AsyncLocalStorage;
 function createStore(rl) {
@@ -2176,7 +2176,7 @@ var effectScheduler = {
   }
 };
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
     const setState = AsyncResource2.bind(function setState(newValue) {
@@ -2194,7 +2194,7 @@ function useState(defaultValue) {
   });
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-effect.js
+// node_modules/@inquirer/core/dist/esm/lib/use-effect.js
 function useEffect(cb, depArray) {
   withPointer((pointer) => {
     const oldDeps = pointer.get();
@@ -2206,10 +2206,10 @@ function useEffect(cb, depArray) {
   });
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
+// node_modules/@inquirer/core/dist/esm/lib/theme.js
 var import_yoctocolors_cjs = __toESM(require_yoctocolors_cjs(), 1);
 
-// ../../node_modules/@inquirer/figures/dist/esm/index.js
+// node_modules/@inquirer/figures/dist/esm/index.js
 import process3 from "node:process";
 function isUnicodeSupported() {
   if (process3.platform !== "win32") {
@@ -2498,7 +2498,7 @@ var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
 var esm_default = figures;
 var replacements = Object.entries(specialMainSymbols);
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
+// node_modules/@inquirer/core/dist/esm/lib/theme.js
 var defaultTheme = {
   prefix: {
     idle: import_yoctocolors_cjs.default.blue("?"),
@@ -2519,7 +2519,7 @@ var defaultTheme = {
   }
 };
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/make-theme.js
+// node_modules/@inquirer/core/dist/esm/lib/make-theme.js
 function isPlainObject(value) {
   if (typeof value !== "object" || value === null)
     return false;
@@ -2547,7 +2547,7 @@ function makeTheme(...themes) {
   return deepMerge(...themesToMerge);
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
+// node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
 function usePrefix({ status = "idle", theme }) {
   const [showLoader, setShowLoader] = useState(false);
   const [tick, setTick] = useState(0);
@@ -2577,7 +2577,7 @@ function usePrefix({ status = "idle", theme }) {
   const iconName = status === "loading" ? "idle" : status;
   return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-memo.js
+// node_modules/@inquirer/core/dist/esm/lib/use-memo.js
 function useMemo(fn, dependencies) {
   return withPointer((pointer) => {
     const prev = pointer.get();
@@ -2589,11 +2589,11 @@ function useMemo(fn, dependencies) {
     return prev.value;
   });
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-ref.js
+// node_modules/@inquirer/core/dist/esm/lib/use-ref.js
 function useRef(val) {
   return useState({ current: val })[0];
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
+// node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
 function useKeypress(userHandler) {
   const signal = useRef(userHandler);
   signal.current = userHandler;
@@ -2611,7 +2611,7 @@ function useKeypress(userHandler) {
     };
   }, []);
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/utils.js
+// node_modules/@inquirer/core/dist/esm/lib/utils.js
 var import_cli_width = __toESM(require_cli_width(), 1);
 var import_wrap_ansi = __toESM(require_wrap_ansi(), 1);
 function breakLines(content, width) {
@@ -2624,7 +2624,7 @@ function readlineWidth() {
   return import_cli_width.default({ defaultWidth: 80, output: readline().output });
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
+// node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
 function usePointerPosition({ active, renderedItems, pageSize, loop }) {
   const state = useRef({
     lastPointer: active,
@@ -2690,12 +2690,12 @@ function usePagination({ items, active, renderItem, pageSize, loop = true }) {
   return pageBuffer.filter((line) => typeof line === "string").join(`
 `);
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 var import_mute_stream = __toESM(require_lib(), 1);
 import * as readline2 from "node:readline";
 import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
-// ../../node_modules/signal-exit/dist/mjs/signals.js
+// node_modules/signal-exit/dist/mjs/signals.js
 var signals = [];
 signals.push("SIGHUP", "SIGINT", "SIGTERM");
 if (process.platform !== "win32") {
@@ -2705,7 +2705,7 @@ if (process.platform === "linux") {
   signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
 }
 
-// ../../node_modules/signal-exit/dist/mjs/index.js
+// node_modules/signal-exit/dist/mjs/index.js
 var processOk = (process4) => !!process4 && typeof process4 === "object" && typeof process4.removeListener === "function" && typeof process4.emit === "function" && typeof process4.reallyExit === "function" && typeof process4.listeners === "function" && typeof process4.kill === "function" && typeof process4.pid === "number" && typeof process4.on === "function";
 var kExitEmitter = Symbol.for("signal-exit emitter");
 var global = globalThis;
@@ -2903,10 +2903,10 @@ var {
   unload
 } = signalExitWrap(processOk(process4) ? new SignalExit(process4) : new SignalExitFallback);
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 import { stripVTControlCharacters } from "node:util";
 
-// ../../node_modules/@inquirer/ansi/dist/esm/index.js
+// node_modules/@inquirer/ansi/dist/esm/index.js
 var ESC = "\x1B[";
 var cursorLeft = ESC + "G";
 var cursorHide = ESC + "?25l";
@@ -2922,7 +2922,7 @@ var cursorTo = (x, y) => {
 var eraseLine = ESC + "2K";
 var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 var height = (content) => content.split(`
 `).length;
 var lastLine = (content) => content.split(`
@@ -2987,7 +2987,7 @@ class ScreenManager {
   }
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
+// node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
 class PromisePolyfill extends Promise {
   static withResolver() {
     let resolve;
@@ -3000,7 +3000,7 @@ class PromisePolyfill extends Promise {
   }
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 function getCallSites() {
   const _prepareStackTrace = Error.prepareStackTrace;
   let result = [];
@@ -3086,7 +3086,7 @@ function createPrompt(view) {
   };
   return prompt;
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/Separator.js
+// node_modules/@inquirer/core/dist/esm/lib/Separator.js
 var import_yoctocolors_cjs2 = __toESM(require_yoctocolors_cjs(), 1);
 class Separator {
   separator = import_yoctocolors_cjs2.default.dim(Array.from({ length: 15 }).join(esm_default.line));
@@ -3100,7 +3100,7 @@ class Separator {
     return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
   }
 }
-// ../../node_modules/@inquirer/confirm/dist/esm/index.js
+// node_modules/@inquirer/confirm/dist/esm/index.js
 function getBooleanValue(value, defaultValue) {
   let answer = defaultValue !== false;
   if (/^(y|yes)/i.test(value))
@@ -3145,7 +3145,7 @@ var esm_default2 = createPrompt((config, done) => {
   const message = theme.style.message(config.message, status);
   return `${prefix} ${message}${defaultValue} ${formattedValue}`;
 });
-// ../../node_modules/@inquirer/input/dist/esm/index.js
+// node_modules/@inquirer/input/dist/esm/index.js
 var inputTheme = {
   validationFailureMode: "keep"
 };
@@ -3229,7 +3229,7 @@ var esm_default3 = createPrompt((config, done) => {
     error
   ];
 });
-// ../../node_modules/@inquirer/password/dist/esm/index.js
+// node_modules/@inquirer/password/dist/esm/index.js
 var esm_default4 = createPrompt((config, done) => {
   const { validate = () => true } = config;
   const theme = makeTheme(config.theme);
@@ -3277,7 +3277,7 @@ var esm_default4 = createPrompt((config, done) => {
   }
   return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
 });
-// ../../node_modules/@inquirer/select/dist/esm/index.js
+// node_modules/@inquirer/select/dist/esm/index.js
 var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
 var selectTheme = {
   icon: { cursor: esm_default.pointer },
@@ -3762,7 +3762,7 @@ import {
   copyFile,
   lstat,
   mkdir as mkdir5,
-  readdir as readdir3,
+  readdir as readdir4,
   readlink,
   rm as rm3,
   symlink,
@@ -3920,7 +3920,7 @@ async function writeOAuthAccount(account) {
 }
 
 // src/providers/claude/settings.ts
-import { chmod, mkdir as mkdir2 } from "fs/promises";
+import { chmod, mkdir as mkdir2, readdir } from "fs/promises";
 import { dirname } from "path";
 var CLAUDE_DEFAULT_OPUS_MODEL = "claude-opus-5-5";
 function localCLIProxyAPIAuthEnv(apiKey) {
@@ -4035,7 +4035,7 @@ async function beginManagedEnv(settings) {
   }
   return env2;
 }
-async function commitManagedEnv(settings, env2, extraEnv) {
+async function commitManagedEnv(settings, env2, extraEnv, neutralizedKeys = []) {
   const extra = normalizeCustomEnv(extraEnv);
   for (const [key, value] of Object.entries(extra)) {
     env2[key] = value;
@@ -4045,7 +4045,7 @@ async function commitManagedEnv(settings, env2, extraEnv) {
   } else {
     settings.env = env2;
   }
-  await writeManagedExtraEnvKeys(Object.keys(extra));
+  await writeManagedExtraEnvKeys([...Object.keys(extra), ...neutralizedKeys]);
   await write(settings);
 }
 async function applyApiConfig(config) {
@@ -4070,15 +4070,26 @@ async function applyOAuthConfig(model, extraEnv) {
   setTopLevelModel(settings, model);
   await commitManagedEnv(settings, env2, extraEnv);
 }
+async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
+  const settings = await read();
+  const env2 = await beginManagedEnv(settings);
+  Object.assign(env2, localCLIProxyAPIAuthEnv(config.apiKey));
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS)
+    env2[key] = "";
+  setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
+  setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel ?? undefined);
+  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
+  setTopLevelModel(settings, config.model);
+  await commitManagedEnv(settings, env2, localCLIProxyAPIExtraEnv(extraEnv), CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS);
+}
 async function prepareApiProfileClaudeSettings(name, config) {
-  const env2 = {};
-  for (const key of CLAUDE_ENV_KEYS) {
-    env2[key] = "";
-  }
+  const env2 = await getClaudeRunEnvOverrides();
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
-    env2[key] = "";
-  }
-  for (const key of await readManagedExtraEnvKeys()) {
     env2[key] = "";
   }
   env2.ANTHROPIC_API_KEY = config.apiKey;
@@ -4093,28 +4104,16 @@ async function prepareApiProfileClaudeSettings(name, config) {
   for (const [key, value] of Object.entries(normalizeCustomEnv(config.env))) {
     env2[key] = value;
   }
-  const settings = { env: env2 };
-  if (config.model) {
-    settings.model = config.model;
-  }
+  const settings = { env: env2, ...config.model ? { model: config.model } : {} };
   return writePrivateRunSettings(name, settings);
 }
 async function prepareOAuthProfileClaudeSettings(name, profile) {
-  const env2 = {};
-  for (const key of CLAUDE_ENV_KEYS) {
-    env2[key] = "";
-  }
-  for (const key of await readManagedExtraEnvKeys()) {
-    env2[key] = "";
-  }
+  const env2 = await getClaudeRunEnvOverrides();
   env2.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
     env2[key] = value;
   }
-  const settings = { env: env2 };
-  if (profile.defaultModel) {
-    settings.model = profile.defaultModel;
-  }
+  const settings = { env: env2, ...profile.defaultModel ? { model: profile.defaultModel } : {} };
   return writePrivateRunSettings(name, settings);
 }
 async function writePrivateRunSettings(name, settings) {
@@ -4133,20 +4132,26 @@ async function getConfiguredModel() {
   const settings = await read();
   return normalizeModelValue(settings.model);
 }
-async function getClaudeEnvNeutralizer() {
-  const settings = await read();
-  const env2 = normalizeEnv(settings);
-  const present = CLAUDE_ENV_KEYS.filter((key) => env2[key]);
-  for (const key of await readManagedExtraEnvKeys()) {
-    if (env2[key] && !present.includes(key))
-      present.push(key);
+async function getClaudeRunEnvOverrides() {
+  const keys = new Set([
+    ...CLAUDE_ENV_KEYS,
+    ...CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
+    ...Object.keys(localCLIProxyAPIExtraEnv()),
+    ...await readManagedExtraEnvKeys()
+  ]);
+  const profiles = await readdir(CLAUDE_PROFILES_DIR).catch(() => []);
+  for (const name of profiles) {
+    const profile = await readJson(claudeProfileDataFile(name), {});
+    for (const key of Object.keys(normalizeCustomEnv(profile.env)))
+      keys.add(key);
   }
-  const override = {};
-  for (const key of present) {
-    override[key] = "";
-  }
-  override.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
-  return JSON.stringify({ env: override });
+  const managed = await readManagedExtraEnvKeys();
+  const env2 = normalizeEnv(await read());
+  const override = Object.fromEntries([...keys].map((key) => [
+    key,
+    isReservedClaudeEnvKey(key) || managed.includes(key) ? "" : env2[key] ?? process.env[key] ?? ""
+  ]));
+  return override;
 }
 async function getApiConfig() {
   const settings = await read();
@@ -4183,7 +4188,7 @@ import {
   chmod as chmod3,
   mkdir as mkdir4,
   readFile as readFile4,
-  readdir as readdir2,
+  readdir as readdir3,
   rename as rename2,
   rm as rm2,
   rmdir,
@@ -4513,7 +4518,7 @@ function pickOpenCodeGoModels(catalog) {
   };
 }
 
-// ../../node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
+// node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
 import { createHash as createHash2, randomBytes } from "node:crypto";
 var NATIVE_LIMITS = {
   resultWait: 120000,
@@ -5558,7 +5563,7 @@ class NativeSession {
 }
 var nativeSessions = new NativeSessionPool;
 
-// ../../node_modules/@magpie-community/opencode-cursor-auth/index.mjs
+// node_modules/@magpie-community/opencode-cursor-auth/index.mjs
 import { isDeepStrictEqual } from "node:util";
 import http2 from "node:http2";
 import { STATUS_CODES } from "node:http";
@@ -5566,7 +5571,7 @@ import { gunzipSync } from "node:zlib";
 import { Duplex } from "node:stream";
 import { createHash as createHash3, randomBytes as randomBytes2, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { readFile as readFile2, stat, readdir, realpath } from "node:fs/promises";
+import { readFile as readFile2, stat, readdir as readdir2, realpath } from "node:fs/promises";
 import { homedir as homedir2, platform as platform3, tmpdir as tmpdir2 } from "node:os";
 import { basename, dirname as dirname2, join as join4 } from "node:path";
 var ID = "cursor";
@@ -5625,7 +5630,7 @@ async function clientVersion() {
     if (GOOS === "windows")
       dirs.push(join4(process.env.LOCALAPPDATA ?? "", "cursor-agent", "versions"));
     for (const dir of dirs)
-      for (const n of await readdir(dir).catch(() => []))
+      for (const n of await readdir2(dir).catch(() => []))
         if (VERSION_RE.test(n) && n > v)
           v = n;
   }
@@ -8043,7 +8048,7 @@ async function CursorAuthPlugin() {
   };
 }
 
-// ../../node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
+// node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
 import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir as homedir3 } from "node:os";
@@ -10671,7 +10676,7 @@ async function getLocalCLIProxyAPISettings(profile, runtime) {
     subagentModel: config.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.subagentModel : null
   };
 }
-var CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+var CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"];
 function antigravityModelOverrides(ids, tiers, savedModel) {
   const overrides = {};
   for (const id of ids) {
@@ -10701,6 +10706,7 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const paths = profilePaths(profile.profileId);
   const env3 = {
+    ...await getClaudeRunEnvOverrides(),
     ...localCLIProxyAPIAuthEnv(config.apiKey),
     ANTHROPIC_BASE_URL: config.baseUrl,
     ANTHROPIC_MODEL: options.inheritModel ? "" : config.model,
@@ -11271,7 +11277,7 @@ async function managedCLIProxyAPIHasActiveLeases(profileId) {
   const paths = profilePaths(profileId);
   let entries;
   try {
-    entries = await readdir2(paths.sessionsDir, { withFileTypes: true });
+    entries = await readdir3(paths.sessionsDir, { withFileTypes: true });
   } catch {
     return false;
   }
@@ -11313,7 +11319,7 @@ async function acquireManagedCLIProxyAPILease(profile) {
 async function authFiles(path) {
   let entries;
   try {
-    entries = await readdir2(path, { withFileTypes: true });
+    entries = await readdir3(path, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -11677,6 +11683,7 @@ async function installCLIProxyAPIWithHomebrew(spawnCommand = spawn) {
 
 // src/providers/claude/profiles.ts
 var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
+  "settings.json",
   ".credentials.json",
   ".claude.json",
   "backups"
@@ -11724,7 +11731,7 @@ async function updateProfileDefaultModel(name, model) {
   }) : currentData.type === "local-cliproxyapi" ? { ...currentData, defaultModel: normalizedModel } : normalizeOAuthProfileData({ defaultModel: normalizedModel });
   await writeProfileData(name, nextData);
   const state = await readState2();
-  if (state.active === name && nextData.type !== "local-cliproxyapi") {
+  if (state.active === name) {
     await activateProfile(name, nextData);
   }
   return nextData;
@@ -11769,7 +11776,7 @@ async function updateClaudeProfileConfig(name, patch) {
   }
   await writeProfileData(name, next);
   const state = await readState2();
-  const reapplied = state.active === name && next.type !== "local-cliproxyapi";
+  const reapplied = state.active === name;
   if (reapplied) {
     await activateProfile(name, next);
   }
@@ -11837,7 +11844,6 @@ async function switchProfile(name) {
     throw new Error(`Profile "${name}" does not exist`);
   }
   const targetData = await readProfileData(name);
-  await assertGlobalSwitchAllowed(name, targetData);
   const state = await readState2();
   if (state.active === name && await isProfileApplied(name, targetData)) {
     return targetData;
@@ -11874,15 +11880,15 @@ async function snapshotCurrentOAuthProfileIfLiveMatches(name) {
   await snapshotCurrentOAuthProfile(name);
   return true;
 }
-async function assertGlobalSwitchAllowed(name, data) {
-  if (data.type !== "local-cliproxyapi")
-    return;
-  const entry = findAliasByTarget(await loadAliases(), { provider: "claude", profileName: name });
-  const alias = entry?.alias ?? name;
-  throw new Error(`Profile "${alias}" only supports isolated runs. Use "claudex-switch ${alias} --run" instead.`);
-}
 async function activateProfile(name, targetData) {
-  await assertGlobalSwitchAllowed(name, targetData);
+  if (targetData.type === "local-cliproxyapi") {
+    const runtime = await ensureManagedCLIProxyAPI(targetData);
+    const config = await getLocalCLIProxyAPISettings(targetData, runtime);
+    await deleteCredentials(CREDENTIALS_FILE);
+    await writeOAuthAccount(null);
+    await applyLocalCLIProxyAPIConfig(config, targetData.env);
+    return;
+  }
   if (targetData.type === "api-key") {
     await deleteCredentials(CREDENTIALS_FILE);
     await writeOAuthAccount(null);
@@ -11973,6 +11979,7 @@ async function prepareIsolatedLocalCLIProxyAPIRun(name) {
   await ensureDir2(configDir);
   await ensurePrivateDir(secureStorageDir);
   await linkSharedClaudeConfigEntries(configDir);
+  await preparePrivateClaudeUserSettings(configDir);
   await writeIsolatedLocalClaudeJson(name);
   return { secureStorageDir, configDir };
 }
@@ -11980,12 +11987,33 @@ async function prepareIsolatedOAuthConfig(name) {
   const configDir = claudeProfileConfigDir(name);
   await ensureDir2(configDir);
   await linkSharedClaudeConfigEntries(configDir);
+  await preparePrivateClaudeUserSettings(configDir);
   await writeIsolatedClaudeJson(name);
+}
+async function prepareIsolatedApiRun(name) {
+  const configDir = claudeProfileConfigDir(name);
+  await ensureDir2(configDir);
+  await linkSharedClaudeConfigEntries(configDir);
+  await preparePrivateClaudeUserSettings(configDir);
+  await writeIsolatedLocalClaudeJson(name);
+  return configDir;
+}
+async function preparePrivateClaudeUserSettings(configDir) {
+  const destination = join8(configDir, "settings.json");
+  try {
+    const stat3 = await lstat(destination);
+    if (!stat3.isSymbolicLink())
+      return;
+    await unlink2(destination);
+  } catch {}
+  const settings = await readJson(join8(CLAUDE_DIR, "settings.json"), {});
+  await writeJson(destination, settings);
+  await chmod4(destination, 384).catch(() => {});
 }
 async function linkSharedClaudeConfigEntries(configDir) {
   let entries;
   try {
-    entries = await readdir3(CLAUDE_DIR, { withFileTypes: true });
+    entries = await readdir4(CLAUDE_DIR, { withFileTypes: true });
   } catch {
     return;
   }
@@ -14801,6 +14829,298 @@ async function promptForKey(message) {
   return key.trim();
 }
 
+// src/providers/cliproxyapi/links.ts
+import { mkdir as mkdir13 } from "fs/promises";
+function linkKey(target) {
+  return target.provider === "codex" ? `codex:${target.accountKey}` : `opencode:${target.profileId}`;
+}
+async function readLinks() {
+  const file = await readJson(CLI_PROXY_API_LINKS_FILE, null);
+  if (file?.version !== 1 || !file.links || typeof file.links !== "object") {
+    return { version: 1, links: {} };
+  }
+  return file;
+}
+async function writeLinks(file) {
+  await mkdir13(CLAUDEX_DIR, { recursive: true });
+  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE, file);
+}
+async function getLinkedClaudeProfile(target) {
+  return (await readLinks()).links[linkKey(target)] ?? null;
+}
+async function setLinkedClaudeProfile(target, profileName) {
+  const file = await readLinks();
+  file.links[linkKey(target)] = profileName;
+  await writeLinks(file);
+}
+async function removeLinkedClaudeProfile(target) {
+  const file = await readLinks();
+  if (!(linkKey(target) in file.links))
+    return;
+  delete file.links[linkKey(target)];
+  await writeLinks(file);
+}
+async function linkedClaudeProfileNames() {
+  return new Set(Object.values((await readLinks()).links));
+}
+async function purgeLinkedClaudeProfile(target) {
+  const linked = await getLinkedClaudeProfile(target);
+  if (!linked)
+    return;
+  if (await profileExists(linked))
+    await removeProfile(linked);
+  await removeLinkedClaudeProfile(target);
+}
+
+// src/commands/cliproxy.ts
+var CLAUDE_CODE_CLIENTS = new Set(["claudecode", "claude-code", "claude"]);
+var CLIPROXY_CLIENT_NAMES = "claudecode";
+var ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
+function isAntigravityName(name) {
+  return ANTIGRAVITY_KEYWORDS.has(name.toLowerCase());
+}
+function isSubscriptionName(name) {
+  return isSubscriptionUpstream(name.toLowerCase());
+}
+function isClaudeCodeClient(value) {
+  return CLAUDE_CODE_CLIENTS.has(value.toLowerCase());
+}
+async function createCLIProxyClaudeAlias(alias, upstream, options = {}) {
+  return upstream === "antigravity" ? createAntigravityAlias(alias, options) : createSubscriptionAlias(alias, upstream, options);
+}
+async function resolveCLIProxyClaudeEntry(aliasOrName, options = {}) {
+  const entry = findAlias(await loadAliases(), aliasOrName);
+  if (!entry) {
+    if (isAntigravityName(aliasOrName)) {
+      return createCLIProxyClaudeAlias(aliasOrName, "antigravity", options);
+    }
+    if (isSubscriptionName(aliasOrName)) {
+      return createCLIProxyClaudeAlias(aliasOrName, aliasOrName.toLowerCase(), options);
+    }
+    throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
+      `Use a Codex or OpenCode Go alias, agy for Antigravity, or workbuddy / workbuddy-ai / cursor.`
+    ]);
+  }
+  if (entry.target.provider === "claude") {
+    const data = await profileExists(entry.target.profileName) ? await getProfileData(entry.target.profileName) : null;
+    if (data?.type === "local-cliproxyapi") {
+      if (isSubscriptionUpstream(data.upstream) && !await hasManagedCLIProxyAPILogin(data.profileId)) {
+        const identity2 = await loginOrThrow(data.profileId, data.binaryPath, upstreamLabel(data.upstream), undefined, data.authIdentity);
+        await updateLocalCLIProxyAPIProfileIdentity(entry.target.profileName, identity2);
+      }
+      return entry;
+    }
+    throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
+      `Run ${source_default.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`
+    ]);
+  }
+  const target = entry.target;
+  const linked = await getLinkedClaudeProfile(target);
+  if (linked && await profileExists(linked)) {
+    const data = await getProfileData(linked);
+    if (data.type === "local-cliproxyapi") {
+      if (target.provider === "codex") {
+        await ensureCodexLinkLogin(entry.alias, target, data, linked);
+      } else {
+        await syncOpenCodeGoKey(target.profileId, data);
+      }
+      return claudeEntry(entry.alias, linked);
+    }
+  }
+  const profileName = target.provider === "codex" ? await createCodexLink(entry.alias, target, options) : await createOpenCodeGoLink(entry.alias, target, options);
+  return claudeEntry(entry.alias, profileName);
+}
+
+class UserFacingError extends Error {
+  hints;
+  constructor(message, hints = []) {
+    super(message);
+    this.hints = hints;
+  }
+}
+function claudeEntry(alias, profileName) {
+  return { alias, target: { provider: "claude", profileName }, createdAt: Date.now() };
+}
+async function requireBinary(options) {
+  const binaryPath = await (options.resolveBinary ?? resolveCLIProxyAPIBinaryForAdd)();
+  if (!binaryPath) {
+    throw new UserFacingError("CLIProxyAPI was not installed or no valid executable was selected.", [
+      "Install it with Homebrew on macOS, or provide an existing cli-proxy-api path."
+    ]);
+  }
+  return binaryPath;
+}
+async function createManagedProfile(binaryPath, setup, login, save) {
+  const profileId = createManagedCLIProxyAPIProfileId();
+  const profileName = `cliproxy-${profileId}`;
+  const profile = {
+    type: "local-cliproxyapi",
+    profileId,
+    binaryPath,
+    defaultModel: setup.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.fableModel : "fable",
+    upstream: setup.upstream
+  };
+  let saved = false;
+  try {
+    await initializeManagedCLIProxyAPI(profileId, setup);
+    const identity2 = login ? await login(profileId) : undefined;
+    if (identity2)
+      profile.authIdentity = identity2;
+    const runtime = setup.upstream === "antigravity" || isSubscriptionUpstream(setup.upstream) ? await ensureManagedCLIProxyAPI(profile) : undefined;
+    await saveLocalCLIProxyAPIProfile(profileName, profile);
+    saved = true;
+    await save(profileName, profile);
+    return { profileName, profile, runtime };
+  } catch (err) {
+    try {
+      if (saved)
+        await removeProfile(profileName);
+      else {
+        await stopManagedCLIProxyAPI(profile);
+        await cleanupFailedManagedCLIProxyAPI(profileId);
+      }
+    } catch {}
+    throw err;
+  }
+}
+async function loginOrThrow(profileId, binaryPath, label, expectedAccount, expectedIdentity) {
+  const login = await runManagedCLIProxyAPILogin({ profileId, binaryPath }, undefined, expectedIdentity, expectedAccount);
+  if (login.identityMismatch) {
+    throw new UserFacingError(`${label} login completed for a different account; nothing was changed.`, [
+      "Log in with the same account as the alias and retry."
+    ]);
+  }
+  if (!login.success || !login.identity) {
+    throw new UserFacingError(`CLIProxyAPI ${label} login failed or was cancelled.`);
+  }
+  return login.identity;
+}
+async function codexAccountFor(target) {
+  const account = findAccountByKey(await loadRegistry(), target.accountKey);
+  if (!account)
+    throw new UserFacingError("Codex account not found in registry.");
+  if (account.auth_mode === "apikey") {
+    throw new UserFacingError("--cliproxy needs a ChatGPT-login Codex account; this one uses an API key.");
+  }
+  return account;
+}
+async function createCodexLink(alias, target, options) {
+  const account = await codexAccountFor(target);
+  const binaryPath = await requireBinary(options);
+  info(`First use: Claude Code needs its own ChatGPT login for ${source_default.bold(alias)} (once).`);
+  hint("Sharing the Codex login would make each side invalidate the other's refresh token.");
+  blank();
+  const expected = { accountId: account.chatgpt_account_id, email: account.email };
+  const { profileName } = await createManagedProfile(binaryPath, { upstream: "codex" }, (profileId) => loginOrThrow(profileId, binaryPath, "ChatGPT", expected), (name) => setLinkedClaudeProfile(target, name));
+  success2(`Linked ${source_default.bold(alias)} to Claude Code`);
+  return profileName;
+}
+async function ensureCodexLinkLogin(alias, target, profile, profileName) {
+  if (await hasManagedCLIProxyAPILogin(profile.profileId))
+    return;
+  const account = await codexAccountFor(target);
+  info(`Claude Code's ChatGPT login for ${source_default.bold(alias)} is missing; logging in again...`);
+  blank();
+  const identity2 = await loginOrThrow(profile.profileId, profile.binaryPath, "ChatGPT", {
+    accountId: account.chatgpt_account_id,
+    email: account.email
+  });
+  await updateLocalCLIProxyAPIProfileIdentity(profileName, identity2);
+}
+async function goKeyOrThrow(alias, profileId) {
+  const go = await getOpenCodeProfileData(profileId);
+  if (go.console) {
+    throw new UserFacingError(`${alias} is an OpenCode subscription login without a static API key.`, [
+      "Create a Go API key in the OpenCode console and add it as an OpenCode Go API Key alias."
+    ]);
+  }
+  const key = await readOpenCodeGoApiKey(profileId);
+  if (!key) {
+    throw new UserFacingError(`${alias} has no saved OpenCode Go key.`, [
+      `Run ${source_default.cyan(`claudex-switch refresh ${alias}`)} first.`
+    ]);
+  }
+  return key;
+}
+async function createOpenCodeGoLink(alias, target, options) {
+  const key = await goKeyOrThrow(alias, target.profileId);
+  const binaryPath = await requireBinary(options);
+  const catalog2 = await fetchOpenCodeGoCatalogIds();
+  const models2 = pickOpenCodeGoModels(catalog2);
+  const { profileName } = await createManagedProfile(binaryPath, {
+    upstream: "opencode-go",
+    models: models2,
+    upstreamKey: key,
+    upstreamModels: catalog2 ? [...catalog2].sort() : []
+  }, null, (name) => setLinkedClaudeProfile(target, name));
+  success2(`Linked ${source_default.bold(alias)} to Claude Code`);
+  printMapping(models2);
+  return profileName;
+}
+async function syncOpenCodeGoKey(goProfileId, profile) {
+  const key = await readOpenCodeGoApiKey(goProfileId);
+  const current2 = await readManagedCLIProxyAPIUpstream(profile.profileId);
+  if (!key || !current2 || current2.upstreamKey === key)
+    return;
+  const managed = { profileId: profile.profileId, binaryPath: profile.binaryPath };
+  if (await hasActiveManagedCLIProxyAPI(managed)) {
+    warn("The OpenCode Go key changed; running Claude Code sessions keep the old key until they end.");
+    return;
+  }
+  await updateManagedCLIProxyAPISetup(profile.profileId, { upstreamKey: key });
+}
+async function createAntigravityAlias(alias, options) {
+  const rejection = checkAlias(await loadAliases(), alias);
+  if (rejection)
+    throw new UserFacingError(describeAliasRejection(rejection, alias));
+  blank();
+  warn("Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.");
+  hint("Consider logging in with a Google account you can afford to lose Antigravity access on.");
+  const accepted = await (options.confirmRisk ?? (() => esm_default2({ message: "Continue with Antigravity via CLIProxyAPI?", default: false })))();
+  if (!accepted)
+    throw new UserFacingError("Cancelled; nothing was created.");
+  const binaryPath = await requireBinary(options);
+  assertCLIProxyAPICompatibility(binaryPath, "antigravity");
+  info("Opening CLIProxyAPI's own Antigravity login in your browser...");
+  blank();
+  const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
+  const models2 = await getLocalCLIProxyAPISettings(profile, runtime);
+  success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
+  printMapping(models2);
+  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
+}
+async function createSubscriptionAlias(alias, upstream, options) {
+  const rejection = checkAlias(await loadAliases(), alias);
+  if (rejection)
+    throw new UserFacingError(describeAliasRejection(rejection, alias));
+  const binaryPath = await requireBinary(options);
+  if (upstream === "workbuddy") {
+    if (!options.chooseWorkBuddyRegion && !process.stdin.isTTY) {
+      throw new UserFacingError("WorkBuddy needs an interactive terminal to choose its region.", [
+        `Run it in your terminal, or name the build: ${source_default.cyan("workbuddy-ai")} (international).`
+      ]);
+    }
+    upstream = await (options.chooseWorkBuddyRegion ?? (() => esm_default5({
+      message: "WorkBuddy region",
+      choices: [
+        { name: "International (workbuddy.ai)", value: "workbuddy-ai" },
+        { name: "China (workbuddy.cn)", value: "workbuddy" }
+      ]
+    })))();
+  }
+  info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
+  const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream }, (profileId) => loginOrThrow(profileId, binaryPath, upstreamLabel(upstream)), (name) => addAlias(alias, { provider: "claude", profileName: name }));
+  success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel(upstream)}`)}`);
+  printMapping(await getLocalCLIProxyAPISettings(profile, runtime));
+  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
+}
+function printMapping(models2) {
+  hint(`opus/default → ${models2.opusModel} · sonnet → ${models2.sonnetModel} · haiku → ${models2.haikuModel}`);
+}
+function upstreamLabel(upstream) {
+  return CLI_PROXY_API_UPSTREAMS[upstream ?? "codex"].label;
+}
+
 // src/commands/add.ts
 function readClaudeAuthStatus() {
   const result2 = spawnSync7("claude", ["auth", "status"], {
@@ -14847,6 +15167,18 @@ async function add(alias) {
         value: "claude-local-cliproxyapi"
       },
       {
+        name: "Claude Code · WorkBuddy（本机 CLIProxyAPI）",
+        value: "claude-workbuddy"
+      },
+      {
+        name: "Claude Code · Antigravity（本机 CLIProxyAPI）",
+        value: "claude-antigravity"
+      },
+      {
+        name: "Claude Code · Cursor（本机 CLIProxyAPI）",
+        value: "claude-cursor"
+      },
+      {
         name: "Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)",
         value: "codex-chatgpt"
       },
@@ -14873,6 +15205,13 @@ async function add(alias) {
       break;
     case "claude-local-cliproxyapi":
       await addLocalCLIProxyAPI(alias);
+      break;
+    case "claude-workbuddy":
+    case "claude-antigravity":
+    case "claude-cursor":
+      await createCLIProxyClaudeAlias(alias, accountType.slice("claude-".length));
+      hint(`Run ${source_default.cyan(`claudex-switch ${alias}`)} to switch the global default, or add ${source_default.cyan("-run")} for an isolated session.`);
+      blank();
       break;
     case "codex-chatgpt":
       await addCodexChatGPT(alias);
@@ -15448,7 +15787,7 @@ import { execFile as execFile3 } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import {
   open as open3,
-  readdir as readdir4,
+  readdir as readdir5,
   realpath as realpath2,
   rename as rename7,
   rm as rm9,
@@ -15472,7 +15811,7 @@ async function listJsonlFiles(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = await readdir4(dir, { withFileTypes: true });
+      entries = await readdir5(dir, { withFileTypes: true });
     } catch {
       continue;
     }
@@ -16006,295 +16345,6 @@ async function model(aliasOrName, defaultModel) {
   blank();
 }
 
-// src/providers/cliproxyapi/links.ts
-import { mkdir as mkdir13 } from "fs/promises";
-function linkKey(target) {
-  return target.provider === "codex" ? `codex:${target.accountKey}` : `opencode:${target.profileId}`;
-}
-async function readLinks() {
-  const file = await readJson(CLI_PROXY_API_LINKS_FILE, null);
-  if (file?.version !== 1 || !file.links || typeof file.links !== "object") {
-    return { version: 1, links: {} };
-  }
-  return file;
-}
-async function writeLinks(file) {
-  await mkdir13(CLAUDEX_DIR, { recursive: true });
-  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE, file);
-}
-async function getLinkedClaudeProfile(target) {
-  return (await readLinks()).links[linkKey(target)] ?? null;
-}
-async function setLinkedClaudeProfile(target, profileName) {
-  const file = await readLinks();
-  file.links[linkKey(target)] = profileName;
-  await writeLinks(file);
-}
-async function removeLinkedClaudeProfile(target) {
-  const file = await readLinks();
-  if (!(linkKey(target) in file.links))
-    return;
-  delete file.links[linkKey(target)];
-  await writeLinks(file);
-}
-async function linkedClaudeProfileNames() {
-  return new Set(Object.values((await readLinks()).links));
-}
-async function purgeLinkedClaudeProfile(target) {
-  const linked = await getLinkedClaudeProfile(target);
-  if (!linked)
-    return;
-  if (await profileExists(linked))
-    await removeProfile(linked);
-  await removeLinkedClaudeProfile(target);
-}
-
-// src/commands/cliproxy.ts
-var CLAUDE_CODE_CLIENTS = new Set(["claudecode", "claude-code", "claude"]);
-var CLIPROXY_CLIENT_NAMES = "claudecode";
-var ANTIGRAVITY_KEYWORDS = new Set(["agy", "antigravity"]);
-function isAntigravityName(name) {
-  return ANTIGRAVITY_KEYWORDS.has(name.toLowerCase());
-}
-function isSubscriptionName(name) {
-  return isSubscriptionUpstream(name.toLowerCase());
-}
-function isClaudeCodeClient(value) {
-  return CLAUDE_CODE_CLIENTS.has(value.toLowerCase());
-}
-async function resolveCLIProxyClaudeEntry(aliasOrName, options = {}) {
-  const entry = findAlias(await loadAliases(), aliasOrName);
-  if (!entry) {
-    if (isAntigravityName(aliasOrName)) {
-      return createAntigravityAlias(aliasOrName, options);
-    }
-    if (isSubscriptionName(aliasOrName)) {
-      return createSubscriptionAlias(aliasOrName, aliasOrName.toLowerCase(), options);
-    }
-    throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
-      `Use a Codex or OpenCode Go alias, agy for Antigravity, or workbuddy / workbuddy-ai / cursor.`
-    ]);
-  }
-  if (entry.target.provider === "claude") {
-    const data = await profileExists(entry.target.profileName) ? await getProfileData(entry.target.profileName) : null;
-    if (data?.type === "local-cliproxyapi") {
-      if (isSubscriptionUpstream(data.upstream) && !await hasManagedCLIProxyAPILogin(data.profileId)) {
-        const identity2 = await loginOrThrow(data.profileId, data.binaryPath, upstreamLabel(data.upstream), undefined, data.authIdentity);
-        await updateLocalCLIProxyAPIProfileIdentity(entry.target.profileName, identity2);
-      }
-      return entry;
-    }
-    throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
-      `Run ${source_default.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`
-    ]);
-  }
-  const target = entry.target;
-  const linked = await getLinkedClaudeProfile(target);
-  if (linked && await profileExists(linked)) {
-    const data = await getProfileData(linked);
-    if (data.type === "local-cliproxyapi") {
-      if (target.provider === "codex") {
-        await ensureCodexLinkLogin(entry.alias, target, data, linked);
-      } else {
-        await syncOpenCodeGoKey(target.profileId, data);
-      }
-      return claudeEntry(entry.alias, linked);
-    }
-  }
-  const profileName = target.provider === "codex" ? await createCodexLink(entry.alias, target, options) : await createOpenCodeGoLink(entry.alias, target, options);
-  return claudeEntry(entry.alias, profileName);
-}
-
-class UserFacingError extends Error {
-  hints;
-  constructor(message, hints = []) {
-    super(message);
-    this.hints = hints;
-  }
-}
-function claudeEntry(alias, profileName) {
-  return { alias, target: { provider: "claude", profileName }, createdAt: Date.now() };
-}
-async function requireBinary(options) {
-  const binaryPath = await (options.resolveBinary ?? resolveCLIProxyAPIBinaryForAdd)();
-  if (!binaryPath) {
-    throw new UserFacingError("CLIProxyAPI was not installed or no valid executable was selected.", [
-      "Install it with Homebrew on macOS, or provide an existing cli-proxy-api path."
-    ]);
-  }
-  return binaryPath;
-}
-async function createManagedProfile(binaryPath, setup, login, save) {
-  const profileId = createManagedCLIProxyAPIProfileId();
-  const profileName = `cliproxy-${profileId}`;
-  const profile = {
-    type: "local-cliproxyapi",
-    profileId,
-    binaryPath,
-    defaultModel: setup.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.fableModel : "fable",
-    upstream: setup.upstream
-  };
-  let saved = false;
-  try {
-    await initializeManagedCLIProxyAPI(profileId, setup);
-    const identity2 = login ? await login(profileId) : undefined;
-    if (identity2)
-      profile.authIdentity = identity2;
-    const runtime = setup.upstream === "antigravity" || isSubscriptionUpstream(setup.upstream) ? await ensureManagedCLIProxyAPI(profile) : undefined;
-    await saveLocalCLIProxyAPIProfile(profileName, profile);
-    saved = true;
-    await save(profileName, profile);
-    return { profileName, profile, runtime };
-  } catch (err) {
-    try {
-      if (saved)
-        await removeProfile(profileName);
-      else {
-        await stopManagedCLIProxyAPI(profile);
-        await cleanupFailedManagedCLIProxyAPI(profileId);
-      }
-    } catch {}
-    throw err;
-  }
-}
-async function loginOrThrow(profileId, binaryPath, label, expectedAccount, expectedIdentity) {
-  const login = await runManagedCLIProxyAPILogin({ profileId, binaryPath }, undefined, expectedIdentity, expectedAccount);
-  if (login.identityMismatch) {
-    throw new UserFacingError(`${label} login completed for a different account; nothing was changed.`, [
-      "Log in with the same account as the alias and retry."
-    ]);
-  }
-  if (!login.success || !login.identity) {
-    throw new UserFacingError(`CLIProxyAPI ${label} login failed or was cancelled.`);
-  }
-  return login.identity;
-}
-async function codexAccountFor(target) {
-  const account = findAccountByKey(await loadRegistry(), target.accountKey);
-  if (!account)
-    throw new UserFacingError("Codex account not found in registry.");
-  if (account.auth_mode === "apikey") {
-    throw new UserFacingError("--cliproxy needs a ChatGPT-login Codex account; this one uses an API key.");
-  }
-  return account;
-}
-async function createCodexLink(alias, target, options) {
-  const account = await codexAccountFor(target);
-  const binaryPath = await requireBinary(options);
-  info(`First use: Claude Code needs its own ChatGPT login for ${source_default.bold(alias)} (once).`);
-  hint("Sharing the Codex login would make each side invalidate the other's refresh token.");
-  blank();
-  const expected = { accountId: account.chatgpt_account_id, email: account.email };
-  const { profileName } = await createManagedProfile(binaryPath, { upstream: "codex" }, (profileId) => loginOrThrow(profileId, binaryPath, "ChatGPT", expected), (name) => setLinkedClaudeProfile(target, name));
-  success2(`Linked ${source_default.bold(alias)} to Claude Code`);
-  return profileName;
-}
-async function ensureCodexLinkLogin(alias, target, profile, profileName) {
-  if (await hasManagedCLIProxyAPILogin(profile.profileId))
-    return;
-  const account = await codexAccountFor(target);
-  info(`Claude Code's ChatGPT login for ${source_default.bold(alias)} is missing; logging in again...`);
-  blank();
-  const identity2 = await loginOrThrow(profile.profileId, profile.binaryPath, "ChatGPT", {
-    accountId: account.chatgpt_account_id,
-    email: account.email
-  });
-  await updateLocalCLIProxyAPIProfileIdentity(profileName, identity2);
-}
-async function goKeyOrThrow(alias, profileId) {
-  const go = await getOpenCodeProfileData(profileId);
-  if (go.console) {
-    throw new UserFacingError(`${alias} is an OpenCode subscription login without a static API key.`, [
-      "Create a Go API key in the OpenCode console and add it as an OpenCode Go API Key alias."
-    ]);
-  }
-  const key = await readOpenCodeGoApiKey(profileId);
-  if (!key) {
-    throw new UserFacingError(`${alias} has no saved OpenCode Go key.`, [
-      `Run ${source_default.cyan(`claudex-switch refresh ${alias}`)} first.`
-    ]);
-  }
-  return key;
-}
-async function createOpenCodeGoLink(alias, target, options) {
-  const key = await goKeyOrThrow(alias, target.profileId);
-  const binaryPath = await requireBinary(options);
-  const catalog2 = await fetchOpenCodeGoCatalogIds();
-  const models2 = pickOpenCodeGoModels(catalog2);
-  const { profileName } = await createManagedProfile(binaryPath, {
-    upstream: "opencode-go",
-    models: models2,
-    upstreamKey: key,
-    upstreamModels: catalog2 ? [...catalog2].sort() : []
-  }, null, (name) => setLinkedClaudeProfile(target, name));
-  success2(`Linked ${source_default.bold(alias)} to Claude Code`);
-  printMapping(models2);
-  return profileName;
-}
-async function syncOpenCodeGoKey(goProfileId, profile) {
-  const key = await readOpenCodeGoApiKey(goProfileId);
-  const current2 = await readManagedCLIProxyAPIUpstream(profile.profileId);
-  if (!key || !current2 || current2.upstreamKey === key)
-    return;
-  const managed = { profileId: profile.profileId, binaryPath: profile.binaryPath };
-  if (await hasActiveManagedCLIProxyAPI(managed)) {
-    warn("The OpenCode Go key changed; running Claude Code sessions keep the old key until they end.");
-    return;
-  }
-  await updateManagedCLIProxyAPISetup(profile.profileId, { upstreamKey: key });
-}
-async function createAntigravityAlias(alias, options) {
-  const rejection = checkAlias(await loadAliases(), alias);
-  if (rejection)
-    throw new UserFacingError(describeAliasRejection(rejection, alias));
-  blank();
-  warn("Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.");
-  hint("Consider logging in with a Google account you can afford to lose Antigravity access on.");
-  const accepted = await (options.confirmRisk ?? (() => esm_default2({ message: "Continue with Antigravity via CLIProxyAPI?", default: false })))();
-  if (!accepted)
-    throw new UserFacingError("Cancelled; nothing was created.");
-  const binaryPath = await requireBinary(options);
-  assertCLIProxyAPICompatibility(binaryPath, "antigravity");
-  info("Opening CLIProxyAPI's own Antigravity login in your browser...");
-  blank();
-  const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
-  const models2 = await getLocalCLIProxyAPISettings(profile, runtime);
-  success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
-  printMapping(models2);
-  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
-}
-async function createSubscriptionAlias(alias, upstream, options) {
-  const rejection = checkAlias(await loadAliases(), alias);
-  if (rejection)
-    throw new UserFacingError(describeAliasRejection(rejection, alias));
-  const binaryPath = await requireBinary(options);
-  if (upstream === "workbuddy") {
-    if (!options.chooseWorkBuddyRegion && !process.stdin.isTTY) {
-      throw new UserFacingError("WorkBuddy needs an interactive terminal to choose its region.", [
-        `Run it in your terminal, or name the build: ${source_default.cyan("workbuddy-ai")} (international).`
-      ]);
-    }
-    upstream = await (options.chooseWorkBuddyRegion ?? (() => esm_default5({
-      message: "WorkBuddy region",
-      choices: [
-        { name: "International (workbuddy.ai)", value: "workbuddy-ai" },
-        { name: "China (workbuddy.cn)", value: "workbuddy" }
-      ]
-    })))();
-  }
-  info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
-  const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream }, (profileId) => loginOrThrow(profileId, binaryPath, upstreamLabel(upstream)), (name) => addAlias(alias, { provider: "claude", profileName: name }));
-  success2(`Saved as alias ${source_default.bold(alias)}  ${source_default.dim(`Claude Code · ${upstreamLabel(upstream)}`)}`);
-  printMapping(await getLocalCLIProxyAPISettings(profile, runtime));
-  return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
-}
-function printMapping(models2) {
-  hint(`opus/default → ${models2.opusModel} · sonnet → ${models2.sonnetModel} · haiku → ${models2.haikuModel}`);
-}
-function upstreamLabel(upstream) {
-  return CLI_PROXY_API_UPSTREAMS[upstream ?? "codex"].label;
-}
-
 // src/commands/run.ts
 import { join as join16 } from "path";
 
@@ -16303,7 +16353,7 @@ import {
   chmod as chmod11,
   lstat as lstat2,
   mkdir as mkdir14,
-  readdir as readdir5,
+  readdir as readdir6,
   readlink as readlink2,
   rename as rename8,
   symlink as symlink2,
@@ -16371,7 +16421,7 @@ async function finishCodexRunHome(account) {
   await linkSharedEntries(codexRunHome(account.account_key));
 }
 async function linkSharedEntries(home) {
-  for (const entry of await readdir5(home, { withFileTypes: true })) {
+  for (const entry of await readdir6(home, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name) || entry.isSymbolicLink())
       continue;
     const shared = join15(CODEX_DIR, entry.name);
@@ -16381,7 +16431,7 @@ async function linkSharedEntries(home) {
       await rename8(join15(home, entry.name), shared);
     } catch {}
   }
-  for (const entry of await readdir5(CODEX_DIR, { withFileTypes: true })) {
+  for (const entry of await readdir6(CODEX_DIR, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name))
       continue;
     await linkEntry(join15(CODEX_DIR, entry.name), join15(home, entry.name));
@@ -16656,7 +16706,6 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   let secureStorageDir;
   let configDir;
-  let settingsNeutralizer = null;
   let localSettingsFile;
   let localLease;
   if (isolatedClaudeOAuth && claudeProfileName) {
@@ -16670,13 +16719,12 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       blank();
       process.exit(1);
     }
-    if (profile?.type === "oauth" && Object.keys(normalizeCustomEnv(profile.env)).length > 0) {
+    if (profile?.type === "oauth") {
       localSettingsFile = await prepareOAuthProfileClaudeSettings(claudeProfileName, profile);
-    } else {
-      settingsNeutralizer = await getClaudeEnvNeutralizer();
     }
   }
   if (isolatedClaudeApi && claudeProfileName && profile?.type === "api-key") {
+    configDir = await prepareIsolatedApiRun(claudeProfileName);
     localSettingsFile = await prepareApiProfileClaudeSettings(claudeProfileName, profile);
   }
   if (isolatedLocalCLIProxyAPI && profile?.type === "local-cliproxyapi") {
@@ -16727,7 +16775,6 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     ...!isOpenCodeV2 && resolvedModel ? ["--model", resolvedModel] : [],
     ...effortArgs,
     ...localSettingsFile ? ["--settings", localSettingsFile] : [],
-    ...settingsNeutralizer ? ["--settings", settingsNeutralizer] : [],
     ...spawnForwardedArgs
   ];
   let baseEnv;
@@ -16839,7 +16886,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
 async function getRunEnvironment(entry, profile, headerEnabled, secureStorageDir, configDir) {
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
-      return applyClaudeAttributionHeader(buildClaudeApiEnvironment(profile), headerEnabled);
+      return applyClaudeAttributionHeader({ ...buildClaudeApiEnvironment(profile), CLAUDE_CONFIG_DIR: configDir }, headerEnabled);
     }
     if (profile?.type === "local-cliproxyapi") {
       return applyClaudeAttributionHeader(buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir, profile.env), headerEnabled);
@@ -17310,7 +17357,7 @@ function spawnBackgroundRefresh() {
 
 // src/lib/activity.ts
 import { execFile as execFile4 } from "child_process";
-import { mkdir as mkdir16, readdir as readdir6, readFile as readFile12, realpath as realpath3, rename as rename10, stat as stat7, writeFile as writeFile12 } from "fs/promises";
+import { mkdir as mkdir16, readdir as readdir7, readFile as readFile12, realpath as realpath3, rename as rename10, stat as stat7, writeFile as writeFile12 } from "fs/promises";
 import { join as join17 } from "path";
 import { promisify as promisify3 } from "util";
 var ACTIVITY_DAYS = 30;
@@ -17424,7 +17471,7 @@ async function recentJsonlFiles(roots, since) {
     if (seenDirs.has(real))
       return;
     seenDirs.add(real);
-    const entries = await readdir6(real, { withFileTypes: true }).catch(() => []);
+    const entries = await readdir7(real, { withFileTypes: true }).catch(() => []);
     await Promise.all(entries.map(async (entry) => {
       const path = join17(real, entry.name);
       if (entry.isDirectory() || entry.isSymbolicLink()) {
@@ -17447,7 +17494,7 @@ async function recentJsonlFiles(roots, since) {
 }
 async function collectClaudeTokens(since, addTokens, cwds) {
   const roots = [join17(CLAUDE_DIR, "projects")];
-  for (const profile of await readdir6(CLAUDE_PROFILES_DIR).catch(() => [])) {
+  for (const profile of await readdir7(CLAUDE_PROFILES_DIR).catch(() => [])) {
     roots.push(join17(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
   }
   const seen = new Set;
@@ -17510,7 +17557,7 @@ async function collectCodexTokens(since, addTokens, cwds) {
 }
 async function collectOpenCodeTokens(since, addTokens, cwds) {
   const dbs = [nativeOpenCodeDatabaseFile()];
-  for (const profileId of await readdir6(OPENCODE_PROFILES_DIR).catch(() => [])) {
+  for (const profileId of await readdir7(OPENCODE_PROFILES_DIR).catch(() => [])) {
     dbs.push(openCodeProfileV2DatabaseFile(profileId));
   }
   const seen = new Set;
@@ -17879,7 +17926,7 @@ function parseSnapshot(snapshot) {
 }
 
 // src/providers/cliproxyapi/usage.ts
-import { readFile as readFile13, readdir as readdir7 } from "node:fs/promises";
+import { readFile as readFile13, readdir as readdir8 } from "node:fs/promises";
 import { join as join18 } from "node:path";
 async function fetchCLIProxyAPIUsage(profile) {
   if (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") {
@@ -17889,7 +17936,7 @@ async function fetchCLIProxyAPIUsage(profile) {
     return { usage: null, note: null };
   try {
     const directory = cliProxyAPIAuthDir(profile.profileId);
-    const files = (await readdir7(directory)).filter((name) => name.endsWith(".json"));
+    const files = (await readdir8(directory)).filter((name) => name.endsWith(".json"));
     if (files.length !== 1)
       return { usage: null, note: "usage n/a" };
     const auth = JSON.parse(await readFile13(join18(directory, files[0]), "utf8"));
@@ -18719,7 +18766,7 @@ async function current2() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir8 } from "fs/promises";
+import { readdir as readdir9 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -18750,7 +18797,7 @@ async function importClaudeProfiles(reg) {
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir8(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir9(CLAUDE_PROFILES_DIR, { withFileTypes: true });
   const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
@@ -19150,7 +19197,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.26.12",
+  version: "1.27.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -21477,6 +21524,7 @@ var HELP = `
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
+    claudex-switch <alias> cc [args...]  Same as '<alias> -run --cliproxy claudecode'
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -21612,6 +21660,10 @@ async function interactivePicker() {
 }
 async function main() {
   const [command, ...args] = process.argv.slice(2);
+  const shortcutIndex = command === "use" ? 1 : 0;
+  if ((command === "use" || command && !["add", "model", "rename", "remove", "rm", "purge", "refresh", "doctor", "list", "ls", "webconfig", "import", "update", "current"].includes(command)) && args[shortcutIndex] === "cc") {
+    args.splice(shortcutIndex, 1, "--run", "--cliproxy", "claudecode");
+  }
   try {
     const runIndex = args.findIndex(isRunFlag);
     const ownArgs = runIndex < 0 ? args : args.slice(0, runIndex);
@@ -21673,6 +21725,12 @@ async function main() {
         if (isRunFlag(args[1])) {
           const exitCode = await runAliasSession(args[0], args.slice(2));
           process.exit(exitCode);
+        }
+        if (args.length > 1) {
+          console.error(source_default.red(`
+  Usage: claudex-switch use <alias> [-run [args...] | cc [args...]]
+`));
+          process.exit(1);
         }
         await use(args[0]);
         break;
@@ -21795,6 +21853,12 @@ async function main() {
           if (isRunFlag(args[0])) {
             const exitCode = await runAliasSession(command, args.slice(1));
             process.exit(exitCode);
+          }
+          if (args.length > 0) {
+            console.error(source_default.red(`
+  Usage: claudex-switch <alias> [-run [args...] | cc [args...]]
+`));
+            process.exit(1);
           }
           await use(command);
         } else if (isCliproxyRunInvocation(args)) {
