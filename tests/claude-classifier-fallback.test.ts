@@ -7,7 +7,6 @@ import {
   applyApiConfig,
   applyLocalCLIProxyAPIConfig,
   applyOAuthConfig,
-  getClaudeEnvNeutralizer,
   prepareApiProfileClaudeSettings,
   prepareOAuthProfileClaudeSettings,
   type LocalCLIProxyAPISettings,
@@ -54,7 +53,7 @@ describe("local proxy classifier fallback", () => {
   test("isolated API and OAuth settings neutralize active fallback and preserve explicit preferences", async () => {
     await applyLocalCLIProxyAPIConfig(proxyConfig);
     const globalBefore = await readFile(SETTINGS_FILE, "utf-8");
-    const neutralizer = JSON.parse((await getClaudeEnvNeutralizer())!);
+    const neutralizer = JSON.parse(await readFile(await prepareOAuthProfileClaudeSettings("plain", { type: "oauth" }), "utf-8"));
     expect(neutralizer.env[AUTO_MODE_SERVER]).toBe("");
 
     for (const override of [undefined, "1"]) {
@@ -77,5 +76,23 @@ describe("local proxy classifier fallback", () => {
     expect((await readSettings()).env?.[AUTO_MODE_SERVER]).toBe("1");
     await applyOAuthConfig();
     expect((await readSettings()).env?.[AUTO_MODE_SERVER]).toBe("1");
+  });
+
+  test("inactive profile keys preserve user-owned launch values without exposing them in argv", async () => {
+    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+    await writeJson(SETTINGS_FILE, { env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40", CUSTOM_TOKEN: "fixture-secret" } });
+    const { claudeProfileDataFile } = await import("../src/lib/paths");
+    const file = claudeProfileDataFile("inactive");
+    await mkdir(dirname(file), { recursive: true });
+    await writeJson(file, { type: "oauth", env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "70", CUSTOM_TOKEN: "other" } });
+    for (const path of [
+      await prepareOAuthProfileClaudeSettings("native", { type: "oauth" }),
+      await prepareApiProfileClaudeSettings("api", { apiKey: "fixture-api" }),
+    ]) {
+      const settings = JSON.parse(await readFile(path, "utf-8"));
+      expect(settings.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe("40");
+      expect(settings.env.CUSTOM_TOKEN).toBe("fixture-secret");
+      expect(path).not.toContain("fixture-secret");
+    }
   });
 });

@@ -72,6 +72,16 @@ export interface CLIProxyResolveOptions {
   chooseWorkBuddyRegion?: () => Promise<SubscriptionUpstream>;
 }
 
+export async function createCLIProxyClaudeAlias(
+  alias: string,
+  upstream: "antigravity" | SubscriptionUpstream,
+  options: CLIProxyResolveOptions = {},
+): Promise<AliasEntry> {
+  return upstream === "antigravity"
+    ? createAntigravityAlias(alias, options)
+    : createSubscriptionAlias(alias, upstream, options);
+}
+
 /**
  * Turn `<alias> --run --cliproxy claudecode` into the Claude profile that runs
  * Claude Code on that alias's subscription, creating it on first use. Throws
@@ -85,10 +95,10 @@ export async function resolveCLIProxyClaudeEntry(
 
   if (!entry) {
     if (isAntigravityName(aliasOrName)) {
-      return createAntigravityAlias(aliasOrName, options);
+      return createCLIProxyClaudeAlias(aliasOrName, "antigravity", options);
     }
     if (isSubscriptionName(aliasOrName)) {
-      return createSubscriptionAlias(aliasOrName, aliasOrName.toLowerCase() as SubscriptionUpstream, options);
+      return createCLIProxyClaudeAlias(aliasOrName, aliasOrName.toLowerCase() as SubscriptionUpstream, options);
     }
     throw new UserFacingError(`Alias "${aliasOrName}" not found.`, [
       `Use a Codex or OpenCode Go alias, agy for Antigravity, or workbuddy / workbuddy-ai / cursor.`,

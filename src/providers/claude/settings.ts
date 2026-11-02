@@ -1,10 +1,12 @@
-import { chmod, mkdir } from "fs/promises";
+import { chmod, mkdir, readdir } from "fs/promises";
 import { dirname } from "path";
 import {
   MANAGED_ENV_FILE,
+  CLAUDE_PROFILES_DIR,
   SETTINGS_FILE,
   claudeProfileClaudeSettingsFile,
   claudeProfileDir,
+  claudeProfileDataFile,
 } from "../../lib/paths";
 import { readJson, writeJson, writeJsonSecure } from "../../lib/fs";
 import type {
@@ -204,6 +206,7 @@ async function commitManagedEnv(
   settings: Settings,
   env: SettingsEnv,
   extraEnv: CustomEnv | undefined,
+  neutralizedKeys: readonly string[] = [],
 ): Promise<void> {
   const extra = normalizeCustomEnv(extraEnv);
   for (const [key, value] of Object.entries(extra)) {
@@ -216,7 +219,7 @@ async function commitManagedEnv(
     settings.env = env;
   }
 
-  await writeManagedExtraEnvKeys(Object.keys(extra));
+  await writeManagedExtraEnvKeys([...Object.keys(extra), ...neutralizedKeys]);
   await write(settings);
 }
 
@@ -282,6 +285,7 @@ export async function applyLocalCLIProxyAPIConfig(
   const env = await beginManagedEnv(settings);
 
   Object.assign(env, localCLIProxyAPIAuthEnv(config.apiKey));
+  for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) env[key] = "";
   setEnvValue(env, "ANTHROPIC_BASE_URL", config.baseUrl);
   setEnvValue(env, "ANTHROPIC_MODEL", config.model);
   setEnvValue(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
@@ -292,7 +296,7 @@ export async function applyLocalCLIProxyAPIConfig(
   setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
 
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env, localCLIProxyAPIExtraEnv(extraEnv));
+  await commitManagedEnv(settings, env, localCLIProxyAPIExtraEnv(extraEnv), CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS);
 }
 
 // Claude Code applies `~/.claude/settings.json` env *over* the environment its
@@ -306,14 +310,8 @@ export async function prepareApiProfileClaudeSettings(
   name: string,
   config: ClaudeApiProfileConfig,
 ): Promise<string> {
-  const env: Record<string, string> = {};
-  for (const key of CLAUDE_ENV_KEYS) {
-    env[key] = "";
-  }
+  const env = await getClaudeRunEnvOverrides();
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
-    env[key] = "";
-  }
-  for (const key of await readManagedExtraEnvKeys()) {
     env[key] = "";
   }
 
@@ -332,40 +330,24 @@ export async function prepareApiProfileClaudeSettings(
     env[key] = value;
   }
 
-  const settings: Settings = { env };
-  // Only override the picker's model when the profile names one; otherwise the
-  // user's own global choice stays in effect.
-  if (config.model) {
-    settings.model = config.model;
-  }
+  const settings: Settings = { env, ...(config.model ? { model: config.model } : {}) };
 
   return writePrivateRunSettings(name, settings);
 }
 
-// An OAuth profile that owns extra env cannot use the inline `--settings` JSON
-// neutralizer: inline JSON is visible in `ps` and these values are
-// user-supplied. Write the same kind of private 0600 file the API-key path
-// uses instead. Profiles without extra env keep the cheaper inline neutralizer.
+// User-supplied env may contain secrets. Every OAuth run uses a private file
+// so preserving user-owned launch preferences never exposes values in argv.
 export async function prepareOAuthProfileClaudeSettings(
   name: string,
   profile: OAuthProfileData,
 ): Promise<string> {
-  const env: Record<string, string> = {};
-  for (const key of CLAUDE_ENV_KEYS) {
-    env[key] = "";
-  }
-  for (const key of await readManagedExtraEnvKeys()) {
-    env[key] = "";
-  }
+  const env = await getClaudeRunEnvOverrides();
   env.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
     env[key] = value;
   }
 
-  const settings: Settings = { env };
-  if (profile.defaultModel) {
-    settings.model = profile.defaultModel;
-  }
+  const settings: Settings = { env, ...(profile.defaultModel ? { model: profile.defaultModel } : {}) };
 
   return writePrivateRunSettings(name, settings);
 }
@@ -398,23 +380,27 @@ export async function getConfiguredModel(): Promise<string | undefined> {
 // env, so an isolated OAuth `-run` must neutralize any Anthropic API config
 // the active API-key profile wrote there. `--settings` env entries deep-merge
 // over settings.json, and Claude Code treats empty strings as unset.
-export async function getClaudeEnvNeutralizer(): Promise<string> {
-  const settings = await read();
-  const env = normalizeEnv(settings);
-  const present: string[] = CLAUDE_ENV_KEYS.filter((key) => env[key]);
-  // Extra keys the active profile wrote (e.g. CLAUDE_CODE_EFFORT_LEVEL) would
-  // otherwise leak into an OAuth session the same way the fixed keys do.
-  for (const key of await readManagedExtraEnvKeys()) {
-    if (env[key] && !present.includes(key)) present.push(key);
+export async function getClaudeRunEnvOverrides(): Promise<SettingsEnv> {
+  const keys = new Set<string>([
+    ...CLAUDE_ENV_KEYS,
+    ...CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
+    ...Object.keys(localCLIProxyAPIExtraEnv()),
+    ...await readManagedExtraEnvKeys(),
+  ]);
+  // Another saved account can become global after this session starts. Its
+  // extra keys must already be masked, even if it has never been activated.
+  const profiles = await readdir(CLAUDE_PROFILES_DIR).catch(() => [] as string[]);
+  for (const name of profiles) {
+    const profile = await readJson<{ env?: CustomEnv }>(claudeProfileDataFile(name), {});
+    for (const key of Object.keys(normalizeCustomEnv(profile.env))) keys.add(key);
   }
-  const override: SettingsEnv = {};
-  for (const key of present) {
-    override[key] = "";
-  }
-  // Always supply the alias, even with clean global settings: older Claude
-  // clients otherwise resolve `opus` to their built-in previous generation.
-  override.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
-  return JSON.stringify({ env: override });
+  const managed = await readManagedExtraEnvKeys();
+  const env = normalizeEnv(await read());
+  const override = Object.fromEntries([...keys].map((key) => [key,
+    isReservedClaudeEnvKey(key) || managed.includes(key)
+      ? "" : env[key] ?? process.env[key] ?? "",
+  ]));
+  return override;
 }
 
 export async function getApiConfig(): Promise<ClaudeApiProfileConfig | null> {

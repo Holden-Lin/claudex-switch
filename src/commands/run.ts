@@ -22,13 +22,13 @@ import {
   getProfileData,
   prepareIsolatedLocalCLIProxyAPIRun,
   prepareIsolatedOAuthRun,
+  prepareIsolatedApiRun,
   syncIsolatedOAuthSnapshot,
 } from "../providers/claude/profiles";
 import {
   CLAUDE_ENV_KEYS,
   CLAUDE_DEFAULT_OPUS_MODEL,
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
-  getClaudeEnvNeutralizer,
   localCLIProxyAPIExtraEnv,
   normalizeCustomEnv,
   prepareApiProfileClaudeSettings,
@@ -459,7 +459,6 @@ export async function runAliasSession(
 
   let secureStorageDir: string | undefined;
   let configDir: string | undefined;
-  let settingsNeutralizer: string | null = null;
   let localSettingsFile: string | undefined;
   let localLease: ManagedCLIProxyAPILease | undefined;
   if (isolatedClaudeOAuth && claudeProfileName) {
@@ -475,23 +474,16 @@ export async function runAliasSession(
       blank();
       process.exit(1);
     }
-    // A profile that owns extra env needs a private 0600 file rather than the
-    // inline neutralizer JSON, which `ps` exposes. Everything else keeps the
-    // cheaper inline form.
-    if (
-      profile?.type === "oauth" &&
-      Object.keys(normalizeCustomEnv(profile.env)).length > 0
-    ) {
+    if (profile?.type === "oauth") {
       localSettingsFile = await prepareOAuthProfileClaudeSettings(
         claudeProfileName,
         profile,
       );
-    } else {
-      settingsNeutralizer = await getClaudeEnvNeutralizer();
     }
   }
 
   if (isolatedClaudeApi && claudeProfileName && profile?.type === "api-key") {
+    configDir = await prepareIsolatedApiRun(claudeProfileName);
     // settings.json env outranks the child environment, so the profile's own
     // routing has to be written into a private settings file of its own.
     localSettingsFile = await prepareApiProfileClaudeSettings(
@@ -535,8 +527,8 @@ export async function runAliasSession(
         runtime,
         {
           inheritModel: inheritProxyModel,
-          // The isolated config links the shared settings, where /model saves
-          // a Claude ID that Antigravity does not list.
+          // The private user settings can retain a Claude ID that this
+          // account's upstream does not list.
           savedModel: (await readJson<{ model?: string }>(join(configDir!, "settings.json"), {})).model,
         },
       );
@@ -585,7 +577,6 @@ export async function runAliasSession(
     ...(!isOpenCodeV2 && resolvedModel ? ["--model", resolvedModel] : []),
     ...effortArgs,
     ...(localSettingsFile ? ["--settings", localSettingsFile] : []),
-    ...(settingsNeutralizer ? ["--settings", settingsNeutralizer] : []),
     ...spawnForwardedArgs,
   ];
   let baseEnv: NodeJS.ProcessEnv | undefined;
@@ -747,7 +738,7 @@ async function getRunEnvironment(
   if (entry.target.provider === "claude") {
     if (profile?.type === "api-key") {
       return applyClaudeAttributionHeader(
-        buildClaudeApiEnvironment(profile),
+        { ...buildClaudeApiEnvironment(profile), CLAUDE_CONFIG_DIR: configDir },
         headerEnabled,
       );
     }

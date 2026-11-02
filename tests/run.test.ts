@@ -8,7 +8,7 @@ import {
 } from "bun:test";
 import type { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
-import { lstat, mkdir, readFile, readlink, stat, writeFile } from "fs/promises";
+import { lstat, mkdir, readFile, readlink, stat, symlink, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { saveAliases } from "../src/alias/store";
 import { runAliasSession } from "../src/commands/run";
@@ -66,10 +66,10 @@ function apiSettingsArgs(profileName: string): string[] {
   return ["--settings", claudeProfileClaudeSettingsFile(profileName)];
 }
 
-function oauthSettingsArgs(): string[] {
+function oauthSettingsArgs(profileName = "holden"): string[] {
   return [
     "--settings",
-    JSON.stringify({ env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" } }),
+    claudeProfileClaudeSettingsFile(profileName),
   ];
 }
 
@@ -290,7 +290,7 @@ describe("run alias session", () => {
     ).toEqual({ oauthAccount: accountB });
     expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
       .toEqual({ oauthAccount: accountA });
-    expect(calls[0]?.args).toEqual(["--permission-mode", "auto", ...oauthSettingsArgs()]);
+    expect(calls[0]?.args).toEqual(["--permission-mode", "auto", ...oauthSettingsArgs("b")]);
   });
 
   test("neutralizes global API settings env for an isolated OAuth run", async () => {
@@ -330,10 +330,36 @@ describe("run alias session", () => {
 
     const settingsIndex = calls[0]?.args.indexOf("--settings") ?? -1;
     expect(settingsIndex).toBeGreaterThanOrEqual(0);
-    const override = JSON.parse(calls[0]?.args[settingsIndex + 1] ?? "{}");
+    const override = JSON.parse(await readFile(calls[0]!.args[settingsIndex + 1]!, "utf-8"));
     expect(override.env.ANTHROPIC_API_KEY).toBe("");
     expect(override.env.ANTHROPIC_MODEL).toBe("");
     expect(override.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
+  });
+
+  test.each(["oauth", "api-key"] as const)("%s settings writes stay private while shared skills and hooks load", async (type) => {
+    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await writeCredentials({ claudeAiOauth: { accessToken: "fixture", refreshToken: "fixture", expiresAt: 4_102_444_800_000, scopes: [] } }, CREDENTIALS_FILE);
+    if (type === "oauth") await addOAuthProfile("private");
+    else await addApiKeyProfile("private", { apiKey: "fixture-key" });
+    const settings = { model: "claude-opus-5-5", hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf fixture" }] }] } };
+    await writeFile(SETTINGS_FILE, JSON.stringify(settings));
+    const config = claudeProfileConfigDir("private");
+    await mkdir(config, { recursive: true });
+    await symlink(SETTINGS_FILE, join(config, "settings.json"));
+    await mkdir(join(dirname(SETTINGS_FILE), "skills"), { recursive: true });
+    await writeFile(join(dirname(SETTINGS_FILE), "CLAUDE.md"), "fixture user instructions");
+    await saveAliases({ version: 1, aliases: [{ alias: "private", target: { provider: "claude", profileName: "private" }, createdAt: 1 }] });
+    const calls: SpawnCall[] = [];
+    await runAliasSession("private", [], createSpawn(calls));
+    expect(calls[0]?.env?.CLAUDE_CONFIG_DIR).toBe(config);
+    expect((await lstat(join(config, "settings.json"))).isSymbolicLink()).toBe(false);
+    expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8")).hooks).toEqual(settings.hooks);
+    expect(await readlink(join(config, "skills"))).toBe(join(dirname(SETTINGS_FILE), "skills"));
+    expect(await readFile(join(config, "CLAUDE.md"), "utf8")).toBe("fixture user instructions");
+    await writeFile(join(config, "settings.json"), JSON.stringify({ ...settings, model: "private-only" }));
+    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf8"))).toEqual(settings);
+    await runAliasSession("private", [], createSpawn(calls));
+    expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8")).model).toBe("private-only");
   });
 
   test("applies the OAuth profile default model to isolated runs", async () => {

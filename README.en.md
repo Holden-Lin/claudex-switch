@@ -79,6 +79,10 @@ Instantly displays account status, 5-hour / weekly remaining quota percentages (
   claudex-switch personal
   ```
 
+`claudex-switch add <alias>` supports WorkBuddy (international / China), Antigravity (agy), and Cursor. Enter an alias or `use <alias>` to make it the global default, including for a bare `claude`; `-run` sessions keep their own model and routing. Sessions started without `-run`, or with older launchers, follow global switches because Claude Code reloads the shared `settings.json`. `<alias> --help` / `-h` only prints help.
+
+`claudex-switch agy cc` is short for `agy -run --cliproxy claudecode`, also available for other proxy / Codex / Go aliases. Unrecognized arguments after an alias fail without switching accounts. In a Claude `-run` session, `/model` saves only to that account's private user settings; skills, hooks, and CLAUDE.md remain available.
+
 ---
 
 ## 🛠️ Common Workflows
@@ -126,8 +130,8 @@ claudex-switch refresh <alias>
 | `claudex-switch` | - | Open interactive account selection menu |
 | `claudex-switch list` | `ls` | List all accounts, active status, 5h/weekly quota, and 30-day trends |
 | `claudex-switch <alias> -run` | - | **[Recommended]** Launch isolated session (credential sandbox, no global conflict) |
-| `claudex-switch <alias>` | `use` | Switch active global default account |
-| `claudex-switch add <alias>` | - | Add a new account (OAuth, API Key, or Relay) |
+| `claudex-switch <alias>` | `use` | Switch active global default account (including local CLIProxyAPI) |
+| `claudex-switch add <alias>` | - | Add an account (OAuth, API Key, WorkBuddy, Antigravity, Cursor, or Relay) |
 | `claudex-switch import` | - | One-click import from `claude-switch` / `codex-auth` |
 | `claudex-switch refresh <alias>` | - | Re-authenticate and update credentials snapshot |
 | `claudex-switch webconfig` | - | Open local web UI for batch configuration |

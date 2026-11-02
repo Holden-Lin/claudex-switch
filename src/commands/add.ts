@@ -87,6 +87,7 @@ import {
 } from "../providers/opencode/version";
 import { resolveOpenCodeV2Key } from "./opencode-key";
 import { loginOpenCodeConsole } from "../providers/opencode/console";
+import { createCLIProxyClaudeAlias } from "./cliproxy";
 
 interface AuthStatus {
   loggedIn?: boolean;
@@ -143,6 +144,18 @@ export async function add(alias: string): Promise<void> {
         value: "claude-local-cliproxyapi" as const,
       },
       {
+        name: "Claude Code · WorkBuddy（本机 CLIProxyAPI）",
+        value: "claude-workbuddy" as const,
+      },
+      {
+        name: "Claude Code · Antigravity（本机 CLIProxyAPI）",
+        value: "claude-antigravity" as const,
+      },
+      {
+        name: "Claude Code · Cursor（本机 CLIProxyAPI）",
+        value: "claude-cursor" as const,
+      },
+      {
         name: "Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)",
         value: "codex-chatgpt" as const,
       },
@@ -170,6 +183,13 @@ export async function add(alias: string): Promise<void> {
       break;
     case "claude-local-cliproxyapi":
       await addLocalCLIProxyAPI(alias);
+      break;
+    case "claude-workbuddy":
+    case "claude-antigravity":
+    case "claude-cursor":
+      await createCLIProxyClaudeAlias(alias, accountType.slice("claude-".length) as "workbuddy" | "antigravity" | "cursor");
+      hint(`Run ${chalk.cyan(`claudex-switch ${alias}`)} to switch the global default, or add ${chalk.cyan("-run")} for an isolated session.`);
+      blank();
       break;
     case "codex-chatgpt":
       await addCodexChatGPT(alias);

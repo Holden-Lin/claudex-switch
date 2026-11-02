@@ -13,6 +13,8 @@ workbuddy  local CLIProxyAPI  Free  WorkBuddy AI (international) · running  …
 
 ## WorkBuddy / Cursor 订阅
 
+可用 `claudex-switch add wb2`，选择 WorkBuddy（再选国际版 / 国内版）、Antigravity 或 Cursor，完成现有登录流程后保存账号。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 均按普通 Claude 代理账号管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
+
 ```bash
 claudex-switch workbuddy --run --cliproxy claudecode
 claudex-switch workbuddy-ai --run --cliproxy claudecode
@@ -72,7 +74,9 @@ $ claudex-switch chatgpt --run
 2. 为每个账号生成稳定 UUID，作为独立存储和代理的标识；显示别名仅指向该 profile。重命名不搬迁登录态，删除别名后复用名称不会覆盖旧账号。
 3. CLIProxyAPI 自己完成 ChatGPT OAuth，不读取或复制现有 Codex 登录。先写临时认证目录，检查仅有一个有效 Codex 凭据，再替换。刷新时核验同一账号的单向身份指纹，登录失败、取消或换错账号不覆盖原登录。
 4. 每账号一个回环代理，同账号的多个会话复用它，不同账号不混池。生成配置固定监听 `127.0.0.1`，使用随机客户端密钥，禁用管理接口和控制面板；密钥不会放到命令行参数。
-5. 所有 `local-cliproxyapi` 账号（包括 WorkBuddy、agy）只支持独立运行，禁止切为全局默认账号；新增与编辑配置也不改写全局账号。`--run` 给 Claude 独立配置和凭据目录，通过私有 `--settings` 文件注入路由。保留正常配置发现，不加 `--bare`；中和继承的 OAuth token、Bedrock/Vertex/Foundry 路由，避免走错账号。
+5. 所有 `local-cliproxyapi` 账号（包括 WorkBuddy、agy）均可切为全局默认账号；新增只保存账号，编辑当前全局账号时同步设置。`--run` 给 Claude 独立配置和凭据目录，通过私有 `--settings` 文件注入路由。预先覆盖全局切换可写入的路由键，并保留启动时的模型设置，所以 OAuth、API Key 和代理独立会话不受之后的全局切换影响。保留正常配置发现，不加 `--bare`；中和继承的 OAuth token、Bedrock/Vertex/Foundry 路由，避免走错账号。未使用 `-run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享 `settings.json`。
+
+所有 Claude `-run` 类型的用户 `settings.json` 首次从全局设置复制，之后按账号保留。升级时会把旧符号链接迁移成私有文件；会话中的 `/model` 保存不会写回全局设置。技能、agents、hooks 所需文件和 CLAUDE.md 继续共享，项目配置仍从启动目录发现。想给该账号改用户设置时，编辑它的 `~/.claude-profiles/<profile-name>/config/settings.json`；全局设置后来的修改不会覆盖这份私有设置。
 6. 列表和普通 doctor 不请求上游模型。doctor 检查本机配置、认证文件、进程归属，运行中的代理另做本机鉴权探测；`--live` 明确只验证 Luna，不代表所有模型或剩余额度均可用。
 7. 并发启动、登录和生命周期操作用锁串行化；`--run` 持有会话租约，防止使用中被刷新、重启或清理。停止进程前核验其归属；不按模糊进程名杀进程。
 
@@ -106,6 +110,27 @@ Opus / Sonnet 映射适用于新账号；已有账号保留保存的映射。子
 
 ## 登录失败与日常维护
 
+### agy 的 auto 模式不可用
+
+`claudex-switch agy cc` 等同于 `claudex-switch agy -run --cliproxy claudecode`，明确启动独立会话并传入 `--permission-mode auto`。其他未知尾随参数会报 usage，不会变成全局切换。
+
+请先区分两种错误：启动时的 `auto mode ... unavailable` 是 Claude Code 的版本、模型、快速模式、账号视图或权限设置限制；执行工具时的 `cannot determine the safety` / `could not evaluate this action` 是分类请求没有得到有效结果。后者可能是模型 ID 不在代理目录、429 配额耗尽，或分类回复格式错误。Google / Antigravity 登录不会给 Claude Code 提供 Claude 订阅套餐视图；该连接使用本机网关身份。不同 Claude Code 版本的可用范围有变化，参见[官方 auto 模式说明](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)。不要把显示的 API 计费身份误当成 Antigravity 订阅失效。
+
+在有问题的电脑依次运行：
+
+```bash
+claudex-switch --version
+claude --version
+claudex-switch doctor agy
+claudex-switch agy cc --debug-file /tmp/claudex-agy-auto.log
+```
+
+核对启动行确有 `--permission-mode auto`；在会话中用 `/status` 看模型和模式，若开了 fast，用 `/fast off` 后重开。检查用户、项目和组织管理设置是否含 `disableAutoMode: "disable"`，包括该账号的私有用户设置；存在时 auto 会被禁用，启动器不会绕过此限制。记录完整提示和两条版本号，升级 Claude Code 后开新会话复验，不能只根据另一台电脑正常就断定相同。
+
+若 auto 已启用但工具分类失败：运行 `claudex-switch list` 查看 agy 对应模型组额度，再运行 `claudex-switch doctor agy --live` 发一个最小请求（会消耗少量额度）。429 表示对应上游额度或限流，等待重置；主模型 Gemini 可用不代表 Claude 模型组也可用。`doctor --live` 成功而分类仍失败时，只核对本机 debug 日志中分类请求的模型、HTTP 状态及解析错误；日志可能含对话和本机密钥，不要原样分享。分类默认模型会随 Claude Code 版本变化，本项目已映射 2.1.316 实际请求的 `claude-sonnet-5` 及 `claude-haiku-5-5`，前者此前可能触发 `unknown provider`。升级后重新启动账号，让私有模型映射生效。
+
+本机以 Claude Code 2.1.316、合成 agy 账号和假代理核对 auto 分类：主模型 Opus 与 Gemini 均能通过分类器执行无害 Bash 写入；`disableAutoMode` 能复现 auto 不可用。未复现另一台电脑的具体账号 / 配额状态。复验脚本：`bun scripts/verify-proxy-auto-mode.ts`，全程不读取真实账号、不联系供应商。
+
 ### 工具调用后报 400 / concurrency
 
 这条错误不一定意味着实际运行了多个工具。CLIProxyAPI 7.3.15 的 Antigravity 转换会把提示文本放在工具结果之前，导致上游认为结果未紧接调用；一个 Bash 也可触发。7.3.19 的[上游修复](https://github.com/router-for-me/CLIProxyAPI/commit/3de5709db14c43e147025bcc27ae61ff4821fc0d)同时处理混合文本、system/developer 提醒与带签名思考块的结果顺序。
@@ -129,7 +154,7 @@ claudex-switch agy --run --cliproxy claudecode
 
 CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callback`；部分版本即使接受自定义 callback-port，授权地址仍不跟随。项目因此使用真实的 1455 端口，登录前检查占用，并将多个登录请求串行化。遇到端口冲突时先结束占用该端口的登录进程，再运行 `claudex-switch refresh <alias>`；不要分享包含 `code` 的回调地址。
 
-`doctor --restart` 只重启对应账号的代理，并可从有效私有配置重建生成文件；它不能替代登录或修复账号额度。建议日常始终使用 `--run`：单独全局切换后直接运行 `claude` 不持有项目会话租约，手工重启代理后也应重新执行别名切换以同步本机端口。
+全局切换会启动或复用该账号的后台代理。进程与切换命令分离，命令退出后继续运行；裸 `claude` 通过写入全局设置的本机地址和客户端密钥连接它。代理停止时会连接失败，不会自动回退到其他账号；重新执行该账号的切换命令即可启动代理并同步端口。`doctor --restart` 只重启对应账号的代理，并可从有效私有配置重建生成文件；它不能替代登录或修复账号额度。裸 `claude` 不持有项目会话租约，手工重启代理后也应重新执行别名切换以同步本机端口；多窗口运行建议使用 `--run`。
 
 `remove` 仅删除别名，保留底层登录；`purge` 经确认后删除该账号及关联别名、凭据与管理文件，并停止经过归属核验的空闲代理，不卸载共享 CLIProxyAPI。通过 `--run` 运行的会话未结束时会拒绝清理。
 
@@ -147,7 +172,7 @@ CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callba
 
 ## 多上游与 `--cliproxy`
 
-`claudex-switch agy --run --cliproxy claudecode` 等带 `--cliproxy` 的启动，在没有显式 `--model` 时不传模型参数，也不在私有配置中固定主模型；可在 Claude Code 中用 `/model` 选择。显式 `--model` 和普通代理别名启动仍沿用原规则。
+`claudex-switch agy --run --cliproxy claudecode` 等带 `--cliproxy` 的启动，在没有显式 `--model` 时不传模型参数，保留 Claude Code 启动时的模型选择（未选则使用其默认值），之后不跟随全局模型改动；可在 Claude Code 中用 `/model` 选择。显式 `--model` 和普通代理别名启动仍沿用原规则。
 
 代理生成的本地客户端密钥通过 `ANTHROPIC_AUTH_TOKEN` 传递，并清空继承的 `ANTHROPIC_API_KEY`，避免 Claude Code 弹出默认拒绝的 API Key 确认框。Antigravity 已登录而 Claude 提示 `Not logged in` 时，先升级并重新运行上述命令，无需在 Claude 中重新 `/login`。此处是 Claude 到本地代理的认证，上游登录仍由 CLIProxyAPI 管理。参见 [Claude Code 网关认证说明](https://code.claude.com/docs/en/llm-gateway-connect#conflicts-with-an-existing-login)。
 

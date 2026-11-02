@@ -14,7 +14,6 @@ import {
 } from "../src/lib/paths";
 import { getProfileData } from "../src/providers/claude/profiles";
 import {
-  getClaudeEnvNeutralizer,
   prepareApiProfileClaudeSettings,
   prepareOAuthProfileClaudeSettings,
 } from "../src/providers/claude/settings";
@@ -531,7 +530,7 @@ describe("webconfig snapshot", () => {
       },
     ]);
 
-    const neutralizer = JSON.parse((await getClaudeEnvNeutralizer()) ?? "{}");
+    const neutralizer = JSON.parse(await readFile(await prepareOAuthProfileClaudeSettings("sub", { type: "oauth" }), "utf-8"));
     expect(neutralizer.env.CLAUDE_CODE_EFFORT_LEVEL).toBe("");
     expect(neutralizer.env.ANTHROPIC_API_KEY).toBe("");
 
