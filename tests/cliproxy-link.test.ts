@@ -370,7 +370,8 @@ describe("--cliproxy claudecode", () => {
       spy.mockRestore();
     }
     const agyLine = lines.find((line) => line.includes(" agy "));
-    expect(agyLine).toContain("Antigravity · running");
+    expect(lines.join("\n")).toContain("── Antigravity ──");
+    expect(agyLine).toContain("running");
     expect(agyLine).not.toContain("CLIProxyAPI · Antigravity");
   });
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import chalk from "chalk";
+import { aliasSection } from "./lib/account-display";
 import { select } from "@inquirer/prompts";
 import { existsSync, readFileSync } from "fs";
 import { basename, dirname, join, resolve } from "path";
@@ -26,7 +27,7 @@ import { version } from "./commands/version";
 import { update } from "./commands/update";
 import { webconfig } from "./commands/webconfig";
 import { doctor } from "./commands/doctor";
-import { blank, error, formatProvider, hint } from "./lib/ui";
+import { blank, error, hint } from "./lib/ui";
 import { runAutoUpdateIfNeeded } from "./lib/update";
 
 const HELP = `
@@ -155,7 +156,12 @@ function parseListOptions(args: string[]): ListOptions | null {
 async function interactivePicker(): Promise<void> {
   const aliasReg = await loadAliases();
 
-  if (aliasReg.aliases.length === 0) {
+  const accounts = await Promise.all(aliasReg.aliases.map(async (entry) => ({
+    entry, section: await aliasSection(entry),
+  })));
+  const visibleAccounts = accounts.filter((account) => account.section !== null);
+
+  if (visibleAccounts.length === 0) {
     blank();
     console.log(chalk.bold("  Welcome to claudex-switch"));
     blank();
@@ -185,8 +191,7 @@ async function interactivePicker(): Promise<void> {
   }
   const openCodeState = await readOpenCodeState();
 
-  const choices = aliasReg.aliases.map((entry) => {
-    const provider = formatProvider(entry.target.provider);
+  const choices = visibleAccounts.map(({ entry, section }) => {
     let isActive = false;
 
     if (entry.target.provider === "claude") {
@@ -200,7 +205,7 @@ async function interactivePicker(): Promise<void> {
     const active = isActive ? chalk.dim(" (active)") : "";
 
     return {
-      name: `${entry.alias}  ${provider}${active}`,
+      name: `${entry.alias}  ${section}${active}`,
       value: entry.alias,
     };
   });

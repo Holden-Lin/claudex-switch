@@ -35,6 +35,8 @@ The example values are illustrative. The empty inventory is `{ "schemaVersion": 
 
 The `accounts` array contains one record per alias:
 
+人类可读的 `list` 按代理上游分区，并隐藏 ChatGPT 代理账号。JSON 为脚本保留完整账号清单，包括这些隐藏账号；`schemaVersion: 1`、`provider: "claude"`、`authMode: "local-cliproxyapi"` 与现有字段均不变，不增加显示分区字段。原生 Codex ChatGPT 账号不受隐藏规则影响。
+
 | Key | Shape | Meaning |
 |---|---|---|
 | `alias` | string | User-chosen local alias; it may identify an account or person |

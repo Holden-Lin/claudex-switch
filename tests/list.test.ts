@@ -3,6 +3,8 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { saveAliases } from "../src/alias/store";
 import { list } from "../src/commands/list";
+import { current } from "../src/commands/current";
+import { aliasSection } from "../src/lib/account-display";
 import {
   CLAUDE_JSON,
   CLAUDE_STATE_FILE,
@@ -201,6 +203,50 @@ describe("list", () => {
   function output(): string {
     return console.log.mock.calls.flat().join("\n");
   }
+
+  test("groups proxy upstreams, hides ChatGPT proxies only in human views, and keeps empty sections hidden", async () => {
+    const upstreams = ["antigravity", "workbuddy", "workbuddy-ai", "cursor", "codex", undefined] as const;
+    const aliases: AliasRegistry = { version: 1, aliases: [] };
+    for (const [index, upstream] of upstreams.entries()) {
+      const alias = upstream ?? "legacy-chatgpt";
+      const dir = join(TEST_HOME, ".claude-profiles", alias);
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, "profile.json"), JSON.stringify({ type: "local-cliproxyapi", upstream,
+        profileId: `11111111-1111-4111-8111-${String(index).padStart(12, "0")}`,
+        binaryPath: join(import.meta.dir, "fixtures/fake-cliproxyapi") }));
+      aliases.aliases.push({ alias, target: { provider: "claude", profileName: alias }, createdAt: 1 });
+    }
+    await saveAliases(aliases);
+    await list({ usage: false });
+    const human = output();
+    const titles = ["Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"];
+    for (const title of titles) expect(human).toContain(`── ${title} ──`);
+    expect(titles.map((title) => human.indexOf(`── ${title} ──`))).toEqual(
+      titles.map((title) => human.indexOf(`── ${title} ──`)).sort((a, b) => a - b));
+    expect(human).toContain("login required");
+    for (const hidden of ["CLIProxyAPI", "legacy-chatgpt", "── Claude ──", "── Codex ──", "── OpenCode ──", "── OpenCode Go ──"])
+      expect(human).not.toContain(hidden);
+    expect(human).not.toMatch(/\bcodex\b/);
+    console.log.mockClear();
+    await list({ json: true, usage: false });
+    const accounts = JSON.parse(output()).accounts;
+    expect(accounts).toHaveLength(6);
+    expect(accounts.every((account: { provider: string; authMode: string }) =>
+      account.provider === "claude" && account.authMode === "local-cliproxyapi")).toBe(true);
+    for (const [index, entry] of aliases.aliases.entries()) {
+      expect(await aliasSection(entry)).toBe(index < 4 ? titles[index] : null);
+      await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: entry.alias }));
+      console.log.mockClear();
+      await current();
+      if (index < 4) expect(output()).toContain(`${titles[index]}:`);
+      else expect(output()).not.toContain(entry.alias);
+      expect(output()).not.toContain("CLIProxyAPI");
+    }
+    await saveAliases({ version: 1, aliases: aliases.aliases.slice(4) });
+    console.log.mockClear();
+    await list({ usage: false });
+    expect(output()).not.toContain("──");
+  });
 
   test("shows Codex remaining quota from App Server used percentages", async () => {
     await saveAliases(codexAliases);

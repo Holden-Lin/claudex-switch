@@ -31,9 +31,9 @@ const put = async (file, value) => {
   await writeFile(path, JSON.stringify(value, null, 2));
 };
 const json = async (file) => JSON.parse(await readFile(join(home, file), "utf8"));
-function start(args, extra = {}, dialogs = []) {
-  const command = binary.endsWith(".js") ? process.execPath : binary;
-  const actualArgs = binary.endsWith(".js") ? [resolve(binary), ...args] : args;
+function start(args, extra = {}, dialogs = [], entrypoint = binary) {
+  const command = entrypoint.endsWith(".js") ? process.execPath : entrypoint;
+  const actualArgs = entrypoint.endsWith(".js") ? [resolve(entrypoint), ...args] : args;
   const child = spawn(command, actualArgs, { cwd: home, env: { ...env, ...extra }, stdio: ["pipe", "pipe", "pipe"] });
   launched.push(child);
   let output = "";
@@ -104,8 +104,8 @@ try {
   console.log(`version: ${(await run(["--version"])).trim()}`);
   const originalSettings = await json(".claude/settings.json");
   for (const [alias, index, region, upstream] of [
-    ["wb-ai", 3, 0, "workbuddy-ai"], ["wb-cn", 3, 1, "workbuddy"],
-    ["agy", 4, null, "antigravity"], ["cursor", 5, null, "cursor"],
+    ["wb-ai", 2, 0, "workbuddy-ai"], ["wb-cn", 2, 1, "workbuddy"],
+    ["agy", 3, null, "antigravity"], ["cursor", 4, null, "cursor"],
   ]) {
     const dialogs = [["What type of account?", "\u001b[B".repeat(index) + "\r"]];
     if (region !== null) dialogs.push(["WorkBuddy region", "\u001b[B".repeat(region) + "\r"]);
@@ -123,6 +123,39 @@ try {
     console.log(`add ${alias}: local-cliproxyapi upstream=${upstream}; global unchanged`);
   }
   console.log("menu: WorkBuddy / Antigravity / Cursor; WorkBuddy region: international / China");
+  for (const alias of ["agy", "wb-ai", "wb-cn", "cursor"]) {
+    for (const launch of [["-run"], ["cc"]]) {
+      const output = await run([alias, ...launch]);
+      assert(output.includes("BARE_CLAUDE_OK"), output);
+      console.log(`automatic proxy ${alias} ${launch[0]}: Claude Code reached local Messages endpoint`);
+    }
+  }
+  const aliases = await json(".claudex-switch/aliases.json");
+  const agy = aliases.aliases.find((entry) => entry.alias === "agy");
+  const profile = await json(`.claude-profiles/${agy.target.profileName}/profile.json`);
+  await put(".claude-profiles/legacy-chatgpt/profile.json", { ...profile, upstream: "codex" });
+  aliases.aliases.push({ alias: "legacy-chatgpt", target: { provider: "claude", profileName: "legacy-chatgpt" }, createdAt: 1 });
+  await put(".claudex-switch/aliases.json", aliases);
+  if (process.argv[3]) {
+    const before = await start(["list", "--no-usage"], {}, [], process.argv[3]).done;
+    assert.equal(before.code, 0, before.output);
+    console.log("BEFORE LIST\n" + before.output);
+  }
+  const rendered = await run(["list", "--no-usage"]);
+  for (const title of ["Claude", "Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
+    assert(rendered.includes(`── ${title} ──`), rendered);
+  assert(!rendered.includes("CLIProxyAPI") && !rendered.includes("legacy-chatgpt"), rendered);
+  assert(!rendered.includes("── Codex ──") && !rendered.includes("── OpenCode ──"), rendered);
+  console.log("AFTER LIST\n" + rendered);
+  assert(JSON.parse(await run(["list", "--json", "--no-usage"])).accounts.some((entry) => entry.alias === "legacy-chatgpt"));
+  const picker = start([], { CLAUDEX_FIXTURE_INTERACTIVE: "1" });
+  await waitFor(picker, "Switch to account");
+  assert(!picker.output().includes("legacy-chatgpt") && !picker.output().includes("CLIProxyAPI"), picker.output());
+  for (const label of ["Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
+    assert(picker.output().includes(label), picker.output());
+  picker.child.kill("SIGTERM");
+  await picker.done;
+  console.log("picker: upstream labels visible; legacy ChatGPT proxy hidden; no CLIProxyAPI wording");
   for (const [alias, options] of [["native", []], ["api", []], ["agy", []], ["cursor", ["cc"]]]) {
     const signal = join(home, `signal-${alias}`);
     await writeFile(signal, "before");

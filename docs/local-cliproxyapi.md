@@ -5,15 +5,19 @@
 `list` 查询 Antigravity 的额度汇总接口，并按服务端返回的模型组分别显示 5 小时 / 每周剩余额度；不会将 Claude/GPT 组的额度当成 Gemini 的额度。WorkBuddy 复用已安装插件的套餐与积分查询。示例（数值会随用量变化）：
 
 ```text
-agy        local CLIProxyAPI  Antigravity · running  …  Claude/GPT 5h 37% · wk 21% Thu20
-workbuddy  local CLIProxyAPI  Free  WorkBuddy AI (international) · running  …  credits 0% (0/350 left)
+── Antigravity ──
+  agy        running  …  Claude/GPT 5h 37% · wk 21% Thu20
+── WorkBuddy AI (international) ──
+  workbuddy  Free  running  …  credits 0% (0/350 left)
 ```
+
+`list` 将 Antigravity、WorkBuddy (China)、WorkBuddy AI (international)、Cursor 分区显示，只显示已有账号的分区。ChatGPT 代理账号从人类可读的 `list`、无参数选择器和 `current` 隐藏；`add` 不再提供该类型。已有别名仍可运行、重命名、移除及清理；`list --json` 保留完整清单与原有字段。
 
 积分为零只表示收费模型的积分耗尽，不代表 x0.00 免费模型不能用。查不到的套餐、额度不显示 `unknown` / `quota unavailable`。接口超时或令牌尚未续期时，有历史额度就保留并标出时间，无历史数据就隐藏。Antigravity 的登录续期仍由 CLIProxyAPI 管理，查询不会另行轮换其令牌。`list --cached` 复用后台缓存；`--no-usage` 不请求额度。
 
 ## WorkBuddy / Cursor 订阅
 
-可用 `claudex-switch add wb2`，选择 WorkBuddy（再选国际版 / 国内版）、Antigravity 或 Cursor，完成现有登录流程后保存账号。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 均按普通 Claude 代理账号管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
+可用 `claudex-switch add wb2`，选择 WorkBuddy（再选国际版 / 国内版）、Antigravity 或 Cursor，完成现有登录流程后保存账号。之后用 `claudex-switch wb2 -run` 或 `claudex-switch wb2 cc` 即可通过本机代理启动 Claude Code，无需额外代理参数或配置。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 均按普通 Claude 代理账号管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
 
 ```bash
 claudex-switch workbuddy --run --cliproxy claudecode
@@ -54,14 +58,9 @@ Claude Code 收到 429 会自动重试，实测约 10 次、3 分钟后报错停
 
 本功能让已有 `claudex-switch <alias> --run` 工作流可在 Claude Code 中使用 ChatGPT 登录。v1.21.0 起同一套代理还支持 OpenCode Go 和 Antigravity，并可通过 `--cliproxy claudecode` 直接借用已有别名的额度，见文末[「多上游与 `--cliproxy`」](#多上游与---cliproxy)。新增账号时完成一次独立 OAuth 登录，此后代理启动、端口选择、客户端密钥和模型映射由项目管理。既有 Claude OAuth、Claude API Key 和 Codex 账号类型保持原用途。
 
-## 输出约定
+## 旧 ChatGPT 代理账号的输出约定
 
 ```text
-$ claudex-switch add chatgpt
-? Account type: Claude Code · ChatGPT（本机 CLIProxyAPI）
-  …安装检测、浏览器登录…
-  ✓ chatgpt created  ChatGPT via local CLIProxyAPI
-
 $ claudex-switch chatgpt --run
   ● Running claude --permission-mode auto --model gpt-6-astra --settings <私有配置路径>
 ```
@@ -70,7 +69,7 @@ $ claudex-switch chatgpt --run
 
 ## 执行方案与配置边界
 
-1. 在新增账号流程中提供 `local-cliproxyapi` 类型；优先检测 `cliproxyapi` / `cli-proxy-api`，macOS 缺少时允许确认后由 Homebrew 安装。不运行 `brew services`，不自行安装 Homebrew。
+1. WorkBuddy、Antigravity 和 Cursor 的新增流程复用本机代理管理；旧 ChatGPT 代理账号继续兼容。优先检测 `cliproxyapi` / `cli-proxy-api`，macOS 缺少时允许确认后由 Homebrew 安装。不运行 `brew services`，不自行安装 Homebrew。
 2. 为每个账号生成稳定 UUID，作为独立存储和代理的标识；显示别名仅指向该 profile。重命名不搬迁登录态，删除别名后复用名称不会覆盖旧账号。
 3. CLIProxyAPI 自己完成 ChatGPT OAuth，不读取或复制现有 Codex 登录。先写临时认证目录，检查仅有一个有效 Codex 凭据，再替换。刷新时核验同一账号的单向身份指纹，登录失败、取消或换错账号不覆盖原登录。
 4. 每账号一个回环代理，同账号的多个会话复用它，不同账号不混池。生成配置固定监听 `127.0.0.1`，使用随机客户端密钥，禁用管理接口和控制面板；密钥不会放到命令行参数。

@@ -67,7 +67,9 @@ claudex-switch add personal  # 添加个人账号
 claudex-switch list
 # 快捷别名：claudex-switch ls
 ```
-瞬间展示所有账号状态、5h / 每周额度剩余百分比（如 `5h 89% · wk 61% Wed16`）及中转站余额。
+按 Claude、Antigravity、WorkBuddy 国内版 / 国际版、Cursor、Codex、OpenCode 分区，只显示已有账号的分区。旧 ChatGPT 代理账号不在列表、选择器和 `current` 中显示，也不再提供新增入口；已有别名仍可运行，`list --json` 保留完整清单。
+
+展示账号状态、5h / 每周额度剩余百分比（如 `5h 89% · wk 61% Wed16`）及中转站余额。
 
 ### 3. 启动或切换账号
 - **方式 A（推荐）：独立会话运行（凭证隔离，不影响全局默认账号）**

@@ -18,7 +18,6 @@ import { createPrivateBrowserScript, cleanupBrowserScript } from "../lib/browser
 import {
   profileExists,
   addOAuthProfile,
-  addLocalCLIProxyAPIProfile,
   removeProfile,
 } from "../providers/claude/profiles";
 import { readCredentials } from "../providers/claude/credentials";
@@ -61,16 +60,10 @@ import type { CodexRegistryAccount } from "../types";
 import type {
   ClaudeApiProfileConfig,
   CodexApiProviderConfig,
-  LocalCLIProxyAPIProfileData,
 } from "../types";
 import {
-  CLI_PROXY_API_DEFAULTS,
-  cleanupFailedManagedCLIProxyAPI,
-  createManagedCLIProxyAPIProfileId,
   findCLIProxyAPIBinary,
-  initializeManagedCLIProxyAPI,
   installCLIProxyAPIWithHomebrew,
-  runManagedCLIProxyAPILogin,
 } from "../providers/cliproxyapi/managed";
 import {
   createOpenCodeGoProfile,
@@ -140,19 +133,15 @@ export async function add(alias: string): Promise<void> {
         value: "claude-apikey" as const,
       },
       {
-        name: "Claude Code · ChatGPT（本机 CLIProxyAPI）",
-        value: "claude-local-cliproxyapi" as const,
-      },
-      {
-        name: "Claude Code · WorkBuddy（本机 CLIProxyAPI）",
+        name: "Claude Code · WorkBuddy",
         value: "claude-workbuddy" as const,
       },
       {
-        name: "Claude Code · Antigravity（本机 CLIProxyAPI）",
+        name: "Claude Code · Antigravity",
         value: "claude-antigravity" as const,
       },
       {
-        name: "Claude Code · Cursor（本机 CLIProxyAPI）",
+        name: "Claude Code · Cursor",
         value: "claude-cursor" as const,
       },
       {
@@ -180,9 +169,6 @@ export async function add(alias: string): Promise<void> {
       break;
     case "claude-apikey":
       await addClaudeApiKey(alias);
-      break;
-    case "claude-local-cliproxyapi":
-      await addLocalCLIProxyAPI(alias);
       break;
     case "claude-workbuddy":
     case "claude-antigravity":
@@ -419,82 +405,6 @@ async function addClaudeApiKey(alias: string): Promise<void> {
   );
   await maybeSetupRelayBalance(config.baseUrl);
   blank();
-}
-
-async function addLocalCLIProxyAPI(alias: string): Promise<void> {
-  const binaryPath = await resolveCLIProxyAPIBinaryForAdd();
-  if (!binaryPath) {
-    blank();
-    error("CLIProxyAPI was not installed or no valid executable was selected.");
-    hint("Install it with Homebrew on macOS, or rerun add and provide an existing cli-proxy-api path.");
-    blank();
-    process.exit(1);
-  }
-
-  const profileId = createManagedCLIProxyAPIProfileId();
-  // Local proxy accounts deliberately do not use the human-facing alias as
-  // their Claude profile name. `remove` keeps an underlying account, so an
-  // alias can later be reused for a completely different account. A generated
-  // profile name keeps that reuse from overwriting (or rolling back) the older
-  // managed login, while the opaque id keeps rename independent of storage.
-  const profileName = `cliproxy-${profileId}`;
-  const profile: LocalCLIProxyAPIProfileData = {
-    type: "local-cliproxyapi",
-    profileId,
-    binaryPath,
-    defaultModel: CLI_PROXY_API_DEFAULTS.fableModel,
-  };
-  let profileWritten = false;
-
-  try {
-    await initializeManagedCLIProxyAPI(profileId);
-    info("Opening CLIProxyAPI's own ChatGPT login in your browser...");
-    blank();
-    const login = await runManagedCLIProxyAPILogin({
-      profileId,
-      binaryPath,
-    });
-    if (!login.success || !login.identity) {
-      throw new Error("Login failed, was cancelled, or did not produce one valid Codex OAuth credential.");
-    }
-
-    profile.authIdentity = login.identity;
-    // This starts the dedicated loopback process and probes its local model
-    // endpoint before an alias exists. It validates the generated config and
-    // connectivity without making a quota-consuming model request.
-    await addLocalCLIProxyAPIProfile(profileName, profile);
-    profileWritten = true;
-    await addAlias(alias, { provider: "claude", profileName });
-
-    blank();
-    success(
-      `${chalk.bold(alias)} created  ${chalk.dim("ChatGPT via local CLIProxyAPI")}`,
-    );
-    hint(
-      `Default mapping: fable → ${CLI_PROXY_API_DEFAULTS.fableModel}, opus/sonnet → ${CLI_PROXY_API_DEFAULTS.opusModel}, haiku → ${CLI_PROXY_API_DEFAULTS.haikuModel}.`,
-    );
-    hint(
-      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start Claude Code; its normal skills, MCP servers, hooks, and CLAUDE.md remain enabled.`,
-    );
-    blank();
-  } catch (err) {
-    // There is no alias until the final addAlias call. Roll back only the exact
-    // generated profile and never a shared Homebrew binary or another account.
-    try {
-      if (profileWritten || (await profileExists(profileName))) {
-        await removeProfile(profileName);
-      } else {
-        await cleanupFailedManagedCLIProxyAPI(profileId);
-      }
-    } catch {
-      // Preserve the original setup failure; the generated private directory is
-      // still isolated by profile id and has no alias pointing to it.
-    }
-    blank();
-    error(err instanceof Error ? err.message : String(err));
-    blank();
-    process.exit(1);
-  }
 }
 
 export async function resolveCLIProxyAPIBinaryForAdd(): Promise<string | null> {
