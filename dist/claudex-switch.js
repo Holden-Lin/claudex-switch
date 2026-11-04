@@ -19,15 +19,15 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// node_modules/yoctocolors-cjs/index.js
+// ../../node_modules/yoctocolors-cjs/index.js
 var require_yoctocolors_cjs = __commonJS((exports, module) => {
   var tty2 = __require("node:tty");
   var hasColors = tty2?.WriteStream?.prototype?.hasColors?.() ?? false;
-  var format = (open, close) => {
+  var format = (open2, close) => {
     if (!hasColors) {
       return (input) => input;
     }
-    const openCode = `\x1B[${open}m`;
+    const openCode = `\x1B[${open2}m`;
     const closeCode = `\x1B[${close}m`;
     return (input) => {
       const string = input + "";
@@ -35,17 +35,17 @@ var require_yoctocolors_cjs = __commonJS((exports, module) => {
       if (index === -1) {
         return openCode + string + closeCode;
       }
-      let result = openCode;
+      let result2 = openCode;
       let lastIndex = 0;
       const reopenOnNestedClose = close === 22;
       const replaceCode = (reopenOnNestedClose ? closeCode : "") + openCode;
       while (index !== -1) {
-        result += string.slice(lastIndex, index) + replaceCode;
+        result2 += string.slice(lastIndex, index) + replaceCode;
         lastIndex = index + closeCode.length;
         index = string.indexOf(closeCode, lastIndex);
       }
-      result += string.slice(lastIndex) + closeCode;
-      return result;
+      result2 += string.slice(lastIndex) + closeCode;
+      return result2;
     };
   };
   var colors = {};
@@ -93,7 +93,7 @@ var require_yoctocolors_cjs = __commonJS((exports, module) => {
   module.exports = colors;
 });
 
-// node_modules/cli-width/index.js
+// ../../node_modules/cli-width/index.js
 var require_cli_width = __commonJS((exports, module) => {
   module.exports = cliWidth;
   function normalizeOpts(options) {
@@ -133,7 +133,7 @@ var require_cli_width = __commonJS((exports, module) => {
   }
 });
 
-// node_modules/ansi-regex/index.js
+// ../../node_modules/ansi-regex/index.js
 var require_ansi_regex = __commonJS((exports, module) => {
   module.exports = ({ onlyFirst = false } = {}) => {
     const pattern = [
@@ -144,13 +144,13 @@ var require_ansi_regex = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/strip-ansi/index.js
+// ../../node_modules/strip-ansi/index.js
 var require_strip_ansi = __commonJS((exports, module) => {
   var ansiRegex = require_ansi_regex();
   module.exports = (string) => typeof string === "string" ? string.replace(ansiRegex(), "") : string;
 });
 
-// node_modules/is-fullwidth-code-point/index.js
+// ../../node_modules/is-fullwidth-code-point/index.js
 var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   var isFullwidthCodePoint = (codePoint) => {
     if (Number.isNaN(codePoint)) {
@@ -165,14 +165,14 @@ var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   module.exports.default = isFullwidthCodePoint;
 });
 
-// node_modules/emoji-regex/index.js
+// ../../node_modules/emoji-regex/index.js
 var require_emoji_regex = __commonJS((exports, module) => {
   module.exports = function() {
     return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73)\uDB40\uDC7F|\uD83D\uDC68(?:\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68\uD83C\uDFFB|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|[\u2695\u2696\u2708]\uFE0F|\uD83D[\uDC66\uDC67]|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708])\uFE0F|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C[\uDFFB-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)\uD83C\uDFFB|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB\uDFFC])|\uD83D\uDC69(?:\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB-\uDFFD])|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|(?:(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)\uFE0F|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\u200D[\u2640\u2642])|\uD83C\uDFF4\u200D\u2620)\uFE0F|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF4\uD83C\uDDF2|\uD83C\uDDF6\uD83C\uDDE6|[#\*0-9]\uFE0F\u20E3|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83D\uDC69(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270A-\u270D]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC70\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDCAA\uDD74\uDD7A\uDD90\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD36\uDDB5\uDDB6\uDDBB\uDDD2-\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5\uDEEB\uDEEC\uDEF4-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
   };
 });
 
-// node_modules/string-width/index.js
+// ../../node_modules/string-width/index.js
 var require_string_width = __commonJS((exports, module) => {
   var stripAnsi = require_strip_ansi();
   var isFullwidthCodePoint = require_is_fullwidth_code_point();
@@ -206,7 +206,7 @@ var require_string_width = __commonJS((exports, module) => {
   module.exports.default = stringWidth;
 });
 
-// node_modules/color-name/index.js
+// ../../node_modules/color-name/index.js
 var require_color_name = __commonJS((exports, module) => {
   module.exports = {
     aliceblue: [240, 248, 255],
@@ -360,7 +360,7 @@ var require_color_name = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/conversions.js
+// ../../node_modules/color-convert/conversions.js
 var require_conversions = __commonJS((exports, module) => {
   var cssKeywords = require_color_name();
   var reverseKeywords = {};
@@ -1029,14 +1029,14 @@ var require_conversions = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/route.js
+// ../../node_modules/color-convert/route.js
 var require_route = __commonJS((exports, module) => {
   var conversions = require_conversions();
   function buildGraph() {
     const graph = {};
-    const models = Object.keys(conversions);
-    for (let len = models.length, i = 0;i < len; i++) {
-      graph[models[i]] = {
+    const models2 = Object.keys(conversions);
+    for (let len = models2.length, i = 0;i < len; i++) {
+      graph[models2[i]] = {
         distance: -1,
         parent: null
       };
@@ -1048,14 +1048,14 @@ var require_route = __commonJS((exports, module) => {
     const queue = [fromModel];
     graph[fromModel].distance = 0;
     while (queue.length) {
-      const current = queue.pop();
-      const adjacents = Object.keys(conversions[current]);
+      const current2 = queue.pop();
+      const adjacents = Object.keys(conversions[current2]);
       for (let len = adjacents.length, i = 0;i < len; i++) {
         const adjacent = adjacents[i];
         const node = graph[adjacent];
         if (node.distance === -1) {
-          node.distance = graph[current].distance + 1;
-          node.parent = current;
+          node.distance = graph[current2].distance + 1;
+          node.parent = current2;
           queue.unshift(adjacent);
         }
       }
@@ -1082,9 +1082,9 @@ var require_route = __commonJS((exports, module) => {
   module.exports = function(fromModel) {
     const graph = deriveBFS(fromModel);
     const conversion = {};
-    const models = Object.keys(graph);
-    for (let len = models.length, i = 0;i < len; i++) {
-      const toModel = models[i];
+    const models2 = Object.keys(graph);
+    for (let len = models2.length, i = 0;i < len; i++) {
+      const toModel = models2[i];
       const node = graph[toModel];
       if (node.parent === null) {
         continue;
@@ -1095,12 +1095,12 @@ var require_route = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/index.js
+// ../../node_modules/color-convert/index.js
 var require_color_convert = __commonJS((exports, module) => {
   var conversions = require_conversions();
   var route = require_route();
   var convert = {};
-  var models = Object.keys(conversions);
+  var models2 = Object.keys(conversions);
   function wrapRaw(fn) {
     const wrappedFn = function(...args) {
       const arg0 = args[0];
@@ -1126,20 +1126,20 @@ var require_color_convert = __commonJS((exports, module) => {
       if (arg0.length > 1) {
         args = arg0;
       }
-      const result = fn(args);
-      if (typeof result === "object") {
-        for (let len = result.length, i = 0;i < len; i++) {
-          result[i] = Math.round(result[i]);
+      const result2 = fn(args);
+      if (typeof result2 === "object") {
+        for (let len = result2.length, i = 0;i < len; i++) {
+          result2[i] = Math.round(result2[i]);
         }
       }
-      return result;
+      return result2;
     };
     if ("conversion" in fn) {
       wrappedFn.conversion = fn.conversion;
     }
     return wrappedFn;
   }
-  models.forEach((fromModel) => {
+  models2.forEach((fromModel) => {
     convert[fromModel] = {};
     Object.defineProperty(convert[fromModel], "channels", { value: conversions[fromModel].channels });
     Object.defineProperty(convert[fromModel], "labels", { value: conversions[fromModel].labels });
@@ -1154,7 +1154,7 @@ var require_color_convert = __commonJS((exports, module) => {
   module.exports = convert;
 });
 
-// node_modules/ansi-styles/index.js
+// ../../node_modules/ansi-styles/index.js
 var require_ansi_styles = __commonJS((exports, module) => {
   var wrapAnsi162 = (fn, offset) => (...args) => {
     const code = fn(...args);
@@ -1186,7 +1186,7 @@ var require_ansi_styles = __commonJS((exports, module) => {
     });
   };
   var colorConvert;
-  var makeDynamicStyles = (wrap, targetSpace, identity, isBackground) => {
+  var makeDynamicStyles = (wrap, targetSpace, identity2, isBackground) => {
     if (colorConvert === undefined) {
       colorConvert = require_color_convert();
     }
@@ -1195,7 +1195,7 @@ var require_ansi_styles = __commonJS((exports, module) => {
     for (const [sourceSpace, suite] of Object.entries(colorConvert)) {
       const name = sourceSpace === "ansi16" ? "ansi" : sourceSpace;
       if (sourceSpace === targetSpace) {
-        styles3[name] = wrap(identity, offset);
+        styles3[name] = wrap(identity2, offset);
       } else if (typeof suite === "object") {
         styles3[name] = wrap(suite[targetSpace], offset);
       }
@@ -1290,7 +1290,7 @@ var require_ansi_styles = __commonJS((exports, module) => {
   });
 });
 
-// node_modules/wrap-ansi/index.js
+// ../../node_modules/wrap-ansi/index.js
 var require_wrap_ansi = __commonJS((exports, module) => {
   var stringWidth = require_string_width();
   var stripAnsi = require_strip_ansi();
@@ -1333,8 +1333,8 @@ var require_wrap_ansi = __commonJS((exports, module) => {
       rows[rows.length - 2] += rows.pop();
     }
   };
-  var stringVisibleTrimSpacesRight = (str) => {
-    const words = str.split(" ");
+  var stringVisibleTrimSpacesRight = (str2) => {
+    const words = str2.split(" ");
     let last = words.length;
     while (last > 0) {
       if (stringWidth(words[last - 1]) > 0) {
@@ -1343,11 +1343,11 @@ var require_wrap_ansi = __commonJS((exports, module) => {
       last--;
     }
     if (last === words.length) {
-      return str;
+      return str2;
     }
     return words.slice(0, last).join(" ") + words.slice(last).join("");
   };
-  var exec = (string, columns, options = {}) => {
+  var exec2 = (string, columns, options = {}) => {
     if (options.trim !== false && string.trim() === "") {
       return "";
     }
@@ -1421,12 +1421,12 @@ var require_wrap_ansi = __commonJS((exports, module) => {
   module.exports = (string, columns, options) => {
     return String(string).normalize().replace(/\r\n/g, `
 `).split(`
-`).map((line) => exec(line, columns, options)).join(`
+`).map((line) => exec2(line, columns, options)).join(`
 `);
   };
 });
 
-// node_modules/mute-stream/lib/index.js
+// ../../node_modules/mute-stream/lib/index.js
 var require_lib = __commonJS((exports, module) => {
   var Stream = __require("stream");
 
@@ -1546,7 +1546,7 @@ var require_lib = __commonJS((exports, module) => {
   module.exports = MuteStream;
 });
 
-// node_modules/chalk/source/vendor/ansi-styles/index.js
+// ../../node_modules/chalk/source/vendor/ansi-styles/index.js
 var ANSI_BACKGROUND_OFFSET = 10;
 var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
 var wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
@@ -1723,7 +1723,7 @@ function assembleStyles() {
 var ansiStyles = assembleStyles();
 var ansi_styles_default = ansiStyles;
 
-// node_modules/chalk/source/vendor/supports-color/index.js
+// ../../node_modules/chalk/source/vendor/supports-color/index.js
 import process2 from "node:process";
 import os from "node:os";
 import tty from "node:tty";
@@ -1855,7 +1855,7 @@ var supportsColor = {
 };
 var supports_color_default = supportsColor;
 
-// node_modules/chalk/source/utilities.js
+// ../../node_modules/chalk/source/utilities.js
 function stringReplaceAll(string, substring, replacer) {
   let index = string.indexOf(substring);
   if (index === -1) {
@@ -1888,7 +1888,7 @@ function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
   return returnValue;
 }
 
-// node_modules/chalk/source/index.js
+// ../../node_modules/chalk/source/index.js
 var { stdout: stdoutColor, stderr: stderrColor } = supports_color_default;
 var GENERATOR = Symbol("GENERATOR");
 var STYLER = Symbol("STYLER");
@@ -2035,1418 +2035,19 @@ var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
 
-// node_modules/@inquirer/core/dist/esm/lib/key.js
-var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
-var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
-var isBackspaceKey = (key) => key.name === "backspace";
-var isTabKey = (key) => key.name === "tab";
-var isNumberKey = (key) => "1234567890".includes(key.name);
-var isEnterKey = (key) => key.name === "enter" || key.name === "return";
-// node_modules/@inquirer/core/dist/esm/lib/errors.js
-class AbortPromptError extends Error {
-  name = "AbortPromptError";
-  message = "Prompt was aborted";
-  constructor(options) {
-    super();
-    this.cause = options?.cause;
-  }
-}
-
-class CancelPromptError extends Error {
-  name = "CancelPromptError";
-  message = "Prompt was canceled";
-}
-
-class ExitPromptError extends Error {
-  name = "ExitPromptError";
-}
-
-class HookError extends Error {
-  name = "HookError";
-}
-
-class ValidationError extends Error {
-  name = "ValidationError";
-}
-// node_modules/@inquirer/core/dist/esm/lib/use-state.js
-import { AsyncResource as AsyncResource2 } from "node:async_hooks";
-
-// node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
-import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
-var hookStorage = new AsyncLocalStorage;
-function createStore(rl) {
-  const store = {
-    rl,
-    hooks: [],
-    hooksCleanup: [],
-    hooksEffect: [],
-    index: 0,
-    handleChange() {}
-  };
-  return store;
-}
-function withHooks(rl, cb) {
-  const store = createStore(rl);
-  return hookStorage.run(store, () => {
-    function cycle(render) {
-      store.handleChange = () => {
-        store.index = 0;
-        render();
-      };
-      store.handleChange();
-    }
-    return cb(cycle);
-  });
-}
-function getStore() {
-  const store = hookStorage.getStore();
-  if (!store) {
-    throw new HookError("[Inquirer] Hook functions can only be called from within a prompt");
-  }
-  return store;
-}
-function readline() {
-  return getStore().rl;
-}
-function withUpdates(fn) {
-  const wrapped = (...args) => {
-    const store = getStore();
-    let shouldUpdate = false;
-    const oldHandleChange = store.handleChange;
-    store.handleChange = () => {
-      shouldUpdate = true;
-    };
-    const returnValue = fn(...args);
-    if (shouldUpdate) {
-      oldHandleChange();
-    }
-    store.handleChange = oldHandleChange;
-    return returnValue;
-  };
-  return AsyncResource.bind(wrapped);
-}
-function withPointer(cb) {
-  const store = getStore();
-  const { index } = store;
-  const pointer = {
-    get() {
-      return store.hooks[index];
-    },
-    set(value) {
-      store.hooks[index] = value;
-    },
-    initialized: index in store.hooks
-  };
-  const returnValue = cb(pointer);
-  store.index++;
-  return returnValue;
-}
-function handleChange() {
-  getStore().handleChange();
-}
-var effectScheduler = {
-  queue(cb) {
-    const store = getStore();
-    const { index } = store;
-    store.hooksEffect.push(() => {
-      store.hooksCleanup[index]?.();
-      const cleanFn = cb(readline());
-      if (cleanFn != null && typeof cleanFn !== "function") {
-        throw new ValidationError("useEffect return value must be a cleanup function or nothing.");
-      }
-      store.hooksCleanup[index] = cleanFn;
-    });
-  },
-  run() {
-    const store = getStore();
-    withUpdates(() => {
-      store.hooksEffect.forEach((effect) => {
-        effect();
-      });
-      store.hooksEffect.length = 0;
-    })();
-  },
-  clearAll() {
-    const store = getStore();
-    store.hooksCleanup.forEach((cleanFn) => {
-      cleanFn?.();
-    });
-    store.hooksEffect.length = 0;
-    store.hooksCleanup.length = 0;
-  }
-};
-
-// node_modules/@inquirer/core/dist/esm/lib/use-state.js
-function useState(defaultValue) {
-  return withPointer((pointer) => {
-    const setState = AsyncResource2.bind(function setState(newValue) {
-      if (pointer.get() !== newValue) {
-        pointer.set(newValue);
-        handleChange();
-      }
-    });
-    if (pointer.initialized) {
-      return [pointer.get(), setState];
-    }
-    const value = typeof defaultValue === "function" ? defaultValue() : defaultValue;
-    pointer.set(value);
-    return [value, setState];
-  });
-}
-
-// node_modules/@inquirer/core/dist/esm/lib/use-effect.js
-function useEffect(cb, depArray) {
-  withPointer((pointer) => {
-    const oldDeps = pointer.get();
-    const hasChanged = !Array.isArray(oldDeps) || depArray.some((dep, i) => !Object.is(dep, oldDeps[i]));
-    if (hasChanged) {
-      effectScheduler.queue(cb);
-    }
-    pointer.set(depArray);
-  });
-}
-
-// node_modules/@inquirer/core/dist/esm/lib/theme.js
-var import_yoctocolors_cjs = __toESM(require_yoctocolors_cjs(), 1);
-
-// node_modules/@inquirer/figures/dist/esm/index.js
-import process3 from "node:process";
-function isUnicodeSupported() {
-  if (process3.platform !== "win32") {
-    return process3.env["TERM"] !== "linux";
-  }
-  return Boolean(process3.env["WT_SESSION"]) || Boolean(process3.env["TERMINUS_SUBLIME"]) || process3.env["ConEmuTask"] === "{cmd::Cmder}" || process3.env["TERM_PROGRAM"] === "Terminus-Sublime" || process3.env["TERM_PROGRAM"] === "vscode" || process3.env["TERM"] === "xterm-256color" || process3.env["TERM"] === "alacritty" || process3.env["TERMINAL_EMULATOR"] === "JetBrains-JediTerm";
-}
-var common = {
-  circleQuestionMark: "(?)",
-  questionMarkPrefix: "(?)",
-  square: "█",
-  squareDarkShade: "▓",
-  squareMediumShade: "▒",
-  squareLightShade: "░",
-  squareTop: "▀",
-  squareBottom: "▄",
-  squareLeft: "▌",
-  squareRight: "▐",
-  squareCenter: "■",
-  bullet: "●",
-  dot: "․",
-  ellipsis: "…",
-  pointerSmall: "›",
-  triangleUp: "▲",
-  triangleUpSmall: "▴",
-  triangleDown: "▼",
-  triangleDownSmall: "▾",
-  triangleLeftSmall: "◂",
-  triangleRightSmall: "▸",
-  home: "⌂",
-  heart: "♥",
-  musicNote: "♪",
-  musicNoteBeamed: "♫",
-  arrowUp: "↑",
-  arrowDown: "↓",
-  arrowLeft: "←",
-  arrowRight: "→",
-  arrowLeftRight: "↔",
-  arrowUpDown: "↕",
-  almostEqual: "≈",
-  notEqual: "≠",
-  lessOrEqual: "≤",
-  greaterOrEqual: "≥",
-  identical: "≡",
-  infinity: "∞",
-  subscriptZero: "₀",
-  subscriptOne: "₁",
-  subscriptTwo: "₂",
-  subscriptThree: "₃",
-  subscriptFour: "₄",
-  subscriptFive: "₅",
-  subscriptSix: "₆",
-  subscriptSeven: "₇",
-  subscriptEight: "₈",
-  subscriptNine: "₉",
-  oneHalf: "½",
-  oneThird: "⅓",
-  oneQuarter: "¼",
-  oneFifth: "⅕",
-  oneSixth: "⅙",
-  oneEighth: "⅛",
-  twoThirds: "⅔",
-  twoFifths: "⅖",
-  threeQuarters: "¾",
-  threeFifths: "⅗",
-  threeEighths: "⅜",
-  fourFifths: "⅘",
-  fiveSixths: "⅚",
-  fiveEighths: "⅝",
-  sevenEighths: "⅞",
-  line: "─",
-  lineBold: "━",
-  lineDouble: "═",
-  lineDashed0: "┄",
-  lineDashed1: "┅",
-  lineDashed2: "┈",
-  lineDashed3: "┉",
-  lineDashed4: "╌",
-  lineDashed5: "╍",
-  lineDashed6: "╴",
-  lineDashed7: "╶",
-  lineDashed8: "╸",
-  lineDashed9: "╺",
-  lineDashed10: "╼",
-  lineDashed11: "╾",
-  lineDashed12: "−",
-  lineDashed13: "–",
-  lineDashed14: "‐",
-  lineDashed15: "⁃",
-  lineVertical: "│",
-  lineVerticalBold: "┃",
-  lineVerticalDouble: "║",
-  lineVerticalDashed0: "┆",
-  lineVerticalDashed1: "┇",
-  lineVerticalDashed2: "┊",
-  lineVerticalDashed3: "┋",
-  lineVerticalDashed4: "╎",
-  lineVerticalDashed5: "╏",
-  lineVerticalDashed6: "╵",
-  lineVerticalDashed7: "╷",
-  lineVerticalDashed8: "╹",
-  lineVerticalDashed9: "╻",
-  lineVerticalDashed10: "╽",
-  lineVerticalDashed11: "╿",
-  lineDownLeft: "┐",
-  lineDownLeftArc: "╮",
-  lineDownBoldLeftBold: "┓",
-  lineDownBoldLeft: "┒",
-  lineDownLeftBold: "┑",
-  lineDownDoubleLeftDouble: "╗",
-  lineDownDoubleLeft: "╖",
-  lineDownLeftDouble: "╕",
-  lineDownRight: "┌",
-  lineDownRightArc: "╭",
-  lineDownBoldRightBold: "┏",
-  lineDownBoldRight: "┎",
-  lineDownRightBold: "┍",
-  lineDownDoubleRightDouble: "╔",
-  lineDownDoubleRight: "╓",
-  lineDownRightDouble: "╒",
-  lineUpLeft: "┘",
-  lineUpLeftArc: "╯",
-  lineUpBoldLeftBold: "┛",
-  lineUpBoldLeft: "┚",
-  lineUpLeftBold: "┙",
-  lineUpDoubleLeftDouble: "╝",
-  lineUpDoubleLeft: "╜",
-  lineUpLeftDouble: "╛",
-  lineUpRight: "└",
-  lineUpRightArc: "╰",
-  lineUpBoldRightBold: "┗",
-  lineUpBoldRight: "┖",
-  lineUpRightBold: "┕",
-  lineUpDoubleRightDouble: "╚",
-  lineUpDoubleRight: "╙",
-  lineUpRightDouble: "╘",
-  lineUpDownLeft: "┤",
-  lineUpBoldDownBoldLeftBold: "┫",
-  lineUpBoldDownBoldLeft: "┨",
-  lineUpDownLeftBold: "┥",
-  lineUpBoldDownLeftBold: "┩",
-  lineUpDownBoldLeftBold: "┪",
-  lineUpDownBoldLeft: "┧",
-  lineUpBoldDownLeft: "┦",
-  lineUpDoubleDownDoubleLeftDouble: "╣",
-  lineUpDoubleDownDoubleLeft: "╢",
-  lineUpDownLeftDouble: "╡",
-  lineUpDownRight: "├",
-  lineUpBoldDownBoldRightBold: "┣",
-  lineUpBoldDownBoldRight: "┠",
-  lineUpDownRightBold: "┝",
-  lineUpBoldDownRightBold: "┡",
-  lineUpDownBoldRightBold: "┢",
-  lineUpDownBoldRight: "┟",
-  lineUpBoldDownRight: "┞",
-  lineUpDoubleDownDoubleRightDouble: "╠",
-  lineUpDoubleDownDoubleRight: "╟",
-  lineUpDownRightDouble: "╞",
-  lineDownLeftRight: "┬",
-  lineDownBoldLeftBoldRightBold: "┳",
-  lineDownLeftBoldRightBold: "┯",
-  lineDownBoldLeftRight: "┰",
-  lineDownBoldLeftBoldRight: "┱",
-  lineDownBoldLeftRightBold: "┲",
-  lineDownLeftRightBold: "┮",
-  lineDownLeftBoldRight: "┭",
-  lineDownDoubleLeftDoubleRightDouble: "╦",
-  lineDownDoubleLeftRight: "╥",
-  lineDownLeftDoubleRightDouble: "╤",
-  lineUpLeftRight: "┴",
-  lineUpBoldLeftBoldRightBold: "┻",
-  lineUpLeftBoldRightBold: "┷",
-  lineUpBoldLeftRight: "┸",
-  lineUpBoldLeftBoldRight: "┹",
-  lineUpBoldLeftRightBold: "┺",
-  lineUpLeftRightBold: "┶",
-  lineUpLeftBoldRight: "┵",
-  lineUpDoubleLeftDoubleRightDouble: "╩",
-  lineUpDoubleLeftRight: "╨",
-  lineUpLeftDoubleRightDouble: "╧",
-  lineUpDownLeftRight: "┼",
-  lineUpBoldDownBoldLeftBoldRightBold: "╋",
-  lineUpDownBoldLeftBoldRightBold: "╈",
-  lineUpBoldDownLeftBoldRightBold: "╇",
-  lineUpBoldDownBoldLeftRightBold: "╊",
-  lineUpBoldDownBoldLeftBoldRight: "╉",
-  lineUpBoldDownLeftRight: "╀",
-  lineUpDownBoldLeftRight: "╁",
-  lineUpDownLeftBoldRight: "┽",
-  lineUpDownLeftRightBold: "┾",
-  lineUpBoldDownBoldLeftRight: "╂",
-  lineUpDownLeftBoldRightBold: "┿",
-  lineUpBoldDownLeftBoldRight: "╃",
-  lineUpBoldDownLeftRightBold: "╄",
-  lineUpDownBoldLeftBoldRight: "╅",
-  lineUpDownBoldLeftRightBold: "╆",
-  lineUpDoubleDownDoubleLeftDoubleRightDouble: "╬",
-  lineUpDoubleDownDoubleLeftRight: "╫",
-  lineUpDownLeftDoubleRightDouble: "╪",
-  lineCross: "╳",
-  lineBackslash: "╲",
-  lineSlash: "╱"
-};
-var specialMainSymbols = {
-  tick: "✔",
-  info: "ℹ",
-  warning: "⚠",
-  cross: "✘",
-  squareSmall: "◻",
-  squareSmallFilled: "◼",
-  circle: "◯",
-  circleFilled: "◉",
-  circleDotted: "◌",
-  circleDouble: "◎",
-  circleCircle: "ⓞ",
-  circleCross: "ⓧ",
-  circlePipe: "Ⓘ",
-  radioOn: "◉",
-  radioOff: "◯",
-  checkboxOn: "☒",
-  checkboxOff: "☐",
-  checkboxCircleOn: "ⓧ",
-  checkboxCircleOff: "Ⓘ",
-  pointer: "❯",
-  triangleUpOutline: "△",
-  triangleLeft: "◀",
-  triangleRight: "▶",
-  lozenge: "◆",
-  lozengeOutline: "◇",
-  hamburger: "☰",
-  smiley: "㋡",
-  mustache: "෴",
-  star: "★",
-  play: "▶",
-  nodejs: "⬢",
-  oneSeventh: "⅐",
-  oneNinth: "⅑",
-  oneTenth: "⅒"
-};
-var specialFallbackSymbols = {
-  tick: "√",
-  info: "i",
-  warning: "‼",
-  cross: "×",
-  squareSmall: "□",
-  squareSmallFilled: "■",
-  circle: "( )",
-  circleFilled: "(*)",
-  circleDotted: "( )",
-  circleDouble: "( )",
-  circleCircle: "(○)",
-  circleCross: "(×)",
-  circlePipe: "(│)",
-  radioOn: "(*)",
-  radioOff: "( )",
-  checkboxOn: "[×]",
-  checkboxOff: "[ ]",
-  checkboxCircleOn: "(×)",
-  checkboxCircleOff: "( )",
-  pointer: ">",
-  triangleUpOutline: "∆",
-  triangleLeft: "◄",
-  triangleRight: "►",
-  lozenge: "♦",
-  lozengeOutline: "◊",
-  hamburger: "≡",
-  smiley: "☺",
-  mustache: "┌─┐",
-  star: "✶",
-  play: "►",
-  nodejs: "♦",
-  oneSeventh: "1/7",
-  oneNinth: "1/9",
-  oneTenth: "1/10"
-};
-var mainSymbols = {
-  ...common,
-  ...specialMainSymbols
-};
-var fallbackSymbols = {
-  ...common,
-  ...specialFallbackSymbols
-};
-var shouldUseMain = isUnicodeSupported();
-var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
-var esm_default = figures;
-var replacements = Object.entries(specialMainSymbols);
-
-// node_modules/@inquirer/core/dist/esm/lib/theme.js
-var defaultTheme = {
-  prefix: {
-    idle: import_yoctocolors_cjs.default.blue("?"),
-    done: import_yoctocolors_cjs.default.green(esm_default.tick)
-  },
-  spinner: {
-    interval: 80,
-    frames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"].map((frame) => import_yoctocolors_cjs.default.yellow(frame))
-  },
-  style: {
-    answer: import_yoctocolors_cjs.default.cyan,
-    message: import_yoctocolors_cjs.default.bold,
-    error: (text) => import_yoctocolors_cjs.default.red(`> ${text}`),
-    defaultAnswer: (text) => import_yoctocolors_cjs.default.dim(`(${text})`),
-    help: import_yoctocolors_cjs.default.dim,
-    highlight: import_yoctocolors_cjs.default.cyan,
-    key: (text) => import_yoctocolors_cjs.default.cyan(import_yoctocolors_cjs.default.bold(`<${text}>`))
-  }
-};
-
-// node_modules/@inquirer/core/dist/esm/lib/make-theme.js
-function isPlainObject(value) {
-  if (typeof value !== "object" || value === null)
-    return false;
-  let proto2 = value;
-  while (Object.getPrototypeOf(proto2) !== null) {
-    proto2 = Object.getPrototypeOf(proto2);
-  }
-  return Object.getPrototypeOf(value) === proto2;
-}
-function deepMerge(...objects) {
-  const output = {};
-  for (const obj of objects) {
-    for (const [key, value] of Object.entries(obj)) {
-      const prevValue = output[key];
-      output[key] = isPlainObject(prevValue) && isPlainObject(value) ? deepMerge(prevValue, value) : value;
-    }
-  }
-  return output;
-}
-function makeTheme(...themes) {
-  const themesToMerge = [
-    defaultTheme,
-    ...themes.filter((theme) => theme != null)
-  ];
-  return deepMerge(...themesToMerge);
-}
-
-// node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
-function usePrefix({ status = "idle", theme }) {
-  const [showLoader, setShowLoader] = useState(false);
-  const [tick, setTick] = useState(0);
-  const { prefix, spinner } = makeTheme(theme);
-  useEffect(() => {
-    if (status === "loading") {
-      let tickInterval;
-      let inc = -1;
-      const delayTimeout = setTimeout(() => {
-        setShowLoader(true);
-        tickInterval = setInterval(() => {
-          inc = inc + 1;
-          setTick(inc % spinner.frames.length);
-        }, spinner.interval);
-      }, 300);
-      return () => {
-        clearTimeout(delayTimeout);
-        clearInterval(tickInterval);
-      };
-    } else {
-      setShowLoader(false);
-    }
-  }, [status]);
-  if (showLoader) {
-    return spinner.frames[tick];
-  }
-  const iconName = status === "loading" ? "idle" : status;
-  return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
-}
-// node_modules/@inquirer/core/dist/esm/lib/use-memo.js
-function useMemo(fn, dependencies) {
-  return withPointer((pointer) => {
-    const prev = pointer.get();
-    if (!prev || prev.dependencies.length !== dependencies.length || prev.dependencies.some((dep, i) => dep !== dependencies[i])) {
-      const value = fn();
-      pointer.set({ value, dependencies });
-      return value;
-    }
-    return prev.value;
-  });
-}
-// node_modules/@inquirer/core/dist/esm/lib/use-ref.js
-function useRef(val) {
-  return useState({ current: val })[0];
-}
-// node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
-function useKeypress(userHandler) {
-  const signal = useRef(userHandler);
-  signal.current = userHandler;
-  useEffect((rl) => {
-    let ignore = false;
-    const handler = withUpdates((_input, event) => {
-      if (ignore)
-        return;
-      signal.current(event, rl);
-    });
-    rl.input.on("keypress", handler);
-    return () => {
-      ignore = true;
-      rl.input.removeListener("keypress", handler);
-    };
-  }, []);
-}
-// node_modules/@inquirer/core/dist/esm/lib/utils.js
-var import_cli_width = __toESM(require_cli_width(), 1);
-var import_wrap_ansi = __toESM(require_wrap_ansi(), 1);
-function breakLines(content, width) {
-  return content.split(`
-`).flatMap((line) => import_wrap_ansi.default(line, width, { trim: false, hard: true }).split(`
-`).map((str) => str.trimEnd())).join(`
-`);
-}
-function readlineWidth() {
-  return import_cli_width.default({ defaultWidth: 80, output: readline().output });
-}
-
-// node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
-function usePointerPosition({ active, renderedItems, pageSize, loop }) {
-  const state = useRef({
-    lastPointer: active,
-    lastActive: undefined
-  });
-  const { lastPointer, lastActive } = state.current;
-  const middle = Math.floor(pageSize / 2);
-  const renderedLength = renderedItems.reduce((acc, item) => acc + item.length, 0);
-  const defaultPointerPosition = renderedItems.slice(0, active).reduce((acc, item) => acc + item.length, 0);
-  let pointer = defaultPointerPosition;
-  if (renderedLength > pageSize) {
-    if (loop) {
-      pointer = lastPointer;
-      if (lastActive != null && lastActive < active && active - lastActive < pageSize) {
-        pointer = Math.min(middle, Math.abs(active - lastActive) === 1 ? Math.min(lastPointer + (renderedItems[lastActive]?.length ?? 0), Math.max(defaultPointerPosition, lastPointer)) : lastPointer + active - lastActive);
-      }
-    } else {
-      const spaceUnderActive = renderedItems.slice(active).reduce((acc, item) => acc + item.length, 0);
-      pointer = spaceUnderActive < pageSize - middle ? pageSize - spaceUnderActive : Math.min(defaultPointerPosition, middle);
-    }
-  }
-  state.current.lastPointer = pointer;
-  state.current.lastActive = active;
-  return pointer;
-}
-function usePagination({ items, active, renderItem, pageSize, loop = true }) {
-  const width = readlineWidth();
-  const bound = (num) => (num % items.length + items.length) % items.length;
-  const renderedItems = items.map((item, index) => {
-    if (item == null)
-      return [];
-    return breakLines(renderItem({ item, index, isActive: index === active }), width).split(`
-`);
-  });
-  const renderedLength = renderedItems.reduce((acc, item) => acc + item.length, 0);
-  const renderItemAtIndex = (index) => renderedItems[index] ?? [];
-  const pointer = usePointerPosition({ active, renderedItems, pageSize, loop });
-  const activeItem = renderItemAtIndex(active).slice(0, pageSize);
-  const activeItemPosition = pointer + activeItem.length <= pageSize ? pointer : pageSize - activeItem.length;
-  const pageBuffer = Array.from({ length: pageSize });
-  pageBuffer.splice(activeItemPosition, activeItem.length, ...activeItem);
-  const itemVisited = new Set([active]);
-  let bufferPointer = activeItemPosition + activeItem.length;
-  let itemPointer = bound(active + 1);
-  while (bufferPointer < pageSize && !itemVisited.has(itemPointer) && (loop && renderedLength > pageSize ? itemPointer !== active : itemPointer > active)) {
-    const lines = renderItemAtIndex(itemPointer);
-    const linesToAdd = lines.slice(0, pageSize - bufferPointer);
-    pageBuffer.splice(bufferPointer, linesToAdd.length, ...linesToAdd);
-    itemVisited.add(itemPointer);
-    bufferPointer += linesToAdd.length;
-    itemPointer = bound(itemPointer + 1);
-  }
-  bufferPointer = activeItemPosition - 1;
-  itemPointer = bound(active - 1);
-  while (bufferPointer >= 0 && !itemVisited.has(itemPointer) && (loop && renderedLength > pageSize ? itemPointer !== active : itemPointer < active)) {
-    const lines = renderItemAtIndex(itemPointer);
-    const linesToAdd = lines.slice(Math.max(0, lines.length - bufferPointer - 1));
-    pageBuffer.splice(bufferPointer - linesToAdd.length + 1, linesToAdd.length, ...linesToAdd);
-    itemVisited.add(itemPointer);
-    bufferPointer -= linesToAdd.length;
-    itemPointer = bound(itemPointer - 1);
-  }
-  return pageBuffer.filter((line) => typeof line === "string").join(`
-`);
-}
-// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
-var import_mute_stream = __toESM(require_lib(), 1);
-import * as readline2 from "node:readline";
-import { AsyncResource as AsyncResource3 } from "node:async_hooks";
-
-// node_modules/signal-exit/dist/mjs/signals.js
-var signals = [];
-signals.push("SIGHUP", "SIGINT", "SIGTERM");
-if (process.platform !== "win32") {
-  signals.push("SIGALRM", "SIGABRT", "SIGVTALRM", "SIGXCPU", "SIGXFSZ", "SIGUSR2", "SIGTRAP", "SIGSYS", "SIGQUIT", "SIGIOT");
-}
-if (process.platform === "linux") {
-  signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
-}
-
-// node_modules/signal-exit/dist/mjs/index.js
-var processOk = (process4) => !!process4 && typeof process4 === "object" && typeof process4.removeListener === "function" && typeof process4.emit === "function" && typeof process4.reallyExit === "function" && typeof process4.listeners === "function" && typeof process4.kill === "function" && typeof process4.pid === "number" && typeof process4.on === "function";
-var kExitEmitter = Symbol.for("signal-exit emitter");
-var global = globalThis;
-var ObjectDefineProperty = Object.defineProperty.bind(Object);
-
-class Emitter {
-  emitted = {
-    afterExit: false,
-    exit: false
-  };
-  listeners = {
-    afterExit: [],
-    exit: []
-  };
-  count = 0;
-  id = Math.random();
-  constructor() {
-    if (global[kExitEmitter]) {
-      return global[kExitEmitter];
-    }
-    ObjectDefineProperty(global, kExitEmitter, {
-      value: this,
-      writable: false,
-      enumerable: false,
-      configurable: false
-    });
-  }
-  on(ev, fn) {
-    this.listeners[ev].push(fn);
-  }
-  removeListener(ev, fn) {
-    const list = this.listeners[ev];
-    const i = list.indexOf(fn);
-    if (i === -1) {
-      return;
-    }
-    if (i === 0 && list.length === 1) {
-      list.length = 0;
-    } else {
-      list.splice(i, 1);
-    }
-  }
-  emit(ev, code, signal) {
-    if (this.emitted[ev]) {
-      return false;
-    }
-    this.emitted[ev] = true;
-    let ret = false;
-    for (const fn of this.listeners[ev]) {
-      ret = fn(code, signal) === true || ret;
-    }
-    if (ev === "exit") {
-      ret = this.emit("afterExit", code, signal) || ret;
-    }
-    return ret;
-  }
-}
-
-class SignalExitBase {
-}
-var signalExitWrap = (handler) => {
-  return {
-    onExit(cb, opts) {
-      return handler.onExit(cb, opts);
-    },
-    load() {
-      return handler.load();
-    },
-    unload() {
-      return handler.unload();
-    }
-  };
-};
-
-class SignalExitFallback extends SignalExitBase {
-  onExit() {
-    return () => {};
-  }
-  load() {}
-  unload() {}
-}
-
-class SignalExit extends SignalExitBase {
-  #hupSig = process4.platform === "win32" ? "SIGINT" : "SIGHUP";
-  #emitter = new Emitter;
-  #process;
-  #originalProcessEmit;
-  #originalProcessReallyExit;
-  #sigListeners = {};
-  #loaded = false;
-  constructor(process4) {
-    super();
-    this.#process = process4;
-    this.#sigListeners = {};
-    for (const sig of signals) {
-      this.#sigListeners[sig] = () => {
-        const listeners = this.#process.listeners(sig);
-        let { count } = this.#emitter;
-        const p = process4;
-        if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
-          count += p.__signal_exit_emitter__.count;
-        }
-        if (listeners.length === count) {
-          this.unload();
-          const ret = this.#emitter.emit("exit", null, sig);
-          const s = sig === "SIGHUP" ? this.#hupSig : sig;
-          if (!ret)
-            process4.kill(process4.pid, s);
-        }
-      };
-    }
-    this.#originalProcessReallyExit = process4.reallyExit;
-    this.#originalProcessEmit = process4.emit;
-  }
-  onExit(cb, opts) {
-    if (!processOk(this.#process)) {
-      return () => {};
-    }
-    if (this.#loaded === false) {
-      this.load();
-    }
-    const ev = opts?.alwaysLast ? "afterExit" : "exit";
-    this.#emitter.on(ev, cb);
-    return () => {
-      this.#emitter.removeListener(ev, cb);
-      if (this.#emitter.listeners["exit"].length === 0 && this.#emitter.listeners["afterExit"].length === 0) {
-        this.unload();
-      }
-    };
-  }
-  load() {
-    if (this.#loaded) {
-      return;
-    }
-    this.#loaded = true;
-    this.#emitter.count += 1;
-    for (const sig of signals) {
-      try {
-        const fn = this.#sigListeners[sig];
-        if (fn)
-          this.#process.on(sig, fn);
-      } catch (_) {}
-    }
-    this.#process.emit = (ev, ...a) => {
-      return this.#processEmit(ev, ...a);
-    };
-    this.#process.reallyExit = (code) => {
-      return this.#processReallyExit(code);
-    };
-  }
-  unload() {
-    if (!this.#loaded) {
-      return;
-    }
-    this.#loaded = false;
-    signals.forEach((sig) => {
-      const listener = this.#sigListeners[sig];
-      if (!listener) {
-        throw new Error("Listener not defined for signal: " + sig);
-      }
-      try {
-        this.#process.removeListener(sig, listener);
-      } catch (_) {}
-    });
-    this.#process.emit = this.#originalProcessEmit;
-    this.#process.reallyExit = this.#originalProcessReallyExit;
-    this.#emitter.count -= 1;
-  }
-  #processReallyExit(code) {
-    if (!processOk(this.#process)) {
-      return 0;
-    }
-    this.#process.exitCode = code || 0;
-    this.#emitter.emit("exit", this.#process.exitCode, null);
-    return this.#originalProcessReallyExit.call(this.#process, this.#process.exitCode);
-  }
-  #processEmit(ev, ...args) {
-    const og = this.#originalProcessEmit;
-    if (ev === "exit" && processOk(this.#process)) {
-      if (typeof args[0] === "number") {
-        this.#process.exitCode = args[0];
-      }
-      const ret = og.call(this.#process, ev, ...args);
-      this.#emitter.emit("exit", this.#process.exitCode, null);
-      return ret;
-    } else {
-      return og.call(this.#process, ev, ...args);
-    }
-  }
-}
-var process4 = globalThis.process;
-var {
-  onExit,
-  load,
-  unload
-} = signalExitWrap(processOk(process4) ? new SignalExit(process4) : new SignalExitFallback);
-
-// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
-import { stripVTControlCharacters } from "node:util";
-
-// node_modules/@inquirer/ansi/dist/esm/index.js
-var ESC = "\x1B[";
-var cursorLeft = ESC + "G";
-var cursorHide = ESC + "?25l";
-var cursorShow = ESC + "?25h";
-var cursorUp = (rows = 1) => rows > 0 ? `${ESC}${rows}A` : "";
-var cursorDown = (rows = 1) => rows > 0 ? `${ESC}${rows}B` : "";
-var cursorTo = (x, y) => {
-  if (typeof y === "number" && !Number.isNaN(y)) {
-    return `${ESC}${y + 1};${x + 1}H`;
-  }
-  return `${ESC}${x + 1}G`;
-};
-var eraseLine = ESC + "2K";
-var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
-
-// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
-var height = (content) => content.split(`
-`).length;
-var lastLine = (content) => content.split(`
-`).pop() ?? "";
-
-class ScreenManager {
-  height = 0;
-  extraLinesUnderPrompt = 0;
-  cursorPos;
-  rl;
-  constructor(rl) {
-    this.rl = rl;
-    this.cursorPos = rl.getCursorPos();
-  }
-  write(content) {
-    this.rl.output.unmute();
-    this.rl.output.write(content);
-    this.rl.output.mute();
-  }
-  render(content, bottomContent = "") {
-    const promptLine = lastLine(content);
-    const rawPromptLine = stripVTControlCharacters(promptLine);
-    let prompt = rawPromptLine;
-    if (this.rl.line.length > 0) {
-      prompt = prompt.slice(0, -this.rl.line.length);
-    }
-    this.rl.setPrompt(prompt);
-    this.cursorPos = this.rl.getCursorPos();
-    const width = readlineWidth();
-    content = breakLines(content, width);
-    bottomContent = breakLines(bottomContent, width);
-    if (rawPromptLine.length % width === 0) {
-      content += `
-`;
-    }
-    let output = content + (bottomContent ? `
-` + bottomContent : "");
-    const promptLineUpDiff = Math.floor(rawPromptLine.length / width) - this.cursorPos.rows;
-    const bottomContentHeight = promptLineUpDiff + (bottomContent ? height(bottomContent) : 0);
-    if (bottomContentHeight > 0)
-      output += cursorUp(bottomContentHeight);
-    output += cursorTo(this.cursorPos.cols);
-    this.write(cursorDown(this.extraLinesUnderPrompt) + eraseLines(this.height) + output);
-    this.extraLinesUnderPrompt = bottomContentHeight;
-    this.height = height(output);
-  }
-  checkCursorPos() {
-    const cursorPos = this.rl.getCursorPos();
-    if (cursorPos.cols !== this.cursorPos.cols) {
-      this.write(cursorTo(cursorPos.cols));
-      this.cursorPos = cursorPos;
-    }
-  }
-  done({ clearContent }) {
-    this.rl.setPrompt("");
-    let output = cursorDown(this.extraLinesUnderPrompt);
-    output += clearContent ? eraseLines(this.height) : `
-`;
-    output += cursorShow;
-    this.write(output);
-    this.rl.close();
-  }
-}
-
-// node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
-class PromisePolyfill extends Promise {
-  static withResolver() {
-    let resolve;
-    let reject;
-    const promise = new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve, reject };
-  }
-}
-
-// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
-function getCallSites() {
-  const _prepareStackTrace = Error.prepareStackTrace;
-  let result = [];
-  try {
-    Error.prepareStackTrace = (_, callSites) => {
-      const callSitesWithoutCurrent = callSites.slice(1);
-      result = callSitesWithoutCurrent;
-      return callSitesWithoutCurrent;
-    };
-    new Error().stack;
-  } catch {
-    return result;
-  }
-  Error.prepareStackTrace = _prepareStackTrace;
-  return result;
-}
-function createPrompt(view) {
-  const callSites = getCallSites();
-  const prompt = (config, context = {}) => {
-    const { input = process.stdin, signal } = context;
-    const cleanups = new Set;
-    const output = new import_mute_stream.default;
-    output.pipe(context.output ?? process.stdout);
-    const rl = readline2.createInterface({
-      terminal: true,
-      input,
-      output
-    });
-    const screen = new ScreenManager(rl);
-    const { promise, resolve, reject } = PromisePolyfill.withResolver();
-    const cancel = () => reject(new CancelPromptError);
-    if (signal) {
-      const abort = () => reject(new AbortPromptError({ cause: signal.reason }));
-      if (signal.aborted) {
-        abort();
-        return Object.assign(promise, { cancel });
-      }
-      signal.addEventListener("abort", abort);
-      cleanups.add(() => signal.removeEventListener("abort", abort));
-    }
-    cleanups.add(onExit((code, signal2) => {
-      reject(new ExitPromptError(`User force closed the prompt with ${code} ${signal2}`));
-    }));
-    const sigint = () => reject(new ExitPromptError(`User force closed the prompt with SIGINT`));
-    rl.on("SIGINT", sigint);
-    cleanups.add(() => rl.removeListener("SIGINT", sigint));
-    const checkCursorPos = () => screen.checkCursorPos();
-    rl.input.on("keypress", checkCursorPos);
-    cleanups.add(() => rl.input.removeListener("keypress", checkCursorPos));
-    return withHooks(rl, (cycle) => {
-      const hooksCleanup = AsyncResource3.bind(() => effectScheduler.clearAll());
-      rl.on("close", hooksCleanup);
-      cleanups.add(() => rl.removeListener("close", hooksCleanup));
-      cycle(() => {
-        try {
-          const nextView = view(config, (value) => {
-            setImmediate(() => resolve(value));
-          });
-          if (nextView === undefined) {
-            const callerFilename = callSites[1]?.getFileName();
-            throw new Error(`Prompt functions must return a string.
-    at ${callerFilename}`);
-          }
-          const [content, bottomContent] = typeof nextView === "string" ? [nextView] : nextView;
-          screen.render(content, bottomContent);
-          effectScheduler.run();
-        } catch (error) {
-          reject(error);
-        }
-      });
-      return Object.assign(promise.then((answer) => {
-        effectScheduler.clearAll();
-        return answer;
-      }, (error) => {
-        effectScheduler.clearAll();
-        throw error;
-      }).finally(() => {
-        cleanups.forEach((cleanup) => cleanup());
-        screen.done({ clearContent: Boolean(context.clearPromptOnDone) });
-        output.end();
-      }).then(() => promise), { cancel });
-    });
-  };
-  return prompt;
-}
-// node_modules/@inquirer/core/dist/esm/lib/Separator.js
-var import_yoctocolors_cjs2 = __toESM(require_yoctocolors_cjs(), 1);
-class Separator {
-  separator = import_yoctocolors_cjs2.default.dim(Array.from({ length: 15 }).join(esm_default.line));
-  type = "separator";
-  constructor(separator) {
-    if (separator) {
-      this.separator = separator;
-    }
-  }
-  static isSeparator(choice) {
-    return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
-  }
-}
-// node_modules/@inquirer/confirm/dist/esm/index.js
-function getBooleanValue(value, defaultValue) {
-  let answer = defaultValue !== false;
-  if (/^(y|yes)/i.test(value))
-    answer = true;
-  else if (/^(n|no)/i.test(value))
-    answer = false;
-  return answer;
-}
-function boolToString(value) {
-  return value ? "Yes" : "No";
-}
-var esm_default2 = createPrompt((config, done) => {
-  const { transformer = boolToString } = config;
-  const [status, setStatus] = useState("idle");
-  const [value, setValue] = useState("");
-  const theme = makeTheme(config.theme);
-  const prefix = usePrefix({ status, theme });
-  useKeypress((key, rl) => {
-    if (status !== "idle")
-      return;
-    if (isEnterKey(key)) {
-      const answer = getBooleanValue(value, config.default);
-      setValue(transformer(answer));
-      setStatus("done");
-      done(answer);
-    } else if (isTabKey(key)) {
-      const answer = boolToString(!getBooleanValue(value, config.default));
-      rl.clearLine(0);
-      rl.write(answer);
-      setValue(answer);
-    } else {
-      setValue(rl.line);
-    }
-  });
-  let formattedValue = value;
-  let defaultValue = "";
-  if (status === "done") {
-    formattedValue = theme.style.answer(value);
-  } else {
-    defaultValue = ` ${theme.style.defaultAnswer(config.default === false ? "y/N" : "Y/n")}`;
-  }
-  const message = theme.style.message(config.message, status);
-  return `${prefix} ${message}${defaultValue} ${formattedValue}`;
-});
-// node_modules/@inquirer/input/dist/esm/index.js
-var inputTheme = {
-  validationFailureMode: "keep"
-};
-var esm_default3 = createPrompt((config, done) => {
-  const { prefill = "tab" } = config;
-  const theme = makeTheme(inputTheme, config.theme);
-  const [status, setStatus] = useState("idle");
-  const [defaultValue = "", setDefaultValue] = useState(config.default);
-  const [errorMsg, setError] = useState();
-  const [value, setValue] = useState("");
-  const prefix = usePrefix({ status, theme });
-  async function validate(value2) {
-    const { required, pattern, patternError = "Invalid input" } = config;
-    if (required && !value2) {
-      return "You must provide a value";
-    }
-    if (pattern && !pattern.test(value2)) {
-      return patternError;
-    }
-    if (typeof config.validate === "function") {
-      return await config.validate(value2) || "You must provide a valid value";
-    }
-    return true;
-  }
-  useKeypress(async (key, rl) => {
-    if (status !== "idle") {
-      return;
-    }
-    if (isEnterKey(key)) {
-      const answer = value || defaultValue;
-      setStatus("loading");
-      const isValid = await validate(answer);
-      if (isValid === true) {
-        setValue(answer);
-        setStatus("done");
-        done(answer);
-      } else {
-        if (theme.validationFailureMode === "clear") {
-          setValue("");
-        } else {
-          rl.write(value);
-        }
-        setError(isValid);
-        setStatus("idle");
-      }
-    } else if (isBackspaceKey(key) && !value) {
-      setDefaultValue(undefined);
-    } else if (isTabKey(key) && !value) {
-      setDefaultValue(undefined);
-      rl.clearLine(0);
-      rl.write(defaultValue);
-      setValue(defaultValue);
-    } else {
-      setValue(rl.line);
-      setError(undefined);
-    }
-  });
-  useEffect((rl) => {
-    if (prefill === "editable" && defaultValue) {
-      rl.write(defaultValue);
-      setValue(defaultValue);
-    }
-  }, []);
-  const message = theme.style.message(config.message, status);
-  let formattedValue = value;
-  if (typeof config.transformer === "function") {
-    formattedValue = config.transformer(value, { isFinal: status === "done" });
-  } else if (status === "done") {
-    formattedValue = theme.style.answer(value);
-  }
-  let defaultStr;
-  if (defaultValue && status !== "done" && !value) {
-    defaultStr = theme.style.defaultAnswer(defaultValue);
-  }
-  let error = "";
-  if (errorMsg) {
-    error = theme.style.error(errorMsg);
-  }
-  return [
-    [prefix, message, defaultStr, formattedValue].filter((v) => v !== undefined).join(" "),
-    error
-  ];
-});
-// node_modules/@inquirer/password/dist/esm/index.js
-var esm_default4 = createPrompt((config, done) => {
-  const { validate = () => true } = config;
-  const theme = makeTheme(config.theme);
-  const [status, setStatus] = useState("idle");
-  const [errorMsg, setError] = useState();
-  const [value, setValue] = useState("");
-  const prefix = usePrefix({ status, theme });
-  useKeypress(async (key, rl) => {
-    if (status !== "idle") {
-      return;
-    }
-    if (isEnterKey(key)) {
-      const answer = value;
-      setStatus("loading");
-      const isValid = await validate(answer);
-      if (isValid === true) {
-        setValue(answer);
-        setStatus("done");
-        done(answer);
-      } else {
-        rl.write(value);
-        setError(isValid || "You must provide a valid value");
-        setStatus("idle");
-      }
-    } else {
-      setValue(rl.line);
-      setError(undefined);
-    }
-  });
-  const message = theme.style.message(config.message, status);
-  let formattedValue = "";
-  let helpTip;
-  if (config.mask) {
-    const maskChar = typeof config.mask === "string" ? config.mask : "*";
-    formattedValue = maskChar.repeat(value.length);
-  } else if (status !== "done") {
-    helpTip = `${theme.style.help("[input is masked]")}${cursorHide}`;
-  }
-  if (status === "done") {
-    formattedValue = theme.style.answer(formattedValue);
-  }
-  let error = "";
-  if (errorMsg) {
-    error = theme.style.error(errorMsg);
-  }
-  return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
-});
-// node_modules/@inquirer/select/dist/esm/index.js
-var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
-var selectTheme = {
-  icon: { cursor: esm_default.pointer },
-  style: {
-    disabled: (text) => import_yoctocolors_cjs3.default.dim(`- ${text}`),
-    description: (text) => import_yoctocolors_cjs3.default.cyan(text),
-    keysHelpTip: (keys) => keys.map(([key, action]) => `${import_yoctocolors_cjs3.default.bold(key)} ${import_yoctocolors_cjs3.default.dim(action)}`).join(import_yoctocolors_cjs3.default.dim(" • "))
-  },
-  helpMode: "always",
-  indexMode: "hidden",
-  keybindings: []
-};
-function isSelectable(item) {
-  return !Separator.isSeparator(item) && !item.disabled;
-}
-function normalizeChoices(choices) {
-  return choices.map((choice) => {
-    if (Separator.isSeparator(choice))
-      return choice;
-    if (typeof choice === "string") {
-      return {
-        value: choice,
-        name: choice,
-        short: choice,
-        disabled: false
-      };
-    }
-    const name = choice.name ?? String(choice.value);
-    const normalizedChoice = {
-      value: choice.value,
-      name,
-      short: choice.short ?? name,
-      disabled: choice.disabled ?? false
-    };
-    if (choice.description) {
-      normalizedChoice.description = choice.description;
-    }
-    return normalizedChoice;
-  });
-}
-var esm_default5 = createPrompt((config, done) => {
-  const { loop = true, pageSize = 7 } = config;
-  const theme = makeTheme(selectTheme, config.theme);
-  const { keybindings } = theme;
-  const [status, setStatus] = useState("idle");
-  const prefix = usePrefix({ status, theme });
-  const searchTimeoutRef = useRef();
-  const searchEnabled = !keybindings.includes("vim");
-  const items = useMemo(() => normalizeChoices(config.choices), [config.choices]);
-  const bounds = useMemo(() => {
-    const first = items.findIndex(isSelectable);
-    const last = items.findLastIndex(isSelectable);
-    if (first === -1) {
-      throw new ValidationError("[select prompt] No selectable choices. All choices are disabled.");
-    }
-    return { first, last };
-  }, [items]);
-  const defaultItemIndex = useMemo(() => {
-    if (!("default" in config))
-      return -1;
-    return items.findIndex((item) => isSelectable(item) && item.value === config.default);
-  }, [config.default, items]);
-  const [active, setActive] = useState(defaultItemIndex === -1 ? bounds.first : defaultItemIndex);
-  const selectedChoice = items[active];
-  useKeypress((key, rl) => {
-    clearTimeout(searchTimeoutRef.current);
-    if (isEnterKey(key)) {
-      setStatus("done");
-      done(selectedChoice.value);
-    } else if (isUpKey(key, keybindings) || isDownKey(key, keybindings)) {
-      rl.clearLine(0);
-      if (loop || isUpKey(key, keybindings) && active !== bounds.first || isDownKey(key, keybindings) && active !== bounds.last) {
-        const offset = isUpKey(key, keybindings) ? -1 : 1;
-        let next = active;
-        do {
-          next = (next + offset + items.length) % items.length;
-        } while (!isSelectable(items[next]));
-        setActive(next);
-      }
-    } else if (isNumberKey(key) && !Number.isNaN(Number(rl.line))) {
-      const selectedIndex = Number(rl.line) - 1;
-      let selectableIndex = -1;
-      const position = items.findIndex((item2) => {
-        if (Separator.isSeparator(item2))
-          return false;
-        selectableIndex++;
-        return selectableIndex === selectedIndex;
-      });
-      const item = items[position];
-      if (item != null && isSelectable(item)) {
-        setActive(position);
-      }
-      searchTimeoutRef.current = setTimeout(() => {
-        rl.clearLine(0);
-      }, 700);
-    } else if (isBackspaceKey(key)) {
-      rl.clearLine(0);
-    } else if (searchEnabled) {
-      const searchTerm = rl.line.toLowerCase();
-      const matchIndex = items.findIndex((item) => {
-        if (Separator.isSeparator(item) || !isSelectable(item))
-          return false;
-        return item.name.toLowerCase().startsWith(searchTerm);
-      });
-      if (matchIndex !== -1) {
-        setActive(matchIndex);
-      }
-      searchTimeoutRef.current = setTimeout(() => {
-        rl.clearLine(0);
-      }, 700);
-    }
-  });
-  useEffect(() => () => {
-    clearTimeout(searchTimeoutRef.current);
-  }, []);
-  const message = theme.style.message(config.message, status);
-  let helpLine;
-  if (theme.helpMode !== "never") {
-    if (config.instructions) {
-      const { pager, navigation } = config.instructions;
-      helpLine = theme.style.help(items.length > pageSize ? pager : navigation);
-    } else {
-      helpLine = theme.style.keysHelpTip([
-        ["↑↓", "navigate"],
-        ["⏎", "select"]
-      ]);
-    }
-  }
-  let separatorCount = 0;
-  const page = usePagination({
-    items,
-    active,
-    renderItem({ item, isActive, index }) {
-      if (Separator.isSeparator(item)) {
-        separatorCount++;
-        return ` ${item.separator}`;
-      }
-      const indexLabel = theme.indexMode === "number" ? `${index + 1 - separatorCount}. ` : "";
-      if (item.disabled) {
-        const disabledLabel = typeof item.disabled === "string" ? item.disabled : "(disabled)";
-        return theme.style.disabled(`${indexLabel}${item.name} ${disabledLabel}`);
-      }
-      const color = isActive ? theme.style.highlight : (x) => x;
-      const cursor = isActive ? theme.icon.cursor : ` `;
-      return color(`${cursor} ${indexLabel}${item.name}`);
-    },
-    pageSize,
-    loop
-  });
-  if (status === "done") {
-    return [prefix, message, theme.style.answer(selectedChoice.short)].filter(Boolean).join(" ");
-  }
-  const { description } = selectedChoice;
-  const lines = [
-    [prefix, message].filter(Boolean).join(" "),
-    page,
-    " ",
-    description ? theme.style.description(description) : "",
-    helpLine
-  ].filter(Boolean).join(`
-`).trimEnd();
-  return `${lines}${cursorHide}`;
-});
-// src/index.ts
-import { existsSync, readFileSync as readFileSync2 } from "fs";
-import { basename as basename3, dirname as dirname8, join as join20, resolve as resolve3 } from "path";
-
-// src/alias/store.ts
-import { mkdir } from "fs/promises";
+// src/providers/claude/profiles.ts
+import {
+  chmod as chmod4,
+  copyFile,
+  lstat,
+  mkdir as mkdir4,
+  readdir as readdir4,
+  readlink,
+  rm as rm3,
+  symlink,
+  unlink as unlink2
+} from "fs/promises";
+import { join as join8 } from "path";
 
 // src/lib/paths.ts
 import { homedir } from "os";
@@ -3567,6 +2168,13 @@ function codexRunHome(accountKey) {
   return join(CLAUDEX_DIR, "codex-run", codexAccountFileKey(accountKey));
 }
 
+// src/providers/claude/credentials.ts
+import { platform } from "os";
+import { createHash } from "crypto";
+import { spawnSync } from "child_process";
+import { rm } from "fs/promises";
+import { join as join2 } from "path";
+
 // src/lib/fs.ts
 import { readFile, writeFile, access } from "fs/promises";
 async function fileExists(path) {
@@ -3592,190 +2200,7 @@ async function writeJsonSecure(path, data) {
   await writeFile(path, JSON.stringify(data, null, 2), { mode: 384 });
 }
 
-// src/alias/store.ts
-function emptyRegistry() {
-  return { version: 1, aliases: [] };
-}
-var RESERVED = new Set([
-  "add",
-  "use",
-  "list",
-  "ls",
-  "remove",
-  "rm",
-  "rename",
-  "purge",
-  "current",
-  "doctor",
-  "model",
-  "import",
-  "update",
-  "webconfig",
-  "help",
-  "-run",
-  "--run",
-  "--help",
-  "-h",
-  "--version",
-  "-v"
-]);
-async function ensureDir() {
-  await mkdir(CLAUDEX_DIR, { recursive: true });
-}
-async function loadAliases() {
-  const reg = await readJson(ALIAS_REGISTRY_FILE, emptyRegistry());
-  if (!Array.isArray(reg.aliases)) {
-    reg.aliases = [];
-  }
-  return reg;
-}
-async function saveAliases(reg) {
-  await ensureDir();
-  await writeJsonSecure(ALIAS_REGISTRY_FILE, reg);
-}
-function findAlias(reg, alias) {
-  const lower = alias.toLowerCase();
-  return reg.aliases.find((a) => a.alias.toLowerCase() === lower);
-}
-function targetsEqual(left, right) {
-  if (left.provider !== right.provider)
-    return false;
-  if (left.provider === "claude" && right.provider === "claude") {
-    return left.profileName === right.profileName;
-  }
-  if (left.provider === "codex" && right.provider === "codex") {
-    return left.accountKey === right.accountKey;
-  }
-  if (left.provider === "opencode" && right.provider === "opencode") {
-    return left.profileId === right.profileId;
-  }
-  return false;
-}
-function findAliasByTarget(reg, target) {
-  return reg.aliases.find((entry) => targetsEqual(entry.target, target));
-}
-function findAliasesByTarget(reg, target) {
-  return reg.aliases.filter((entry) => targetsEqual(entry.target, target));
-}
-function aliasExists(reg, alias) {
-  return findAlias(reg, alias) !== undefined;
-}
-function isReservedAlias(alias) {
-  return RESERVED.has(alias.toLowerCase());
-}
-function isValidAlias(alias) {
-  if (!alias)
-    return false;
-  if (isReservedAlias(alias))
-    return false;
-  if (/[/\\:*?"<>|.\s]/.test(alias))
-    return false;
-  return true;
-}
-function checkAlias(reg, alias, options = {}) {
-  if (!alias)
-    return "empty";
-  if (isReservedAlias(alias))
-    return "reserved";
-  if (!isValidAlias(alias))
-    return "charset";
-  if (options.ignoreAlias !== undefined && options.ignoreAlias.toLowerCase() === alias.toLowerCase()) {
-    return null;
-  }
-  if (aliasExists(reg, alias))
-    return "taken";
-  return null;
-}
-function describeAliasRejection(rejection, alias) {
-  switch (rejection) {
-    case "empty":
-      return "Alias cannot be empty";
-    case "reserved":
-      return `"${alias}" is a reserved command name`;
-    case "charset":
-      return "Invalid alias. Use letters, numbers, hyphens, or underscores.";
-    case "taken":
-      return `Alias "${alias}" already exists`;
-  }
-}
-async function addAlias(alias, target) {
-  const reg = await loadAliases();
-  if (aliasExists(reg, alias)) {
-    throw new Error(`Alias "${alias}" already exists`);
-  }
-  const existingTarget = findAliasByTarget(reg, target);
-  if (existingTarget) {
-    throw new Error(`Account already imported as alias "${existingTarget.alias}"`);
-  }
-  reg.aliases.push({
-    alias,
-    target,
-    createdAt: Date.now()
-  });
-  await saveAliases(reg);
-}
-async function removeAlias(alias) {
-  const reg = await loadAliases();
-  const idx = reg.aliases.findIndex((a) => a.alias.toLowerCase() === alias.toLowerCase());
-  if (idx < 0)
-    return false;
-  reg.aliases.splice(idx, 1);
-  await saveAliases(reg);
-  return true;
-}
-async function removeAliasesByTarget(target) {
-  const reg = await loadAliases();
-  const before = reg.aliases.length;
-  reg.aliases = reg.aliases.filter((entry) => !targetsEqual(entry.target, target));
-  const removed = before - reg.aliases.length;
-  if (removed > 0) {
-    await saveAliases(reg);
-  }
-  return removed;
-}
-async function updateAlias(alias, target) {
-  const reg = await loadAliases();
-  const entry = findAlias(reg, alias);
-  if (!entry) {
-    throw new Error(`Alias "${alias}" not found`);
-  }
-  entry.target = target;
-  await saveAliases(reg);
-}
-async function renameAlias(currentAlias, nextAlias) {
-  const reg = await loadAliases();
-  const entry = findAlias(reg, currentAlias);
-  if (!entry) {
-    throw new Error(`Alias "${currentAlias}" not found`);
-  }
-  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
-  if (rejection) {
-    throw new Error(describeAliasRejection(rejection, nextAlias));
-  }
-  entry.alias = nextAlias;
-  await saveAliases(reg);
-}
-
-// src/providers/claude/profiles.ts
-import {
-  chmod as chmod4,
-  copyFile,
-  lstat,
-  mkdir as mkdir5,
-  readdir as readdir4,
-  readlink,
-  rm as rm3,
-  symlink,
-  unlink as unlink2
-} from "fs/promises";
-import { join as join8 } from "path";
-
 // src/providers/claude/credentials.ts
-import { platform } from "os";
-import { createHash } from "crypto";
-import { spawnSync } from "child_process";
-import { rm } from "fs/promises";
-import { join as join2 } from "path";
 var KEYCHAIN_SERVICE = "Claude Code-credentials";
 var HEX_PATTERN = /^[0-9a-f]+$/i;
 function keychainEnabled() {
@@ -3920,7 +2345,7 @@ async function writeOAuthAccount(account) {
 }
 
 // src/providers/claude/settings.ts
-import { chmod, mkdir as mkdir2, readdir } from "fs/promises";
+import { chmod, mkdir, readdir } from "fs/promises";
 import { dirname } from "path";
 var CLAUDE_DEFAULT_OPUS_MODEL = "claude-opus-5-5";
 function localCLIProxyAPIAuthEnv(apiKey) {
@@ -3954,7 +2379,7 @@ async function read() {
   return readJson(SETTINGS_FILE, {});
 }
 async function write(settings) {
-  await mkdir2(dirname(SETTINGS_FILE), { recursive: true });
+  await mkdir(dirname(SETTINGS_FILE), { recursive: true });
   await writeJsonSecure(SETTINGS_FILE, settings);
   try {
     await chmod(SETTINGS_FILE, 384);
@@ -4003,7 +2428,7 @@ async function readManagedExtraEnvKeys() {
   return record.keys.filter((key) => typeof key === "string");
 }
 async function writeManagedExtraEnvKeys(keys) {
-  await mkdir2(dirname(MANAGED_ENV_FILE), { recursive: true });
+  await mkdir(dirname(MANAGED_ENV_FILE), { recursive: true });
   await writeJson(MANAGED_ENV_FILE, { keys });
 }
 function isReservedClaudeEnvKey(key) {
@@ -4118,7 +2543,7 @@ async function prepareOAuthProfileClaudeSettings(name, profile) {
 }
 async function writePrivateRunSettings(name, settings) {
   const file = claudeProfileClaudeSettingsFile(name);
-  await mkdir2(claudeProfileDir(name), { recursive: true });
+  await mkdir(claudeProfileDir(name), { recursive: true });
   await writeJsonSecure(file, settings);
   try {
     await chmod(file, 384);
@@ -4186,7 +2611,7 @@ import { spawn, spawnSync as spawnSync4 } from "child_process";
 import { realpathSync } from "fs";
 import {
   chmod as chmod3,
-  mkdir as mkdir4,
+  mkdir as mkdir3,
   readFile as readFile4,
   readdir as readdir3,
   rename as rename2,
@@ -4518,7 +2943,7 @@ function pickOpenCodeGoModels(catalog) {
   };
 }
 
-// node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
+// ../../node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
 import { createHash as createHash2, randomBytes } from "node:crypto";
 var NATIVE_LIMITS = {
   resultWait: 120000,
@@ -5563,7 +3988,7 @@ class NativeSession {
 }
 var nativeSessions = new NativeSessionPool;
 
-// node_modules/@magpie-community/opencode-cursor-auth/index.mjs
+// ../../node_modules/@magpie-community/opencode-cursor-auth/index.mjs
 import { isDeepStrictEqual } from "node:util";
 import http2 from "node:http2";
 import { STATUS_CODES } from "node:http";
@@ -5822,25 +4247,25 @@ async function browserSignIn() {
     method: "auto",
     async callback() {
       const headers = { "Content-Type": "application/json", "x-cursor-client-version": await clientVersion(), "x-cursor-client-type": "cli" };
-      let errors2 = 0;
+      let errors = 0;
       for (let r = 0;r < 150; r++) {
         const wait = Math.min(1000 * 1.2 ** r, 1e4);
         let res;
         try {
           res = await fetch(`${API}/auth/poll?uuid=${uuid}&verifier=${verifier}`, { headers, signal: AbortSignal.timeout(15000) });
         } catch {
-          if (++errors2 >= 3)
+          if (++errors >= 3)
             return { type: "failed", error: "couldn't reach Cursor" };
           await sleep(wait);
           continue;
         }
         if (res.status === 404) {
-          errors2 = 0;
+          errors = 0;
           await sleep(wait);
           continue;
         }
         if (!res.ok) {
-          if (res.status === 403 || ++errors2 >= 3)
+          if (res.status === 403 || ++errors >= 3)
             return { type: "failed", error: res.status === 403 ? "Cursor refused the sign-in (403)" : `Cursor's sign-in answered HTTP ${res.status}` };
           await sleep(wait);
           continue;
@@ -8048,7 +6473,7 @@ async function CursorAuthPlugin() {
   };
 }
 
-// node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
+// ../../node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
 import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir as homedir3 } from "node:os";
@@ -9654,7 +8079,7 @@ var WorkBuddyAIAuthPlugin = makePlugin(SITES["workbuddy-ai"]);
 
 // src/providers/subscription-plugins/index.ts
 import { createHash as createHash5, randomUUID as randomUUID2, timingSafeEqual } from "node:crypto";
-import { chmod as chmod2, mkdir as mkdir3, readFile as readFile3, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
+import { chmod as chmod2, mkdir as mkdir2, readFile as readFile3, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join as join6, resolve } from "node:path";
 import { Readable } from "node:stream";
@@ -9704,7 +8129,7 @@ async function saveAuth(directory, upstream, update, replace = false) {
     if (!replace && old?.source === "desktop")
       return;
     const auth = { ...old, ...update, type: "oauth" };
-    await mkdir3(resolve(directory), { recursive: true, mode: 448 });
+    await mkdir2(resolve(directory), { recursive: true, mode: 448 });
     const temporary = `${file}.${process.pid}.${randomUUID2()}.tmp`;
     try {
       await writeFile2(temporary, JSON.stringify({ version: 1, upstream, auth }, null, 2) + `
@@ -10195,6 +8620,1412 @@ async function serveSubscriptionBridge(options) {
   return server;
 }
 
+// ../../node_modules/@inquirer/core/dist/esm/lib/key.js
+var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
+var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
+var isBackspaceKey = (key) => key.name === "backspace";
+var isTabKey = (key) => key.name === "tab";
+var isNumberKey = (key) => "1234567890".includes(key.name);
+var isEnterKey = (key) => key.name === "enter" || key.name === "return";
+// ../../node_modules/@inquirer/core/dist/esm/lib/errors.js
+class AbortPromptError extends Error {
+  name = "AbortPromptError";
+  message = "Prompt was aborted";
+  constructor(options) {
+    super();
+    this.cause = options?.cause;
+  }
+}
+
+class CancelPromptError extends Error {
+  name = "CancelPromptError";
+  message = "Prompt was canceled";
+}
+
+class ExitPromptError extends Error {
+  name = "ExitPromptError";
+}
+
+class HookError extends Error {
+  name = "HookError";
+}
+
+class ValidationError extends Error {
+  name = "ValidationError";
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
+import { AsyncResource as AsyncResource2 } from "node:async_hooks";
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
+import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
+var hookStorage = new AsyncLocalStorage;
+function createStore(rl) {
+  const store = {
+    rl,
+    hooks: [],
+    hooksCleanup: [],
+    hooksEffect: [],
+    index: 0,
+    handleChange() {}
+  };
+  return store;
+}
+function withHooks(rl, cb) {
+  const store = createStore(rl);
+  return hookStorage.run(store, () => {
+    function cycle(render) {
+      store.handleChange = () => {
+        store.index = 0;
+        render();
+      };
+      store.handleChange();
+    }
+    return cb(cycle);
+  });
+}
+function getStore() {
+  const store = hookStorage.getStore();
+  if (!store) {
+    throw new HookError("[Inquirer] Hook functions can only be called from within a prompt");
+  }
+  return store;
+}
+function readline() {
+  return getStore().rl;
+}
+function withUpdates(fn) {
+  const wrapped = (...args) => {
+    const store = getStore();
+    let shouldUpdate = false;
+    const oldHandleChange = store.handleChange;
+    store.handleChange = () => {
+      shouldUpdate = true;
+    };
+    const returnValue = fn(...args);
+    if (shouldUpdate) {
+      oldHandleChange();
+    }
+    store.handleChange = oldHandleChange;
+    return returnValue;
+  };
+  return AsyncResource.bind(wrapped);
+}
+function withPointer(cb) {
+  const store = getStore();
+  const { index } = store;
+  const pointer = {
+    get() {
+      return store.hooks[index];
+    },
+    set(value) {
+      store.hooks[index] = value;
+    },
+    initialized: index in store.hooks
+  };
+  const returnValue = cb(pointer);
+  store.index++;
+  return returnValue;
+}
+function handleChange() {
+  getStore().handleChange();
+}
+var effectScheduler = {
+  queue(cb) {
+    const store = getStore();
+    const { index } = store;
+    store.hooksEffect.push(() => {
+      store.hooksCleanup[index]?.();
+      const cleanFn = cb(readline());
+      if (cleanFn != null && typeof cleanFn !== "function") {
+        throw new ValidationError("useEffect return value must be a cleanup function or nothing.");
+      }
+      store.hooksCleanup[index] = cleanFn;
+    });
+  },
+  run() {
+    const store = getStore();
+    withUpdates(() => {
+      store.hooksEffect.forEach((effect) => {
+        effect();
+      });
+      store.hooksEffect.length = 0;
+    })();
+  },
+  clearAll() {
+    const store = getStore();
+    store.hooksCleanup.forEach((cleanFn) => {
+      cleanFn?.();
+    });
+    store.hooksEffect.length = 0;
+    store.hooksCleanup.length = 0;
+  }
+};
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
+function useState(defaultValue) {
+  return withPointer((pointer) => {
+    const setState = AsyncResource2.bind(function setState(newValue) {
+      if (pointer.get() !== newValue) {
+        pointer.set(newValue);
+        handleChange();
+      }
+    });
+    if (pointer.initialized) {
+      return [pointer.get(), setState];
+    }
+    const value = typeof defaultValue === "function" ? defaultValue() : defaultValue;
+    pointer.set(value);
+    return [value, setState];
+  });
+}
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-effect.js
+function useEffect(cb, depArray) {
+  withPointer((pointer) => {
+    const oldDeps = pointer.get();
+    const hasChanged = !Array.isArray(oldDeps) || depArray.some((dep, i) => !Object.is(dep, oldDeps[i]));
+    if (hasChanged) {
+      effectScheduler.queue(cb);
+    }
+    pointer.set(depArray);
+  });
+}
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
+var import_yoctocolors_cjs = __toESM(require_yoctocolors_cjs(), 1);
+
+// ../../node_modules/@inquirer/figures/dist/esm/index.js
+import process3 from "node:process";
+function isUnicodeSupported() {
+  if (process3.platform !== "win32") {
+    return process3.env["TERM"] !== "linux";
+  }
+  return Boolean(process3.env["WT_SESSION"]) || Boolean(process3.env["TERMINUS_SUBLIME"]) || process3.env["ConEmuTask"] === "{cmd::Cmder}" || process3.env["TERM_PROGRAM"] === "Terminus-Sublime" || process3.env["TERM_PROGRAM"] === "vscode" || process3.env["TERM"] === "xterm-256color" || process3.env["TERM"] === "alacritty" || process3.env["TERMINAL_EMULATOR"] === "JetBrains-JediTerm";
+}
+var common = {
+  circleQuestionMark: "(?)",
+  questionMarkPrefix: "(?)",
+  square: "█",
+  squareDarkShade: "▓",
+  squareMediumShade: "▒",
+  squareLightShade: "░",
+  squareTop: "▀",
+  squareBottom: "▄",
+  squareLeft: "▌",
+  squareRight: "▐",
+  squareCenter: "■",
+  bullet: "●",
+  dot: "․",
+  ellipsis: "…",
+  pointerSmall: "›",
+  triangleUp: "▲",
+  triangleUpSmall: "▴",
+  triangleDown: "▼",
+  triangleDownSmall: "▾",
+  triangleLeftSmall: "◂",
+  triangleRightSmall: "▸",
+  home: "⌂",
+  heart: "♥",
+  musicNote: "♪",
+  musicNoteBeamed: "♫",
+  arrowUp: "↑",
+  arrowDown: "↓",
+  arrowLeft: "←",
+  arrowRight: "→",
+  arrowLeftRight: "↔",
+  arrowUpDown: "↕",
+  almostEqual: "≈",
+  notEqual: "≠",
+  lessOrEqual: "≤",
+  greaterOrEqual: "≥",
+  identical: "≡",
+  infinity: "∞",
+  subscriptZero: "₀",
+  subscriptOne: "₁",
+  subscriptTwo: "₂",
+  subscriptThree: "₃",
+  subscriptFour: "₄",
+  subscriptFive: "₅",
+  subscriptSix: "₆",
+  subscriptSeven: "₇",
+  subscriptEight: "₈",
+  subscriptNine: "₉",
+  oneHalf: "½",
+  oneThird: "⅓",
+  oneQuarter: "¼",
+  oneFifth: "⅕",
+  oneSixth: "⅙",
+  oneEighth: "⅛",
+  twoThirds: "⅔",
+  twoFifths: "⅖",
+  threeQuarters: "¾",
+  threeFifths: "⅗",
+  threeEighths: "⅜",
+  fourFifths: "⅘",
+  fiveSixths: "⅚",
+  fiveEighths: "⅝",
+  sevenEighths: "⅞",
+  line: "─",
+  lineBold: "━",
+  lineDouble: "═",
+  lineDashed0: "┄",
+  lineDashed1: "┅",
+  lineDashed2: "┈",
+  lineDashed3: "┉",
+  lineDashed4: "╌",
+  lineDashed5: "╍",
+  lineDashed6: "╴",
+  lineDashed7: "╶",
+  lineDashed8: "╸",
+  lineDashed9: "╺",
+  lineDashed10: "╼",
+  lineDashed11: "╾",
+  lineDashed12: "−",
+  lineDashed13: "–",
+  lineDashed14: "‐",
+  lineDashed15: "⁃",
+  lineVertical: "│",
+  lineVerticalBold: "┃",
+  lineVerticalDouble: "║",
+  lineVerticalDashed0: "┆",
+  lineVerticalDashed1: "┇",
+  lineVerticalDashed2: "┊",
+  lineVerticalDashed3: "┋",
+  lineVerticalDashed4: "╎",
+  lineVerticalDashed5: "╏",
+  lineVerticalDashed6: "╵",
+  lineVerticalDashed7: "╷",
+  lineVerticalDashed8: "╹",
+  lineVerticalDashed9: "╻",
+  lineVerticalDashed10: "╽",
+  lineVerticalDashed11: "╿",
+  lineDownLeft: "┐",
+  lineDownLeftArc: "╮",
+  lineDownBoldLeftBold: "┓",
+  lineDownBoldLeft: "┒",
+  lineDownLeftBold: "┑",
+  lineDownDoubleLeftDouble: "╗",
+  lineDownDoubleLeft: "╖",
+  lineDownLeftDouble: "╕",
+  lineDownRight: "┌",
+  lineDownRightArc: "╭",
+  lineDownBoldRightBold: "┏",
+  lineDownBoldRight: "┎",
+  lineDownRightBold: "┍",
+  lineDownDoubleRightDouble: "╔",
+  lineDownDoubleRight: "╓",
+  lineDownRightDouble: "╒",
+  lineUpLeft: "┘",
+  lineUpLeftArc: "╯",
+  lineUpBoldLeftBold: "┛",
+  lineUpBoldLeft: "┚",
+  lineUpLeftBold: "┙",
+  lineUpDoubleLeftDouble: "╝",
+  lineUpDoubleLeft: "╜",
+  lineUpLeftDouble: "╛",
+  lineUpRight: "└",
+  lineUpRightArc: "╰",
+  lineUpBoldRightBold: "┗",
+  lineUpBoldRight: "┖",
+  lineUpRightBold: "┕",
+  lineUpDoubleRightDouble: "╚",
+  lineUpDoubleRight: "╙",
+  lineUpRightDouble: "╘",
+  lineUpDownLeft: "┤",
+  lineUpBoldDownBoldLeftBold: "┫",
+  lineUpBoldDownBoldLeft: "┨",
+  lineUpDownLeftBold: "┥",
+  lineUpBoldDownLeftBold: "┩",
+  lineUpDownBoldLeftBold: "┪",
+  lineUpDownBoldLeft: "┧",
+  lineUpBoldDownLeft: "┦",
+  lineUpDoubleDownDoubleLeftDouble: "╣",
+  lineUpDoubleDownDoubleLeft: "╢",
+  lineUpDownLeftDouble: "╡",
+  lineUpDownRight: "├",
+  lineUpBoldDownBoldRightBold: "┣",
+  lineUpBoldDownBoldRight: "┠",
+  lineUpDownRightBold: "┝",
+  lineUpBoldDownRightBold: "┡",
+  lineUpDownBoldRightBold: "┢",
+  lineUpDownBoldRight: "┟",
+  lineUpBoldDownRight: "┞",
+  lineUpDoubleDownDoubleRightDouble: "╠",
+  lineUpDoubleDownDoubleRight: "╟",
+  lineUpDownRightDouble: "╞",
+  lineDownLeftRight: "┬",
+  lineDownBoldLeftBoldRightBold: "┳",
+  lineDownLeftBoldRightBold: "┯",
+  lineDownBoldLeftRight: "┰",
+  lineDownBoldLeftBoldRight: "┱",
+  lineDownBoldLeftRightBold: "┲",
+  lineDownLeftRightBold: "┮",
+  lineDownLeftBoldRight: "┭",
+  lineDownDoubleLeftDoubleRightDouble: "╦",
+  lineDownDoubleLeftRight: "╥",
+  lineDownLeftDoubleRightDouble: "╤",
+  lineUpLeftRight: "┴",
+  lineUpBoldLeftBoldRightBold: "┻",
+  lineUpLeftBoldRightBold: "┷",
+  lineUpBoldLeftRight: "┸",
+  lineUpBoldLeftBoldRight: "┹",
+  lineUpBoldLeftRightBold: "┺",
+  lineUpLeftRightBold: "┶",
+  lineUpLeftBoldRight: "┵",
+  lineUpDoubleLeftDoubleRightDouble: "╩",
+  lineUpDoubleLeftRight: "╨",
+  lineUpLeftDoubleRightDouble: "╧",
+  lineUpDownLeftRight: "┼",
+  lineUpBoldDownBoldLeftBoldRightBold: "╋",
+  lineUpDownBoldLeftBoldRightBold: "╈",
+  lineUpBoldDownLeftBoldRightBold: "╇",
+  lineUpBoldDownBoldLeftRightBold: "╊",
+  lineUpBoldDownBoldLeftBoldRight: "╉",
+  lineUpBoldDownLeftRight: "╀",
+  lineUpDownBoldLeftRight: "╁",
+  lineUpDownLeftBoldRight: "┽",
+  lineUpDownLeftRightBold: "┾",
+  lineUpBoldDownBoldLeftRight: "╂",
+  lineUpDownLeftBoldRightBold: "┿",
+  lineUpBoldDownLeftBoldRight: "╃",
+  lineUpBoldDownLeftRightBold: "╄",
+  lineUpDownBoldLeftBoldRight: "╅",
+  lineUpDownBoldLeftRightBold: "╆",
+  lineUpDoubleDownDoubleLeftDoubleRightDouble: "╬",
+  lineUpDoubleDownDoubleLeftRight: "╫",
+  lineUpDownLeftDoubleRightDouble: "╪",
+  lineCross: "╳",
+  lineBackslash: "╲",
+  lineSlash: "╱"
+};
+var specialMainSymbols = {
+  tick: "✔",
+  info: "ℹ",
+  warning: "⚠",
+  cross: "✘",
+  squareSmall: "◻",
+  squareSmallFilled: "◼",
+  circle: "◯",
+  circleFilled: "◉",
+  circleDotted: "◌",
+  circleDouble: "◎",
+  circleCircle: "ⓞ",
+  circleCross: "ⓧ",
+  circlePipe: "Ⓘ",
+  radioOn: "◉",
+  radioOff: "◯",
+  checkboxOn: "☒",
+  checkboxOff: "☐",
+  checkboxCircleOn: "ⓧ",
+  checkboxCircleOff: "Ⓘ",
+  pointer: "❯",
+  triangleUpOutline: "△",
+  triangleLeft: "◀",
+  triangleRight: "▶",
+  lozenge: "◆",
+  lozengeOutline: "◇",
+  hamburger: "☰",
+  smiley: "㋡",
+  mustache: "෴",
+  star: "★",
+  play: "▶",
+  nodejs: "⬢",
+  oneSeventh: "⅐",
+  oneNinth: "⅑",
+  oneTenth: "⅒"
+};
+var specialFallbackSymbols = {
+  tick: "√",
+  info: "i",
+  warning: "‼",
+  cross: "×",
+  squareSmall: "□",
+  squareSmallFilled: "■",
+  circle: "( )",
+  circleFilled: "(*)",
+  circleDotted: "( )",
+  circleDouble: "( )",
+  circleCircle: "(○)",
+  circleCross: "(×)",
+  circlePipe: "(│)",
+  radioOn: "(*)",
+  radioOff: "( )",
+  checkboxOn: "[×]",
+  checkboxOff: "[ ]",
+  checkboxCircleOn: "(×)",
+  checkboxCircleOff: "( )",
+  pointer: ">",
+  triangleUpOutline: "∆",
+  triangleLeft: "◄",
+  triangleRight: "►",
+  lozenge: "♦",
+  lozengeOutline: "◊",
+  hamburger: "≡",
+  smiley: "☺",
+  mustache: "┌─┐",
+  star: "✶",
+  play: "►",
+  nodejs: "♦",
+  oneSeventh: "1/7",
+  oneNinth: "1/9",
+  oneTenth: "1/10"
+};
+var mainSymbols = {
+  ...common,
+  ...specialMainSymbols
+};
+var fallbackSymbols = {
+  ...common,
+  ...specialFallbackSymbols
+};
+var shouldUseMain = isUnicodeSupported();
+var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
+var esm_default = figures;
+var replacements = Object.entries(specialMainSymbols);
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
+var defaultTheme = {
+  prefix: {
+    idle: import_yoctocolors_cjs.default.blue("?"),
+    done: import_yoctocolors_cjs.default.green(esm_default.tick)
+  },
+  spinner: {
+    interval: 80,
+    frames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"].map((frame2) => import_yoctocolors_cjs.default.yellow(frame2))
+  },
+  style: {
+    answer: import_yoctocolors_cjs.default.cyan,
+    message: import_yoctocolors_cjs.default.bold,
+    error: (text) => import_yoctocolors_cjs.default.red(`> ${text}`),
+    defaultAnswer: (text) => import_yoctocolors_cjs.default.dim(`(${text})`),
+    help: import_yoctocolors_cjs.default.dim,
+    highlight: import_yoctocolors_cjs.default.cyan,
+    key: (text) => import_yoctocolors_cjs.default.cyan(import_yoctocolors_cjs.default.bold(`<${text}>`))
+  }
+};
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/make-theme.js
+function isPlainObject(value) {
+  if (typeof value !== "object" || value === null)
+    return false;
+  let proto2 = value;
+  while (Object.getPrototypeOf(proto2) !== null) {
+    proto2 = Object.getPrototypeOf(proto2);
+  }
+  return Object.getPrototypeOf(value) === proto2;
+}
+function deepMerge(...objects) {
+  const output = {};
+  for (const obj of objects) {
+    for (const [key, value] of Object.entries(obj)) {
+      const prevValue = output[key];
+      output[key] = isPlainObject(prevValue) && isPlainObject(value) ? deepMerge(prevValue, value) : value;
+    }
+  }
+  return output;
+}
+function makeTheme(...themes) {
+  const themesToMerge = [
+    defaultTheme,
+    ...themes.filter((theme) => theme != null)
+  ];
+  return deepMerge(...themesToMerge);
+}
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
+function usePrefix({ status = "idle", theme }) {
+  const [showLoader, setShowLoader] = useState(false);
+  const [tick, setTick] = useState(0);
+  const { prefix, spinner } = makeTheme(theme);
+  useEffect(() => {
+    if (status === "loading") {
+      let tickInterval;
+      let inc = -1;
+      const delayTimeout = setTimeout(() => {
+        setShowLoader(true);
+        tickInterval = setInterval(() => {
+          inc = inc + 1;
+          setTick(inc % spinner.frames.length);
+        }, spinner.interval);
+      }, 300);
+      return () => {
+        clearTimeout(delayTimeout);
+        clearInterval(tickInterval);
+      };
+    } else {
+      setShowLoader(false);
+    }
+  }, [status]);
+  if (showLoader) {
+    return spinner.frames[tick];
+  }
+  const iconName = status === "loading" ? "idle" : status;
+  return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-memo.js
+function useMemo(fn, dependencies) {
+  return withPointer((pointer) => {
+    const prev = pointer.get();
+    if (!prev || prev.dependencies.length !== dependencies.length || prev.dependencies.some((dep, i) => dep !== dependencies[i])) {
+      const value = fn();
+      pointer.set({ value, dependencies });
+      return value;
+    }
+    return prev.value;
+  });
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-ref.js
+function useRef(val) {
+  return useState({ current: val })[0];
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
+function useKeypress(userHandler) {
+  const signal = useRef(userHandler);
+  signal.current = userHandler;
+  useEffect((rl) => {
+    let ignore = false;
+    const handler = withUpdates((_input, event) => {
+      if (ignore)
+        return;
+      signal.current(event, rl);
+    });
+    rl.input.on("keypress", handler);
+    return () => {
+      ignore = true;
+      rl.input.removeListener("keypress", handler);
+    };
+  }, []);
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/utils.js
+var import_cli_width = __toESM(require_cli_width(), 1);
+var import_wrap_ansi = __toESM(require_wrap_ansi(), 1);
+function breakLines(content, width) {
+  return content.split(`
+`).flatMap((line) => import_wrap_ansi.default(line, width, { trim: false, hard: true }).split(`
+`).map((str2) => str2.trimEnd())).join(`
+`);
+}
+function readlineWidth() {
+  return import_cli_width.default({ defaultWidth: 80, output: readline().output });
+}
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
+function usePointerPosition({ active, renderedItems, pageSize, loop }) {
+  const state = useRef({
+    lastPointer: active,
+    lastActive: undefined
+  });
+  const { lastPointer, lastActive } = state.current;
+  const middle = Math.floor(pageSize / 2);
+  const renderedLength = renderedItems.reduce((acc, item) => acc + item.length, 0);
+  const defaultPointerPosition = renderedItems.slice(0, active).reduce((acc, item) => acc + item.length, 0);
+  let pointer = defaultPointerPosition;
+  if (renderedLength > pageSize) {
+    if (loop) {
+      pointer = lastPointer;
+      if (lastActive != null && lastActive < active && active - lastActive < pageSize) {
+        pointer = Math.min(middle, Math.abs(active - lastActive) === 1 ? Math.min(lastPointer + (renderedItems[lastActive]?.length ?? 0), Math.max(defaultPointerPosition, lastPointer)) : lastPointer + active - lastActive);
+      }
+    } else {
+      const spaceUnderActive = renderedItems.slice(active).reduce((acc, item) => acc + item.length, 0);
+      pointer = spaceUnderActive < pageSize - middle ? pageSize - spaceUnderActive : Math.min(defaultPointerPosition, middle);
+    }
+  }
+  state.current.lastPointer = pointer;
+  state.current.lastActive = active;
+  return pointer;
+}
+function usePagination({ items, active, renderItem, pageSize, loop = true }) {
+  const width = readlineWidth();
+  const bound = (num2) => (num2 % items.length + items.length) % items.length;
+  const renderedItems = items.map((item, index) => {
+    if (item == null)
+      return [];
+    return breakLines(renderItem({ item, index, isActive: index === active }), width).split(`
+`);
+  });
+  const renderedLength = renderedItems.reduce((acc, item) => acc + item.length, 0);
+  const renderItemAtIndex = (index) => renderedItems[index] ?? [];
+  const pointer = usePointerPosition({ active, renderedItems, pageSize, loop });
+  const activeItem = renderItemAtIndex(active).slice(0, pageSize);
+  const activeItemPosition = pointer + activeItem.length <= pageSize ? pointer : pageSize - activeItem.length;
+  const pageBuffer = Array.from({ length: pageSize });
+  pageBuffer.splice(activeItemPosition, activeItem.length, ...activeItem);
+  const itemVisited = new Set([active]);
+  let bufferPointer = activeItemPosition + activeItem.length;
+  let itemPointer = bound(active + 1);
+  while (bufferPointer < pageSize && !itemVisited.has(itemPointer) && (loop && renderedLength > pageSize ? itemPointer !== active : itemPointer > active)) {
+    const lines = renderItemAtIndex(itemPointer);
+    const linesToAdd = lines.slice(0, pageSize - bufferPointer);
+    pageBuffer.splice(bufferPointer, linesToAdd.length, ...linesToAdd);
+    itemVisited.add(itemPointer);
+    bufferPointer += linesToAdd.length;
+    itemPointer = bound(itemPointer + 1);
+  }
+  bufferPointer = activeItemPosition - 1;
+  itemPointer = bound(active - 1);
+  while (bufferPointer >= 0 && !itemVisited.has(itemPointer) && (loop && renderedLength > pageSize ? itemPointer !== active : itemPointer < active)) {
+    const lines = renderItemAtIndex(itemPointer);
+    const linesToAdd = lines.slice(Math.max(0, lines.length - bufferPointer - 1));
+    pageBuffer.splice(bufferPointer - linesToAdd.length + 1, linesToAdd.length, ...linesToAdd);
+    itemVisited.add(itemPointer);
+    bufferPointer -= linesToAdd.length;
+    itemPointer = bound(itemPointer - 1);
+  }
+  return pageBuffer.filter((line) => typeof line === "string").join(`
+`);
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+var import_mute_stream = __toESM(require_lib(), 1);
+import * as readline2 from "node:readline";
+import { AsyncResource as AsyncResource3 } from "node:async_hooks";
+
+// ../../node_modules/signal-exit/dist/mjs/signals.js
+var signals = [];
+signals.push("SIGHUP", "SIGINT", "SIGTERM");
+if (process.platform !== "win32") {
+  signals.push("SIGALRM", "SIGABRT", "SIGVTALRM", "SIGXCPU", "SIGXFSZ", "SIGUSR2", "SIGTRAP", "SIGSYS", "SIGQUIT", "SIGIOT");
+}
+if (process.platform === "linux") {
+  signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
+}
+
+// ../../node_modules/signal-exit/dist/mjs/index.js
+var processOk = (process4) => !!process4 && typeof process4 === "object" && typeof process4.removeListener === "function" && typeof process4.emit === "function" && typeof process4.reallyExit === "function" && typeof process4.listeners === "function" && typeof process4.kill === "function" && typeof process4.pid === "number" && typeof process4.on === "function";
+var kExitEmitter = Symbol.for("signal-exit emitter");
+var global = globalThis;
+var ObjectDefineProperty = Object.defineProperty.bind(Object);
+
+class Emitter {
+  emitted = {
+    afterExit: false,
+    exit: false
+  };
+  listeners = {
+    afterExit: [],
+    exit: []
+  };
+  count = 0;
+  id = Math.random();
+  constructor() {
+    if (global[kExitEmitter]) {
+      return global[kExitEmitter];
+    }
+    ObjectDefineProperty(global, kExitEmitter, {
+      value: this,
+      writable: false,
+      enumerable: false,
+      configurable: false
+    });
+  }
+  on(ev, fn) {
+    this.listeners[ev].push(fn);
+  }
+  removeListener(ev, fn) {
+    const list = this.listeners[ev];
+    const i = list.indexOf(fn);
+    if (i === -1) {
+      return;
+    }
+    if (i === 0 && list.length === 1) {
+      list.length = 0;
+    } else {
+      list.splice(i, 1);
+    }
+  }
+  emit(ev, code, signal) {
+    if (this.emitted[ev]) {
+      return false;
+    }
+    this.emitted[ev] = true;
+    let ret = false;
+    for (const fn of this.listeners[ev]) {
+      ret = fn(code, signal) === true || ret;
+    }
+    if (ev === "exit") {
+      ret = this.emit("afterExit", code, signal) || ret;
+    }
+    return ret;
+  }
+}
+
+class SignalExitBase {
+}
+var signalExitWrap = (handler) => {
+  return {
+    onExit(cb, opts) {
+      return handler.onExit(cb, opts);
+    },
+    load() {
+      return handler.load();
+    },
+    unload() {
+      return handler.unload();
+    }
+  };
+};
+
+class SignalExitFallback extends SignalExitBase {
+  onExit() {
+    return () => {};
+  }
+  load() {}
+  unload() {}
+}
+
+class SignalExit extends SignalExitBase {
+  #hupSig = process4.platform === "win32" ? "SIGINT" : "SIGHUP";
+  #emitter = new Emitter;
+  #process;
+  #originalProcessEmit;
+  #originalProcessReallyExit;
+  #sigListeners = {};
+  #loaded = false;
+  constructor(process4) {
+    super();
+    this.#process = process4;
+    this.#sigListeners = {};
+    for (const sig of signals) {
+      this.#sigListeners[sig] = () => {
+        const listeners = this.#process.listeners(sig);
+        let { count } = this.#emitter;
+        const p = process4;
+        if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
+          count += p.__signal_exit_emitter__.count;
+        }
+        if (listeners.length === count) {
+          this.unload();
+          const ret = this.#emitter.emit("exit", null, sig);
+          const s = sig === "SIGHUP" ? this.#hupSig : sig;
+          if (!ret)
+            process4.kill(process4.pid, s);
+        }
+      };
+    }
+    this.#originalProcessReallyExit = process4.reallyExit;
+    this.#originalProcessEmit = process4.emit;
+  }
+  onExit(cb, opts) {
+    if (!processOk(this.#process)) {
+      return () => {};
+    }
+    if (this.#loaded === false) {
+      this.load();
+    }
+    const ev = opts?.alwaysLast ? "afterExit" : "exit";
+    this.#emitter.on(ev, cb);
+    return () => {
+      this.#emitter.removeListener(ev, cb);
+      if (this.#emitter.listeners["exit"].length === 0 && this.#emitter.listeners["afterExit"].length === 0) {
+        this.unload();
+      }
+    };
+  }
+  load() {
+    if (this.#loaded) {
+      return;
+    }
+    this.#loaded = true;
+    this.#emitter.count += 1;
+    for (const sig of signals) {
+      try {
+        const fn = this.#sigListeners[sig];
+        if (fn)
+          this.#process.on(sig, fn);
+      } catch (_) {}
+    }
+    this.#process.emit = (ev, ...a) => {
+      return this.#processEmit(ev, ...a);
+    };
+    this.#process.reallyExit = (code) => {
+      return this.#processReallyExit(code);
+    };
+  }
+  unload() {
+    if (!this.#loaded) {
+      return;
+    }
+    this.#loaded = false;
+    signals.forEach((sig) => {
+      const listener = this.#sigListeners[sig];
+      if (!listener) {
+        throw new Error("Listener not defined for signal: " + sig);
+      }
+      try {
+        this.#process.removeListener(sig, listener);
+      } catch (_) {}
+    });
+    this.#process.emit = this.#originalProcessEmit;
+    this.#process.reallyExit = this.#originalProcessReallyExit;
+    this.#emitter.count -= 1;
+  }
+  #processReallyExit(code) {
+    if (!processOk(this.#process)) {
+      return 0;
+    }
+    this.#process.exitCode = code || 0;
+    this.#emitter.emit("exit", this.#process.exitCode, null);
+    return this.#originalProcessReallyExit.call(this.#process, this.#process.exitCode);
+  }
+  #processEmit(ev, ...args) {
+    const og = this.#originalProcessEmit;
+    if (ev === "exit" && processOk(this.#process)) {
+      if (typeof args[0] === "number") {
+        this.#process.exitCode = args[0];
+      }
+      const ret = og.call(this.#process, ev, ...args);
+      this.#emitter.emit("exit", this.#process.exitCode, null);
+      return ret;
+    } else {
+      return og.call(this.#process, ev, ...args);
+    }
+  }
+}
+var process4 = globalThis.process;
+var {
+  onExit,
+  load,
+  unload
+} = signalExitWrap(processOk(process4) ? new SignalExit(process4) : new SignalExitFallback);
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+import { stripVTControlCharacters } from "node:util";
+
+// ../../node_modules/@inquirer/ansi/dist/esm/index.js
+var ESC = "\x1B[";
+var cursorLeft = ESC + "G";
+var cursorHide = ESC + "?25l";
+var cursorShow = ESC + "?25h";
+var cursorUp = (rows = 1) => rows > 0 ? `${ESC}${rows}A` : "";
+var cursorDown = (rows = 1) => rows > 0 ? `${ESC}${rows}B` : "";
+var cursorTo = (x, y) => {
+  if (typeof y === "number" && !Number.isNaN(y)) {
+    return `${ESC}${y + 1};${x + 1}H`;
+  }
+  return `${ESC}${x + 1}G`;
+};
+var eraseLine = ESC + "2K";
+var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+var height = (content) => content.split(`
+`).length;
+var lastLine = (content) => content.split(`
+`).pop() ?? "";
+
+class ScreenManager {
+  height = 0;
+  extraLinesUnderPrompt = 0;
+  cursorPos;
+  rl;
+  constructor(rl) {
+    this.rl = rl;
+    this.cursorPos = rl.getCursorPos();
+  }
+  write(content) {
+    this.rl.output.unmute();
+    this.rl.output.write(content);
+    this.rl.output.mute();
+  }
+  render(content, bottomContent = "") {
+    const promptLine = lastLine(content);
+    const rawPromptLine = stripVTControlCharacters(promptLine);
+    let prompt = rawPromptLine;
+    if (this.rl.line.length > 0) {
+      prompt = prompt.slice(0, -this.rl.line.length);
+    }
+    this.rl.setPrompt(prompt);
+    this.cursorPos = this.rl.getCursorPos();
+    const width = readlineWidth();
+    content = breakLines(content, width);
+    bottomContent = breakLines(bottomContent, width);
+    if (rawPromptLine.length % width === 0) {
+      content += `
+`;
+    }
+    let output = content + (bottomContent ? `
+` + bottomContent : "");
+    const promptLineUpDiff = Math.floor(rawPromptLine.length / width) - this.cursorPos.rows;
+    const bottomContentHeight = promptLineUpDiff + (bottomContent ? height(bottomContent) : 0);
+    if (bottomContentHeight > 0)
+      output += cursorUp(bottomContentHeight);
+    output += cursorTo(this.cursorPos.cols);
+    this.write(cursorDown(this.extraLinesUnderPrompt) + eraseLines(this.height) + output);
+    this.extraLinesUnderPrompt = bottomContentHeight;
+    this.height = height(output);
+  }
+  checkCursorPos() {
+    const cursorPos = this.rl.getCursorPos();
+    if (cursorPos.cols !== this.cursorPos.cols) {
+      this.write(cursorTo(cursorPos.cols));
+      this.cursorPos = cursorPos;
+    }
+  }
+  done({ clearContent }) {
+    this.rl.setPrompt("");
+    let output = cursorDown(this.extraLinesUnderPrompt);
+    output += clearContent ? eraseLines(this.height) : `
+`;
+    output += cursorShow;
+    this.write(output);
+    this.rl.close();
+  }
+}
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
+class PromisePolyfill extends Promise {
+  static withResolver() {
+    let resolve2;
+    let reject;
+    const promise = new Promise((res, rej) => {
+      resolve2 = res;
+      reject = rej;
+    });
+    return { promise, resolve: resolve2, reject };
+  }
+}
+
+// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+function getCallSites() {
+  const _prepareStackTrace = Error.prepareStackTrace;
+  let result2 = [];
+  try {
+    Error.prepareStackTrace = (_, callSites) => {
+      const callSitesWithoutCurrent = callSites.slice(1);
+      result2 = callSitesWithoutCurrent;
+      return callSitesWithoutCurrent;
+    };
+    new Error().stack;
+  } catch {
+    return result2;
+  }
+  Error.prepareStackTrace = _prepareStackTrace;
+  return result2;
+}
+function createPrompt(view) {
+  const callSites = getCallSites();
+  const prompt = (config, context2 = {}) => {
+    const { input = process.stdin, signal } = context2;
+    const cleanups = new Set;
+    const output = new import_mute_stream.default;
+    output.pipe(context2.output ?? process.stdout);
+    const rl = readline2.createInterface({
+      terminal: true,
+      input,
+      output
+    });
+    const screen = new ScreenManager(rl);
+    const { promise, resolve: resolve2, reject } = PromisePolyfill.withResolver();
+    const cancel = () => reject(new CancelPromptError);
+    if (signal) {
+      const abort = () => reject(new AbortPromptError({ cause: signal.reason }));
+      if (signal.aborted) {
+        abort();
+        return Object.assign(promise, { cancel });
+      }
+      signal.addEventListener("abort", abort);
+      cleanups.add(() => signal.removeEventListener("abort", abort));
+    }
+    cleanups.add(onExit((code, signal2) => {
+      reject(new ExitPromptError(`User force closed the prompt with ${code} ${signal2}`));
+    }));
+    const sigint = () => reject(new ExitPromptError(`User force closed the prompt with SIGINT`));
+    rl.on("SIGINT", sigint);
+    cleanups.add(() => rl.removeListener("SIGINT", sigint));
+    const checkCursorPos = () => screen.checkCursorPos();
+    rl.input.on("keypress", checkCursorPos);
+    cleanups.add(() => rl.input.removeListener("keypress", checkCursorPos));
+    return withHooks(rl, (cycle) => {
+      const hooksCleanup = AsyncResource3.bind(() => effectScheduler.clearAll());
+      rl.on("close", hooksCleanup);
+      cleanups.add(() => rl.removeListener("close", hooksCleanup));
+      cycle(() => {
+        try {
+          const nextView = view(config, (value) => {
+            setImmediate(() => resolve2(value));
+          });
+          if (nextView === undefined) {
+            const callerFilename = callSites[1]?.getFileName();
+            throw new Error(`Prompt functions must return a string.
+    at ${callerFilename}`);
+          }
+          const [content, bottomContent] = typeof nextView === "string" ? [nextView] : nextView;
+          screen.render(content, bottomContent);
+          effectScheduler.run();
+        } catch (error) {
+          reject(error);
+        }
+      });
+      return Object.assign(promise.then((answer2) => {
+        effectScheduler.clearAll();
+        return answer2;
+      }, (error) => {
+        effectScheduler.clearAll();
+        throw error;
+      }).finally(() => {
+        cleanups.forEach((cleanup) => cleanup());
+        screen.done({ clearContent: Boolean(context2.clearPromptOnDone) });
+        output.end();
+      }).then(() => promise), { cancel });
+    });
+  };
+  return prompt;
+}
+// ../../node_modules/@inquirer/core/dist/esm/lib/Separator.js
+var import_yoctocolors_cjs2 = __toESM(require_yoctocolors_cjs(), 1);
+class Separator {
+  separator = import_yoctocolors_cjs2.default.dim(Array.from({ length: 15 }).join(esm_default.line));
+  type = "separator";
+  constructor(separator) {
+    if (separator) {
+      this.separator = separator;
+    }
+  }
+  static isSeparator(choice) {
+    return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
+  }
+}
+// ../../node_modules/@inquirer/confirm/dist/esm/index.js
+function getBooleanValue(value, defaultValue) {
+  let answer2 = defaultValue !== false;
+  if (/^(y|yes)/i.test(value))
+    answer2 = true;
+  else if (/^(n|no)/i.test(value))
+    answer2 = false;
+  return answer2;
+}
+function boolToString(value) {
+  return value ? "Yes" : "No";
+}
+var esm_default2 = createPrompt((config, done) => {
+  const { transformer = boolToString } = config;
+  const [status, setStatus] = useState("idle");
+  const [value, setValue] = useState("");
+  const theme = makeTheme(config.theme);
+  const prefix = usePrefix({ status, theme });
+  useKeypress((key, rl) => {
+    if (status !== "idle")
+      return;
+    if (isEnterKey(key)) {
+      const answer2 = getBooleanValue(value, config.default);
+      setValue(transformer(answer2));
+      setStatus("done");
+      done(answer2);
+    } else if (isTabKey(key)) {
+      const answer2 = boolToString(!getBooleanValue(value, config.default));
+      rl.clearLine(0);
+      rl.write(answer2);
+      setValue(answer2);
+    } else {
+      setValue(rl.line);
+    }
+  });
+  let formattedValue = value;
+  let defaultValue = "";
+  if (status === "done") {
+    formattedValue = theme.style.answer(value);
+  } else {
+    defaultValue = ` ${theme.style.defaultAnswer(config.default === false ? "y/N" : "Y/n")}`;
+  }
+  const message = theme.style.message(config.message, status);
+  return `${prefix} ${message}${defaultValue} ${formattedValue}`;
+});
+// ../../node_modules/@inquirer/input/dist/esm/index.js
+var inputTheme = {
+  validationFailureMode: "keep"
+};
+var esm_default3 = createPrompt((config, done) => {
+  const { prefill = "tab" } = config;
+  const theme = makeTheme(inputTheme, config.theme);
+  const [status, setStatus] = useState("idle");
+  const [defaultValue = "", setDefaultValue] = useState(config.default);
+  const [errorMsg, setError] = useState();
+  const [value, setValue] = useState("");
+  const prefix = usePrefix({ status, theme });
+  async function validate(value2) {
+    const { required, pattern, patternError = "Invalid input" } = config;
+    if (required && !value2) {
+      return "You must provide a value";
+    }
+    if (pattern && !pattern.test(value2)) {
+      return patternError;
+    }
+    if (typeof config.validate === "function") {
+      return await config.validate(value2) || "You must provide a valid value";
+    }
+    return true;
+  }
+  useKeypress(async (key, rl) => {
+    if (status !== "idle") {
+      return;
+    }
+    if (isEnterKey(key)) {
+      const answer2 = value || defaultValue;
+      setStatus("loading");
+      const isValid = await validate(answer2);
+      if (isValid === true) {
+        setValue(answer2);
+        setStatus("done");
+        done(answer2);
+      } else {
+        if (theme.validationFailureMode === "clear") {
+          setValue("");
+        } else {
+          rl.write(value);
+        }
+        setError(isValid);
+        setStatus("idle");
+      }
+    } else if (isBackspaceKey(key) && !value) {
+      setDefaultValue(undefined);
+    } else if (isTabKey(key) && !value) {
+      setDefaultValue(undefined);
+      rl.clearLine(0);
+      rl.write(defaultValue);
+      setValue(defaultValue);
+    } else {
+      setValue(rl.line);
+      setError(undefined);
+    }
+  });
+  useEffect((rl) => {
+    if (prefill === "editable" && defaultValue) {
+      rl.write(defaultValue);
+      setValue(defaultValue);
+    }
+  }, []);
+  const message = theme.style.message(config.message, status);
+  let formattedValue = value;
+  if (typeof config.transformer === "function") {
+    formattedValue = config.transformer(value, { isFinal: status === "done" });
+  } else if (status === "done") {
+    formattedValue = theme.style.answer(value);
+  }
+  let defaultStr;
+  if (defaultValue && status !== "done" && !value) {
+    defaultStr = theme.style.defaultAnswer(defaultValue);
+  }
+  let error = "";
+  if (errorMsg) {
+    error = theme.style.error(errorMsg);
+  }
+  return [
+    [prefix, message, defaultStr, formattedValue].filter((v) => v !== undefined).join(" "),
+    error
+  ];
+});
+// ../../node_modules/@inquirer/password/dist/esm/index.js
+var esm_default4 = createPrompt((config, done) => {
+  const { validate = () => true } = config;
+  const theme = makeTheme(config.theme);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setError] = useState();
+  const [value, setValue] = useState("");
+  const prefix = usePrefix({ status, theme });
+  useKeypress(async (key, rl) => {
+    if (status !== "idle") {
+      return;
+    }
+    if (isEnterKey(key)) {
+      const answer2 = value;
+      setStatus("loading");
+      const isValid = await validate(answer2);
+      if (isValid === true) {
+        setValue(answer2);
+        setStatus("done");
+        done(answer2);
+      } else {
+        rl.write(value);
+        setError(isValid || "You must provide a valid value");
+        setStatus("idle");
+      }
+    } else {
+      setValue(rl.line);
+      setError(undefined);
+    }
+  });
+  const message = theme.style.message(config.message, status);
+  let formattedValue = "";
+  let helpTip;
+  if (config.mask) {
+    const maskChar = typeof config.mask === "string" ? config.mask : "*";
+    formattedValue = maskChar.repeat(value.length);
+  } else if (status !== "done") {
+    helpTip = `${theme.style.help("[input is masked]")}${cursorHide}`;
+  }
+  if (status === "done") {
+    formattedValue = theme.style.answer(formattedValue);
+  }
+  let error = "";
+  if (errorMsg) {
+    error = theme.style.error(errorMsg);
+  }
+  return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
+});
+// ../../node_modules/@inquirer/select/dist/esm/index.js
+var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
+var selectTheme = {
+  icon: { cursor: esm_default.pointer },
+  style: {
+    disabled: (text) => import_yoctocolors_cjs3.default.dim(`- ${text}`),
+    description: (text) => import_yoctocolors_cjs3.default.cyan(text),
+    keysHelpTip: (keys) => keys.map(([key, action]) => `${import_yoctocolors_cjs3.default.bold(key)} ${import_yoctocolors_cjs3.default.dim(action)}`).join(import_yoctocolors_cjs3.default.dim(" • "))
+  },
+  helpMode: "always",
+  indexMode: "hidden",
+  keybindings: []
+};
+function isSelectable(item) {
+  return !Separator.isSeparator(item) && !item.disabled;
+}
+function normalizeChoices(choices) {
+  return choices.map((choice) => {
+    if (Separator.isSeparator(choice))
+      return choice;
+    if (typeof choice === "string") {
+      return {
+        value: choice,
+        name: choice,
+        short: choice,
+        disabled: false
+      };
+    }
+    const name = choice.name ?? String(choice.value);
+    const normalizedChoice = {
+      value: choice.value,
+      name,
+      short: choice.short ?? name,
+      disabled: choice.disabled ?? false
+    };
+    if (choice.description) {
+      normalizedChoice.description = choice.description;
+    }
+    return normalizedChoice;
+  });
+}
+var esm_default5 = createPrompt((config, done) => {
+  const { loop = true, pageSize = 7 } = config;
+  const theme = makeTheme(selectTheme, config.theme);
+  const { keybindings } = theme;
+  const [status, setStatus] = useState("idle");
+  const prefix = usePrefix({ status, theme });
+  const searchTimeoutRef = useRef();
+  const searchEnabled = !keybindings.includes("vim");
+  const items = useMemo(() => normalizeChoices(config.choices), [config.choices]);
+  const bounds = useMemo(() => {
+    const first = items.findIndex(isSelectable);
+    const last = items.findLastIndex(isSelectable);
+    if (first === -1) {
+      throw new ValidationError("[select prompt] No selectable choices. All choices are disabled.");
+    }
+    return { first, last };
+  }, [items]);
+  const defaultItemIndex = useMemo(() => {
+    if (!("default" in config))
+      return -1;
+    return items.findIndex((item) => isSelectable(item) && item.value === config.default);
+  }, [config.default, items]);
+  const [active, setActive] = useState(defaultItemIndex === -1 ? bounds.first : defaultItemIndex);
+  const selectedChoice = items[active];
+  useKeypress((key, rl) => {
+    clearTimeout(searchTimeoutRef.current);
+    if (isEnterKey(key)) {
+      setStatus("done");
+      done(selectedChoice.value);
+    } else if (isUpKey(key, keybindings) || isDownKey(key, keybindings)) {
+      rl.clearLine(0);
+      if (loop || isUpKey(key, keybindings) && active !== bounds.first || isDownKey(key, keybindings) && active !== bounds.last) {
+        const offset = isUpKey(key, keybindings) ? -1 : 1;
+        let next = active;
+        do {
+          next = (next + offset + items.length) % items.length;
+        } while (!isSelectable(items[next]));
+        setActive(next);
+      }
+    } else if (isNumberKey(key) && !Number.isNaN(Number(rl.line))) {
+      const selectedIndex = Number(rl.line) - 1;
+      let selectableIndex = -1;
+      const position = items.findIndex((item2) => {
+        if (Separator.isSeparator(item2))
+          return false;
+        selectableIndex++;
+        return selectableIndex === selectedIndex;
+      });
+      const item = items[position];
+      if (item != null && isSelectable(item)) {
+        setActive(position);
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        rl.clearLine(0);
+      }, 700);
+    } else if (isBackspaceKey(key)) {
+      rl.clearLine(0);
+    } else if (searchEnabled) {
+      const searchTerm = rl.line.toLowerCase();
+      const matchIndex = items.findIndex((item) => {
+        if (Separator.isSeparator(item) || !isSelectable(item))
+          return false;
+        return item.name.toLowerCase().startsWith(searchTerm);
+      });
+      if (matchIndex !== -1) {
+        setActive(matchIndex);
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        rl.clearLine(0);
+      }, 700);
+    }
+  });
+  useEffect(() => () => {
+    clearTimeout(searchTimeoutRef.current);
+  }, []);
+  const message = theme.style.message(config.message, status);
+  let helpLine;
+  if (theme.helpMode !== "never") {
+    if (config.instructions) {
+      const { pager, navigation } = config.instructions;
+      helpLine = theme.style.help(items.length > pageSize ? pager : navigation);
+    } else {
+      helpLine = theme.style.keysHelpTip([
+        ["↑↓", "navigate"],
+        ["⏎", "select"]
+      ]);
+    }
+  }
+  let separatorCount = 0;
+  const page = usePagination({
+    items,
+    active,
+    renderItem({ item, isActive, index }) {
+      if (Separator.isSeparator(item)) {
+        separatorCount++;
+        return ` ${item.separator}`;
+      }
+      const indexLabel = theme.indexMode === "number" ? `${index + 1 - separatorCount}. ` : "";
+      if (item.disabled) {
+        const disabledLabel = typeof item.disabled === "string" ? item.disabled : "(disabled)";
+        return theme.style.disabled(`${indexLabel}${item.name} ${disabledLabel}`);
+      }
+      const color = isActive ? theme.style.highlight : (x) => x;
+      const cursor = isActive ? theme.icon.cursor : ` `;
+      return color(`${cursor} ${indexLabel}${item.name}`);
+    },
+    pageSize,
+    loop
+  });
+  if (status === "done") {
+    return [prefix, message, theme.style.answer(selectedChoice.short)].filter(Boolean).join(" ");
+  }
+  const { description } = selectedChoice;
+  const lines = [
+    [prefix, message].filter(Boolean).join(" "),
+    page,
+    " ",
+    description ? theme.style.description(description) : "",
+    helpLine
+  ].filter(Boolean).join(`
+`).trimEnd();
+  return `${lines}${cursorHide}`;
+});
 // src/lib/ui.ts
 var icons = {
   active: source_default.green("▸"),
@@ -10235,7 +10066,7 @@ function formatType(type) {
     case "api-key":
       return source_default.yellow("api-key");
     case "local-cliproxyapi":
-      return source_default.green("local CLIProxyAPI");
+      return source_default.green("proxy");
     case "chatgpt":
       return source_default.green("chatgpt");
     case "apikey":
@@ -10392,7 +10223,7 @@ function profilePaths(profileId) {
   };
 }
 async function mkdirPrivate(path) {
-  await mkdir4(path, { recursive: true, mode: 448 });
+  await mkdir3(path, { recursive: true, mode: 448 });
   try {
     await chmod3(path, 448);
   } catch {}
@@ -11024,7 +10855,7 @@ async function withLock(lock, action) {
   await mkdirPrivate(dirname3(lock));
   for (;; ) {
     try {
-      await mkdir4(lock, { mode: 448 });
+      await mkdir3(lock, { mode: 448 });
       createdAt = Date.now();
       try {
         await writePrivateJson(join7(lock, "owner.json"), {
@@ -11688,11 +11519,11 @@ var PROFILE_CONFIG_LINK_EXCLUDES = new Set([
   ".claude.json",
   "backups"
 ]);
-async function ensureDir2(path) {
-  await mkdir5(path, { recursive: true });
+async function ensureDir(path) {
+  await mkdir4(path, { recursive: true });
 }
 async function ensurePrivateDir(path) {
-  await mkdir5(path, { recursive: true, mode: 448 });
+  await mkdir4(path, { recursive: true, mode: 448 });
   try {
     await chmod4(path, 448);
   } catch {}
@@ -11701,7 +11532,7 @@ async function readState2() {
   return readJson(CLAUDE_STATE_FILE, { active: null });
 }
 async function writeState2(state) {
-  await ensureDir2(CLAUDE_PROFILES_DIR);
+  await ensureDir(CLAUDE_PROFILES_DIR);
   await writeJson(CLAUDE_STATE_FILE, state);
 }
 async function readProfileData(name) {
@@ -11784,7 +11615,7 @@ async function updateClaudeProfileConfig(name, patch) {
 }
 async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
   const data = normalizeOAuthProfileData(config);
-  await ensureDir2(claudeProfileDir(name));
+  await ensureDir(claudeProfileDir(name));
   await copyCredentials(fromCredentials, claudeProfileCredentials(name));
   await writeProfileData(name, data);
   const account = await readOAuthAccount();
@@ -11802,21 +11633,14 @@ async function addApiKeyProfile(name, config) {
       await snapshotCurrentOAuthProfileIfLiveMatches(state.active);
     }
   }
-  await ensureDir2(claudeProfileDir(name));
+  await ensureDir(claudeProfileDir(name));
   const data = normalizeApiKeyProfileData(config);
   await writeProfileData(name, data);
   await activateProfile(name, data);
   await writeState2({ active: name });
 }
-async function addLocalCLIProxyAPIProfile(name, config) {
-  await ensureManagedCLIProxyAPI({
-    profileId: config.profileId,
-    binaryPath: config.binaryPath
-  });
-  await saveLocalCLIProxyAPIProfile(name, config);
-}
 async function saveLocalCLIProxyAPIProfile(name, config) {
-  await ensureDir2(claudeProfileDir(name));
+  await ensureDir(claudeProfileDir(name));
   await writeProfileData(name, config);
 }
 async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
@@ -11861,7 +11685,7 @@ async function switchProfile(name) {
 async function snapshotCurrentOAuthProfile(name) {
   const currentCreds = await readCredentials(CREDENTIALS_FILE);
   if (currentCreds) {
-    await ensureDir2(claudeProfileDir(name));
+    await ensureDir(claudeProfileDir(name));
     await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
   }
   const currentAccount = await readOAuthAccount();
@@ -11956,7 +11780,7 @@ async function prepareIsolatedOAuthRun(name) {
   if (!freshest) {
     throw new Error(`No credentials stored for Claude profile "${name}". Switch to it and log in first.`);
   }
-  await ensureDir2(dir);
+  await ensureDir(dir);
   if (oauthExpiresAt(freshest) > oauthExpiresAt(isolated) || !isolated) {
     await writeIsolatedCredentials(freshest, dir);
   }
@@ -11976,7 +11800,7 @@ async function prepareIsolatedLocalCLIProxyAPIRun(name) {
   }
   const configDir = claudeProfileConfigDir(name);
   const secureStorageDir = claudeProfileSecureStorageDir(name);
-  await ensureDir2(configDir);
+  await ensureDir(configDir);
   await ensurePrivateDir(secureStorageDir);
   await linkSharedClaudeConfigEntries(configDir);
   await preparePrivateClaudeUserSettings(configDir);
@@ -11985,14 +11809,14 @@ async function prepareIsolatedLocalCLIProxyAPIRun(name) {
 }
 async function prepareIsolatedOAuthConfig(name) {
   const configDir = claudeProfileConfigDir(name);
-  await ensureDir2(configDir);
+  await ensureDir(configDir);
   await linkSharedClaudeConfigEntries(configDir);
   await preparePrivateClaudeUserSettings(configDir);
   await writeIsolatedClaudeJson(name);
 }
 async function prepareIsolatedApiRun(name) {
   const configDir = claudeProfileConfigDir(name);
-  await ensureDir2(configDir);
+  await ensureDir(configDir);
   await linkSharedClaudeConfigEntries(configDir);
   await preparePrivateClaudeUserSettings(configDir);
   await writeIsolatedLocalClaudeJson(name);
@@ -12114,7 +11938,7 @@ async function snapshotActiveOAuthProfile(name) {
   if (!currentCreds) {
     throw new Error("No active Claude credentials found");
   }
-  await ensureDir2(claudeProfileDir(name));
+  await ensureDir(claudeProfileDir(name));
   await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
   const currentAccount = await readOAuthAccount();
   if (currentAccount) {
@@ -12187,6 +12011,190 @@ function sameApiConfig(expected, actual) {
   if (!actual)
     return false;
   return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultFableModel) === normalizeOptionalValue(actual.defaultFableModel) && normalizeOptionalValue(expected.subagentModel) === normalizeOptionalValue(actual.subagentModel) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel) && sameCustomEnv(expected.env, actual.env);
+}
+
+// src/lib/account-display.ts
+function claudeAccountSection(profile) {
+  if (profile.type !== "local-cliproxyapi")
+    return "Claude";
+  const upstream = profile.upstream ?? "codex";
+  return upstream === "codex" ? null : CLI_PROXY_API_UPSTREAMS[upstream].label;
+}
+async function aliasSection(entry) {
+  if (entry.target.provider === "codex")
+    return "Codex";
+  if (entry.target.provider === "opencode")
+    return "OpenCode";
+  return claudeAccountSection(await getProfileData(entry.target.profileName));
+}
+
+// src/index.ts
+import { existsSync, readFileSync as readFileSync2 } from "fs";
+import { basename as basename3, dirname as dirname8, join as join20, resolve as resolve3 } from "path";
+
+// src/alias/store.ts
+import { mkdir as mkdir5 } from "fs/promises";
+function emptyRegistry() {
+  return { version: 1, aliases: [] };
+}
+var RESERVED = new Set([
+  "add",
+  "use",
+  "list",
+  "ls",
+  "remove",
+  "rm",
+  "rename",
+  "purge",
+  "current",
+  "doctor",
+  "model",
+  "import",
+  "update",
+  "webconfig",
+  "help",
+  "-run",
+  "--run",
+  "--help",
+  "-h",
+  "--version",
+  "-v"
+]);
+async function ensureDir2() {
+  await mkdir5(CLAUDEX_DIR, { recursive: true });
+}
+async function loadAliases() {
+  const reg = await readJson(ALIAS_REGISTRY_FILE, emptyRegistry());
+  if (!Array.isArray(reg.aliases)) {
+    reg.aliases = [];
+  }
+  return reg;
+}
+async function saveAliases(reg) {
+  await ensureDir2();
+  await writeJsonSecure(ALIAS_REGISTRY_FILE, reg);
+}
+function findAlias(reg, alias) {
+  const lower = alias.toLowerCase();
+  return reg.aliases.find((a) => a.alias.toLowerCase() === lower);
+}
+function targetsEqual(left, right) {
+  if (left.provider !== right.provider)
+    return false;
+  if (left.provider === "claude" && right.provider === "claude") {
+    return left.profileName === right.profileName;
+  }
+  if (left.provider === "codex" && right.provider === "codex") {
+    return left.accountKey === right.accountKey;
+  }
+  if (left.provider === "opencode" && right.provider === "opencode") {
+    return left.profileId === right.profileId;
+  }
+  return false;
+}
+function findAliasByTarget(reg, target) {
+  return reg.aliases.find((entry) => targetsEqual(entry.target, target));
+}
+function findAliasesByTarget(reg, target) {
+  return reg.aliases.filter((entry) => targetsEqual(entry.target, target));
+}
+function aliasExists(reg, alias) {
+  return findAlias(reg, alias) !== undefined;
+}
+function isReservedAlias(alias) {
+  return RESERVED.has(alias.toLowerCase());
+}
+function isValidAlias(alias) {
+  if (!alias)
+    return false;
+  if (isReservedAlias(alias))
+    return false;
+  if (/[/\\:*?"<>|.\s]/.test(alias))
+    return false;
+  return true;
+}
+function checkAlias(reg, alias, options = {}) {
+  if (!alias)
+    return "empty";
+  if (isReservedAlias(alias))
+    return "reserved";
+  if (!isValidAlias(alias))
+    return "charset";
+  if (options.ignoreAlias !== undefined && options.ignoreAlias.toLowerCase() === alias.toLowerCase()) {
+    return null;
+  }
+  if (aliasExists(reg, alias))
+    return "taken";
+  return null;
+}
+function describeAliasRejection(rejection, alias) {
+  switch (rejection) {
+    case "empty":
+      return "Alias cannot be empty";
+    case "reserved":
+      return `"${alias}" is a reserved command name`;
+    case "charset":
+      return "Invalid alias. Use letters, numbers, hyphens, or underscores.";
+    case "taken":
+      return `Alias "${alias}" already exists`;
+  }
+}
+async function addAlias(alias, target) {
+  const reg = await loadAliases();
+  if (aliasExists(reg, alias)) {
+    throw new Error(`Alias "${alias}" already exists`);
+  }
+  const existingTarget = findAliasByTarget(reg, target);
+  if (existingTarget) {
+    throw new Error(`Account already imported as alias "${existingTarget.alias}"`);
+  }
+  reg.aliases.push({
+    alias,
+    target,
+    createdAt: Date.now()
+  });
+  await saveAliases(reg);
+}
+async function removeAlias(alias) {
+  const reg = await loadAliases();
+  const idx = reg.aliases.findIndex((a) => a.alias.toLowerCase() === alias.toLowerCase());
+  if (idx < 0)
+    return false;
+  reg.aliases.splice(idx, 1);
+  await saveAliases(reg);
+  return true;
+}
+async function removeAliasesByTarget(target) {
+  const reg = await loadAliases();
+  const before = reg.aliases.length;
+  reg.aliases = reg.aliases.filter((entry) => !targetsEqual(entry.target, target));
+  const removed = before - reg.aliases.length;
+  if (removed > 0) {
+    await saveAliases(reg);
+  }
+  return removed;
+}
+async function updateAlias(alias, target) {
+  const reg = await loadAliases();
+  const entry = findAlias(reg, alias);
+  if (!entry) {
+    throw new Error(`Alias "${alias}" not found`);
+  }
+  entry.target = target;
+  await saveAliases(reg);
+}
+async function renameAlias(currentAlias, nextAlias) {
+  const reg = await loadAliases();
+  const entry = findAlias(reg, currentAlias);
+  if (!entry) {
+    throw new Error(`Alias "${currentAlias}" not found`);
+  }
+  const rejection = checkAlias(reg, nextAlias, { ignoreAlias: currentAlias });
+  if (rejection) {
+    throw new Error(describeAliasRejection(rejection, nextAlias));
+  }
+  entry.alias = nextAlias;
+  await saveAliases(reg);
 }
 
 // src/providers/codex/registry.ts
@@ -15162,19 +15170,15 @@ async function add(alias) {
         value: "claude-apikey"
       },
       {
-        name: "Claude Code · ChatGPT（本机 CLIProxyAPI）",
-        value: "claude-local-cliproxyapi"
-      },
-      {
-        name: "Claude Code · WorkBuddy（本机 CLIProxyAPI）",
+        name: "Claude Code · WorkBuddy",
         value: "claude-workbuddy"
       },
       {
-        name: "Claude Code · Antigravity（本机 CLIProxyAPI）",
+        name: "Claude Code · Antigravity",
         value: "claude-antigravity"
       },
       {
-        name: "Claude Code · Cursor（本机 CLIProxyAPI）",
+        name: "Claude Code · Cursor",
         value: "claude-cursor"
       },
       {
@@ -15201,9 +15205,6 @@ async function add(alias) {
       break;
     case "claude-apikey":
       await addClaudeApiKey(alias);
-      break;
-    case "claude-local-cliproxyapi":
-      await addLocalCLIProxyAPI(alias);
       break;
     case "claude-workbuddy":
     case "claude-antigravity":
@@ -15393,58 +15394,6 @@ async function addClaudeApiKey(alias) {
   success2(`${source_default.bold(alias)} created  ${source_default.dim(maskKey(config.apiKey))}`);
   await maybeSetupRelayBalance(config.baseUrl);
   blank();
-}
-async function addLocalCLIProxyAPI(alias) {
-  const binaryPath = await resolveCLIProxyAPIBinaryForAdd();
-  if (!binaryPath) {
-    blank();
-    error("CLIProxyAPI was not installed or no valid executable was selected.");
-    hint("Install it with Homebrew on macOS, or rerun add and provide an existing cli-proxy-api path.");
-    blank();
-    process.exit(1);
-  }
-  const profileId = createManagedCLIProxyAPIProfileId();
-  const profileName = `cliproxy-${profileId}`;
-  const profile = {
-    type: "local-cliproxyapi",
-    profileId,
-    binaryPath,
-    defaultModel: CLI_PROXY_API_DEFAULTS.fableModel
-  };
-  let profileWritten = false;
-  try {
-    await initializeManagedCLIProxyAPI(profileId);
-    info("Opening CLIProxyAPI's own ChatGPT login in your browser...");
-    blank();
-    const login = await runManagedCLIProxyAPILogin({
-      profileId,
-      binaryPath
-    });
-    if (!login.success || !login.identity) {
-      throw new Error("Login failed, was cancelled, or did not produce one valid Codex OAuth credential.");
-    }
-    profile.authIdentity = login.identity;
-    await addLocalCLIProxyAPIProfile(profileName, profile);
-    profileWritten = true;
-    await addAlias(alias, { provider: "claude", profileName });
-    blank();
-    success2(`${source_default.bold(alias)} created  ${source_default.dim("ChatGPT via local CLIProxyAPI")}`);
-    hint(`Default mapping: fable → ${CLI_PROXY_API_DEFAULTS.fableModel}, opus/sonnet → ${CLI_PROXY_API_DEFAULTS.opusModel}, haiku → ${CLI_PROXY_API_DEFAULTS.haikuModel}.`);
-    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start Claude Code; its normal skills, MCP servers, hooks, and CLAUDE.md remain enabled.`);
-    blank();
-  } catch (err) {
-    try {
-      if (profileWritten || await profileExists(profileName)) {
-        await removeProfile(profileName);
-      } else {
-        await cleanupFailedManagedCLIProxyAPI(profileId);
-      }
-    } catch {}
-    blank();
-    error(err instanceof Error ? err.message : String(err));
-    blank();
-    process.exit(1);
-  }
 }
 async function resolveCLIProxyAPIBinaryForAdd() {
   const existing = findCLIProxyAPIBinary();
@@ -18220,13 +18169,10 @@ function renderLines(infos, refreshing, activity) {
   try {
     blank();
     console.log(header("  Accounts"));
-    const sections = [
-      ["Claude", "claude"],
-      ["Codex", "codex"],
-      ["OpenCode", "opencode"]
-    ];
-    for (const [title, provider] of sections) {
-      const sectionInfos = infos.filter((info2) => info2.provider === provider);
+    infos = infos.filter((info2) => info2.section !== null);
+    const sections = ["Claude", ...["antigravity", "workbuddy", "workbuddy-ai", "cursor", "opencode-go"].map((upstream) => CLI_PROXY_API_UPSTREAMS[upstream].label), "Codex", "OpenCode"];
+    for (const title of sections) {
+      const sectionInfos = infos.filter((info2) => (info2.section ?? { claude: "Claude", codex: "Codex", opencode: "OpenCode" }[info2.provider]) === title);
       if (sectionInfos.length === 0)
         continue;
       blank();
@@ -18298,7 +18244,7 @@ function renderSection(infos) {
     const icon = info2.isActive ? icons.active : icons.inactive;
     const name = info2.isActive ? source_default.green.bold(info2.alias) : info2.alias;
     const paddedName = name + " ".repeat(Math.max(0, maxAliasLen - info2.alias.length));
-    const type = formatType(info2.authMode);
+    const type = info2.authMode === "local-cliproxyapi" ? "" : formatType(info2.authMode);
     const plan = formatPlan(info2.plan);
     const email = info2.email ? source_default.dim(info2.email) : "";
     const apiProvider = info2.apiProvider ? source_default.dim(info2.apiProvider) : "";
@@ -18334,6 +18280,7 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
   try {
     const profileData = await readJson(claudeProfileDataFile(profileName), { type: "oauth" });
     info2.authMode = profileData.type;
+    info2.section = claudeAccountSection(profileData);
     info2.defaultModel = profileData.type === "api-key" ? profileData.model ?? null : profileData.defaultModel ?? null;
     if (profileData.type === "local-cliproxyapi") {
       const status = await inspectManagedCLIProxyAPI({
@@ -18341,8 +18288,7 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
         binaryPath: profileData.binaryPath
       });
       const upstream = profileData.upstream ?? "codex";
-      const prefix = upstream === "codex" ? "CLIProxyAPI" : CLI_PROXY_API_UPSTREAMS[upstream].label;
-      info2.apiProvider = status.loggedIn ? !status.environmentValid ? `${prefix} · invalid private env` : !status.configured ? `${prefix} · invalid config` : status.running ? `${prefix} · running` : `${prefix} · stopped` : `${prefix} · login required`;
+      info2.apiProvider = status.loggedIn ? !status.environmentValid ? "invalid private env" : !status.configured ? "invalid config" : status.running ? "running" : "stopped" : "login required";
       if (upstream !== "codex") {
         try {
           info2.defaultModel = await resolveManagedLocalCLIProxyAPIDefaultModel(profileData);
@@ -18741,8 +18687,11 @@ async function current2() {
   if (claudeState.active) {
     const alias = aliasReg.aliases.find((a) => a.target.provider === "claude" && a.target.profileName === claudeState.active);
     const displayName = alias ? alias.alias : claudeState.active;
-    console.log(`  ${formatProvider("claude")}:  ${source_default.green.bold(displayName)}`);
-    found = true;
+    const section = claudeAccountSection(await getProfileData(claudeState.active));
+    if (section !== null) {
+      console.log(`  ${section}:  ${source_default.green.bold(displayName)}`);
+      found = true;
+    }
   }
   if (codexReg?.active_account_key) {
     const alias = aliasReg.aliases.find((a) => a.target.provider === "codex" && a.target.accountKey === codexReg.active_account_key);
@@ -19196,7 +19145,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.27.1",
+  version: "1.28.0",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -21619,7 +21568,12 @@ function parseListOptions(args) {
 }
 async function interactivePicker() {
   const aliasReg = await loadAliases();
-  if (aliasReg.aliases.length === 0) {
+  const accounts = await Promise.all(aliasReg.aliases.map(async (entry) => ({
+    entry,
+    section: await aliasSection(entry)
+  })));
+  const visibleAccounts = accounts.filter((account) => account.section !== null);
+  if (visibleAccounts.length === 0) {
     blank();
     console.log(source_default.bold("  Welcome to claudex-switch"));
     blank();
@@ -21635,8 +21589,7 @@ async function interactivePicker() {
     codexReg = await loadRegistry();
   } catch {}
   const openCodeState = await readOpenCodeState();
-  const choices = aliasReg.aliases.map((entry) => {
-    const provider = formatProvider(entry.target.provider);
+  const choices = visibleAccounts.map(({ entry, section }) => {
     let isActive = false;
     if (entry.target.provider === "claude") {
       isActive = claudeState.active === entry.target.profileName;
@@ -21647,7 +21600,7 @@ async function interactivePicker() {
     }
     const active = isActive ? source_default.dim(" (active)") : "";
     return {
-      name: `${entry.alias}  ${provider}${active}`,
+      name: `${entry.alias}  ${section}${active}`,
       value: entry.alias
     };
   });

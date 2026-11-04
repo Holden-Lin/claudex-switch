@@ -121,7 +121,8 @@ describe("proxy quota", () => {
     await writeUsageCache(cache);
     await list({ cached: true, background: true, spawnRefresh: () => {} });
     const output = console.log.mock.calls.flat().join("\n");
-    expect(output).toContain("proxy  local CLIProxyAPI  Antigravity");
+    expect(output).toContain("── Antigravity ──");
+    expect(output).not.toContain("CLIProxyAPI");
     expect(output).not.toContain("unknown");
     expect(output).not.toContain("quota unavailable");
     expect(output).not.toContain("ago");

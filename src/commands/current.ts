@@ -1,6 +1,7 @@
 import chalk from "chalk";
+import { claudeAccountSection } from "../lib/account-display";
 import { loadAliases } from "../alias/store";
-import { readState } from "../providers/claude/profiles";
+import { getProfileData, readState } from "../providers/claude/profiles";
 import { loadRegistry } from "../providers/codex/registry";
 import { readOpenCodeState } from "../providers/opencode/profiles";
 import { blank, hint, formatProvider } from "../lib/ui";
@@ -29,10 +30,11 @@ export async function current(): Promise<void> {
         a.target.profileName === claudeState.active,
     );
     const displayName = alias ? alias.alias : claudeState.active;
-    console.log(
-      `  ${formatProvider("claude")}:  ${chalk.green.bold(displayName)}`,
-    );
-    found = true;
+    const section = claudeAccountSection(await getProfileData(claudeState.active));
+    if (section !== null) {
+      console.log(`  ${section}:  ${chalk.green.bold(displayName)}`);
+      found = true;
+    }
   }
 
   // Codex active

@@ -67,7 +67,9 @@ claudex-switch add personal  # Add personal account
 claudex-switch list
 # Shortcut: claudex-switch ls
 ```
-Instantly displays account status, 5-hour / weekly remaining quota percentages (e.g., `5h 89% · wk 61% Wed16`), and relay balances.
+Accounts appear in separate Claude, Antigravity, WorkBuddy China / international, Cursor, Codex, and OpenCode sections; empty sections stay hidden. Legacy ChatGPT proxy accounts are hidden from the list, picker, and `current`, and are no longer offered by `add`. Existing aliases still run; `list --json` keeps the complete inventory.
+
+Displays account status, 5-hour / weekly remaining quota percentages (e.g., `5h 89% · wk 61% Wed16`), and relay balances.
 
 ### 3. Launch a Session or Switch Account
 - **Option A (Recommended): Isolated Session (does not alter global default, safe for parallel terminals)**

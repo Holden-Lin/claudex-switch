@@ -8,7 +8,7 @@ import {
 } from "bun:test";
 import * as childProcess from "child_process";
 import { EventEmitter } from "events";
-import { mkdir, readFile, readdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import * as prompts from "@inquirer/prompts";
 
@@ -40,13 +40,9 @@ let selectHandler = async () => "codex-chatgpt";
 let confirmHandler = async () => true;
 let passwordHandler = async () => "unused";
 let inputHandler = async () => "unused";
-const nativeSpawn = childProcess.spawn;
-const nativeSpawnSync = childProcess.spawnSync;
-let spawnDelegate: typeof childProcess.spawn | null = null;
 let add: typeof import("../src/commands/add").add;
 const { loadAliases } = await import("../src/alias/store");
 const {
-  CLI_PROXY_API_DIR,
   CODEX_CONFIG_FILE,
   OPENCODE_GLOBAL_AUTH_FILE,
   SETTINGS_FILE,
@@ -58,17 +54,12 @@ const { readActiveAuth, readAccountAuth } = await import(
   "../src/providers/codex/auth"
 );
 const { loadRegistry } = await import("../src/providers/codex/registry");
-const { getProfileData } = await import("../src/providers/claude/profiles");
-const { stopManagedCLIProxyAPI } = await import(
-  "../src/providers/cliproxyapi/managed"
-);
 const { makeJwt, resetTestHome, createNativeOpenCodeCredentialDatabase } =
   await import("./helpers");
 import type { CodexAuthFile } from "../src/types";
 
 const originalFetch = globalThis.fetch;
 const { RELAYS_FILE } = await import("../src/lib/paths");
-const FIXTURE_BINARY = join(import.meta.dir, "fixtures", "fake-cliproxyapi");
 
 describe("add", () => {
   afterEach(() => {
@@ -98,7 +89,6 @@ describe("add", () => {
     confirmHandler = async () => true;
     passwordHandler = async () => "unused";
     inputHandler = async () => "unused";
-    spawnDelegate = null;
 
     spyOn(prompts, "select").mockImplementation(() => selectHandler());
     spyOn(prompts, "confirm").mockImplementation(() => confirmHandler());
@@ -106,13 +96,6 @@ describe("add", () => {
     spyOn(prompts, "input").mockImplementation(() => inputHandler());
 
     spyOn(childProcess, "spawn").mockImplementation((command, args, options) => {
-      if (spawnDelegate) {
-        return spawnDelegate(
-          command as Parameters<typeof childProcess.spawn>[0],
-          args as string[],
-          options as Parameters<typeof childProcess.spawn>[2],
-        );
-      }
       const proc = new EventEmitter() as EventEmitter & {
         on(event: string, listener: (...value: unknown[]) => void): unknown;
       };
@@ -658,109 +641,20 @@ describe("add", () => {
     errorSpy.mockRestore();
   });
 
-  test("adds the first local CLIProxyAPI account from an explicit installed binary", async () => {
-    selectHandler = async () => "claude-local-cliproxyapi";
-    inputHandler = async () => FIXTURE_BINARY;
-    spawnDelegate = nativeSpawn;
-    // This test's managed loopback probe must reach the fixture server; the
-    // standard add suite otherwise stubs relay discovery fetches to 404.
-    globalThis.fetch = originalFetch;
-    spawnSyncHandler = (command, args) => {
-      if (command === "ps") {
-        return nativeSpawnSync(command, args, {
-          encoding: "utf-8",
-          stdio: ["ignore", "pipe", "ignore"],
-        });
-      }
-      if (command === FIXTURE_BINARY && args[0] === "--help") {
-        return { status: 0, stdout: "fake CLIProxyAPI", stderr: "" };
-      }
-      // Make discovery reach the explicit-binary path without relying on a
-      // developer-installed Homebrew binary.
-      return { status: 1, stdout: "", stderr: "not found" };
-    };
-    const logSpy = spyOn(console, "log").mockImplementation(() => {});
-
-    let profile: Awaited<ReturnType<typeof getProfileData>> | null = null;
-    try {
-      await add("chatgpt-local");
-      const aliases = await loadAliases();
-      expect(aliases.aliases).toEqual([
-        {
-          alias: "chatgpt-local",
-          target: {
-            provider: "claude",
-            profileName: expect.stringMatching(/^cliproxy-[a-f0-9-]+$/),
-          },
-          createdAt: expect.any(Number),
-        },
-      ]);
-      const profileName = aliases.aliases[0]?.target.provider === "claude"
-        ? aliases.aliases[0].target.profileName
-        : "";
-      profile = await getProfileData(profileName);
-      expect(profile).toMatchObject({
-        type: "local-cliproxyapi",
-        binaryPath: FIXTURE_BINARY,
-        defaultModel: "gpt-6-astra",
-        authIdentity: expect.any(String),
-      });
-      expect(profile.type === "local-cliproxyapi" && profile.profileId).toBeTruthy();
-      expect(await Bun.file(SETTINGS_FILE).exists()).toBe(false);
-      expect(logSpy.mock.calls.flat().join("\n")).toContain("chatgpt-local created");
-    } finally {
-      if (profile?.type === "local-cliproxyapi") {
-        await stopManagedCLIProxyAPI({
-          profileId: profile.profileId,
-          binaryPath: profile.binaryPath,
-        });
-      }
-      logSpy.mockRestore();
-    }
-  });
-
-  test("cancels local setup before login without creating an alias", async () => {
-    selectHandler = async () => "claude-local-cliproxyapi";
-    inputHandler = async () => "";
-    spawnSyncHandler = () => ({ status: 1, stdout: "", stderr: "not found" });
-    const exitSpy = spyOn(process, "exit").mockImplementation((() => {
-      throw new Error("expected exit");
-    }) as never);
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+  test("offers upstream names without a ChatGPT proxy or implementation labels", async () => {
+    selectHandler = async () => { throw new Error("menu captured"); };
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
     try {
-      await expect(add("cancel-local")).rejects.toThrow("expected exit");
-      expect((await loadAliases()).aliases).toEqual([]);
-    } finally {
-      exitSpy.mockRestore();
-      errorSpy.mockRestore();
-      logSpy.mockRestore();
-    }
-  });
-
-  test("rolls back local managed setup when CLIProxyAPI login fails", async () => {
-    selectHandler = async () => "claude-local-cliproxyapi";
-    inputHandler = async () => FIXTURE_BINARY;
-    spawnDelegate = nativeSpawn;
-    spawnSyncHandler = (command, args) =>
-      command === FIXTURE_BINARY && args[0] === "--help"
-        ? { status: 0, stdout: "fake CLIProxyAPI", stderr: "" }
-        : { status: 1, stdout: "", stderr: "not found" };
-    process.env.CLAUDEX_FAKE_LOGIN_EXIT = "1";
-    const exitSpy = spyOn(process, "exit").mockImplementation((() => {
-      throw new Error("expected exit");
-    }) as never);
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const logSpy = spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await expect(add("failed-local")).rejects.toThrow("expected exit");
-      expect((await loadAliases()).aliases).toEqual([]);
-      expect(await readdir(CLI_PROXY_API_DIR)).toEqual([]);
-    } finally {
-      delete process.env.CLAUDEX_FAKE_LOGIN_EXIT;
-      exitSpy.mockRestore();
-      errorSpy.mockRestore();
-      logSpy.mockRestore();
-    }
+      await expect(add("menu-check")).rejects.toThrow("menu captured");
+      const options = prompts.select.mock.calls[0][0];
+      const choices = options.choices as Array<{ name: string; value: string }>;
+      const labels = choices.map((choice) => choice.name).join("\n");
+      expect(labels).toContain("Claude Code · WorkBuddy");
+      expect(labels).toContain("Claude Code · Antigravity");
+      expect(labels).toContain("Claude Code · Cursor");
+      expect(labels).not.toContain("CLIProxyAPI");
+      expect(choices.some((choice) => choice.value === "claude-local-cliproxyapi")).toBe(false);
+      expect(choices.some((choice) => choice.value === "codex-chatgpt")).toBe(true);
+    } finally { logSpy.mockRestore(); }
   });
 });

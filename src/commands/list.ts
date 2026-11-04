@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { claudeAccountSection } from "../lib/account-display";
 import { stripVTControlCharacters } from "util";
 import { loadAliases } from "../alias/store";
 import {
@@ -61,7 +62,6 @@ import {
 } from "../lib/ui";
 import type {
   AliasEntry,
-  Provider,
   OAuthAccount,
   AccountInfo,
   CodexRegistryAccount,
@@ -95,6 +95,7 @@ type ListAccountStatus =
   | "login-required";
 
 interface ListAccountInfo extends AccountInfo {
+  section?: string | null;
   status: ListAccountStatus;
   /** Status of the Claude Code proxy behind `--cliproxy claudecode`, if linked. */
   linkedClient?: string | null;
@@ -499,13 +500,13 @@ function renderLines(
     blank();
     console.log(header("  Accounts"));
 
-    const sections: Array<[string, Provider]> = [
-      ["Claude", "claude"],
-      ["Codex", "codex"],
-      ["OpenCode", "opencode"],
-    ];
-    for (const [title, provider] of sections) {
-      const sectionInfos = infos.filter((info) => info.provider === provider);
+    infos = infos.filter((info) => info.section !== null);
+    const sections = ["Claude", ...(["antigravity", "workbuddy", "workbuddy-ai", "cursor", "opencode-go"] as const).map(
+      (upstream) => CLI_PROXY_API_UPSTREAMS[upstream].label,
+    ), "Codex", "OpenCode"];
+    for (const title of sections) {
+      const sectionInfos = infos.filter((info) =>
+        (info.section ?? { claude: "Claude", codex: "Codex", opencode: "OpenCode" }[info.provider]) === title);
       if (sectionInfos.length === 0) continue;
       blank();
       sectionHeader(title);
@@ -593,7 +594,7 @@ function renderSection(infos: ListAccountInfo[]): void {
       : info.alias;
     const paddedName =
       name + " ".repeat(Math.max(0, maxAliasLen - info.alias.length));
-    const type = formatType(info.authMode);
+    const type = info.authMode === "local-cliproxyapi" ? "" : formatType(info.authMode);
     const plan = formatPlan(info.plan);
     const email = info.email ? chalk.dim(info.email) : "";
     const apiProvider = info.apiProvider
@@ -651,6 +652,7 @@ async function getClaudeAccountInfo(
       { type: "oauth" },
     );
     info.authMode = profileData.type;
+    info.section = claudeAccountSection(profileData);
     info.defaultModel =
       profileData.type === "api-key"
         ? profileData.model ?? null
@@ -661,21 +663,16 @@ async function getClaudeAccountInfo(
         profileId: profileData.profileId,
         binaryPath: profileData.binaryPath,
       });
-      // The auth type already names CLIProxyAPI; only name the upstream here.
       const upstream = profileData.upstream ?? "codex";
-      const prefix =
-        upstream === "codex"
-          ? "CLIProxyAPI"
-          : CLI_PROXY_API_UPSTREAMS[upstream].label;
       info.apiProvider = status.loggedIn
         ? !status.environmentValid
-          ? `${prefix} · invalid private env`
+          ? "invalid private env"
           : !status.configured
-          ? `${prefix} · invalid config`
+          ? "invalid config"
           : status.running
-          ? `${prefix} · running`
-          : `${prefix} · stopped`
-        : `${prefix} · login required`;
+          ? "running"
+          : "stopped"
+        : "login required";
       if (upstream !== "codex") {
         try {
           info.defaultModel = await resolveManagedLocalCLIProxyAPIDefaultModel(profileData);
