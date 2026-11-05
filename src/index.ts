@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { getProfileData } from "./providers/claude/profiles";
 import chalk from "chalk";
 import { aliasSection } from "./lib/account-display";
 import { select } from "@inquirer/prompts";
@@ -13,7 +14,7 @@ import { add } from "./commands/add";
 import { use } from "./commands/use";
 import { isRunFlag, isCliproxyRunInvocation, runAliasSession } from "./commands/run";
 import { isAntigravityName, isSubscriptionName } from "./commands/cliproxy";
-import { runManagedSubscriptionProxy } from "./providers/cliproxyapi/managed";
+import { readManagedCLIProxyAPIEmail, runManagedSubscriptionProxy } from "./providers/cliproxyapi/managed";
 import { list, refreshUsageCache, type ListOptions } from "./commands/list";
 import { refreshActivityCache } from "./lib/activity";
 import { remove } from "./commands/remove";
@@ -156,9 +157,11 @@ function parseListOptions(args: string[]): ListOptions | null {
 async function interactivePicker(): Promise<void> {
   const aliasReg = await loadAliases();
 
-  const accounts = await Promise.all(aliasReg.aliases.map(async (entry) => ({
-    entry, section: await aliasSection(entry),
-  })));
+  const accounts = await Promise.all(aliasReg.aliases.map(async (entry) => {
+    const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
+    const email = profile?.type === "local-cliproxyapi" ? await readManagedCLIProxyAPIEmail(profile) : null;
+    return { entry, section: await aliasSection(entry), email };
+  }));
   const visibleAccounts = accounts.filter((account) => account.section !== null);
 
   if (visibleAccounts.length === 0) {
@@ -191,7 +194,7 @@ async function interactivePicker(): Promise<void> {
   }
   const openCodeState = await readOpenCodeState();
 
-  const choices = visibleAccounts.map(({ entry, section }) => {
+  const choices = visibleAccounts.map(({ entry, section, email }) => {
     let isActive = false;
 
     if (entry.target.provider === "claude") {
@@ -205,7 +208,7 @@ async function interactivePicker(): Promise<void> {
     const active = isActive ? chalk.dim(" (active)") : "";
 
     return {
-      name: `${entry.alias}  ${section}${active}`,
+      name: `${entry.alias}  ${section}${email ? `  ${chalk.dim(email)}` : ""}${active}`,
       value: entry.alias,
     };
   });

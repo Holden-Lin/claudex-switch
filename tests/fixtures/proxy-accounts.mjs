@@ -136,12 +136,26 @@ try {
   await put(".claude-profiles/legacy-chatgpt/profile.json", { ...profile, upstream: "codex" });
   aliases.aliases.push({ alias: "legacy-chatgpt", target: { provider: "claude", profileName: "legacy-chatgpt" }, createdAt: 1 });
   await put(".claudex-switch/aliases.json", aliases);
+  const window = (remaining) => ({ fiveHourUsedPercent: 100 - remaining, fiveHourResetsAt: null, weeklyUsedPercent: null, weeklyResetsAt: null });
+  const quotaEntries = {};
+  for (const entry of aliases.aliases.filter((item) => ["agy", "wb-ai", "wb-cn"].includes(item.alias))) {
+    quotaEntries[`claude:${entry.target.profileName}`] = {
+      usage: entry.alias === "agy" ? { ...window(0), fiveHourUsedPercent: null, groups: [
+        { name: "Claude/GPT", usage: { ...window(100), weeklyUsedPercent: 93 } },
+        { name: "Gemini", usage: { ...window(92), weeklyUsedPercent: 60 } },
+      ] } : { ...window(0), fiveHourUsedPercent: null, credits: { used: 350, total: 350 } },
+      balance: null, plan: entry.alias === "agy" ? null : "free", dataAt: Date.now(), note: null, checkedAt: Date.now(),
+    };
+  }
+  await put(".claudex-switch/usage-cache.json", { version: 1, refreshStartedAt: Date.now(), refreshFinishedAt: Date.now(), entries: quotaEntries });
   if (process.argv[3]) {
-    const before = await start(["list", "--no-usage"], {}, [], process.argv[3]).done;
+    const before = await start(["list", "--cached"], {}, [], process.argv[3]).done;
     assert.equal(before.code, 0, before.output);
     console.log("BEFORE LIST\n" + before.output);
   }
-  const rendered = await run(["list", "--no-usage"]);
+  const rendered = await run(["list", "--cached"]);
+  assert(rendered.includes("Gemini 5h 92% · wk 40% · Claude/GPT 5h 100% · wk 7%"), rendered);
+  assert.equal((rendered.match(/fixture@example.com/g) ?? []).length, 4, rendered);
   for (const title of ["Claude", "Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
     assert(rendered.includes(`── ${title} ──`), rendered);
   assert(!rendered.includes("CLIProxyAPI") && !rendered.includes("legacy-chatgpt"), rendered);
@@ -153,6 +167,7 @@ try {
   assert(!picker.output().includes("legacy-chatgpt") && !picker.output().includes("CLIProxyAPI"), picker.output());
   for (const label of ["Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
     assert(picker.output().includes(label), picker.output());
+  assert(picker.output().includes("fixture@example.com"), picker.output());
   picker.child.kill("SIGTERM");
   await picker.done;
   console.log("picker: upstream labels visible; legacy ChatGPT proxy hidden; no CLIProxyAPI wording");

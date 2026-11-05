@@ -80,7 +80,7 @@ async function readAuthFile(file: string, upstream: SubscriptionUpstream): Promi
   return stored.auth;
 }
 
-async function getAuth(directory: string, upstream: SubscriptionUpstream): Promise<Auth | undefined> {
+export async function readSubscriptionAuth(directory: string, upstream: SubscriptionUpstream): Promise<Auth | undefined> {
   const file = authPath(directory);
   await writes.get(file);
   return readAuthFile(file, upstream);
@@ -134,7 +134,7 @@ async function context(directory: string, upstream: SubscriptionUpstream, option
     return {
       plugin,
       provider: { ...config.provider[upstream], id: upstream, models: config.provider[upstream]?.models ?? {} },
-      getAuth: () => getAuth(directory, upstream),
+      getAuth: () => readSubscriptionAuth(directory, upstream),
     };
   };
   // Injected factories are scoped to their caller; production factories persist for the process.
@@ -196,7 +196,7 @@ export async function loginSubscriptionPlugin(directory: string, upstream: Subsc
 
 export async function hasSubscriptionLogin(directory: string, upstream: SubscriptionUpstream): Promise<boolean> {
   try {
-    const auth = await getAuth(directory, upstream);
+    const auth = await readSubscriptionAuth(directory, upstream);
     return !!auth && (!!auth.access || auth.source === "desktop" || (upstream === "cursor" && auth.refresh === "cursor-agent"));
   } catch {
     return false;

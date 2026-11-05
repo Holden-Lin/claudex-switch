@@ -2,16 +2,18 @@
 
 ## 列表中的套餐与额度
 
-`list` 查询 Antigravity 的额度汇总接口，并按服务端返回的模型组分别显示 5 小时 / 每周剩余额度；不会将 Claude/GPT 组的额度当成 Gemini 的额度。WorkBuddy 复用已安装插件的套餐与积分查询。示例（数值会随用量变化）：
+`list` 查询 Antigravity 的额度汇总接口，并按服务端返回的模型组分别显示 5 小时 / 每周剩余额度；不会将 Claude/GPT 组的额度当成 Gemini 的额度。有 Gemini 数据时先显示 Gemini，再显示 Claude/GPT；只有 Claude/GPT 数据时只显示带标签的该组，不推断 Gemini 额度。Claude/GPT 指 Antigravity 提供的 Claude 和 GPT 模型共用的额度。WorkBuddy 复用已安装插件的套餐与积分查询。示例（数值会随用量变化）：
 
 ```text
 ── Antigravity ──
-  agy        running  …  Claude/GPT 5h 37% · wk 21% Thu20
+  agy        someone@gmail.com  running  gemini-3.8-flash-high  Gemini 5h 92% · wk 40% · Claude/GPT 5h 100% · wk 7% Thu20
 ── WorkBuddy AI (international) ──
-  workbuddy  Free  running  …  credits 0% (0/350 left)
+  workbuddy  Free  someone@example.com  running  deepseek-v4.1-flash  credits 0% (0/350 left)
 ```
 
 `list` 将 Antigravity、WorkBuddy (China)、WorkBuddy AI (international)、Cursor 分区显示，只显示已有账号的分区。ChatGPT 代理账号从人类可读的 `list`、无参数选择器和 `current` 隐藏；`add` 不再提供该类型。已有别名仍可运行、重命名、移除及清理；`list --json` 保留完整清单与原有字段。
+
+代理邮箱以灰色显示在套餐之后；选择器和 `current` 同样显示可用的邮箱。邮箱只从现有本地登录记录读取，不增加网络请求。Antigravity 使用登录记录的 `email`，Cursor 使用插件保存的邮箱 `accountId`；WorkBuddy 仅在本地 `email` 或 `accountId` 本身是邮箱时显示。当前 WorkBuddy 插件通常只保存昵称、手机号或 UID，查不到邮箱时留空，不把昵称或 UID 当成邮箱，也不显示占位文字。
 
 积分为零只表示收费模型的积分耗尽，不代表 x0.00 免费模型不能用。查不到的套餐、额度不显示 `unknown` / `quota unavailable`。接口超时或令牌尚未续期时，有历史额度就保留并标出时间，无历史数据就隐藏。Antigravity 的登录续期仍由 CLIProxyAPI 管理，查询不会另行轮换其令牌。`list --cached` 复用后台缓存；`--no-usage` 不请求额度。
 

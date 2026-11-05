@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { saveAliases } from "../src/alias/store";
+import { current } from "../src/commands/current";
 import { list } from "../src/commands/list";
-import { cliProxyAPIAuthDir, cliProxyAPIProfileDir } from "../src/lib/paths";
+import { CLAUDE_STATE_FILE, cliProxyAPIAuthDir, cliProxyAPIProfileDir } from "../src/lib/paths";
 import { readUsageCache, writeUsageCache } from "../src/lib/usage-cache";
 import { saveLocalCLIProxyAPIProfile } from "../src/providers/claude/profiles";
 import { initializeManagedCLIProxyAPI } from "../src/providers/cliproxyapi/managed";
@@ -24,14 +25,14 @@ const quota = {
   ],
 };
 
-async function seed(upstream: "antigravity" | "workbuddy-ai"): Promise<LocalCLIProxyAPIProfileData> {
+async function seed(upstream: "antigravity" | "workbuddy" | "workbuddy-ai" | "cursor"): Promise<LocalCLIProxyAPIProfileData> {
   await initializeManagedCLIProxyAPI(profileId, { upstream });
   await saveLocalCLIProxyAPIProfile("proxy", { type: "local-cliproxyapi", profileId, binaryPath, upstream });
   await saveAliases({ version: 1, aliases: [{ alias: "proxy", target: { provider: "claude", profileName: "proxy" }, createdAt: 1 }] });
   if (upstream === "antigravity") {
     await writeFile(join(cliProxyAPIAuthDir(profileId), "account.json"), JSON.stringify({ type: upstream, access_token: "test-access", project_id: "test-project", email: "test@example.com" }));
   } else {
-    await writeFile(join(cliProxyAPIProfileDir(profileId), "plugin-auth.json"), JSON.stringify({ version: 1, upstream, auth: { type: "oauth", access: "test-access", uid: "test-user" } }));
+    await writeFile(join(cliProxyAPIProfileDir(profileId), "plugin-auth.json"), JSON.stringify({ version: 1, upstream, auth: { type: "oauth", access: "test-access", uid: "test-user", accountId: "test@example.com" } }));
   }
   return { type: "local-cliproxyapi", profileId, binaryPath, upstream };
 }
@@ -60,6 +61,8 @@ describe("proxy quota", () => {
     expect(output).toContain("Claude/GPT 5h 37%");
     expect(output).toContain("wk 21%");
     expect(output).toContain("Gemini 5h 100%");
+    expect(output.indexOf("Gemini 5h")).toBeLessThan(output.indexOf("Claude/GPT 5h"));
+    expect(output).toContain("test@example.com");
     expect(output).not.toContain("unknown");
     expect(output).not.toContain("quota unavailable");
     expect(output).not.toContain("test-access");
@@ -127,6 +130,39 @@ describe("proxy quota", () => {
     expect(output).not.toContain("quota unavailable");
     expect(output).not.toContain("ago");
     expect(calls).toBe(0);
+  });
+
+  for (const upstream of ["antigravity", "workbuddy", "workbuddy-ai", "cursor"] as const) {
+    test(`${upstream} reads a local email in list and current without quota requests`, async () => {
+      await seed(upstream);
+      globalThis.fetch = (() => { throw new Error("must not fetch"); }) as typeof fetch;
+      spyOn(console, "log").mockImplementation(() => {});
+      await list({ usage: false });
+      expect(console.log.mock.calls.flat().join("\n")).toContain("test@example.com");
+      await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: "proxy" }));
+      console.log.mockClear();
+      await current();
+      expect(console.log.mock.calls.flat().join("\n")).toContain("test@example.com");
+    });
+  }
+
+  test("missing email and a WorkBuddy nickname never produce an email placeholder", async () => {
+    await seed("workbuddy-ai");
+    await writeFile(join(cliProxyAPIProfileDir(profileId), "plugin-auth.json"), JSON.stringify({ version: 1, upstream: "workbuddy-ai", auth: { type: "oauth", access: "test-access", accountId: "Nickname", uid: "12345" } }));
+    spyOn(console, "log").mockImplementation(() => {});
+    await list({ usage: false });
+    const output = console.log.mock.calls.flat().join("\n");
+    expect(output).not.toMatch(/Nickname|12345|unknown|email|n\/a|null/);
+  });
+
+  test("Claude/GPT-only quota is labelled without inventing a Gemini window", async () => {
+    await seed("antigravity");
+    globalThis.fetch = (async () => Response.json({ groups: [quota.groups[0]] })) as typeof fetch;
+    spyOn(console, "log").mockImplementation(() => {});
+    await list();
+    const output = console.log.mock.calls.flat().join("\n");
+    expect(output).toContain("Claude/GPT 5h 37%");
+    expect(output).not.toContain("Gemini");
   });
 
   test("unavailable or expired upstream access returns no quota and does not write credentials", async () => {

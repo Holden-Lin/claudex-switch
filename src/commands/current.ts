@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { claudeAccountSection } from "../lib/account-display";
 import { loadAliases } from "../alias/store";
 import { getProfileData, readState } from "../providers/claude/profiles";
+import { readManagedCLIProxyAPIEmail } from "../providers/cliproxyapi/managed";
 import { loadRegistry } from "../providers/codex/registry";
 import { readOpenCodeState } from "../providers/opencode/profiles";
 import { blank, hint, formatProvider } from "../lib/ui";
@@ -30,9 +31,11 @@ export async function current(): Promise<void> {
         a.target.profileName === claudeState.active,
     );
     const displayName = alias ? alias.alias : claudeState.active;
-    const section = claudeAccountSection(await getProfileData(claudeState.active));
+    const profile = await getProfileData(claudeState.active);
+    const section = claudeAccountSection(profile);
+    const email = profile.type === "local-cliproxyapi" ? await readManagedCLIProxyAPIEmail(profile) : null;
     if (section !== null) {
-      console.log(`  ${section}:  ${chalk.green.bold(displayName)}`);
+      console.log(`  ${section}:  ${chalk.green.bold(displayName)}${email ? `  ${chalk.dim(email)}` : ""}`);
       found = true;
     }
   }
