@@ -1,8 +1,9 @@
-# 代理邮箱与额度标签：部分交付清单
+# 代理邮箱与额度标签：交付清单（v2）
 
-人类界面的邮箱与 Gemini 优先标签已实现并验证。JSON 原有隐私契约与派单要求冲突，已向 ROOT 提问，裁定前保留原行为。当前 WorkBuddy 插件不保留独立邮箱字段，因此真实账号邮箱能否显示为 UNKNOWN；没有为补邮箱增加网络请求。
+人类界面的邮箱与 Gemini 优先标签已实现并验证。ROOT 已撤回 JSON 邮箱要求，确认保持原隐私白名单；WorkBuddy 无邮箱字段时留空并记 UNKNOWN。按此裁定完成交付，没有为补邮箱增加网络请求。
 
 - Dispatch：`CXS-PROXY-EMAIL-QLABEL-20261105`；合同：`CXS-PROXY-EMAIL-QLABEL-20261105-v1`。
+- 交付版本：`CXS-PROXY-EMAIL-QLABEL-20261105-v2`；原合同 v1 加下方 ROOT 裁定，代码沿用实现提交，v2 仅更新回执。
 - 合同 SHA256：`fcbe0f42c6d4d473c061cfab2b2b2c8483a1f1007f303bee32ba7808e771c319`，已核对。
 - 分支：`feat/proxy-email-qlabel-20261105`；基线 `6ccefb30`；实现提交 `c6eca6f`；本清单提交取最终 HEAD。
 - ACK 首行写入指定 worker.txt；阶段间经 `signal progress`，每步经 `signal checkpoint`；问题经 `signal ask`。
@@ -14,7 +15,7 @@
 | 代理行灰色邮箱，套餐之后 | list 已实现，缺失时省略。读取本地登录记录，无新增第三方请求、无令牌更新。 |
 | Gemini 首位，Claude/GPT 单独标注 | 人类列表按 Gemini → 其他模型组显示，缓存同样生效；只有 Claude/GPT 时保留标签，无占位配额。JSON 组顺序保持上游原顺序。 |
 | picker / current 一致 | 两者原先仅显示别名与分类，无配额列；现增加灰色邮箱。未增加额度请求。 |
-| JSON email 填充 | **待 ROOT 裁定**。现有 JSON 白名单根本没有 email 字段，docs/list-json.md 明确承诺省略邮箱，并非合同假设的 null。裁定前没有新增字段，schemaVersion=1 与所有现有字段不变。 |
+| JSON 保持隐私白名单 | **ROOT 已裁定撤回 JSON email 要求**。不增加 email 字段，继续遵守 docs/list-json.md 的邮箱省略约定；schemaVersion=1 与所有现有字段不变。 |
 
 ## 每个上游的邮箱来源
 
@@ -85,15 +86,17 @@ Accounts
 
 ## ROOT 后续与边界
 
-- `signal ask` 时间 `2026-11-05T00:07:22Z`：是否只为代理 JSON 增加 `email: string|null`，覆盖原来的全局邮箱省略约定。此项尚未获裁定，按合同交付 PARTIAL FINAL，不擅自扩展隐私输出范围。
+- `signal ask` 时间 `2026-11-05T00:07:22Z`：JSON 邮箱要求与原隐私白名单冲突；此前以 `4705752` 交付 PARTIAL FINAL。
+- ROOT 后续裁定（原文）：「JSON 保持原隐私白名单，不加 email（用户只要求人看的列表显示邮箱，JSON 那条是 ROOT 多加的，撤回）。WorkBuddy 无邮箱字段时留空、照实记 UNKNOWN，同意。请把这条裁定写进回执，并在同一工作树重新提交 FINAL，版本号 CXS-PROXY-EMAIL-QLABEL-20261105-v2（代码不用再改的话，commit 就是回执那次）。」
+- 该裁定解决唯一待决项。代码不变，v2 仅更新本回执；此前 442 项测试与合成界面验收证据继续适用。回执更新后重跑文档校验和差异检查。
 - 未 push、merge、tag、release 或全局安装；未改共享 TODO、req_changelog、memory。工作树无自建锁。
 - 保留忽略目录仅 `node_modules/`（项目依赖，非本次数据）；临时构建和日志在 /tmp。工作树保持干净以便 ROOT 接手。
-- 建议 TODO：裁定 JSON email 是否允许暴露；真实 WorkBuddy 邮箱无可用字段时告知用户限制。ROOT 合入时判断发版。
+- 建议 TODO：将按 ROOT 裁定收敛后的本需求标为完成；真实 WorkBuddy 邮箱无可用字段时告知用户限制。ROOT 合入时判断发版。
 - 无新增技能/记忆建议：现有隐私白名单和插件认证源码已能解释本次限制。
 
 建议 req_changelog（由 ROOT 写共享文件）：
 
-## 2026-11-05 · 代理邮箱与额度归属 · 部分完成：JSON 隐私裁定
+## 2026-11-05 · 代理邮箱与额度归属 · 完成
 
 ### 用户原话
 - 合同 goal_source（ROOT 于 2026-11-05 从 Notion TODO 核实）：「这个也要显示邮箱，Claude/GPT是什么东西？」
@@ -102,7 +105,7 @@ Accounts
 - Decision (ROOT, dispatch): show available proxy email; label Gemini first and keep Claude/GPT quota separate; merge/release/install remain ROOT-owned.
 - Decision (worker, method): read local identity only; keep missing email blank; do not infer email from nickname/phone/UID or infer Gemini quota from Claude/GPT.
 - Assumption (worker; checked against installed plugin source): current WorkBuddy login usually retains nickname/phone/UID rather than email; real account availability remains UNKNOWN.
-- Decision (worker, contract conflict): preserve existing JSON privacy whitelist pending ROOT ruling; no shared metadata edits in the worker branch.
+- Decision (ROOT, follow-up ruling): withdraw the ROOT-added JSON email requirement and preserve the existing privacy whitelist; accept blank WorkBuddy email with UNKNOWN when unavailable. No shared metadata edits in the worker branch.
 
 ### 验证
 - 442 tests / 2269 assertions pass; synthetic built list/picker and eight proxy launch paths pass; real account data untouched.
