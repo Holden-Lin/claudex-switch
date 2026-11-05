@@ -19,10 +19,10 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// ../../node_modules/yoctocolors-cjs/index.js
+// node_modules/yoctocolors-cjs/index.js
 var require_yoctocolors_cjs = __commonJS((exports, module) => {
-  var tty2 = __require("node:tty");
-  var hasColors = tty2?.WriteStream?.prototype?.hasColors?.() ?? false;
+  var tty = __require("node:tty");
+  var hasColors = tty?.WriteStream?.prototype?.hasColors?.() ?? false;
   var format = (open2, close) => {
     if (!hasColors) {
       return (input) => input;
@@ -93,7 +93,7 @@ var require_yoctocolors_cjs = __commonJS((exports, module) => {
   module.exports = colors;
 });
 
-// ../../node_modules/cli-width/index.js
+// node_modules/cli-width/index.js
 var require_cli_width = __commonJS((exports, module) => {
   module.exports = cliWidth;
   function normalizeOpts(options) {
@@ -133,7 +133,7 @@ var require_cli_width = __commonJS((exports, module) => {
   }
 });
 
-// ../../node_modules/ansi-regex/index.js
+// node_modules/ansi-regex/index.js
 var require_ansi_regex = __commonJS((exports, module) => {
   module.exports = ({ onlyFirst = false } = {}) => {
     const pattern = [
@@ -144,13 +144,13 @@ var require_ansi_regex = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/strip-ansi/index.js
+// node_modules/strip-ansi/index.js
 var require_strip_ansi = __commonJS((exports, module) => {
   var ansiRegex = require_ansi_regex();
   module.exports = (string) => typeof string === "string" ? string.replace(ansiRegex(), "") : string;
 });
 
-// ../../node_modules/is-fullwidth-code-point/index.js
+// node_modules/is-fullwidth-code-point/index.js
 var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   var isFullwidthCodePoint = (codePoint) => {
     if (Number.isNaN(codePoint)) {
@@ -165,14 +165,14 @@ var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   module.exports.default = isFullwidthCodePoint;
 });
 
-// ../../node_modules/emoji-regex/index.js
+// node_modules/emoji-regex/index.js
 var require_emoji_regex = __commonJS((exports, module) => {
   module.exports = function() {
     return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73)\uDB40\uDC7F|\uD83D\uDC68(?:\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68\uD83C\uDFFB|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|[\u2695\u2696\u2708]\uFE0F|\uD83D[\uDC66\uDC67]|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708])\uFE0F|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C[\uDFFB-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)\uD83C\uDFFB|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB\uDFFC])|\uD83D\uDC69(?:\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB-\uDFFD])|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|(?:(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)\uFE0F|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\u200D[\u2640\u2642])|\uD83C\uDFF4\u200D\u2620)\uFE0F|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF4\uD83C\uDDF2|\uD83C\uDDF6\uD83C\uDDE6|[#\*0-9]\uFE0F\u20E3|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83D\uDC69(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270A-\u270D]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC70\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDCAA\uDD74\uDD7A\uDD90\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD36\uDDB5\uDDB6\uDDBB\uDDD2-\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5\uDEEB\uDEEC\uDEF4-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
   };
 });
 
-// ../../node_modules/string-width/index.js
+// node_modules/string-width/index.js
 var require_string_width = __commonJS((exports, module) => {
   var stripAnsi = require_strip_ansi();
   var isFullwidthCodePoint = require_is_fullwidth_code_point();
@@ -206,7 +206,7 @@ var require_string_width = __commonJS((exports, module) => {
   module.exports.default = stringWidth;
 });
 
-// ../../node_modules/color-name/index.js
+// node_modules/color-name/index.js
 var require_color_name = __commonJS((exports, module) => {
   module.exports = {
     aliceblue: [240, 248, 255],
@@ -360,7 +360,7 @@ var require_color_name = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/color-convert/conversions.js
+// node_modules/color-convert/conversions.js
 var require_conversions = __commonJS((exports, module) => {
   var cssKeywords = require_color_name();
   var reverseKeywords = {};
@@ -1029,7 +1029,7 @@ var require_conversions = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/color-convert/route.js
+// node_modules/color-convert/route.js
 var require_route = __commonJS((exports, module) => {
   var conversions = require_conversions();
   function buildGraph() {
@@ -1095,7 +1095,7 @@ var require_route = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/color-convert/index.js
+// node_modules/color-convert/index.js
 var require_color_convert = __commonJS((exports, module) => {
   var conversions = require_conversions();
   var route = require_route();
@@ -1154,17 +1154,17 @@ var require_color_convert = __commonJS((exports, module) => {
   module.exports = convert;
 });
 
-// ../../node_modules/ansi-styles/index.js
+// node_modules/ansi-styles/index.js
 var require_ansi_styles = __commonJS((exports, module) => {
-  var wrapAnsi162 = (fn, offset) => (...args) => {
+  var wrapAnsi16 = (fn, offset) => (...args) => {
     const code = fn(...args);
     return `\x1B[${code + offset}m`;
   };
-  var wrapAnsi2562 = (fn, offset) => (...args) => {
+  var wrapAnsi256 = (fn, offset) => (...args) => {
     const code = fn(...args);
     return `\x1B[${38 + offset};5;${code}m`;
   };
-  var wrapAnsi16m2 = (fn, offset) => (...args) => {
+  var wrapAnsi16m = (fn, offset) => (...args) => {
     const rgb = fn(...args);
     return `\x1B[${38 + offset};2;${rgb[0]};${rgb[1]};${rgb[2]}m`;
   };
@@ -1191,20 +1191,20 @@ var require_ansi_styles = __commonJS((exports, module) => {
       colorConvert = require_color_convert();
     }
     const offset = isBackground ? 10 : 0;
-    const styles3 = {};
+    const styles = {};
     for (const [sourceSpace, suite] of Object.entries(colorConvert)) {
       const name = sourceSpace === "ansi16" ? "ansi" : sourceSpace;
       if (sourceSpace === targetSpace) {
-        styles3[name] = wrap(identity2, offset);
+        styles[name] = wrap(identity2, offset);
       } else if (typeof suite === "object") {
-        styles3[name] = wrap(suite[targetSpace], offset);
+        styles[name] = wrap(suite[targetSpace], offset);
       }
     }
-    return styles3;
+    return styles;
   };
-  function assembleStyles2() {
+  function assembleStyles() {
     const codes = new Map;
-    const styles3 = {
+    const styles = {
       modifier: {
         reset: [0, 0],
         bold: [1, 22],
@@ -1252,49 +1252,49 @@ var require_ansi_styles = __commonJS((exports, module) => {
         bgWhiteBright: [107, 49]
       }
     };
-    styles3.color.gray = styles3.color.blackBright;
-    styles3.bgColor.bgGray = styles3.bgColor.bgBlackBright;
-    styles3.color.grey = styles3.color.blackBright;
-    styles3.bgColor.bgGrey = styles3.bgColor.bgBlackBright;
-    for (const [groupName, group] of Object.entries(styles3)) {
+    styles.color.gray = styles.color.blackBright;
+    styles.bgColor.bgGray = styles.bgColor.bgBlackBright;
+    styles.color.grey = styles.color.blackBright;
+    styles.bgColor.bgGrey = styles.bgColor.bgBlackBright;
+    for (const [groupName, group] of Object.entries(styles)) {
       for (const [styleName, style] of Object.entries(group)) {
-        styles3[styleName] = {
+        styles[styleName] = {
           open: `\x1B[${style[0]}m`,
           close: `\x1B[${style[1]}m`
         };
-        group[styleName] = styles3[styleName];
+        group[styleName] = styles[styleName];
         codes.set(style[0], style[1]);
       }
-      Object.defineProperty(styles3, groupName, {
+      Object.defineProperty(styles, groupName, {
         value: group,
         enumerable: false
       });
     }
-    Object.defineProperty(styles3, "codes", {
+    Object.defineProperty(styles, "codes", {
       value: codes,
       enumerable: false
     });
-    styles3.color.close = "\x1B[39m";
-    styles3.bgColor.close = "\x1B[49m";
-    setLazyProperty(styles3.color, "ansi", () => makeDynamicStyles(wrapAnsi162, "ansi16", ansi2ansi, false));
-    setLazyProperty(styles3.color, "ansi256", () => makeDynamicStyles(wrapAnsi2562, "ansi256", ansi2ansi, false));
-    setLazyProperty(styles3.color, "ansi16m", () => makeDynamicStyles(wrapAnsi16m2, "rgb", rgb2rgb, false));
-    setLazyProperty(styles3.bgColor, "ansi", () => makeDynamicStyles(wrapAnsi162, "ansi16", ansi2ansi, true));
-    setLazyProperty(styles3.bgColor, "ansi256", () => makeDynamicStyles(wrapAnsi2562, "ansi256", ansi2ansi, true));
-    setLazyProperty(styles3.bgColor, "ansi16m", () => makeDynamicStyles(wrapAnsi16m2, "rgb", rgb2rgb, true));
-    return styles3;
+    styles.color.close = "\x1B[39m";
+    styles.bgColor.close = "\x1B[49m";
+    setLazyProperty(styles.color, "ansi", () => makeDynamicStyles(wrapAnsi16, "ansi16", ansi2ansi, false));
+    setLazyProperty(styles.color, "ansi256", () => makeDynamicStyles(wrapAnsi256, "ansi256", ansi2ansi, false));
+    setLazyProperty(styles.color, "ansi16m", () => makeDynamicStyles(wrapAnsi16m, "rgb", rgb2rgb, false));
+    setLazyProperty(styles.bgColor, "ansi", () => makeDynamicStyles(wrapAnsi16, "ansi16", ansi2ansi, true));
+    setLazyProperty(styles.bgColor, "ansi256", () => makeDynamicStyles(wrapAnsi256, "ansi256", ansi2ansi, true));
+    setLazyProperty(styles.bgColor, "ansi16m", () => makeDynamicStyles(wrapAnsi16m, "rgb", rgb2rgb, true));
+    return styles;
   }
   Object.defineProperty(module, "exports", {
     enumerable: true,
-    get: assembleStyles2
+    get: assembleStyles
   });
 });
 
-// ../../node_modules/wrap-ansi/index.js
+// node_modules/wrap-ansi/index.js
 var require_wrap_ansi = __commonJS((exports, module) => {
   var stringWidth = require_string_width();
   var stripAnsi = require_strip_ansi();
-  var ansiStyles2 = require_ansi_styles();
+  var ansiStyles = require_ansi_styles();
   var ESCAPES = new Set([
     "\x1B",
     ""
@@ -1405,7 +1405,7 @@ var require_wrap_ansi = __commonJS((exports, module) => {
         const code2 = parseFloat(/\d[^m]*/.exec(pre.slice(index, index + 4)));
         escapeCode = code2 === END_CODE ? null : code2;
       }
-      const code = ansiStyles2.codes.get(Number(escapeCode));
+      const code = ansiStyles.codes.get(Number(escapeCode));
       if (escapeCode && code) {
         if (pre[index + 1] === `
 `) {
@@ -1426,7 +1426,7 @@ var require_wrap_ansi = __commonJS((exports, module) => {
   };
 });
 
-// ../../node_modules/mute-stream/lib/index.js
+// node_modules/mute-stream/lib/index.js
 var require_lib = __commonJS((exports, module) => {
   var Stream = __require("stream");
 
@@ -1545,495 +1545,6 @@ var require_lib = __commonJS((exports, module) => {
   }
   module.exports = MuteStream;
 });
-
-// ../../node_modules/chalk/source/vendor/ansi-styles/index.js
-var ANSI_BACKGROUND_OFFSET = 10;
-var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
-var wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
-var wrapAnsi16m = (offset = 0) => (red, green, blue) => `\x1B[${38 + offset};2;${red};${green};${blue}m`;
-var styles = {
-  modifier: {
-    reset: [0, 0],
-    bold: [1, 22],
-    dim: [2, 22],
-    italic: [3, 23],
-    underline: [4, 24],
-    overline: [53, 55],
-    inverse: [7, 27],
-    hidden: [8, 28],
-    strikethrough: [9, 29]
-  },
-  color: {
-    black: [30, 39],
-    red: [31, 39],
-    green: [32, 39],
-    yellow: [33, 39],
-    blue: [34, 39],
-    magenta: [35, 39],
-    cyan: [36, 39],
-    white: [37, 39],
-    blackBright: [90, 39],
-    gray: [90, 39],
-    grey: [90, 39],
-    redBright: [91, 39],
-    greenBright: [92, 39],
-    yellowBright: [93, 39],
-    blueBright: [94, 39],
-    magentaBright: [95, 39],
-    cyanBright: [96, 39],
-    whiteBright: [97, 39]
-  },
-  bgColor: {
-    bgBlack: [40, 49],
-    bgRed: [41, 49],
-    bgGreen: [42, 49],
-    bgYellow: [43, 49],
-    bgBlue: [44, 49],
-    bgMagenta: [45, 49],
-    bgCyan: [46, 49],
-    bgWhite: [47, 49],
-    bgBlackBright: [100, 49],
-    bgGray: [100, 49],
-    bgGrey: [100, 49],
-    bgRedBright: [101, 49],
-    bgGreenBright: [102, 49],
-    bgYellowBright: [103, 49],
-    bgBlueBright: [104, 49],
-    bgMagentaBright: [105, 49],
-    bgCyanBright: [106, 49],
-    bgWhiteBright: [107, 49]
-  }
-};
-var modifierNames = Object.keys(styles.modifier);
-var foregroundColorNames = Object.keys(styles.color);
-var backgroundColorNames = Object.keys(styles.bgColor);
-var colorNames = [...foregroundColorNames, ...backgroundColorNames];
-function assembleStyles() {
-  const codes = new Map;
-  for (const [groupName, group] of Object.entries(styles)) {
-    for (const [styleName, style] of Object.entries(group)) {
-      styles[styleName] = {
-        open: `\x1B[${style[0]}m`,
-        close: `\x1B[${style[1]}m`
-      };
-      group[styleName] = styles[styleName];
-      codes.set(style[0], style[1]);
-    }
-    Object.defineProperty(styles, groupName, {
-      value: group,
-      enumerable: false
-    });
-  }
-  Object.defineProperty(styles, "codes", {
-    value: codes,
-    enumerable: false
-  });
-  styles.color.close = "\x1B[39m";
-  styles.bgColor.close = "\x1B[49m";
-  styles.color.ansi = wrapAnsi16();
-  styles.color.ansi256 = wrapAnsi256();
-  styles.color.ansi16m = wrapAnsi16m();
-  styles.bgColor.ansi = wrapAnsi16(ANSI_BACKGROUND_OFFSET);
-  styles.bgColor.ansi256 = wrapAnsi256(ANSI_BACKGROUND_OFFSET);
-  styles.bgColor.ansi16m = wrapAnsi16m(ANSI_BACKGROUND_OFFSET);
-  Object.defineProperties(styles, {
-    rgbToAnsi256: {
-      value(red, green, blue) {
-        if (red === green && green === blue) {
-          if (red < 8) {
-            return 16;
-          }
-          if (red > 248) {
-            return 231;
-          }
-          return Math.round((red - 8) / 247 * 24) + 232;
-        }
-        return 16 + 36 * Math.round(red / 255 * 5) + 6 * Math.round(green / 255 * 5) + Math.round(blue / 255 * 5);
-      },
-      enumerable: false
-    },
-    hexToRgb: {
-      value(hex) {
-        const matches = /[a-f\d]{6}|[a-f\d]{3}/i.exec(hex.toString(16));
-        if (!matches) {
-          return [0, 0, 0];
-        }
-        let [colorString] = matches;
-        if (colorString.length === 3) {
-          colorString = [...colorString].map((character) => character + character).join("");
-        }
-        const integer = Number.parseInt(colorString, 16);
-        return [
-          integer >> 16 & 255,
-          integer >> 8 & 255,
-          integer & 255
-        ];
-      },
-      enumerable: false
-    },
-    hexToAnsi256: {
-      value: (hex) => styles.rgbToAnsi256(...styles.hexToRgb(hex)),
-      enumerable: false
-    },
-    ansi256ToAnsi: {
-      value(code) {
-        if (code < 8) {
-          return 30 + code;
-        }
-        if (code < 16) {
-          return 90 + (code - 8);
-        }
-        let red;
-        let green;
-        let blue;
-        if (code >= 232) {
-          red = ((code - 232) * 10 + 8) / 255;
-          green = red;
-          blue = red;
-        } else {
-          code -= 16;
-          const remainder = code % 36;
-          red = Math.floor(code / 36) / 5;
-          green = Math.floor(remainder / 6) / 5;
-          blue = remainder % 6 / 5;
-        }
-        const value = Math.max(red, green, blue) * 2;
-        if (value === 0) {
-          return 30;
-        }
-        let result = 30 + (Math.round(blue) << 2 | Math.round(green) << 1 | Math.round(red));
-        if (value === 2) {
-          result += 60;
-        }
-        return result;
-      },
-      enumerable: false
-    },
-    rgbToAnsi: {
-      value: (red, green, blue) => styles.ansi256ToAnsi(styles.rgbToAnsi256(red, green, blue)),
-      enumerable: false
-    },
-    hexToAnsi: {
-      value: (hex) => styles.ansi256ToAnsi(styles.hexToAnsi256(hex)),
-      enumerable: false
-    }
-  });
-  return styles;
-}
-var ansiStyles = assembleStyles();
-var ansi_styles_default = ansiStyles;
-
-// ../../node_modules/chalk/source/vendor/supports-color/index.js
-import process2 from "node:process";
-import os from "node:os";
-import tty from "node:tty";
-function hasFlag(flag, argv = globalThis.Deno ? globalThis.Deno.args : process2.argv) {
-  const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
-  const position = argv.indexOf(prefix + flag);
-  const terminatorPosition = argv.indexOf("--");
-  return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
-}
-var { env } = process2;
-var flagForceColor;
-if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
-  flagForceColor = 0;
-} else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
-  flagForceColor = 1;
-}
-function envForceColor() {
-  if ("FORCE_COLOR" in env) {
-    if (env.FORCE_COLOR === "true") {
-      return 1;
-    }
-    if (env.FORCE_COLOR === "false") {
-      return 0;
-    }
-    return env.FORCE_COLOR.length === 0 ? 1 : Math.min(Number.parseInt(env.FORCE_COLOR, 10), 3);
-  }
-}
-function translateLevel(level) {
-  if (level === 0) {
-    return false;
-  }
-  return {
-    level,
-    hasBasic: true,
-    has256: level >= 2,
-    has16m: level >= 3
-  };
-}
-function _supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
-  const noFlagForceColor = envForceColor();
-  if (noFlagForceColor !== undefined) {
-    flagForceColor = noFlagForceColor;
-  }
-  const forceColor = sniffFlags ? flagForceColor : noFlagForceColor;
-  if (forceColor === 0) {
-    return 0;
-  }
-  if (sniffFlags) {
-    if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) {
-      return 3;
-    }
-    if (hasFlag("color=256")) {
-      return 2;
-    }
-  }
-  if ("TF_BUILD" in env && "AGENT_NAME" in env) {
-    return 1;
-  }
-  if (haveStream && !streamIsTTY && forceColor === undefined) {
-    return 0;
-  }
-  const min = forceColor || 0;
-  if (env.TERM === "dumb") {
-    return min;
-  }
-  if (process2.platform === "win32") {
-    const osRelease = os.release().split(".");
-    if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
-      return Number(osRelease[2]) >= 14931 ? 3 : 2;
-    }
-    return 1;
-  }
-  if ("CI" in env) {
-    if (["GITHUB_ACTIONS", "GITEA_ACTIONS", "CIRCLECI"].some((key) => (key in env))) {
-      return 3;
-    }
-    if (["TRAVIS", "APPVEYOR", "GITLAB_CI", "BUILDKITE", "DRONE"].some((sign) => (sign in env)) || env.CI_NAME === "codeship") {
-      return 1;
-    }
-    return min;
-  }
-  if ("TEAMCITY_VERSION" in env) {
-    return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
-  }
-  if (env.COLORTERM === "truecolor") {
-    return 3;
-  }
-  if (env.TERM === "xterm-kitty") {
-    return 3;
-  }
-  if (env.TERM === "xterm-ghostty") {
-    return 3;
-  }
-  if (env.TERM === "wezterm") {
-    return 3;
-  }
-  if ("TERM_PROGRAM" in env) {
-    const version = Number.parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
-    switch (env.TERM_PROGRAM) {
-      case "iTerm.app": {
-        return version >= 3 ? 3 : 2;
-      }
-      case "Apple_Terminal": {
-        return 2;
-      }
-    }
-  }
-  if (/-256(color)?$/i.test(env.TERM)) {
-    return 2;
-  }
-  if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
-    return 1;
-  }
-  if ("COLORTERM" in env) {
-    return 1;
-  }
-  return min;
-}
-function createSupportsColor(stream, options = {}) {
-  const level = _supportsColor(stream, {
-    streamIsTTY: stream && stream.isTTY,
-    ...options
-  });
-  return translateLevel(level);
-}
-var supportsColor = {
-  stdout: createSupportsColor({ isTTY: tty.isatty(1) }),
-  stderr: createSupportsColor({ isTTY: tty.isatty(2) })
-};
-var supports_color_default = supportsColor;
-
-// ../../node_modules/chalk/source/utilities.js
-function stringReplaceAll(string, substring, replacer) {
-  let index = string.indexOf(substring);
-  if (index === -1) {
-    return string;
-  }
-  const substringLength = substring.length;
-  let endIndex = 0;
-  let returnValue = "";
-  do {
-    returnValue += string.slice(endIndex, index) + substring + replacer;
-    endIndex = index + substringLength;
-    index = string.indexOf(substring, endIndex);
-  } while (index !== -1);
-  returnValue += string.slice(endIndex);
-  return returnValue;
-}
-function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
-  let endIndex = 0;
-  let returnValue = "";
-  do {
-    const gotCR = string[index - 1] === "\r";
-    returnValue += string.slice(endIndex, gotCR ? index - 1 : index) + prefix + (gotCR ? `\r
-` : `
-`) + postfix;
-    endIndex = index + 1;
-    index = string.indexOf(`
-`, endIndex);
-  } while (index !== -1);
-  returnValue += string.slice(endIndex);
-  return returnValue;
-}
-
-// ../../node_modules/chalk/source/index.js
-var { stdout: stdoutColor, stderr: stderrColor } = supports_color_default;
-var GENERATOR = Symbol("GENERATOR");
-var STYLER = Symbol("STYLER");
-var IS_EMPTY = Symbol("IS_EMPTY");
-var levelMapping = [
-  "ansi",
-  "ansi",
-  "ansi256",
-  "ansi16m"
-];
-var styles2 = Object.create(null);
-var applyOptions = (object, options = {}) => {
-  if (options.level && !(Number.isInteger(options.level) && options.level >= 0 && options.level <= 3)) {
-    throw new Error("The `level` option should be an integer from 0 to 3");
-  }
-  const colorLevel = stdoutColor ? stdoutColor.level : 0;
-  object.level = options.level === undefined ? colorLevel : options.level;
-};
-var chalkFactory = (options) => {
-  const chalk = (...strings) => strings.join(" ");
-  applyOptions(chalk, options);
-  Object.setPrototypeOf(chalk, createChalk.prototype);
-  return chalk;
-};
-function createChalk(options) {
-  return chalkFactory(options);
-}
-Object.setPrototypeOf(createChalk.prototype, Function.prototype);
-for (const [styleName, style] of Object.entries(ansi_styles_default)) {
-  styles2[styleName] = {
-    get() {
-      const builder = createBuilder(this, createStyler(style.open, style.close, this[STYLER]), this[IS_EMPTY]);
-      Object.defineProperty(this, styleName, { value: builder });
-      return builder;
-    }
-  };
-}
-styles2.visible = {
-  get() {
-    const builder = createBuilder(this, this[STYLER], true);
-    Object.defineProperty(this, "visible", { value: builder });
-    return builder;
-  }
-};
-var getModelAnsi = (model, level, type, ...arguments_) => {
-  if (model === "rgb") {
-    if (level === "ansi16m") {
-      return ansi_styles_default[type].ansi16m(...arguments_);
-    }
-    if (level === "ansi256") {
-      return ansi_styles_default[type].ansi256(ansi_styles_default.rgbToAnsi256(...arguments_));
-    }
-    return ansi_styles_default[type].ansi(ansi_styles_default.rgbToAnsi(...arguments_));
-  }
-  if (model === "hex") {
-    return getModelAnsi("rgb", level, type, ...ansi_styles_default.hexToRgb(...arguments_));
-  }
-  return ansi_styles_default[type][model](...arguments_);
-};
-var usedModels = ["rgb", "hex", "ansi256"];
-for (const model of usedModels) {
-  styles2[model] = {
-    get() {
-      const { level } = this;
-      return function(...arguments_) {
-        const styler = createStyler(getModelAnsi(model, levelMapping[level], "color", ...arguments_), ansi_styles_default.color.close, this[STYLER]);
-        return createBuilder(this, styler, this[IS_EMPTY]);
-      };
-    }
-  };
-  const bgModel = "bg" + model[0].toUpperCase() + model.slice(1);
-  styles2[bgModel] = {
-    get() {
-      const { level } = this;
-      return function(...arguments_) {
-        const styler = createStyler(getModelAnsi(model, levelMapping[level], "bgColor", ...arguments_), ansi_styles_default.bgColor.close, this[STYLER]);
-        return createBuilder(this, styler, this[IS_EMPTY]);
-      };
-    }
-  };
-}
-var proto = Object.defineProperties(() => {}, {
-  ...styles2,
-  level: {
-    enumerable: true,
-    get() {
-      return this[GENERATOR].level;
-    },
-    set(level) {
-      this[GENERATOR].level = level;
-    }
-  }
-});
-var createStyler = (open, close, parent) => {
-  let openAll;
-  let closeAll;
-  if (parent === undefined) {
-    openAll = open;
-    closeAll = close;
-  } else {
-    openAll = parent.openAll + open;
-    closeAll = close + parent.closeAll;
-  }
-  return {
-    open,
-    close,
-    openAll,
-    closeAll,
-    parent
-  };
-};
-var createBuilder = (self, _styler, _isEmpty) => {
-  const builder = (...arguments_) => applyStyle(builder, arguments_.length === 1 ? "" + arguments_[0] : arguments_.join(" "));
-  Object.setPrototypeOf(builder, proto);
-  builder[GENERATOR] = self;
-  builder[STYLER] = _styler;
-  builder[IS_EMPTY] = _isEmpty;
-  return builder;
-};
-var applyStyle = (self, string) => {
-  if (self.level <= 0 || !string) {
-    return self[IS_EMPTY] ? "" : string;
-  }
-  let styler = self[STYLER];
-  if (styler === undefined) {
-    return string;
-  }
-  const { openAll, closeAll } = styler;
-  if (string.includes("\x1B")) {
-    while (styler !== undefined) {
-      string = stringReplaceAll(string, styler.close, styler.open);
-      styler = styler.parent;
-    }
-  }
-  const lfIndex = string.indexOf(`
-`);
-  if (lfIndex !== -1) {
-    string = stringEncaseCRLFWithFirstIndex(string, closeAll, openAll, lfIndex);
-  }
-  return openAll + string + closeAll;
-};
-Object.defineProperties(createChalk.prototype, styles2);
-var chalk = createChalk();
-var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
-var source_default = chalk;
 
 // src/providers/claude/profiles.ts
 import {
@@ -2386,24 +1897,24 @@ async function write(settings) {
   } catch {}
 }
 function normalizeEnv(settings) {
-  const env2 = settings.env;
-  if (!env2 || typeof env2 !== "object" || Array.isArray(env2)) {
+  const env = settings.env;
+  if (!env || typeof env !== "object" || Array.isArray(env)) {
     return {};
   }
   const result = {};
-  for (const [key, value] of Object.entries(env2)) {
+  for (const [key, value] of Object.entries(env)) {
     if (typeof value === "string") {
       result[key] = value;
     }
   }
   return result;
 }
-function setEnvValue(env2, key, value) {
+function setEnvValue(env, key, value) {
   if (value) {
-    env2[key] = value;
+    env[key] = value;
     return;
   }
-  delete env2[key];
+  delete env[key];
 }
 function normalizeModelValue(value) {
   if (typeof value !== "string")
@@ -2437,9 +1948,9 @@ function isReservedClaudeEnvKey(key) {
 function isValidCustomEnvKey(key) {
   return CUSTOM_ENV_KEY_PATTERN.test(key) && !isReservedClaudeEnvKey(key);
 }
-function normalizeCustomEnv(env2) {
+function normalizeCustomEnv(env) {
   const result = {};
-  for (const [rawKey, rawValue] of Object.entries(env2 ?? {})) {
+  for (const [rawKey, rawValue] of Object.entries(env ?? {})) {
     const key = rawKey.trim();
     if (!isValidCustomEnvKey(key))
       continue;
@@ -2451,94 +1962,94 @@ function normalizeCustomEnv(env2) {
   return result;
 }
 async function beginManagedEnv(settings) {
-  const env2 = normalizeEnv(settings);
+  const env = normalizeEnv(settings);
   for (const key of CLAUDE_ENV_KEYS) {
-    delete env2[key];
+    delete env[key];
   }
   for (const key of await readManagedExtraEnvKeys()) {
-    delete env2[key];
+    delete env[key];
   }
-  return env2;
+  return env;
 }
-async function commitManagedEnv(settings, env2, extraEnv, neutralizedKeys = []) {
+async function commitManagedEnv(settings, env, extraEnv, neutralizedKeys = []) {
   const extra = normalizeCustomEnv(extraEnv);
   for (const [key, value] of Object.entries(extra)) {
-    env2[key] = value;
+    env[key] = value;
   }
-  if (Object.keys(env2).length === 0) {
+  if (Object.keys(env).length === 0) {
     delete settings.env;
   } else {
-    settings.env = env2;
+    settings.env = env;
   }
   await writeManagedExtraEnvKeys([...Object.keys(extra), ...neutralizedKeys]);
   await write(settings);
 }
 async function applyApiConfig(config) {
   const settings = await read();
-  const env2 = await beginManagedEnv(settings);
-  setEnvValue(env2, "ANTHROPIC_API_KEY", config.apiKey);
-  setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
-  setEnvValue(env2, "ANTHROPIC_AUTH_TOKEN", config.authToken);
-  setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
-  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
+  const env = await beginManagedEnv(settings);
+  setEnvValue(env, "ANTHROPIC_API_KEY", config.apiKey);
+  setEnvValue(env, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setEnvValue(env, "ANTHROPIC_AUTH_TOKEN", config.authToken);
+  setEnvValue(env, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.defaultFableModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.defaultSonnetModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env2, config.env);
+  await commitManagedEnv(settings, env, config.env);
 }
 async function applyOAuthConfig(model, extraEnv) {
   const settings = await read();
-  const env2 = await beginManagedEnv(settings);
-  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
+  const env = await beginManagedEnv(settings);
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   setTopLevelModel(settings, model);
-  await commitManagedEnv(settings, env2, extraEnv);
+  await commitManagedEnv(settings, env, extraEnv);
 }
 async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
   const settings = await read();
-  const env2 = await beginManagedEnv(settings);
-  Object.assign(env2, localCLIProxyAPIAuthEnv(config.apiKey));
+  const env = await beginManagedEnv(settings);
+  Object.assign(env, localCLIProxyAPIAuthEnv(config.apiKey));
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS)
-    env2[key] = "";
-  setEnvValue(env2, "ANTHROPIC_BASE_URL", config.baseUrl);
-  setEnvValue(env2, "ANTHROPIC_MODEL", config.model);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
-  setEnvValue(env2, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
-  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel ?? undefined);
-  setEnvValue(env2, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
+    env[key] = "";
+  setEnvValue(env, "ANTHROPIC_BASE_URL", config.baseUrl);
+  setEnvValue(env, "ANTHROPIC_MODEL", config.model);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", config.fableModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", config.sonnetModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.opusModel);
+  setEnvValue(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.haikuModel);
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel ?? undefined);
+  setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL_FORCE", config.subagentModel ? "1" : undefined);
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env2, localCLIProxyAPIExtraEnv(extraEnv), CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS);
+  await commitManagedEnv(settings, env, localCLIProxyAPIExtraEnv(extraEnv), CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS);
 }
 async function prepareApiProfileClaudeSettings(name, config) {
-  const env2 = await getClaudeRunEnvOverrides();
+  const env = await getClaudeRunEnvOverrides();
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
-    env2[key] = "";
+    env[key] = "";
   }
-  env2.ANTHROPIC_API_KEY = config.apiKey;
-  env2.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
-  env2.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
-  env2.ANTHROPIC_MODEL = config.model ?? "";
-  env2.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
-  env2.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
-  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL;
-  env2.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
-  env2.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
+  env.ANTHROPIC_API_KEY = config.apiKey;
+  env.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
+  env.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
+  env.ANTHROPIC_MODEL = config.model ?? "";
+  env.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
+  env.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel ?? "";
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL;
+  env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
+  env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
   for (const [key, value] of Object.entries(normalizeCustomEnv(config.env))) {
-    env2[key] = value;
+    env[key] = value;
   }
-  const settings = { env: env2, ...config.model ? { model: config.model } : {} };
+  const settings = { env, ...config.model ? { model: config.model } : {} };
   return writePrivateRunSettings(name, settings);
 }
 async function prepareOAuthProfileClaudeSettings(name, profile) {
-  const env2 = await getClaudeRunEnvOverrides();
-  env2.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
+  const env = await getClaudeRunEnvOverrides();
+  env.ANTHROPIC_DEFAULT_OPUS_MODEL = CLAUDE_DEFAULT_OPUS_MODEL;
   for (const [key, value] of Object.entries(normalizeCustomEnv(profile.env))) {
-    env2[key] = value;
+    env[key] = value;
   }
-  const settings = { env: env2, ...profile.defaultModel ? { model: profile.defaultModel } : {} };
+  const settings = { env, ...profile.defaultModel ? { model: profile.defaultModel } : {} };
   return writePrivateRunSettings(name, settings);
 }
 async function writePrivateRunSettings(name, settings) {
@@ -2571,37 +2082,37 @@ async function getClaudeRunEnvOverrides() {
       keys.add(key);
   }
   const managed = await readManagedExtraEnvKeys();
-  const env2 = normalizeEnv(await read());
+  const env = normalizeEnv(await read());
   const override = Object.fromEntries([...keys].map((key) => [
     key,
-    isReservedClaudeEnvKey(key) || managed.includes(key) ? "" : env2[key] ?? process.env[key] ?? ""
+    isReservedClaudeEnvKey(key) || managed.includes(key) ? "" : env[key] ?? process.env[key] ?? ""
   ]));
   return override;
 }
 async function getApiConfig() {
   const settings = await read();
-  const env2 = normalizeEnv(settings);
-  const apiKey = env2.ANTHROPIC_API_KEY;
+  const env = normalizeEnv(settings);
+  const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey)
     return null;
   const topLevelModel = normalizeModelValue(settings.model);
-  const envModel = env2.ANTHROPIC_MODEL;
+  const envModel = env.ANTHROPIC_MODEL;
   const model = topLevelModel ?? envModel;
   const extraEnv = {};
   for (const key of await readManagedExtraEnvKeys()) {
-    if (env2[key])
-      extraEnv[key] = env2[key];
+    if (env[key])
+      extraEnv[key] = env[key];
   }
   return {
     apiKey,
-    baseUrl: env2.ANTHROPIC_BASE_URL,
-    authToken: env2.ANTHROPIC_AUTH_TOKEN,
+    baseUrl: env.ANTHROPIC_BASE_URL,
+    authToken: env.ANTHROPIC_AUTH_TOKEN,
     model,
-    defaultFableModel: env2.ANTHROPIC_DEFAULT_FABLE_MODEL,
-    defaultSonnetModel: env2.ANTHROPIC_DEFAULT_SONNET_MODEL,
-    defaultOpusModel: env2.ANTHROPIC_DEFAULT_OPUS_MODEL,
-    defaultHaikuModel: env2.ANTHROPIC_DEFAULT_HAIKU_MODEL,
-    subagentModel: env2.CLAUDE_CODE_SUBAGENT_MODEL,
+    defaultFableModel: env.ANTHROPIC_DEFAULT_FABLE_MODEL,
+    defaultSonnetModel: env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+    defaultOpusModel: env.ANTHROPIC_DEFAULT_OPUS_MODEL,
+    defaultHaikuModel: env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
+    subagentModel: env.CLAUDE_CODE_SUBAGENT_MODEL,
     ...Object.keys(extraEnv).length > 0 ? { env: extraEnv } : {}
   };
 }
@@ -2943,7 +2454,7 @@ function pickOpenCodeGoModels(catalog) {
   };
 }
 
-// ../../node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
+// node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
 import { createHash as createHash2, randomBytes } from "node:crypto";
 var NATIVE_LIMITS = {
   resultWait: 120000,
@@ -3988,7 +3499,7 @@ class NativeSession {
 }
 var nativeSessions = new NativeSessionPool;
 
-// ../../node_modules/@magpie-community/opencode-cursor-auth/index.mjs
+// node_modules/@magpie-community/opencode-cursor-auth/index.mjs
 import { isDeepStrictEqual } from "node:util";
 import http2 from "node:http2";
 import { STATUS_CODES } from "node:http";
@@ -4014,9 +3525,9 @@ var GOOS = { win32: "windows" }[platform3()] ?? platform3();
 var EMPTY = Buffer.alloc(0);
 var enc = new TextEncoder;
 var exists = (p) => stat(p).then((s) => !s.isDirectory(), () => false);
-function run(file, args, { timeout = 1e4, env: env2 } = {}) {
+function run(file, args, { timeout = 1e4, env } = {}) {
   return new Promise((resolve) => {
-    execFile(file, args, { timeout, env: env2 ?? process.env, maxBuffer: 8 << 20 }, (err, stdout) => resolve({ ok: !err, out: String(stdout ?? ""), code: typeof err?.code === "number" ? err.code : err ? -1 : 0 }));
+    execFile(file, args, { timeout, env: env ?? process.env, maxBuffer: 8 << 20 }, (err, stdout) => resolve({ ok: !err, out: String(stdout ?? ""), code: typeof err?.code === "number" ? err.code : err ? -1 : 0 }));
   });
 }
 async function cursorExecutable() {
@@ -5091,7 +4602,7 @@ function toolDef(t) {
   d.bytes(3, pbValue(t.schema));
   return d.str(4, "magpie").str(5, t.name).str(6, t.schemaText).done();
 }
-var env2 = () => pb().str(1, GOOS).str(2, tmpdir2()).str(10, "UTC");
+var env = () => pb().str(1, GOOS).str(2, tmpdir2()).str(10, "UTC");
 var SESSION = "x-magpie-cursor-session";
 function sessionOf(input) {
   const s = String(input?.sessionID ?? "").trim();
@@ -5387,7 +4898,7 @@ function buildRun(msgs, lastUser, tools, model, conv = "", { maxMode = false, pa
   const turn = pb().bytes(1, pb().bytes(1, put(user)).str(10, mid)).done();
   state.bytes(8, put(turn)).varint(10, 1).str(22, "cli");
   const defs = tools.map(toolDef);
-  const rc = pb().bytes(4, env2());
+  const rc = pb().bytes(4, env());
   const mcp = pb();
   for (const d of defs) {
     rc.bytes(7, d);
@@ -6208,7 +5719,7 @@ function exec(msg, tools, send, closeExec, refused, native = false) {
         return null;
       }
       case 10:
-        answer(10, pb().bytes(1, pb().bytes(1, pb().bytes(4, env2()))));
+        answer(10, pb().bytes(1, pb().bytes(1, pb().bytes(4, env()))));
         return null;
     }
   }
@@ -6473,7 +5984,7 @@ async function CursorAuthPlugin() {
   };
 }
 
-// ../../node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
+// node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
 import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir as homedir3 } from "node:os";
@@ -6570,19 +6081,19 @@ async function call(site, method, path, headers = {}, body) {
     signal: AbortSignal.timeout(30000)
   });
   const text = await res.text();
-  let env3 = {};
+  let env2 = {};
   try {
-    env3 = JSON.parse(text);
+    env2 = JSON.parse(text);
   } catch {}
-  const code = Number.parseInt(env3.code, 10) || 0;
+  const code = Number.parseInt(env2.code, 10) || 0;
   if (!res.ok) {
-    const why = env3.msg || env3.message || env3.error?.message || text.slice(0, 200) || res.statusText;
-    const said = code ? env3.msg || `error ${code}` : env3.msg || statusText2(res.status);
-    throw new WBError(`${site.name}: ${why} (HTTP ${res.status}${env3.code ? ", code " + env3.code : ""})`, env3.code, res.status, said);
+    const why = env2.msg || env2.message || env2.error?.message || text.slice(0, 200) || res.statusText;
+    const said = code ? env2.msg || `error ${code}` : env2.msg || statusText2(res.status);
+    throw new WBError(`${site.name}: ${why} (HTTP ${res.status}${env2.code ? ", code " + env2.code : ""})`, env2.code, res.status, said);
   }
-  if (env3.code)
-    throw new WBError(`${site.name}: ${env3.msg || "error"} (${env3.code})`, env3.code, res.status, env3.msg || `error ${code}`);
-  return env3.data;
+  if (env2.code)
+    throw new WBError(`${site.name}: ${env2.msg || "error"} (${env2.code})`, env2.code, res.status, env2.msg || `error ${code}`);
+  return env2.data;
 }
 function domainOf(site, a) {
   return a.domain || new URL(api(site)).host;
@@ -7592,21 +7103,21 @@ async function unanswered(site, a, body, err, signal) {
 }
 async function meter(site, a, path, body = {}) {
   const res = await meterAsked(site, a, path, body);
-  let env3 = {};
+  let env2 = {};
   try {
-    env3 = JSON.parse(await res.text()) ?? {};
+    env2 = JSON.parse(await res.text()) ?? {};
   } catch {}
-  const code = Number.parseInt(env3.code, 10) || 0;
+  const code = Number.parseInt(env2.code, 10) || 0;
   if (!res.ok) {
     if (code)
-      throw new Error(env3.msg || `error ${code}`);
-    if (env3.msg)
-      throw new Error(env3.msg);
+      throw new Error(env2.msg || `error ${code}`);
+    if (env2.msg)
+      throw new Error(env2.msg);
     throw new Error(statusText2(res.status));
   }
   if (code)
-    throw new Error(env3.msg || `error ${code}`);
-  return env3.data ?? null;
+    throw new Error(env2.msg || `error ${code}`);
+  return env2.data ?? null;
 }
 function capacity(v) {
   if (v == null || v === "")
@@ -7828,12 +7339,12 @@ async function liveModels(site, a) {
   headers.set("X-Requested-With", "XMLHttpRequest");
   headers.set("Accept", "application/json");
   const res = await fetch(site.endpoint + "/v3/config", { headers, signal: AbortSignal.timeout(15000) });
-  const env3 = await res.json().catch(() => ({}));
+  const env2 = await res.json().catch(() => ({}));
   if (!res.ok)
     throw new Error(`${site.name}'s config: HTTP ${res.status}`);
-  if (env3.code)
-    throw new Error(`${site.name}'s config: ${env3.msg} (${env3.code})`);
-  const cfg = env3.data ?? {};
+  if (env2.code)
+    throw new Error(`${site.name}'s config: ${env2.msg} (${env2.code})`);
+  const cfg = env2.data ?? {};
   const out = [];
   for (const agent of cfg.agents ?? []) {
     if (agent.name !== "cli")
@@ -8116,7 +7627,7 @@ async function readAuthFile(file, upstream) {
   }
   return stored.auth;
 }
-async function getAuth(directory, upstream) {
+async function readSubscriptionAuth(directory, upstream) {
   const file = authPath(directory);
   await writes.get(file);
   return readAuthFile(file, upstream);
@@ -8166,7 +7677,7 @@ ${upstream}`;
     return {
       plugin,
       provider: { ...config.provider[upstream], id: upstream, models: config.provider[upstream]?.models ?? {} },
-      getAuth: () => getAuth(directory, upstream)
+      getAuth: () => readSubscriptionAuth(directory, upstream)
     };
   };
   if (options.pluginFactory)
@@ -8235,7 +7746,7 @@ async function loginSubscriptionPlugin(directory, upstream, methodIndex, notify,
 }
 async function hasSubscriptionLogin(directory, upstream) {
   try {
-    const auth = await getAuth(directory, upstream);
+    const auth = await readSubscriptionAuth(directory, upstream);
     return !!auth && (!!auth.access || auth.source === "desktop" || upstream === "cursor" && auth.refresh === "cursor-agent");
   } catch {
     return false;
@@ -8264,8 +7775,8 @@ async function listSubscriptionModels(directory, upstream, options = {}) {
 }
 async function fetchSubscriptionUsage(directory, upstream, options = {}) {
   try {
-    const { plugin, provider, getAuth: getAuth2 } = await context(directory, upstream, options);
-    const raw = await plugin.auth.usage?.(getAuth2, provider);
+    const { plugin, provider, getAuth } = await context(directory, upstream, options);
+    const raw = await plugin.auth.usage?.(getAuth, provider);
     if (!raw || typeof raw !== "object")
       return { usage: null, note: "usage n/a" };
     const result2 = raw;
@@ -8620,14 +8131,14 @@ async function serveSubscriptionBridge(options) {
   return server;
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/key.js
+// node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
 var isBackspaceKey = (key) => key.name === "backspace";
 var isTabKey = (key) => key.name === "tab";
 var isNumberKey = (key) => "1234567890".includes(key.name);
 var isEnterKey = (key) => key.name === "enter" || key.name === "return";
-// ../../node_modules/@inquirer/core/dist/esm/lib/errors.js
+// node_modules/@inquirer/core/dist/esm/lib/errors.js
 class AbortPromptError extends Error {
   name = "AbortPromptError";
   message = "Prompt was aborted";
@@ -8653,10 +8164,10 @@ class HookError extends Error {
 class ValidationError extends Error {
   name = "ValidationError";
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// node_modules/@inquirer/core/dist/esm/lib/use-state.js
 import { AsyncResource as AsyncResource2 } from "node:async_hooks";
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
+// node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
 import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 var hookStorage = new AsyncLocalStorage;
 function createStore(rl) {
@@ -8761,7 +8272,7 @@ var effectScheduler = {
   }
 };
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
     const setState = AsyncResource2.bind(function setState(newValue) {
@@ -8779,7 +8290,7 @@ function useState(defaultValue) {
   });
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-effect.js
+// node_modules/@inquirer/core/dist/esm/lib/use-effect.js
 function useEffect(cb, depArray) {
   withPointer((pointer) => {
     const oldDeps = pointer.get();
@@ -8791,16 +8302,16 @@ function useEffect(cb, depArray) {
   });
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
+// node_modules/@inquirer/core/dist/esm/lib/theme.js
 var import_yoctocolors_cjs = __toESM(require_yoctocolors_cjs(), 1);
 
-// ../../node_modules/@inquirer/figures/dist/esm/index.js
-import process3 from "node:process";
+// node_modules/@inquirer/figures/dist/esm/index.js
+import process2 from "node:process";
 function isUnicodeSupported() {
-  if (process3.platform !== "win32") {
-    return process3.env["TERM"] !== "linux";
+  if (process2.platform !== "win32") {
+    return process2.env["TERM"] !== "linux";
   }
-  return Boolean(process3.env["WT_SESSION"]) || Boolean(process3.env["TERMINUS_SUBLIME"]) || process3.env["ConEmuTask"] === "{cmd::Cmder}" || process3.env["TERM_PROGRAM"] === "Terminus-Sublime" || process3.env["TERM_PROGRAM"] === "vscode" || process3.env["TERM"] === "xterm-256color" || process3.env["TERM"] === "alacritty" || process3.env["TERMINAL_EMULATOR"] === "JetBrains-JediTerm";
+  return Boolean(process2.env["WT_SESSION"]) || Boolean(process2.env["TERMINUS_SUBLIME"]) || process2.env["ConEmuTask"] === "{cmd::Cmder}" || process2.env["TERM_PROGRAM"] === "Terminus-Sublime" || process2.env["TERM_PROGRAM"] === "vscode" || process2.env["TERM"] === "xterm-256color" || process2.env["TERM"] === "alacritty" || process2.env["TERMINAL_EMULATOR"] === "JetBrains-JediTerm";
 }
 var common = {
   circleQuestionMark: "(?)",
@@ -9083,7 +8594,7 @@ var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
 var esm_default = figures;
 var replacements = Object.entries(specialMainSymbols);
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
+// node_modules/@inquirer/core/dist/esm/lib/theme.js
 var defaultTheme = {
   prefix: {
     idle: import_yoctocolors_cjs.default.blue("?"),
@@ -9104,15 +8615,15 @@ var defaultTheme = {
   }
 };
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/make-theme.js
+// node_modules/@inquirer/core/dist/esm/lib/make-theme.js
 function isPlainObject(value) {
   if (typeof value !== "object" || value === null)
     return false;
-  let proto2 = value;
-  while (Object.getPrototypeOf(proto2) !== null) {
-    proto2 = Object.getPrototypeOf(proto2);
+  let proto = value;
+  while (Object.getPrototypeOf(proto) !== null) {
+    proto = Object.getPrototypeOf(proto);
   }
-  return Object.getPrototypeOf(value) === proto2;
+  return Object.getPrototypeOf(value) === proto;
 }
 function deepMerge(...objects) {
   const output = {};
@@ -9132,7 +8643,7 @@ function makeTheme(...themes) {
   return deepMerge(...themesToMerge);
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
+// node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
 function usePrefix({ status = "idle", theme }) {
   const [showLoader, setShowLoader] = useState(false);
   const [tick, setTick] = useState(0);
@@ -9162,7 +8673,7 @@ function usePrefix({ status = "idle", theme }) {
   const iconName = status === "loading" ? "idle" : status;
   return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-memo.js
+// node_modules/@inquirer/core/dist/esm/lib/use-memo.js
 function useMemo(fn, dependencies) {
   return withPointer((pointer) => {
     const prev = pointer.get();
@@ -9174,11 +8685,11 @@ function useMemo(fn, dependencies) {
     return prev.value;
   });
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-ref.js
+// node_modules/@inquirer/core/dist/esm/lib/use-ref.js
 function useRef(val) {
   return useState({ current: val })[0];
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
+// node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
 function useKeypress(userHandler) {
   const signal = useRef(userHandler);
   signal.current = userHandler;
@@ -9196,7 +8707,7 @@ function useKeypress(userHandler) {
     };
   }, []);
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/utils.js
+// node_modules/@inquirer/core/dist/esm/lib/utils.js
 var import_cli_width = __toESM(require_cli_width(), 1);
 var import_wrap_ansi = __toESM(require_wrap_ansi(), 1);
 function breakLines(content, width) {
@@ -9209,7 +8720,7 @@ function readlineWidth() {
   return import_cli_width.default({ defaultWidth: 80, output: readline().output });
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
+// node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
 function usePointerPosition({ active, renderedItems, pageSize, loop }) {
   const state = useRef({
     lastPointer: active,
@@ -9275,12 +8786,12 @@ function usePagination({ items, active, renderItem, pageSize, loop = true }) {
   return pageBuffer.filter((line) => typeof line === "string").join(`
 `);
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 var import_mute_stream = __toESM(require_lib(), 1);
 import * as readline2 from "node:readline";
 import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
-// ../../node_modules/signal-exit/dist/mjs/signals.js
+// node_modules/signal-exit/dist/mjs/signals.js
 var signals = [];
 signals.push("SIGHUP", "SIGINT", "SIGTERM");
 if (process.platform !== "win32") {
@@ -9290,8 +8801,8 @@ if (process.platform === "linux") {
   signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
 }
 
-// ../../node_modules/signal-exit/dist/mjs/index.js
-var processOk = (process4) => !!process4 && typeof process4 === "object" && typeof process4.removeListener === "function" && typeof process4.emit === "function" && typeof process4.reallyExit === "function" && typeof process4.listeners === "function" && typeof process4.kill === "function" && typeof process4.pid === "number" && typeof process4.on === "function";
+// node_modules/signal-exit/dist/mjs/index.js
+var processOk = (process3) => !!process3 && typeof process3 === "object" && typeof process3.removeListener === "function" && typeof process3.emit === "function" && typeof process3.reallyExit === "function" && typeof process3.listeners === "function" && typeof process3.kill === "function" && typeof process3.pid === "number" && typeof process3.on === "function";
 var kExitEmitter = Symbol.for("signal-exit emitter");
 var global = globalThis;
 var ObjectDefineProperty = Object.defineProperty.bind(Object);
@@ -9374,22 +8885,22 @@ class SignalExitFallback extends SignalExitBase {
 }
 
 class SignalExit extends SignalExitBase {
-  #hupSig = process4.platform === "win32" ? "SIGINT" : "SIGHUP";
+  #hupSig = process3.platform === "win32" ? "SIGINT" : "SIGHUP";
   #emitter = new Emitter;
   #process;
   #originalProcessEmit;
   #originalProcessReallyExit;
   #sigListeners = {};
   #loaded = false;
-  constructor(process4) {
+  constructor(process3) {
     super();
-    this.#process = process4;
+    this.#process = process3;
     this.#sigListeners = {};
     for (const sig of signals) {
       this.#sigListeners[sig] = () => {
         const listeners = this.#process.listeners(sig);
         let { count } = this.#emitter;
-        const p = process4;
+        const p = process3;
         if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
           count += p.__signal_exit_emitter__.count;
         }
@@ -9398,12 +8909,12 @@ class SignalExit extends SignalExitBase {
           const ret = this.#emitter.emit("exit", null, sig);
           const s = sig === "SIGHUP" ? this.#hupSig : sig;
           if (!ret)
-            process4.kill(process4.pid, s);
+            process3.kill(process3.pid, s);
         }
       };
     }
-    this.#originalProcessReallyExit = process4.reallyExit;
-    this.#originalProcessEmit = process4.emit;
+    this.#originalProcessReallyExit = process3.reallyExit;
+    this.#originalProcessEmit = process3.emit;
   }
   onExit(cb, opts) {
     if (!processOk(this.#process)) {
@@ -9481,17 +8992,17 @@ class SignalExit extends SignalExitBase {
     }
   }
 }
-var process4 = globalThis.process;
+var process3 = globalThis.process;
 var {
   onExit,
   load,
   unload
-} = signalExitWrap(processOk(process4) ? new SignalExit(process4) : new SignalExitFallback);
+} = signalExitWrap(processOk(process3) ? new SignalExit(process3) : new SignalExitFallback);
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 import { stripVTControlCharacters } from "node:util";
 
-// ../../node_modules/@inquirer/ansi/dist/esm/index.js
+// node_modules/@inquirer/ansi/dist/esm/index.js
 var ESC = "\x1B[";
 var cursorLeft = ESC + "G";
 var cursorHide = ESC + "?25l";
@@ -9507,7 +9018,7 @@ var cursorTo = (x, y) => {
 var eraseLine = ESC + "2K";
 var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 var height = (content) => content.split(`
 `).length;
 var lastLine = (content) => content.split(`
@@ -9572,7 +9083,7 @@ class ScreenManager {
   }
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
+// node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
 class PromisePolyfill extends Promise {
   static withResolver() {
     let resolve2;
@@ -9585,7 +9096,7 @@ class PromisePolyfill extends Promise {
   }
 }
 
-// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 function getCallSites() {
   const _prepareStackTrace = Error.prepareStackTrace;
   let result2 = [];
@@ -9671,7 +9182,7 @@ function createPrompt(view) {
   };
   return prompt;
 }
-// ../../node_modules/@inquirer/core/dist/esm/lib/Separator.js
+// node_modules/@inquirer/core/dist/esm/lib/Separator.js
 var import_yoctocolors_cjs2 = __toESM(require_yoctocolors_cjs(), 1);
 class Separator {
   separator = import_yoctocolors_cjs2.default.dim(Array.from({ length: 15 }).join(esm_default.line));
@@ -9685,7 +9196,7 @@ class Separator {
     return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
   }
 }
-// ../../node_modules/@inquirer/confirm/dist/esm/index.js
+// node_modules/@inquirer/confirm/dist/esm/index.js
 function getBooleanValue(value, defaultValue) {
   let answer2 = defaultValue !== false;
   if (/^(y|yes)/i.test(value))
@@ -9730,7 +9241,7 @@ var esm_default2 = createPrompt((config, done) => {
   const message = theme.style.message(config.message, status);
   return `${prefix} ${message}${defaultValue} ${formattedValue}`;
 });
-// ../../node_modules/@inquirer/input/dist/esm/index.js
+// node_modules/@inquirer/input/dist/esm/index.js
 var inputTheme = {
   validationFailureMode: "keep"
 };
@@ -9814,7 +9325,7 @@ var esm_default3 = createPrompt((config, done) => {
     error
   ];
 });
-// ../../node_modules/@inquirer/password/dist/esm/index.js
+// node_modules/@inquirer/password/dist/esm/index.js
 var esm_default4 = createPrompt((config, done) => {
   const { validate = () => true } = config;
   const theme = makeTheme(config.theme);
@@ -9862,7 +9373,7 @@ var esm_default4 = createPrompt((config, done) => {
   }
   return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
 });
-// ../../node_modules/@inquirer/select/dist/esm/index.js
+// node_modules/@inquirer/select/dist/esm/index.js
 var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
 var selectTheme = {
   icon: { cursor: esm_default.pointer },
@@ -10026,6 +9537,495 @@ var esm_default5 = createPrompt((config, done) => {
 `).trimEnd();
   return `${lines}${cursorHide}`;
 });
+// node_modules/chalk/source/vendor/ansi-styles/index.js
+var ANSI_BACKGROUND_OFFSET = 10;
+var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
+var wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
+var wrapAnsi16m = (offset = 0) => (red, green, blue) => `\x1B[${38 + offset};2;${red};${green};${blue}m`;
+var styles = {
+  modifier: {
+    reset: [0, 0],
+    bold: [1, 22],
+    dim: [2, 22],
+    italic: [3, 23],
+    underline: [4, 24],
+    overline: [53, 55],
+    inverse: [7, 27],
+    hidden: [8, 28],
+    strikethrough: [9, 29]
+  },
+  color: {
+    black: [30, 39],
+    red: [31, 39],
+    green: [32, 39],
+    yellow: [33, 39],
+    blue: [34, 39],
+    magenta: [35, 39],
+    cyan: [36, 39],
+    white: [37, 39],
+    blackBright: [90, 39],
+    gray: [90, 39],
+    grey: [90, 39],
+    redBright: [91, 39],
+    greenBright: [92, 39],
+    yellowBright: [93, 39],
+    blueBright: [94, 39],
+    magentaBright: [95, 39],
+    cyanBright: [96, 39],
+    whiteBright: [97, 39]
+  },
+  bgColor: {
+    bgBlack: [40, 49],
+    bgRed: [41, 49],
+    bgGreen: [42, 49],
+    bgYellow: [43, 49],
+    bgBlue: [44, 49],
+    bgMagenta: [45, 49],
+    bgCyan: [46, 49],
+    bgWhite: [47, 49],
+    bgBlackBright: [100, 49],
+    bgGray: [100, 49],
+    bgGrey: [100, 49],
+    bgRedBright: [101, 49],
+    bgGreenBright: [102, 49],
+    bgYellowBright: [103, 49],
+    bgBlueBright: [104, 49],
+    bgMagentaBright: [105, 49],
+    bgCyanBright: [106, 49],
+    bgWhiteBright: [107, 49]
+  }
+};
+var modifierNames = Object.keys(styles.modifier);
+var foregroundColorNames = Object.keys(styles.color);
+var backgroundColorNames = Object.keys(styles.bgColor);
+var colorNames = [...foregroundColorNames, ...backgroundColorNames];
+function assembleStyles() {
+  const codes = new Map;
+  for (const [groupName, group] of Object.entries(styles)) {
+    for (const [styleName, style] of Object.entries(group)) {
+      styles[styleName] = {
+        open: `\x1B[${style[0]}m`,
+        close: `\x1B[${style[1]}m`
+      };
+      group[styleName] = styles[styleName];
+      codes.set(style[0], style[1]);
+    }
+    Object.defineProperty(styles, groupName, {
+      value: group,
+      enumerable: false
+    });
+  }
+  Object.defineProperty(styles, "codes", {
+    value: codes,
+    enumerable: false
+  });
+  styles.color.close = "\x1B[39m";
+  styles.bgColor.close = "\x1B[49m";
+  styles.color.ansi = wrapAnsi16();
+  styles.color.ansi256 = wrapAnsi256();
+  styles.color.ansi16m = wrapAnsi16m();
+  styles.bgColor.ansi = wrapAnsi16(ANSI_BACKGROUND_OFFSET);
+  styles.bgColor.ansi256 = wrapAnsi256(ANSI_BACKGROUND_OFFSET);
+  styles.bgColor.ansi16m = wrapAnsi16m(ANSI_BACKGROUND_OFFSET);
+  Object.defineProperties(styles, {
+    rgbToAnsi256: {
+      value(red, green, blue) {
+        if (red === green && green === blue) {
+          if (red < 8) {
+            return 16;
+          }
+          if (red > 248) {
+            return 231;
+          }
+          return Math.round((red - 8) / 247 * 24) + 232;
+        }
+        return 16 + 36 * Math.round(red / 255 * 5) + 6 * Math.round(green / 255 * 5) + Math.round(blue / 255 * 5);
+      },
+      enumerable: false
+    },
+    hexToRgb: {
+      value(hex2) {
+        const matches = /[a-f\d]{6}|[a-f\d]{3}/i.exec(hex2.toString(16));
+        if (!matches) {
+          return [0, 0, 0];
+        }
+        let [colorString] = matches;
+        if (colorString.length === 3) {
+          colorString = [...colorString].map((character) => character + character).join("");
+        }
+        const integer = Number.parseInt(colorString, 16);
+        return [
+          integer >> 16 & 255,
+          integer >> 8 & 255,
+          integer & 255
+        ];
+      },
+      enumerable: false
+    },
+    hexToAnsi256: {
+      value: (hex2) => styles.rgbToAnsi256(...styles.hexToRgb(hex2)),
+      enumerable: false
+    },
+    ansi256ToAnsi: {
+      value(code) {
+        if (code < 8) {
+          return 30 + code;
+        }
+        if (code < 16) {
+          return 90 + (code - 8);
+        }
+        let red;
+        let green;
+        let blue;
+        if (code >= 232) {
+          red = ((code - 232) * 10 + 8) / 255;
+          green = red;
+          blue = red;
+        } else {
+          code -= 16;
+          const remainder = code % 36;
+          red = Math.floor(code / 36) / 5;
+          green = Math.floor(remainder / 6) / 5;
+          blue = remainder % 6 / 5;
+        }
+        const value = Math.max(red, green, blue) * 2;
+        if (value === 0) {
+          return 30;
+        }
+        let result2 = 30 + (Math.round(blue) << 2 | Math.round(green) << 1 | Math.round(red));
+        if (value === 2) {
+          result2 += 60;
+        }
+        return result2;
+      },
+      enumerable: false
+    },
+    rgbToAnsi: {
+      value: (red, green, blue) => styles.ansi256ToAnsi(styles.rgbToAnsi256(red, green, blue)),
+      enumerable: false
+    },
+    hexToAnsi: {
+      value: (hex2) => styles.ansi256ToAnsi(styles.hexToAnsi256(hex2)),
+      enumerable: false
+    }
+  });
+  return styles;
+}
+var ansiStyles = assembleStyles();
+var ansi_styles_default = ansiStyles;
+
+// node_modules/chalk/source/vendor/supports-color/index.js
+import process4 from "node:process";
+import os from "node:os";
+import tty from "node:tty";
+function hasFlag(flag, argv = globalThis.Deno ? globalThis.Deno.args : process4.argv) {
+  const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
+  const position = argv.indexOf(prefix + flag);
+  const terminatorPosition = argv.indexOf("--");
+  return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
+}
+var { env: env2 } = process4;
+var flagForceColor;
+if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
+  flagForceColor = 0;
+} else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
+  flagForceColor = 1;
+}
+function envForceColor() {
+  if ("FORCE_COLOR" in env2) {
+    if (env2.FORCE_COLOR === "true") {
+      return 1;
+    }
+    if (env2.FORCE_COLOR === "false") {
+      return 0;
+    }
+    return env2.FORCE_COLOR.length === 0 ? 1 : Math.min(Number.parseInt(env2.FORCE_COLOR, 10), 3);
+  }
+}
+function translateLevel(level) {
+  if (level === 0) {
+    return false;
+  }
+  return {
+    level,
+    hasBasic: true,
+    has256: level >= 2,
+    has16m: level >= 3
+  };
+}
+function _supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
+  const noFlagForceColor = envForceColor();
+  if (noFlagForceColor !== undefined) {
+    flagForceColor = noFlagForceColor;
+  }
+  const forceColor = sniffFlags ? flagForceColor : noFlagForceColor;
+  if (forceColor === 0) {
+    return 0;
+  }
+  if (sniffFlags) {
+    if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) {
+      return 3;
+    }
+    if (hasFlag("color=256")) {
+      return 2;
+    }
+  }
+  if ("TF_BUILD" in env2 && "AGENT_NAME" in env2) {
+    return 1;
+  }
+  if (haveStream && !streamIsTTY && forceColor === undefined) {
+    return 0;
+  }
+  const min = forceColor || 0;
+  if (env2.TERM === "dumb") {
+    return min;
+  }
+  if (process4.platform === "win32") {
+    const osRelease = os.release().split(".");
+    if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+      return Number(osRelease[2]) >= 14931 ? 3 : 2;
+    }
+    return 1;
+  }
+  if ("CI" in env2) {
+    if (["GITHUB_ACTIONS", "GITEA_ACTIONS", "CIRCLECI"].some((key) => (key in env2))) {
+      return 3;
+    }
+    if (["TRAVIS", "APPVEYOR", "GITLAB_CI", "BUILDKITE", "DRONE"].some((sign2) => (sign2 in env2)) || env2.CI_NAME === "codeship") {
+      return 1;
+    }
+    return min;
+  }
+  if ("TEAMCITY_VERSION" in env2) {
+    return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env2.TEAMCITY_VERSION) ? 1 : 0;
+  }
+  if (env2.COLORTERM === "truecolor") {
+    return 3;
+  }
+  if (env2.TERM === "xterm-kitty") {
+    return 3;
+  }
+  if (env2.TERM === "xterm-ghostty") {
+    return 3;
+  }
+  if (env2.TERM === "wezterm") {
+    return 3;
+  }
+  if ("TERM_PROGRAM" in env2) {
+    const version = Number.parseInt((env2.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+    switch (env2.TERM_PROGRAM) {
+      case "iTerm.app": {
+        return version >= 3 ? 3 : 2;
+      }
+      case "Apple_Terminal": {
+        return 2;
+      }
+    }
+  }
+  if (/-256(color)?$/i.test(env2.TERM)) {
+    return 2;
+  }
+  if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env2.TERM)) {
+    return 1;
+  }
+  if ("COLORTERM" in env2) {
+    return 1;
+  }
+  return min;
+}
+function createSupportsColor(stream, options = {}) {
+  const level = _supportsColor(stream, {
+    streamIsTTY: stream && stream.isTTY,
+    ...options
+  });
+  return translateLevel(level);
+}
+var supportsColor = {
+  stdout: createSupportsColor({ isTTY: tty.isatty(1) }),
+  stderr: createSupportsColor({ isTTY: tty.isatty(2) })
+};
+var supports_color_default = supportsColor;
+
+// node_modules/chalk/source/utilities.js
+function stringReplaceAll(string, substring, replacer) {
+  let index = string.indexOf(substring);
+  if (index === -1) {
+    return string;
+  }
+  const substringLength = substring.length;
+  let endIndex = 0;
+  let returnValue = "";
+  do {
+    returnValue += string.slice(endIndex, index) + substring + replacer;
+    endIndex = index + substringLength;
+    index = string.indexOf(substring, endIndex);
+  } while (index !== -1);
+  returnValue += string.slice(endIndex);
+  return returnValue;
+}
+function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
+  let endIndex = 0;
+  let returnValue = "";
+  do {
+    const gotCR = string[index - 1] === "\r";
+    returnValue += string.slice(endIndex, gotCR ? index - 1 : index) + prefix + (gotCR ? `\r
+` : `
+`) + postfix;
+    endIndex = index + 1;
+    index = string.indexOf(`
+`, endIndex);
+  } while (index !== -1);
+  returnValue += string.slice(endIndex);
+  return returnValue;
+}
+
+// node_modules/chalk/source/index.js
+var { stdout: stdoutColor, stderr: stderrColor } = supports_color_default;
+var GENERATOR = Symbol("GENERATOR");
+var STYLER = Symbol("STYLER");
+var IS_EMPTY = Symbol("IS_EMPTY");
+var levelMapping = [
+  "ansi",
+  "ansi",
+  "ansi256",
+  "ansi16m"
+];
+var styles2 = Object.create(null);
+var applyOptions = (object, options = {}) => {
+  if (options.level && !(Number.isInteger(options.level) && options.level >= 0 && options.level <= 3)) {
+    throw new Error("The `level` option should be an integer from 0 to 3");
+  }
+  const colorLevel = stdoutColor ? stdoutColor.level : 0;
+  object.level = options.level === undefined ? colorLevel : options.level;
+};
+var chalkFactory = (options) => {
+  const chalk = (...strings) => strings.join(" ");
+  applyOptions(chalk, options);
+  Object.setPrototypeOf(chalk, createChalk.prototype);
+  return chalk;
+};
+function createChalk(options) {
+  return chalkFactory(options);
+}
+Object.setPrototypeOf(createChalk.prototype, Function.prototype);
+for (const [styleName, style] of Object.entries(ansi_styles_default)) {
+  styles2[styleName] = {
+    get() {
+      const builder = createBuilder(this, createStyler(style.open, style.close, this[STYLER]), this[IS_EMPTY]);
+      Object.defineProperty(this, styleName, { value: builder });
+      return builder;
+    }
+  };
+}
+styles2.visible = {
+  get() {
+    const builder = createBuilder(this, this[STYLER], true);
+    Object.defineProperty(this, "visible", { value: builder });
+    return builder;
+  }
+};
+var getModelAnsi = (model, level, type, ...arguments_) => {
+  if (model === "rgb") {
+    if (level === "ansi16m") {
+      return ansi_styles_default[type].ansi16m(...arguments_);
+    }
+    if (level === "ansi256") {
+      return ansi_styles_default[type].ansi256(ansi_styles_default.rgbToAnsi256(...arguments_));
+    }
+    return ansi_styles_default[type].ansi(ansi_styles_default.rgbToAnsi(...arguments_));
+  }
+  if (model === "hex") {
+    return getModelAnsi("rgb", level, type, ...ansi_styles_default.hexToRgb(...arguments_));
+  }
+  return ansi_styles_default[type][model](...arguments_);
+};
+var usedModels = ["rgb", "hex", "ansi256"];
+for (const model of usedModels) {
+  styles2[model] = {
+    get() {
+      const { level } = this;
+      return function(...arguments_) {
+        const styler = createStyler(getModelAnsi(model, levelMapping[level], "color", ...arguments_), ansi_styles_default.color.close, this[STYLER]);
+        return createBuilder(this, styler, this[IS_EMPTY]);
+      };
+    }
+  };
+  const bgModel = "bg" + model[0].toUpperCase() + model.slice(1);
+  styles2[bgModel] = {
+    get() {
+      const { level } = this;
+      return function(...arguments_) {
+        const styler = createStyler(getModelAnsi(model, levelMapping[level], "bgColor", ...arguments_), ansi_styles_default.bgColor.close, this[STYLER]);
+        return createBuilder(this, styler, this[IS_EMPTY]);
+      };
+    }
+  };
+}
+var proto = Object.defineProperties(() => {}, {
+  ...styles2,
+  level: {
+    enumerable: true,
+    get() {
+      return this[GENERATOR].level;
+    },
+    set(level) {
+      this[GENERATOR].level = level;
+    }
+  }
+});
+var createStyler = (open2, close, parent) => {
+  let openAll;
+  let closeAll;
+  if (parent === undefined) {
+    openAll = open2;
+    closeAll = close;
+  } else {
+    openAll = parent.openAll + open2;
+    closeAll = close + parent.closeAll;
+  }
+  return {
+    open: open2,
+    close,
+    openAll,
+    closeAll,
+    parent
+  };
+};
+var createBuilder = (self, _styler, _isEmpty) => {
+  const builder = (...arguments_) => applyStyle(builder, arguments_.length === 1 ? "" + arguments_[0] : arguments_.join(" "));
+  Object.setPrototypeOf(builder, proto);
+  builder[GENERATOR] = self;
+  builder[STYLER] = _styler;
+  builder[IS_EMPTY] = _isEmpty;
+  return builder;
+};
+var applyStyle = (self, string) => {
+  if (self.level <= 0 || !string) {
+    return self[IS_EMPTY] ? "" : string;
+  }
+  let styler = self[STYLER];
+  if (styler === undefined) {
+    return string;
+  }
+  const { openAll, closeAll } = styler;
+  if (string.includes("\x1B")) {
+    while (styler !== undefined) {
+      string = stringReplaceAll(string, styler.close, styler.open);
+      styler = styler.parent;
+    }
+  }
+  const lfIndex = string.indexOf(`
+`);
+  if (lfIndex !== -1) {
+    string = stringEncaseCRLFWithFirstIndex(string, closeAll, openAll, lfIndex);
+  }
+  return openAll + string + closeAll;
+};
+Object.defineProperties(createChalk.prototype, styles2);
+var chalk = createChalk();
+var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
+var source_default = chalk;
+
 // src/lib/ui.ts
 var icons = {
   active: source_default.green("▸"),
@@ -11360,6 +11360,16 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
       await rm2(loginConfig, { force: true });
     }
   }));
+}
+async function readManagedCLIProxyAPIEmail(profile) {
+  try {
+    const upstream = profile.upstream ?? "codex";
+    const auth = isSubscriptionUpstream(upstream) ? await readSubscriptionAuth(profilePaths(profile.profileId).dir, upstream) : await readSingleAuthFile(profilePaths(profile.profileId).authDir, CLI_PROXY_API_UPSTREAMS[upstream].authType ?? upstream);
+    const email = [auth?.email, auth?.accountId].find((value) => typeof value === "string" && value.length <= 254 && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value));
+    return email ?? null;
+  } catch {
+    return null;
+  }
 }
 async function inspectManagedCLIProxyAPI(profile, options = {}) {
   assertProfileId(profile.profileId);
@@ -18250,7 +18260,7 @@ function renderSection(infos) {
     const apiProvider = info2.apiProvider ? source_default.dim(info2.apiProvider) : "";
     const linkedClient = info2.provider !== "opencode" && info2.linkedClient ? source_default.dim(`· ${info2.linkedClient}`) : "";
     const model2 = info2.provider !== "opencode" && info2.defaultModel ? source_default.dim(info2.defaultModel) : "";
-    const usage2 = formatUsage(info2.usage, info2.usageNote);
+    const usage2 = formatUsage(info2.usage && info2.section === "Antigravity" ? { ...info2.usage, groups: info2.usage.groups?.toSorted((a, b) => Number(b.name === "Gemini") - Number(a.name === "Gemini")) } : info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage2 || balance;
     const age = quota && info2.quotaAt && Date.now() - info2.quotaAt >= 60000 ? source_default.dim(` · ${formatAge(Date.now() - info2.quotaAt)}`) : "";
@@ -18283,6 +18293,7 @@ async function getClaudeAccountInfo(entry, activeProfile, withUsage) {
     info2.section = claudeAccountSection(profileData);
     info2.defaultModel = profileData.type === "api-key" ? profileData.model ?? null : profileData.defaultModel ?? null;
     if (profileData.type === "local-cliproxyapi") {
+      info2.email = await readManagedCLIProxyAPIEmail(profileData);
       const status = await inspectManagedCLIProxyAPI({
         profileId: profileData.profileId,
         binaryPath: profileData.binaryPath
@@ -18687,9 +18698,11 @@ async function current2() {
   if (claudeState.active) {
     const alias = aliasReg.aliases.find((a) => a.target.provider === "claude" && a.target.profileName === claudeState.active);
     const displayName = alias ? alias.alias : claudeState.active;
-    const section = claudeAccountSection(await getProfileData(claudeState.active));
+    const profile = await getProfileData(claudeState.active);
+    const section = claudeAccountSection(profile);
+    const email = profile.type === "local-cliproxyapi" ? await readManagedCLIProxyAPIEmail(profile) : null;
     if (section !== null) {
-      console.log(`  ${section}:  ${source_default.green.bold(displayName)}`);
+      console.log(`  ${section}:  ${source_default.green.bold(displayName)}${email ? `  ${source_default.dim(email)}` : ""}`);
       found = true;
     }
   }
@@ -19145,7 +19158,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.28.0",
+  version: "1.28.1",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {
@@ -21568,10 +21581,11 @@ function parseListOptions(args) {
 }
 async function interactivePicker() {
   const aliasReg = await loadAliases();
-  const accounts = await Promise.all(aliasReg.aliases.map(async (entry) => ({
-    entry,
-    section: await aliasSection(entry)
-  })));
+  const accounts = await Promise.all(aliasReg.aliases.map(async (entry) => {
+    const profile = entry.target.provider === "claude" ? await getProfileData(entry.target.profileName) : null;
+    const email = profile?.type === "local-cliproxyapi" ? await readManagedCLIProxyAPIEmail(profile) : null;
+    return { entry, section: await aliasSection(entry), email };
+  }));
   const visibleAccounts = accounts.filter((account) => account.section !== null);
   if (visibleAccounts.length === 0) {
     blank();
@@ -21589,7 +21603,7 @@ async function interactivePicker() {
     codexReg = await loadRegistry();
   } catch {}
   const openCodeState = await readOpenCodeState();
-  const choices = visibleAccounts.map(({ entry, section }) => {
+  const choices = visibleAccounts.map(({ entry, section, email }) => {
     let isActive = false;
     if (entry.target.provider === "claude") {
       isActive = claudeState.active === entry.target.profileName;
@@ -21600,7 +21614,7 @@ async function interactivePicker() {
     }
     const active = isActive ? source_default.dim(" (active)") : "";
     return {
-      name: `${entry.alias}  ${section}${active}`,
+      name: `${entry.alias}  ${section}${email ? `  ${source_default.dim(email)}` : ""}${active}`,
       value: entry.alias
     };
   });
