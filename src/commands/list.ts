@@ -36,6 +36,7 @@ import { fetchCodexUsage } from "../providers/codex/usage";
 import { fetchRelayBalance } from "../lib/oneapi";
 import {
   inspectManagedCLIProxyAPI,
+  readManagedCLIProxyAPIEmail,
   resolveManagedLocalCLIProxyAPIDefaultModel,
 } from "../providers/cliproxyapi/managed";
 import { getLinkedClaudeProfile } from "../providers/cliproxyapi/links";
@@ -606,7 +607,9 @@ function renderSection(infos: ListAccountInfo[]): void {
     const model = info.provider !== "opencode" && info.defaultModel
       ? chalk.dim(info.defaultModel)
       : "";
-    const usage = formatUsage(info.usage, info.usageNote);
+    const usage = formatUsage(info.usage && info.section === "Antigravity"
+      ? { ...info.usage, groups: info.usage.groups?.toSorted((a, b) => Number(b.name === "Gemini") - Number(a.name === "Gemini")) }
+      : info.usage, info.usageNote);
     const balance = formatBalance(info.balance);
     const quota = usage || balance;
     const age =
@@ -659,6 +662,7 @@ async function getClaudeAccountInfo(
         : profileData.defaultModel ?? null;
 
     if (profileData.type === "local-cliproxyapi") {
+      info.email = await readManagedCLIProxyAPIEmail(profileData);
       const status = await inspectManagedCLIProxyAPI({
         profileId: profileData.profileId,
         binaryPath: profileData.binaryPath,

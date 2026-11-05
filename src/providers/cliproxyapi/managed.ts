@@ -58,6 +58,7 @@ import {
 } from "./upstreams";
 import {
   hasSubscriptionLogin,
+  readSubscriptionAuth,
   isSubscriptionUpstream,
   listSubscriptionModels,
   loginSubscriptionPlugin,
@@ -1775,6 +1776,21 @@ export async function runManagedCLIProxyAPILogin(
       await rm(loginConfig, { force: true });
     }
   }));
+}
+
+/** Read display identity locally without refreshing or writing provider credentials. */
+export async function readManagedCLIProxyAPIEmail(profile: LocalCLIProxyAPIProfileData): Promise<string | null> {
+  try {
+    const upstream = profile.upstream ?? "codex";
+    const auth = isSubscriptionUpstream(upstream)
+      ? await readSubscriptionAuth(profilePaths(profile.profileId).dir, upstream)
+      : await readSingleAuthFile(profilePaths(profile.profileId).authDir, CLI_PROXY_API_UPSTREAMS[upstream].authType ?? upstream);
+    const email = [auth?.email, auth?.accountId].find((value): value is string =>
+      typeof value === "string" && value.length <= 254 && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value));
+    return email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function inspectManagedCLIProxyAPI(
