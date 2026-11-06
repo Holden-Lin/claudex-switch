@@ -357,8 +357,11 @@ async function bridgeResponse(input: {
   const session = input.headers.get("x-claudex-session");
   if (session) await ctx.plugin["chat.headers"]?.({ sessionID: session.slice(0, 256), model: { providerID: options.upstream } }, { headers });
   // Claude Code's side queries (auto mode classifier, titles) and its non-streaming fallback ask for one JSON answer.
-  const collect = STREAM_ONLY.has(options.upstream) && (chat as { stream?: unknown }).stream !== true;
-  const sent = collect ? JSON.stringify({ ...chat, stream: true, stream_options: { include_usage: true } }) : body;
+  const request = chat as Record<string, unknown>;
+  const collect = STREAM_ONLY.has(options.upstream) && request.stream !== true;
+  // Default thinking can exhaust a classifier's small output budget before
+  // producing any verdict. Preserve reasoning when the caller asks for it.
+  const sent = collect ? JSON.stringify({ ...request, reasoning_effort: request.reasoning_effort ?? "none", stream: true, stream_options: { include_usage: true } }) : body;
   const upstream = await pluginFetch!(endpoint, { method: "POST", headers, body: sent, signal: input.signal });
   if (collect && upstream.ok && !/json/i.test(upstream.headers.get("content-type") ?? "")) return collectedChat(await upstream.text());
   const responseHeaders = new Headers();

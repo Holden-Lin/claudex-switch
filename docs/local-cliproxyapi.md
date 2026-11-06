@@ -37,6 +37,8 @@ WorkBuddy（国内版与国际版）的 auto mode 权限分类器默认使用 `d
 
 WorkBuddy 只接受流式请求（否则报 `11101 Non-stream chat request is currently not supported`）。Claude Code 的分类器、标题等附带请求及流式失败后的重试是非流式的，本地桥会改用流式请求再合并为一次完整回复。旧版桥在代理空闲时下次启动会自动重启。
 
+WorkBuddy 的非流式请求没有明确指定推理强度时，本地桥设置 `reasoning_effort=none`。hy4free 默认会思考；实测 auto mode 分类请求的 2112 个输出 token 全部用于思考，没有留下判定文本，因而反复显示 `auto mode's check had no usable answer`。关闭这类请求的额外思考后，同一检查用 8 个输出 token 返回有效判定。主对话的流式请求及显式指定的推理强度仍照常传递；此修复保留分类检查，不会自动放行工具。旧会话需退出后重新启动，空闲旧桥会自动替换。排查步骤见项目 [proxy-auto-mode skill](../skills/proxy-auto-mode/SKILL.md)。
+
 内部复用 [Cursor](https://github.com/magpie-community/plugins/tree/main/packages/cursor) 与 [WorkBuddy](https://github.com/magpie-community/plugins/tree/main/packages/workbuddy) 独立插件，随 claudex-switch 分发，无需安装完整 magpie。插件负责订阅登录、续期和原生协议；CLIProxyAPI 负责 Anthropic Messages 转换。请求由本机发往对应订阅服务。
 
 浏览器登录使用 claudex-switch 私有目录中的 `plugin-auth.json`（0600）。选择沿用桌面应用 / Cursor Agent 登录时，只保存引用，**之后会跟随原应用当前登录的账号**，不复制其轮换令牌；希望账号固定时用浏览器登录。`refresh <alias>` 可重新登录，取消或登录错账号不会替换原凭据；使用中的会话会阻止刷新及删除。

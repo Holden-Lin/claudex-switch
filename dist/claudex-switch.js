@@ -7904,8 +7904,9 @@ async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
   const session = input.headers.get("x-claudex-session");
   if (session)
     await ctx.plugin["chat.headers"]?.({ sessionID: session.slice(0, 256), model: { providerID: options.upstream } }, { headers });
-  const collect2 = STREAM_ONLY.has(options.upstream) && chat.stream !== true;
-  const sent = collect2 ? JSON.stringify({ ...chat, stream: true, stream_options: { include_usage: true } }) : body;
+  const request2 = chat;
+  const collect2 = STREAM_ONLY.has(options.upstream) && request2.stream !== true;
+  const sent = collect2 ? JSON.stringify({ ...request2, reasoning_effort: request2.reasoning_effort ?? "none", stream: true, stream_options: { include_usage: true } }) : body;
   const upstream = await pluginFetch(endpoint, { method: "POST", headers, body: sent, signal: input.signal });
   if (collect2 && upstream.ok && !/json/i.test(upstream.headers.get("content-type") ?? ""))
     return collectedChat(await upstream.text());
@@ -10203,7 +10204,7 @@ var ORPHAN_LOCK_GRACE_MS = 60000;
 var LOCK_HEARTBEAT_MS = 1e4;
 var LOOPBACK_HOST = "127.0.0.1";
 var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-var SUBSCRIPTION_BRIDGE_REVISION = 2;
+var SUBSCRIPTION_BRIDGE_REVISION = 3;
 function assertProfileId(profileId) {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
     throw new Error("Invalid managed CLIProxyAPI profile id");

@@ -146,7 +146,7 @@ try {
   // A bridge started before the current revision restarts on the next idle launch.
   const stateFile = join(cliProxyAPIProfileDir(profileId), "state.json");
   const { bridgeRevision, ...oldState } = JSON.parse(await readFile(stateFile, "utf8"));
-  assert.equal(bridgeRevision, 2);
+  assert.equal(bridgeRevision, 3);
   assert.equal(await managed.stopStaleManagedCLIProxyAPI(profile), false);
   await writeFile(stateFile, JSON.stringify(oldState), { mode: 0o600 });
   assert.equal(await managed.stopStaleManagedCLIProxyAPI(profile), true);

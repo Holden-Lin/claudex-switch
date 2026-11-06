@@ -1,0 +1,7 @@
+# 待发布：修复 WorkBuddy hy4free 的 auto mode 工具检查
+
+使用 `claudex-switch workbuddy cc --model hy4free` 时，auto mode 的检查可能反复显示 `auto mode's check had no usable answer`，使工具无法运行。实测请求虽返回 HTTP 200，但 hy4free 默认思考耗尽了分类器的 2112 个输出 token，没有留下判定文本。
+
+本地桥现在为未指定推理强度的 WorkBuddy 非流式请求设置 `reasoning_effort=none`，保留预算用于回复。主对话的流式请求及明确指定的推理强度继续传递，分类器仍会检查工具。退出旧会话后重新启动即可；空闲旧桥会自动替换。
+
+真实 Claude Code 2.1.318 + 本机 CLIProxyAPI + WorkBuddy hy4free 的可见 tmux 会话中，`git log -1 --oneline`、`ls`、`uv run --no-project --python 3.13 python -c "print(6*7)"` 均已执行；分类回复为 `<block>no</block>`，Python 输出 `42`。新增项目 skill 记录 agy / WorkBuddy 的分类器排查与实测方法。

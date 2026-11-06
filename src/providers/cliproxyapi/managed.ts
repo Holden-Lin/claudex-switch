@@ -130,7 +130,8 @@ export interface ManagedCLIProxyAPISetup {
 
 // Bump when the subscription bridge changes behavior: 1 = WorkBuddy non-stream chats are collected from a stream;
 // 2 = WorkBuddy's written reset times become Retry-After, and its 14018 names the free models.
-const SUBSCRIPTION_BRIDGE_REVISION = 2;
+// 3 = non-stream WorkBuddy requests without explicit effort reserve their budget for the answer.
+const SUBSCRIPTION_BRIDGE_REVISION = 3;
 
 interface ManagedRuntimeState {
   pid: number;

@@ -1,0 +1,116 @@
+{
+  "scope": "Real WorkBuddy hy4free; only approved harmless commands; HTTP headers and transcript omitted",
+  "versions": {
+    "claudeCode": "2.1.318",
+    "cliProxyAPI": "7.3.15",
+    "workBuddyPlugin": "0.1.30"
+  },
+  "before": [
+    {
+      "completedAt": "2026-11-06T00:20:22.575Z",
+      "request": {
+        "path": "/v1/messages",
+        "model": "hy4free",
+        "stream": null,
+        "max_tokens": 2112,
+        "tools": 0,
+        "stop_sequences": [
+          "</block>"
+        ],
+        "thinking": null,
+        "output_config": null
+      },
+      "response": {
+        "status": 200,
+        "model": "hy4-free",
+        "stop_reason": "max_tokens",
+        "usage": {
+          "input_tokens": 34441,
+          "output_tokens": 2112
+        },
+        "content": [
+          {
+            "type": "thinking",
+            "chars": 7761
+          }
+        ]
+      }
+    },
+    {
+      "completedAt": "2026-11-06T00:20:57.096Z",
+      "request": {
+        "path": "/v1/messages",
+        "model": "hy4free",
+        "stream": null,
+        "max_tokens": 2112,
+        "tools": 0,
+        "stop_sequences": [
+          "</block>"
+        ],
+        "thinking": null,
+        "output_config": null
+      },
+      "response": {
+        "status": 200,
+        "model": "hy4-free",
+        "stop_reason": "max_tokens",
+        "usage": {
+          "input_tokens": 73,
+          "output_tokens": 2112,
+          "cache_read_input_tokens": 34368
+        },
+        "content": [
+          {
+            "type": "thinking",
+            "chars": 9267
+          }
+        ]
+      }
+    }
+  ],
+  "after": [
+    {
+      "completedAt": "2026-11-06T00:24:34.677Z",
+      "request": {
+        "path": "/v1/messages",
+        "model": "hy4free",
+        "stream": null,
+        "max_tokens": 2112,
+        "tools": 0,
+        "stop_sequences": [
+          "</block>"
+        ],
+        "thinking": null,
+        "output_config": null
+      },
+      "response": {
+        "status": 200,
+        "model": "hy4-free",
+        "stop_reason": "end_turn",
+        "usage": {
+          "input_tokens": 34447,
+          "output_tokens": 8
+        },
+        "content": [
+          {
+            "type": "text",
+            "chars": 17,
+            "text": "<block>no</block>"
+          }
+        ]
+      }
+    }
+  ],
+  "mainChatAfter": {
+    "model": "hy4free",
+    "stream": true,
+    "thinking": {
+      "type": "adaptive",
+      "display": "updates"
+    },
+    "output_config": {
+      "effort": "xhigh"
+    },
+    "status": 200
+  }
+}

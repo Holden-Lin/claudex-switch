@@ -66,7 +66,11 @@ globalThis.fetch = async (input, init) => {
     if (chat.model === "paid-model") {
       return Response.json({ code: 14018, msg: "Credits exhausted. Please visit the link below to purchase add-on packs and get more credits: https://www.codebuddy.ai/profile/usage" }, { status: 429 });
     }
-    if (!read) return streamed(chat, [{ content: "allow" }], "stop");
+    // Like hy4free: an unspecified effort can spend a short side query's
+    // entire budget on thinking, leaving Claude Code no verdict to parse.
+    if (!read) return chat.reasoning_effort === "none"
+      ? streamed(chat, [{ content: "allow" }], "stop")
+      : streamed(chat, [{ reasoning_content: "Budget exhausted before the answer" }], "length");
     if (results.length < 2) {
       const round = results.length + 1;
       const args = JSON.stringify({ file_path: process.env.CLAUDEX_SUBSCRIPTION_PROOF_FILE, offset: 1, limit: 1 });

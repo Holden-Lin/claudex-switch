@@ -217,6 +217,48 @@ describe("subscription plugin adapter", () => {
     expect(await rejected.text()).toBe('{"code":11101}');
   });
 
+  test.each(["workbuddy", "workbuddy-ai"] as const)("%s keeps a non-stream classifier's budget for its verdict", async (upstream) => {
+    const dir = await directory();
+    let verdict = "<block>no</block>";
+    const options = fake({ upstream, fetch: async (_input, init) => {
+      const body = JSON.parse(String(init.body));
+      expect(body.stream).toBe(true);
+      const delta = body.reasoning_effort === "none"
+        ? { content: verdict }
+        : { reasoning_content: "Thinking until the token budget runs out" };
+      return new Response(`data: ${JSON.stringify({ choices: [{ index: 0, delta,
+        finish_reason: body.reasoning_effort === "none" ? "stop" : "length" }] })}\n\ndata: [DONE]\n\n`,
+        { headers: { "content-type": "text/event-stream" } });
+    } });
+    const url = await bridge(dir, options, upstream);
+    const response = await chat(url, { model: "hy4free", max_tokens: 2112, stream: false,
+      stop: ["</block>"], messages: [{ role: "user", content: "Classify this harmless command." }] });
+    expect(response.status).toBe(200);
+    expect((await response.json()).choices[0]).toEqual({ index: 0, finish_reason: "stop",
+      message: { role: "assistant", content: "<block>no</block>" } });
+    verdict = "<block>yes</block><reason>Refused by the classifier</reason>";
+    const denied = await chat(url, { model: "hy4free", stream: false, messages: [] });
+    expect((await denied.json()).choices[0].message.content).toBe(verdict);
+  });
+
+  test.each([
+    { upstream: "workbuddy-ai", stream: false, reasoning_effort: "high" },
+    { upstream: "workbuddy", stream: true, reasoning_effort: undefined },
+    { upstream: "workbuddy-ai", stream: true, reasoning_effort: "max" },
+    { upstream: "cursor", stream: false, reasoning_effort: undefined },
+  ] as const)("preserves requested effort: %j", async ({ upstream, stream, reasoning_effort }) => {
+    const dir = await directory();
+    const request = { model: "hy4free", messages: [], stream, ...(reasoning_effort ? { reasoning_effort } : {}) };
+    const options = fake({ upstream, fetch: async (_input, init) => {
+      const body = JSON.parse(String(init.body));
+      expect(body.reasoning_effort).toBe(reasoning_effort);
+      if (upstream === "cursor" || stream) expect(body).toEqual(request);
+      return Response.json({ choices: [] });
+    } });
+    const url = await bridge(dir, options, upstream);
+    expect((await chat(url, request)).status).toBe(200);
+  });
+
   test("reads WorkBuddy's written reset time in either language as seconds", () => {
     // WorkBuddy's 6004 wording, as magpie's tests quote it.
     const now = Date.UTC(2026, 9, 11, 3, 0, 0); // 11:00 UTC+8

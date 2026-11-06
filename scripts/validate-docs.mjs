@@ -19,6 +19,7 @@ const requiredFiles = [
   "docs/use-cases/quota.md",
   "docs/use-cases/api-relays.md",
   "skills/claudex-switch/SKILL.md",
+  "skills/proxy-auto-mode/SKILL.md",
 ];
 
 const missing = [];
@@ -43,7 +44,7 @@ async function listMarkdown(directory) {
 }
 
 const markdownPaths = [];
-for (const path of ["README.md", "README.en.md", "docs", "skills/claudex-switch"]) {
+for (const path of ["README.md", "README.en.md", "docs", "skills"]) {
   const absolute = resolve(root, path);
   try {
     const info = await stat(absolute);
