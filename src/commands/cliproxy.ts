@@ -227,7 +227,7 @@ async function loginOrThrow(
     ]);
   }
   if (!login.success || !login.identity) {
-    throw new UserFacingError(`CLIProxyAPI ${label} login failed or was cancelled.`);
+    throw new UserFacingError(`${label} login failed or was cancelled.`);
   }
   return login.identity;
 }
@@ -351,12 +351,12 @@ async function createAntigravityAlias(
   );
   hint("Consider logging in with a Google account you can afford to lose Antigravity access on.");
   const accepted = await (options.confirmRisk ??
-    (() => confirm({ message: "Continue with Antigravity via CLIProxyAPI?", default: false })))();
+    (() => confirm({ message: "Continue with Antigravity for Claude Code?", default: false })))();
   if (!accepted) throw new UserFacingError("Cancelled; nothing was created.");
 
   const binaryPath = await requireBinary(options);
   assertCLIProxyAPICompatibility(binaryPath, "antigravity");
-  info("Opening CLIProxyAPI's own Antigravity login in your browser...");
+  info("Opening Antigravity login in your browser...");
   blank();
   const { profileName, profile, runtime } = await createManagedProfile(
     binaryPath,

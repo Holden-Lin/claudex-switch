@@ -46,7 +46,7 @@ export async function doctor(
       : await getLinkedClaudeProfile(entry.target);
   if (!profileName) {
     fail(
-      `Doctor checks local CLIProxyAPI accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`,
+      `Doctor checks local provider proxy accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`,
     );
     return;
   }
@@ -57,7 +57,7 @@ export async function doctor(
 
   let profile = await getProfileData(profileName);
   if (profile.type !== "local-cliproxyapi") {
-    fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
+    fail("Doctor is currently available for local provider proxy Claude accounts only.");
     return;
   }
 
@@ -110,11 +110,11 @@ export async function doctor(
     return;
   }
   if (!status.environmentValid) {
-    fail("Managed CLIProxyAPI private environment is invalid or missing. Add the account again; a restart cannot safely recreate its client key.");
+    fail("Managed local provider proxy private environment is invalid or missing. Add the account again; a restart cannot safely recreate its client key.");
     return;
   }
   if (!status.configured && !options.restart) {
-    fail("Managed CLIProxyAPI runtime configuration is missing or invalid. Run `claudex-switch doctor <alias> --restart` to rebuild it from the private environment.");
+    fail("Managed local provider proxy runtime configuration is missing or invalid. Run `claudex-switch doctor <alias> --restart` to rebuild it from the private environment.");
     return;
   }
   if (status.running && !status.healthy && !options.restart) {
@@ -175,7 +175,7 @@ export async function doctor(
   if (options.restart && status.running) {
     success(`${chalk.bold(entry.alias)} managed proxy restarted`);
   } else {
-    success(`${chalk.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
+    success(`${chalk.bold(entry.alias)} basic local ${upstream} proxy checks passed`);
     hint(`Use ${chalk.cyan(`claudex-switch doctor ${entry.alias} --live`)} for a small, quota-consuming model request.`);
   }
   blank();

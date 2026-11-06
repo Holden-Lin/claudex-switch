@@ -269,7 +269,7 @@ describe("managed local CLIProxyAPI", () => {
     await ensureManagedCLIProxyAPI(profile);
     const lease = await acquireManagedCLIProxyAPILease(profile);
     await expect(purgeManagedCLIProxyAPI(profile)).rejects.toThrow(
-      "still using this CLIProxyAPI account",
+      "still using this local provider proxy account",
     );
     await lease.release();
     await purgeManagedCLIProxyAPI(profile);
@@ -305,7 +305,7 @@ describe("managed local CLIProxyAPI", () => {
 
     const lease = await acquireManagedCLIProxyAPILease(profile);
     await expect(deleteAccount("busy")).rejects.toThrow(
-      "still using this CLIProxyAPI account",
+      "still using this local provider proxy account",
     );
 
     // Nothing was removed: alias, profile and its private login all remain.

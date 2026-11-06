@@ -203,7 +203,7 @@ type SpawnCommand = typeof spawn;
 
 function assertProfileId(profileId: string): void {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
-    throw new Error("Invalid managed CLIProxyAPI profile id");
+    throw new Error("Invalid managed local provider proxy profile id");
   }
 }
 
@@ -276,7 +276,7 @@ async function writePrivateJson(path: string, data: unknown): Promise<void> {
 function requireEnvValue(values: Record<string, string>, key: string): string {
   const value = values[key]?.trim();
   if (!value) {
-    throw new Error(`Managed CLIProxyAPI configuration is missing ${key}`);
+    throw new Error(`Managed local provider proxy configuration is missing ${key}`);
   }
   return value;
 }
@@ -298,7 +298,7 @@ function parseManagedEnv(content: string): ManagedEnv {
     throw new Error("Invalid subscription bridge port");
   }
   if (upstream === "opencode-go" && !upstreamKey) {
-    throw new Error(`Managed CLIProxyAPI configuration is missing ${ENV_UPSTREAM_KEY}`);
+    throw new Error(`Managed local provider proxy configuration is missing ${ENV_UPSTREAM_KEY}`);
   }
   return {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
@@ -564,14 +564,14 @@ async function readExistingManagedEnv(profileId: string): Promise<ManagedEnv> {
   const paths = profilePaths(profileId);
   if (!(await fileExists(paths.envFile))) {
     throw new Error(
-      "Managed CLIProxyAPI data is missing. The account may have been purged; add it again instead of recreating its private login state.",
+      "Managed local provider proxy data is missing. The account may have been purged; add it again instead of recreating its private login state.",
     );
   }
   try {
     return await readManagedEnv(profileId);
   } catch {
     throw new Error(
-      "Managed CLIProxyAPI private environment is invalid. Do not recreate it automatically; add the account again.",
+      "Managed local provider proxy private environment is invalid. Do not recreate it automatically; add the account again.",
     );
   }
 }
@@ -1484,7 +1484,7 @@ export async function acquireManagedCLIProxyAPILease(
     const managed = await readExistingManagedEnv(profile.profileId);
     if (!(await hasManagedCLIProxyAPILogin(profile.profileId))) {
       throw new Error(
-        `No valid CLIProxyAPI ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`,
+        `No valid ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`,
       );
     }
     await mkdirPrivate(paths.sessionsDir);
@@ -1680,14 +1680,14 @@ export async function runManagedCLIProxyAPILogin(
     });
   }
   if (!spec.loginFlag || !spec.authType) {
-    throw new Error(`${spec.label} accounts use an API key and have no CLIProxyAPI login.`);
+    throw new Error(`${spec.label} accounts use an API key and have no local provider proxy login.`);
   }
   const { loginFlag, authType, callbackPort } = spec;
 
   return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
       throw new Error(
-        "A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before refreshing the login.",
+        "A Claude Code session launched by claudex-switch is still using this local provider proxy account. End it before refreshing the login.",
       );
     }
 
@@ -1696,7 +1696,7 @@ export async function runManagedCLIProxyAPILogin(
     const apiPort = await findAvailablePort();
     if (callbackPort && !(await portIsAvailable(callbackPort))) {
       throw new Error(
-        `CLIProxyAPI ${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`,
+        `${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`,
       );
     }
     await mkdirPrivate(stagingAuthDir);
@@ -1786,7 +1786,8 @@ export async function readManagedCLIProxyAPIEmail(profile: LocalCLIProxyAPIProfi
     const auth = isSubscriptionUpstream(upstream)
       ? await readSubscriptionAuth(profilePaths(profile.profileId).dir, upstream)
       : await readSingleAuthFile(profilePaths(profile.profileId).authDir, CLI_PROXY_API_UPSTREAMS[upstream].authType ?? upstream);
-    const email = [auth?.email, auth?.accountId].find((value): value is string =>
+    // WorkBuddy accountId comes from nickname / phone / UID, even when it looks like an email.
+    const email = [auth?.email, ...(upstream === "workbuddy" || upstream === "workbuddy-ai" ? [] : [auth?.accountId])].find((value): value is string =>
       typeof value === "string" && value.length <= 254 && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value));
     return email ?? null;
   } catch {
@@ -1850,7 +1851,7 @@ async function stopManagedCLIProxyAPIUnlocked(
   assertProfileId(profile.profileId);
   if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
     throw new Error(
-      "A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before stopping or purging the proxy.",
+      "A Claude Code session launched by claudex-switch is still using this local provider proxy account. End it before stopping or purging the proxy.",
     );
   }
 

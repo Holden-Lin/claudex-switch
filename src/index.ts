@@ -48,7 +48,7 @@ const HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
-    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local CLIProxyAPI
+    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local provider proxy (Antigravity / WorkBuddy / Cursor)
     claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts

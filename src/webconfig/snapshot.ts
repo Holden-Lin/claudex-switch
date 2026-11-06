@@ -132,10 +132,7 @@ async function describeClaudeAccount(
     return {
       ...base,
       type: "local-cliproxyapi",
-      label:
-        (data.upstream ?? "codex") === "codex"
-          ? "本机 CLIProxyAPI"
-          : `本机 CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[data.upstream!].label}`,
+      label: CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label,
       email: null,
       fields: {
         defaultModel: data.defaultModel ?? "",

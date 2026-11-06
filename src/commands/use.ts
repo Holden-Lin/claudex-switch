@@ -120,7 +120,7 @@ async function switchClaude(
     label = chalk.dim(maskKey(data.apiKey));
   } else if (data.type === "local-cliproxyapi") {
     label = chalk.dim(
-      `CLIProxyAPI · local ${CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label} login`,
+      `local ${CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label} login`,
     );
   } else {
     const creds = await readCredentials(

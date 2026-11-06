@@ -142,7 +142,7 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
     if (data.type === "api-key" && data.apiKey) {
       label = maskKey(data.apiKey);
     } else if (data.type === "local-cliproxyapi") {
-      label = "CLIProxyAPI";
+      label = "local provider proxy";
     } else {
       const creds = await readCredentials(
         claudeProfileCredentials(entry.name),
@@ -337,7 +337,7 @@ export async function updateLocalCLIProxyAPIProfileIdentity(
 ): Promise<void> {
   const current = await readProfileData(name);
   if (current.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+    throw new Error(`Profile "${name}" is not a local provider proxy profile`);
   }
   await writeProfileData(name, { ...current, authIdentity });
 }
@@ -348,7 +348,7 @@ export async function replaceLocalCLIProxyAPIBinary(
 ): Promise<LocalCLIProxyAPIProfileData> {
   const current = await readProfileData(name);
   if (current.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+    throw new Error(`Profile "${name}" is not a local provider proxy profile`);
   }
   const resolved = findCLIProxyAPIBinary(binaryPath);
   if (!resolved) throw new Error("The replacement CLIProxyAPI executable is unavailable.");
@@ -580,7 +580,7 @@ export async function prepareIsolatedLocalCLIProxyAPIRun(
   }
   const data = await readProfileData(name);
   if (data.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+    throw new Error(`Profile "${name}" is not a local provider proxy profile`);
   }
 
   const configDir = claudeProfileConfigDir(name);

@@ -203,7 +203,7 @@ const PAGE = `<!doctype html>
     defaultHaikuModel: ["Haiku 映射", "ANTHROPIC_DEFAULT_HAIKU_MODEL"],
     subagentModel: ["子代理模型", "CLAUDE_CODE_SUBAGENT_MODEL"],
     defaultModel: ["默认模型", ""],
-    binaryPath: ["CLIProxyAPI 可执行文件", ""],
+    binaryPath: ["本机代理可执行文件", ""],
     providerType: ["Provider 类型", ""],
     providerName: ["Provider 名称", "model_providers"],
     envKey: ["环境变量名", "env_key"]
@@ -1048,7 +1048,7 @@ const PAGE = `<!doctype html>
   }
 
   // Spells out exactly what is about to be lost. A refusal (an active local
-  // CLIProxyAPI session, say) surfaces in the same panel and removes nothing.
+  // local proxy session, say) surfaces in the same panel and removes nothing.
   function buildDeletePanel(account) {
     var alias = account.alias;
     var panel = el("div", "danger-panel");
@@ -1100,7 +1100,7 @@ const PAGE = `<!doctype html>
     if (account.provider === "claude") {
       if (account.type === "oauth") return "保存的登录凭据会被删除，需要重新登录";
       if (account.type === "api-key") return "API Key 与其账号配置会被删除";
-      return "本机 CLIProxyAPI 的登录与配置会被删除，需要重新登录";
+      return "该服务商的本机代理登录与配置会被删除，需要重新登录";
     }
     if (account.type === "chatgpt") return "Codex 登录文件会被删除，需要重新登录";
     return "API Key 与 Codex 登录文件会被删除";
