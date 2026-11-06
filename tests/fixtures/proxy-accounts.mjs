@@ -109,10 +109,13 @@ try {
   ]) {
     const dialogs = [["What type of account?", "\u001b[B".repeat(index) + "\r"]];
     if (region !== null) dialogs.push(["WorkBuddy region", "\u001b[B".repeat(region) + "\r"]);
-    if (upstream === "antigravity") dialogs.push(["Continue with Antigravity via CLIProxyAPI?", "y\r"]);
+    if (upstream === "antigravity") dialogs.push(["Continue with Antigravity for Claude Code?", "y\r"]);
     else dialogs.push([" login", "\r"]);
     const output = await run(["add", alias], dialogs);
     assert(output.includes(`Saved as alias ${alias}`), output);
+    assert(output.includes(`Claude Code · ${{ antigravity: "Antigravity", workbuddy: "WorkBuddy (China)", "workbuddy-ai": "WorkBuddy AI (international)", cursor: "Cursor" }[upstream]}`), output);
+    assert(!output.includes("CLIProxyAPI"), output);
+    console.log(output.split("\n").find((line) => line.includes(`Saved as alias ${alias}`)));
     const entry = (await json(".claudex-switch/aliases.json")).aliases.find((item) => item.alias === alias);
     const profile = await json(`.claude-profiles/${entry.target.profileName}/profile.json`);
     assert.equal(profile.type, "local-cliproxyapi");
@@ -154,8 +157,8 @@ try {
     console.log("BEFORE LIST\n" + before.output);
   }
   const rendered = await run(["list", "--cached"]);
-  assert(rendered.includes("Gemini 5h 92% · wk 40% · Claude/GPT 5h 100% · wk 7%"), rendered);
-  assert.equal((rendered.match(/fixture@example.com/g) ?? []).length, 4, rendered);
+  assert(rendered.includes("Claude/GPT 5h 100% · wk 7% · Gemini 5h 92% · wk 40%"), rendered);
+  assert.equal((rendered.match(/fixture@example.com/g) ?? []).length, 2, rendered);
   for (const title of ["Claude", "Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
     assert(rendered.includes(`── ${title} ──`), rendered);
   assert(!rendered.includes("CLIProxyAPI") && !rendered.includes("legacy-chatgpt"), rendered);
@@ -168,9 +171,28 @@ try {
   for (const label of ["Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
     assert(picker.output().includes(label), picker.output());
   assert(picker.output().includes("fixture@example.com"), picker.output());
+  console.log("AFTER PICKER\n" + picker.output());
   picker.child.kill("SIGTERM");
   await picker.done;
   console.log("picker: upstream labels visible; legacy ChatGPT proxy hidden; no CLIProxyAPI wording");
+  for (const entry of aliases.aliases.filter((item) => ["agy", "wb-ai", "wb-cn", "cursor"].includes(item.alias))) {
+    await put(".claude-profiles/state.json", { active: entry.target.profileName });
+    const output = await run(["current"]);
+    assert.equal(output.includes("fixture@example.com"), ["agy", "cursor"].includes(entry.alias), output);
+    console.log(`AFTER CURRENT ${entry.alias}\n${output}`);
+    if (process.argv[3]) {
+      const before = await start(["current"], {}, [], process.argv[3]).done;
+      assert.equal(before.code, 0, before.output);
+      console.log(`BEFORE CURRENT ${entry.alias}\n${before.output}`);
+    }
+  }
+  await put(".claude-profiles/state.json", { active: "native" });
+  const doctor = await run(["doctor", "agy"]);
+  assert(doctor.includes("Antigravity login: available"), doctor);
+  console.log("AFTER DOCTOR\n" + doctor);
+  const help = await run(["help"]);
+  assert(!help.includes("CLIProxyAPI"), help);
+  console.log(help.split("\n").find((line) => line.includes("doctor <alias>")));
   for (const [alias, options] of [["native", []], ["api", []], ["agy", []], ["cursor", ["cc"]]]) {
     const signal = join(home, `signal-${alias}`);
     await writeFile(signal, "before");

@@ -17,7 +17,7 @@ globalThis.fetch = async (input, init) => {
       : url.pathname === "/v2/plugin/auth/token"
         ? { accessToken: "fixture-access", refreshToken: "fixture-refresh", expiresIn: 86_400 }
         : url.pathname === "/v2/plugin/login/account"
-          ? { uid: "fixture-user", nickname: "fixture@example.com", type: "personal" }
+          ? { uid: "fixture-user", nickname: "Fixture WorkBuddy user", type: "personal" }
           : url.pathname === "/v3/config"
             ? { agents: [{ name: "cli", models: ["deepseek-v4.1-flash", "claude-opus-5-5"] }], models: [
               { id: "deepseek-v4.1-flash", name: "Fixture free model", maxInputTokens: 1_000_000, maxOutputTokens: 8192, supportsTools: true, credits: "x0.00" },

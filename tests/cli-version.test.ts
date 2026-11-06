@@ -41,6 +41,12 @@ function runLocalCliWithoutTestHome(args: string[]) {
 }
 
 describe("cli version flags", () => {
+  test("doctor help names provider proxies", () => {
+    const result = runCli(["help"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("local provider proxy (Antigravity / WorkBuddy / Cursor)");
+    expect(result.stdout).not.toContain("CLIProxyAPI");
+  });
   test.each([
     ["doctor", "agy", "--binary"],
     ["doctor", "agy", "--binary", "--live"],

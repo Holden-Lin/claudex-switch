@@ -19,7 +19,7 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// node_modules/yoctocolors-cjs/index.js
+// ../../node_modules/yoctocolors-cjs/index.js
 var require_yoctocolors_cjs = __commonJS((exports, module) => {
   var tty = __require("node:tty");
   var hasColors = tty?.WriteStream?.prototype?.hasColors?.() ?? false;
@@ -93,7 +93,7 @@ var require_yoctocolors_cjs = __commonJS((exports, module) => {
   module.exports = colors;
 });
 
-// node_modules/cli-width/index.js
+// ../../node_modules/cli-width/index.js
 var require_cli_width = __commonJS((exports, module) => {
   module.exports = cliWidth;
   function normalizeOpts(options) {
@@ -133,7 +133,7 @@ var require_cli_width = __commonJS((exports, module) => {
   }
 });
 
-// node_modules/ansi-regex/index.js
+// ../../node_modules/ansi-regex/index.js
 var require_ansi_regex = __commonJS((exports, module) => {
   module.exports = ({ onlyFirst = false } = {}) => {
     const pattern = [
@@ -144,13 +144,13 @@ var require_ansi_regex = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/strip-ansi/index.js
+// ../../node_modules/strip-ansi/index.js
 var require_strip_ansi = __commonJS((exports, module) => {
   var ansiRegex = require_ansi_regex();
   module.exports = (string) => typeof string === "string" ? string.replace(ansiRegex(), "") : string;
 });
 
-// node_modules/is-fullwidth-code-point/index.js
+// ../../node_modules/is-fullwidth-code-point/index.js
 var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   var isFullwidthCodePoint = (codePoint) => {
     if (Number.isNaN(codePoint)) {
@@ -165,14 +165,14 @@ var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   module.exports.default = isFullwidthCodePoint;
 });
 
-// node_modules/emoji-regex/index.js
+// ../../node_modules/emoji-regex/index.js
 var require_emoji_regex = __commonJS((exports, module) => {
   module.exports = function() {
     return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73)\uDB40\uDC7F|\uD83D\uDC68(?:\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68\uD83C\uDFFB|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|[\u2695\u2696\u2708]\uFE0F|\uD83D[\uDC66\uDC67]|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708])\uFE0F|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C[\uDFFB-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)\uD83C\uDFFB|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB\uDFFC])|\uD83D\uDC69(?:\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB-\uDFFD])|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|(?:(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)\uFE0F|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\u200D[\u2640\u2642])|\uD83C\uDFF4\u200D\u2620)\uFE0F|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF4\uD83C\uDDF2|\uD83C\uDDF6\uD83C\uDDE6|[#\*0-9]\uFE0F\u20E3|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83D\uDC69(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270A-\u270D]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC70\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDCAA\uDD74\uDD7A\uDD90\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD36\uDDB5\uDDB6\uDDBB\uDDD2-\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5\uDEEB\uDEEC\uDEF4-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
   };
 });
 
-// node_modules/string-width/index.js
+// ../../node_modules/string-width/index.js
 var require_string_width = __commonJS((exports, module) => {
   var stripAnsi = require_strip_ansi();
   var isFullwidthCodePoint = require_is_fullwidth_code_point();
@@ -206,7 +206,7 @@ var require_string_width = __commonJS((exports, module) => {
   module.exports.default = stringWidth;
 });
 
-// node_modules/color-name/index.js
+// ../../node_modules/color-name/index.js
 var require_color_name = __commonJS((exports, module) => {
   module.exports = {
     aliceblue: [240, 248, 255],
@@ -360,7 +360,7 @@ var require_color_name = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/conversions.js
+// ../../node_modules/color-convert/conversions.js
 var require_conversions = __commonJS((exports, module) => {
   var cssKeywords = require_color_name();
   var reverseKeywords = {};
@@ -1029,7 +1029,7 @@ var require_conversions = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/route.js
+// ../../node_modules/color-convert/route.js
 var require_route = __commonJS((exports, module) => {
   var conversions = require_conversions();
   function buildGraph() {
@@ -1095,7 +1095,7 @@ var require_route = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/index.js
+// ../../node_modules/color-convert/index.js
 var require_color_convert = __commonJS((exports, module) => {
   var conversions = require_conversions();
   var route = require_route();
@@ -1154,7 +1154,7 @@ var require_color_convert = __commonJS((exports, module) => {
   module.exports = convert;
 });
 
-// node_modules/ansi-styles/index.js
+// ../../node_modules/ansi-styles/index.js
 var require_ansi_styles = __commonJS((exports, module) => {
   var wrapAnsi16 = (fn, offset) => (...args) => {
     const code = fn(...args);
@@ -1290,7 +1290,7 @@ var require_ansi_styles = __commonJS((exports, module) => {
   });
 });
 
-// node_modules/wrap-ansi/index.js
+// ../../node_modules/wrap-ansi/index.js
 var require_wrap_ansi = __commonJS((exports, module) => {
   var stringWidth = require_string_width();
   var stripAnsi = require_strip_ansi();
@@ -1426,7 +1426,7 @@ var require_wrap_ansi = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/mute-stream/lib/index.js
+// ../../node_modules/mute-stream/lib/index.js
 var require_lib = __commonJS((exports, module) => {
   var Stream = __require("stream");
 
@@ -2454,7 +2454,7 @@ function pickOpenCodeGoModels(catalog) {
   };
 }
 
-// node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
+// ../../node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
 import { createHash as createHash2, randomBytes } from "node:crypto";
 var NATIVE_LIMITS = {
   resultWait: 120000,
@@ -3499,7 +3499,7 @@ class NativeSession {
 }
 var nativeSessions = new NativeSessionPool;
 
-// node_modules/@magpie-community/opencode-cursor-auth/index.mjs
+// ../../node_modules/@magpie-community/opencode-cursor-auth/index.mjs
 import { isDeepStrictEqual } from "node:util";
 import http2 from "node:http2";
 import { STATUS_CODES } from "node:http";
@@ -5984,7 +5984,7 @@ async function CursorAuthPlugin() {
   };
 }
 
-// node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
+// ../../node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
 import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir as homedir3 } from "node:os";
@@ -8132,14 +8132,14 @@ async function serveSubscriptionBridge(options) {
   return server;
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/key.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
 var isBackspaceKey = (key) => key.name === "backspace";
 var isTabKey = (key) => key.name === "tab";
 var isNumberKey = (key) => "1234567890".includes(key.name);
 var isEnterKey = (key) => key.name === "enter" || key.name === "return";
-// node_modules/@inquirer/core/dist/esm/lib/errors.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/errors.js
 class AbortPromptError extends Error {
   name = "AbortPromptError";
   message = "Prompt was aborted";
@@ -8165,10 +8165,10 @@ class HookError extends Error {
 class ValidationError extends Error {
   name = "ValidationError";
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
 import { AsyncResource as AsyncResource2 } from "node:async_hooks";
 
-// node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
 import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 var hookStorage = new AsyncLocalStorage;
 function createStore(rl) {
@@ -8273,7 +8273,7 @@ var effectScheduler = {
   }
 };
 
-// node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
     const setState = AsyncResource2.bind(function setState(newValue) {
@@ -8291,7 +8291,7 @@ function useState(defaultValue) {
   });
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/use-effect.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-effect.js
 function useEffect(cb, depArray) {
   withPointer((pointer) => {
     const oldDeps = pointer.get();
@@ -8303,10 +8303,10 @@ function useEffect(cb, depArray) {
   });
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/theme.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
 var import_yoctocolors_cjs = __toESM(require_yoctocolors_cjs(), 1);
 
-// node_modules/@inquirer/figures/dist/esm/index.js
+// ../../node_modules/@inquirer/figures/dist/esm/index.js
 import process2 from "node:process";
 function isUnicodeSupported() {
   if (process2.platform !== "win32") {
@@ -8595,7 +8595,7 @@ var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
 var esm_default = figures;
 var replacements = Object.entries(specialMainSymbols);
 
-// node_modules/@inquirer/core/dist/esm/lib/theme.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
 var defaultTheme = {
   prefix: {
     idle: import_yoctocolors_cjs.default.blue("?"),
@@ -8616,7 +8616,7 @@ var defaultTheme = {
   }
 };
 
-// node_modules/@inquirer/core/dist/esm/lib/make-theme.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/make-theme.js
 function isPlainObject(value) {
   if (typeof value !== "object" || value === null)
     return false;
@@ -8644,7 +8644,7 @@ function makeTheme(...themes) {
   return deepMerge(...themesToMerge);
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
 function usePrefix({ status = "idle", theme }) {
   const [showLoader, setShowLoader] = useState(false);
   const [tick, setTick] = useState(0);
@@ -8674,7 +8674,7 @@ function usePrefix({ status = "idle", theme }) {
   const iconName = status === "loading" ? "idle" : status;
   return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-memo.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-memo.js
 function useMemo(fn, dependencies) {
   return withPointer((pointer) => {
     const prev = pointer.get();
@@ -8686,11 +8686,11 @@ function useMemo(fn, dependencies) {
     return prev.value;
   });
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-ref.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-ref.js
 function useRef(val) {
   return useState({ current: val })[0];
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
 function useKeypress(userHandler) {
   const signal = useRef(userHandler);
   signal.current = userHandler;
@@ -8708,7 +8708,7 @@ function useKeypress(userHandler) {
     };
   }, []);
 }
-// node_modules/@inquirer/core/dist/esm/lib/utils.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/utils.js
 var import_cli_width = __toESM(require_cli_width(), 1);
 var import_wrap_ansi = __toESM(require_wrap_ansi(), 1);
 function breakLines(content, width) {
@@ -8721,7 +8721,7 @@ function readlineWidth() {
   return import_cli_width.default({ defaultWidth: 80, output: readline().output });
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
 function usePointerPosition({ active, renderedItems, pageSize, loop }) {
   const state = useRef({
     lastPointer: active,
@@ -8787,12 +8787,12 @@ function usePagination({ items, active, renderItem, pageSize, loop = true }) {
   return pageBuffer.filter((line) => typeof line === "string").join(`
 `);
 }
-// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 var import_mute_stream = __toESM(require_lib(), 1);
 import * as readline2 from "node:readline";
 import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
-// node_modules/signal-exit/dist/mjs/signals.js
+// ../../node_modules/signal-exit/dist/mjs/signals.js
 var signals = [];
 signals.push("SIGHUP", "SIGINT", "SIGTERM");
 if (process.platform !== "win32") {
@@ -8802,7 +8802,7 @@ if (process.platform === "linux") {
   signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
 }
 
-// node_modules/signal-exit/dist/mjs/index.js
+// ../../node_modules/signal-exit/dist/mjs/index.js
 var processOk = (process3) => !!process3 && typeof process3 === "object" && typeof process3.removeListener === "function" && typeof process3.emit === "function" && typeof process3.reallyExit === "function" && typeof process3.listeners === "function" && typeof process3.kill === "function" && typeof process3.pid === "number" && typeof process3.on === "function";
 var kExitEmitter = Symbol.for("signal-exit emitter");
 var global = globalThis;
@@ -9000,10 +9000,10 @@ var {
   unload
 } = signalExitWrap(processOk(process3) ? new SignalExit(process3) : new SignalExitFallback);
 
-// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 import { stripVTControlCharacters } from "node:util";
 
-// node_modules/@inquirer/ansi/dist/esm/index.js
+// ../../node_modules/@inquirer/ansi/dist/esm/index.js
 var ESC = "\x1B[";
 var cursorLeft = ESC + "G";
 var cursorHide = ESC + "?25l";
@@ -9019,7 +9019,7 @@ var cursorTo = (x, y) => {
 var eraseLine = ESC + "2K";
 var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
 
-// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 var height = (content) => content.split(`
 `).length;
 var lastLine = (content) => content.split(`
@@ -9084,7 +9084,7 @@ class ScreenManager {
   }
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
 class PromisePolyfill extends Promise {
   static withResolver() {
     let resolve2;
@@ -9097,7 +9097,7 @@ class PromisePolyfill extends Promise {
   }
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 function getCallSites() {
   const _prepareStackTrace = Error.prepareStackTrace;
   let result2 = [];
@@ -9183,7 +9183,7 @@ function createPrompt(view) {
   };
   return prompt;
 }
-// node_modules/@inquirer/core/dist/esm/lib/Separator.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/Separator.js
 var import_yoctocolors_cjs2 = __toESM(require_yoctocolors_cjs(), 1);
 class Separator {
   separator = import_yoctocolors_cjs2.default.dim(Array.from({ length: 15 }).join(esm_default.line));
@@ -9197,7 +9197,7 @@ class Separator {
     return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
   }
 }
-// node_modules/@inquirer/confirm/dist/esm/index.js
+// ../../node_modules/@inquirer/confirm/dist/esm/index.js
 function getBooleanValue(value, defaultValue) {
   let answer2 = defaultValue !== false;
   if (/^(y|yes)/i.test(value))
@@ -9242,7 +9242,7 @@ var esm_default2 = createPrompt((config, done) => {
   const message = theme.style.message(config.message, status);
   return `${prefix} ${message}${defaultValue} ${formattedValue}`;
 });
-// node_modules/@inquirer/input/dist/esm/index.js
+// ../../node_modules/@inquirer/input/dist/esm/index.js
 var inputTheme = {
   validationFailureMode: "keep"
 };
@@ -9326,7 +9326,7 @@ var esm_default3 = createPrompt((config, done) => {
     error
   ];
 });
-// node_modules/@inquirer/password/dist/esm/index.js
+// ../../node_modules/@inquirer/password/dist/esm/index.js
 var esm_default4 = createPrompt((config, done) => {
   const { validate = () => true } = config;
   const theme = makeTheme(config.theme);
@@ -9374,7 +9374,7 @@ var esm_default4 = createPrompt((config, done) => {
   }
   return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
 });
-// node_modules/@inquirer/select/dist/esm/index.js
+// ../../node_modules/@inquirer/select/dist/esm/index.js
 var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
 var selectTheme = {
   icon: { cursor: esm_default.pointer },
@@ -9538,7 +9538,7 @@ var esm_default5 = createPrompt((config, done) => {
 `).trimEnd();
   return `${lines}${cursorHide}`;
 });
-// node_modules/chalk/source/vendor/ansi-styles/index.js
+// ../../node_modules/chalk/source/vendor/ansi-styles/index.js
 var ANSI_BACKGROUND_OFFSET = 10;
 var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
 var wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
@@ -9715,7 +9715,7 @@ function assembleStyles() {
 var ansiStyles = assembleStyles();
 var ansi_styles_default = ansiStyles;
 
-// node_modules/chalk/source/vendor/supports-color/index.js
+// ../../node_modules/chalk/source/vendor/supports-color/index.js
 import process4 from "node:process";
 import os from "node:os";
 import tty from "node:tty";
@@ -9847,7 +9847,7 @@ var supportsColor = {
 };
 var supports_color_default = supportsColor;
 
-// node_modules/chalk/source/utilities.js
+// ../../node_modules/chalk/source/utilities.js
 function stringReplaceAll(string, substring, replacer) {
   let index = string.indexOf(substring);
   if (index === -1) {
@@ -9880,7 +9880,7 @@ function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
   return returnValue;
 }
 
-// node_modules/chalk/source/index.js
+// ../../node_modules/chalk/source/index.js
 var { stdout: stdoutColor, stderr: stderrColor } = supports_color_default;
 var GENERATOR = Symbol("GENERATOR");
 var STYLER = Symbol("STYLER");
@@ -11366,7 +11366,7 @@ async function readManagedCLIProxyAPIEmail(profile) {
   try {
     const upstream = profile.upstream ?? "codex";
     const auth = isSubscriptionUpstream(upstream) ? await readSubscriptionAuth(profilePaths(profile.profileId).dir, upstream) : await readSingleAuthFile(profilePaths(profile.profileId).authDir, CLI_PROXY_API_UPSTREAMS[upstream].authType ?? upstream);
-    const email = [auth?.email, auth?.accountId].find((value) => typeof value === "string" && value.length <= 254 && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value));
+    const email = [auth?.email, ...upstream === "workbuddy" || upstream === "workbuddy-ai" ? [] : [auth?.accountId]].find((value) => typeof value === "string" && value.length <= 254 && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value));
     return email ?? null;
   } catch {
     return null;
@@ -15009,7 +15009,7 @@ async function loginOrThrow(profileId, binaryPath, label, expectedAccount, expec
     ]);
   }
   if (!login.success || !login.identity) {
-    throw new UserFacingError(`CLIProxyAPI ${label} login failed or was cancelled.`);
+    throw new UserFacingError(`${label} login failed or was cancelled.`);
   }
   return login.identity;
 }
@@ -15094,12 +15094,12 @@ async function createAntigravityAlias(alias, options) {
   blank();
   warn("Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.");
   hint("Consider logging in with a Google account you can afford to lose Antigravity access on.");
-  const accepted = await (options.confirmRisk ?? (() => esm_default2({ message: "Continue with Antigravity via CLIProxyAPI?", default: false })))();
+  const accepted = await (options.confirmRisk ?? (() => esm_default2({ message: "Continue with Antigravity for Claude Code?", default: false })))();
   if (!accepted)
     throw new UserFacingError("Cancelled; nothing was created.");
   const binaryPath = await requireBinary(options);
   assertCLIProxyAPICompatibility(binaryPath, "antigravity");
-  info("Opening CLIProxyAPI's own Antigravity login in your browser...");
+  info("Opening Antigravity login in your browser...");
   blank();
   const { profileName, profile, runtime } = await createManagedProfile(binaryPath, { upstream: "antigravity" }, (profileId) => loginOrThrow(profileId, binaryPath, "Antigravity"), (name) => addAlias(alias, { provider: "claude", profileName: name }));
   const models2 = await getLocalCLIProxyAPISettings(profile, runtime);
@@ -18261,7 +18261,8 @@ function renderSection(infos) {
     const apiProvider = info2.apiProvider ? source_default.dim(info2.apiProvider) : "";
     const linkedClient = info2.provider !== "opencode" && info2.linkedClient ? source_default.dim(`· ${info2.linkedClient}`) : "";
     const model2 = info2.provider !== "opencode" && info2.defaultModel ? source_default.dim(info2.defaultModel) : "";
-    const usage2 = formatUsage(info2.usage && info2.section === "Antigravity" ? { ...info2.usage, groups: info2.usage.groups?.toSorted((a, b) => Number(b.name === "Gemini") - Number(a.name === "Gemini")) } : info2.usage, info2.usageNote);
+    const firstQuotaGroup = /^(claude|gpt)/i.test(info2.defaultModel ?? "") ? "Claude/GPT" : "Gemini";
+    const usage2 = formatUsage(info2.usage && info2.section === "Antigravity" ? { ...info2.usage, groups: info2.usage.groups?.toSorted((a, b) => Number(b.name === firstQuotaGroup) - Number(a.name === firstQuotaGroup)) } : info2.usage, info2.usageNote);
     const balance = formatBalance(info2.balance);
     const quota = usage2 || balance;
     const age = quota && info2.quotaAt && Date.now() - info2.quotaAt >= 60000 ? source_default.dim(` · ${formatAge(Date.now() - info2.quotaAt)}`) : "";
@@ -20848,7 +20849,7 @@ async function describeClaudeAccount(entry, activeProfile, linkedAliases) {
     return {
       ...base,
       type: "local-cliproxyapi",
-      label: (data.upstream ?? "codex") === "codex" ? "本机 CLIProxyAPI" : `本机 CLIProxyAPI · ${CLI_PROXY_API_UPSTREAMS[data.upstream].label}`,
+      label: CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label,
       email: null,
       fields: {
         defaultModel: data.defaultModel ?? "",
@@ -21495,7 +21496,7 @@ var HELP = `
     claudex-switch remove <alias>      Remove an alias only
     claudex-switch purge <alias>       Delete an account and all linked aliases
     claudex-switch refresh <alias>     Refresh and resave an account login
-    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local CLIProxyAPI
+    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local provider proxy (Antigravity / WorkBuddy / Cursor)
     claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
     claudex-switch current             Show active accounts
     claudex-switch import              Import existing accounts

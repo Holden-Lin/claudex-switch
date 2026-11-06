@@ -1786,7 +1786,8 @@ export async function readManagedCLIProxyAPIEmail(profile: LocalCLIProxyAPIProfi
     const auth = isSubscriptionUpstream(upstream)
       ? await readSubscriptionAuth(profilePaths(profile.profileId).dir, upstream)
       : await readSingleAuthFile(profilePaths(profile.profileId).authDir, CLI_PROXY_API_UPSTREAMS[upstream].authType ?? upstream);
-    const email = [auth?.email, auth?.accountId].find((value): value is string =>
+    // WorkBuddy accountId comes from nickname / phone / UID, even when it looks like an email.
+    const email = [auth?.email, ...(upstream === "workbuddy" || upstream === "workbuddy-ai" ? [] : [auth?.accountId])].find((value): value is string =>
       typeof value === "string" && value.length <= 254 && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value));
     return email ?? null;
   } catch {
