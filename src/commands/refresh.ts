@@ -264,7 +264,7 @@ async function refreshLocalCLIProxyAPI(
   profile: Extract<Awaited<ReturnType<typeof getProfileData>>, { type: "local-cliproxyapi" }>,
 ): Promise<void> {
   if (!profile.authIdentity) {
-    error("This local CLIProxyAPI account has no saved identity fingerprint and cannot be safely refreshed.");
+    error("This local provider proxy account has no saved identity fingerprint and cannot be safely refreshed.");
     hint("Remove and add it again to create a new isolated local login.");
     blank();
     process.exit(1);
@@ -299,7 +299,7 @@ async function refreshLocalCLIProxyAPI(
     error(
       login?.identityMismatch
         ? `${upstream.label} login completed for a different account; the existing local account was left unchanged.`
-        : `CLIProxyAPI ${upstream.label} login failed or was cancelled; the existing local account was left unchanged.`,
+        : `${upstream.label} login failed or was cancelled; the existing local account was left unchanged.`,
     );
     blank();
     process.exit(1);

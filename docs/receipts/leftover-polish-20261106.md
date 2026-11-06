@@ -109,3 +109,45 @@ after:  Cursor
 ### 验证
 - 454 tests / 2,322 assertions, docs, build and help passed; synthetic HOME covered add/list/picker/current/doctor and 8 automatic proxy launches. Receipt: docs/receipts/leftover-polish-20261106.md.
 ```
+
+## Fix request 1（修复轮，FINAL v2）
+
+已按 `root-fix-request-1.md` 补齐账号提示旧称，合同版本仍为 v1；交付版本为 `CXS-LEFTOVER-POLISH-20261106-v2`。本轮不改版本号，最终提交号由 FINAL 信号记录。
+
+### 修改范围与保留理由
+
+- 指定五处全部覆盖：切换成功、刷新登录失败、doctor 汇总、webconfig 二进制字段、删除确认。
+- 再扫描整个 `src/` 后，补改刷新缺少身份信息、doctor 账号适用范围及配置错误、底层登录缺失、OAuth 端口占用、账号被会话占用、资料类型错误、旧资料列表标签等账号描述。
+- 保留的用户可见 `CLIProxyAPI` 均指实际组件：`commands/add.ts` / `commands/cliproxy.ts` 的安装与可执行文件选择；`commands/doctor.ts` 的二进制更新、版本和缺失检查；`providers/claude/profiles.ts` 的替换可执行文件错误；`providers/cliproxyapi/version.ts` / `upstreams.ts` 的实际组件版本兼容性；`providers/cliproxyapi/managed.ts` 的组件操作锁等待、守护进程健康、PID 核验、启动就绪与停止失败。这些提示用于定位安装或进程故障，保留真实组件名。内部标识、注释、环境变量名和路径不属于账号显示文案。
+- 延伸现有断言：合成 fixture 检查切换成功及刷新失败完全不含旧称，doctor 仅允许二进制版本行含旧称；webconfig 的真实 HTTP 响应检查两个新文案并拒绝旧称。账号占用测试继续执行真实实现，期望值同步更新。
+- 发布说明已扩大提示修正范围。推送本工作分支后仍需补丁发版，由 ROOT 合并与发布；worker 未 merge、tag、release 或全局安装。
+
+### 验证证据
+
+- 先 `bun run build`，再 `bun run verify`：454 pass、0 fail、2,325 assertions，43 个测试文件；文档检查、160 模块构建及构建版 help 均通过。
+- `node tests/fixtures/proxy-accounts.mjs dist/claudex-switch.js dist/leftover-before.js`：PASS；同一合成 HOME 对比上一轮构建与本轮构建，新增切换成功、刷新失败及 doctor 汇总断言，同时保留 add / list / picker / current、8 条自动代理启动和会话隔离验证。
+- webconfig 经真实 HTTP 入口返回页面，响应包含新字段标签及删除确认文案，不含 `CLIProxyAPI`。额外启动合成 webconfig 尝试浏览器验收，但 CUA 返回 `The browser access host is unavailable`，因此浏览器交互未完成；已停止临时服务器并清理其合成 HOME。
+- 初次沙箱运行因回环监听 `EPERM` 失败，获准放开本地监听后重跑上述验证全部通过；真实账号及外部服务未操作。一次 `uv` 脚本因缓存目录读取被沙箱拒绝、尚未执行，随后用 Bun 完成文案编辑。
+- 临时日志：`/tmp/cxs-leftover-v2-verify.log`、`/tmp/cxs-leftover-v2-fixture.log`。旧 bundle `dist/leftover-before.js` 已删除；生成的主 bundle 由 build 更新。`git diff --check` 通过。
+
+### 前后输出
+
+前三组来自同一合成 HOME 的新旧构建实际输出；webconfig 两组来自对应页面文案，新版经 HTTP 测试确认：
+
+```text
+before: ✓ Switched to agy  Claude  proxy  CLIProxyAPI · local Antigravity login
+after:  ✓ Switched to agy  Claude  proxy  local Antigravity login
+before: ✗ CLIProxyAPI Antigravity login failed or was cancelled; the existing local account was left unchanged.
+after:  ✗ Antigravity login failed or was cancelled; the existing local account was left unchanged.
+before: ✓ agy basic local CLIProxyAPI checks passed
+after:  ✓ agy basic local Antigravity proxy checks passed
+before/after: ● CLIProxyAPI binary: v7.3.20
+before: CLIProxyAPI 可执行文件
+after:  本机代理可执行文件
+before: 本机 CLIProxyAPI 的登录与配置会被删除，需要重新登录
+after:  该服务商的本机代理登录与配置会被删除，需要重新登录
+```
+
+### 交接
+
+按 session-close / landing 的 worker 边界，只更新合同内文件与本回执；共享 TODO、req_changelog 和 memory 仍由 ROOT 整合。上一节用户原话与决策继续适用；ROOT 可将验证更新为 454 tests / 2,325 assertions，并记录本修复轮扩展了剩余账号提示。无新增用户需求、遗留问题或 memory 建议；无自建 worktree 锁或需保留的临时证据数据，现有依赖不变。工作树留给 ROOT 评审与合并，后续清理由 ROOT 按 landing 流程处理。

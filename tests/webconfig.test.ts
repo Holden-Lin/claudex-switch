@@ -1013,7 +1013,11 @@ describe("webconfig server", () => {
     const ok = await fetch(server.url);
     expect(ok.status).toBe(200);
     expect(ok.headers.get("content-type")).toContain("text/html");
-    expect(await ok.text()).toContain("claudex-switch 配置");
+    const page = await ok.text();
+    expect(page).toContain("claudex-switch 配置");
+    expect(page).toContain("本机代理可执行文件");
+    expect(page).toContain("该服务商的本机代理登录与配置会被删除，需要重新登录");
+    expect(page).not.toContain("CLIProxyAPI");
   });
 
   test("rejects a foreign Host header", async () => {

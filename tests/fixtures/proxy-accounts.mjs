@@ -189,7 +189,27 @@ try {
   await put(".claude-profiles/state.json", { active: "native" });
   const doctor = await run(["doctor", "agy"]);
   assert(doctor.includes("Antigravity login: available"), doctor);
+  assert(doctor.includes("basic local Antigravity proxy checks passed"), doctor);
+  assert(!doctor.split("\n").filter((line) => !line.includes("CLIProxyAPI binary:")).join("\n").includes("CLIProxyAPI"), doctor);
   console.log("AFTER DOCTOR\n" + doctor);
+  const switched = await run(["use", "agy"]);
+  assert(switched.includes("local Antigravity login") && !switched.includes("CLIProxyAPI"), switched);
+  console.log("AFTER USE\n" + switched);
+  const failedRefresh = await start(["refresh", "agy"], { CLAUDEX_FAKE_LOGIN_EXIT: "1" }).done;
+  assert.equal(failedRefresh.code, 1, failedRefresh.output);
+  assert(failedRefresh.output.includes("Antigravity login failed or was cancelled") && !failedRefresh.output.includes("CLIProxyAPI"), failedRefresh.output);
+  console.log("AFTER REFRESH\n" + failedRefresh.output);
+  if (process.argv[3]) {
+    for (const [title, args, extra] of [
+      ["DOCTOR", ["doctor", "agy"], {}],
+      ["USE", ["use", "agy"], {}],
+      ["REFRESH", ["refresh", "agy"], { CLAUDEX_FAKE_LOGIN_EXIT: "1" }],
+    ]) {
+      const before = await start(args, extra, [], process.argv[3]).done;
+      assert.equal(before.code, title === "REFRESH" ? 1 : 0, before.output);
+      console.log(`BEFORE ${title}\n${before.output}`);
+    }
+  }
   const help = await run(["help"]);
   assert(!help.includes("CLIProxyAPI"), help);
   console.log(help.split("\n").find((line) => line.includes("doctor <alias>")));

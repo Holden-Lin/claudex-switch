@@ -588,7 +588,7 @@ describe("--cliproxy claudecode", () => {
     )) as LocalCLIProxyAPIProfileData;
     await ensureManagedCLIProxyAPI(data);
     const lease = await acquireManagedCLIProxyAPILease(data);
-    await expect(purgeAccount("cx")).rejects.toThrow("still using this CLIProxyAPI account");
+    await expect(purgeAccount("cx")).rejects.toThrow("still using this local provider proxy account");
     expect((await loadRegistry()).accounts).toHaveLength(1);
     await lease.release();
 

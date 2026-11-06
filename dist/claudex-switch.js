@@ -10207,7 +10207,7 @@ var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0
 var SUBSCRIPTION_BRIDGE_REVISION = 3;
 function assertProfileId(profileId) {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
-    throw new Error("Invalid managed CLIProxyAPI profile id");
+    throw new Error("Invalid managed local provider proxy profile id");
   }
 }
 function profilePaths(profileId) {
@@ -10257,7 +10257,7 @@ async function writePrivateJson(path, data) {
 function requireEnvValue(values, key) {
   const value = values[key]?.trim();
   if (!value) {
-    throw new Error(`Managed CLIProxyAPI configuration is missing ${key}`);
+    throw new Error(`Managed local provider proxy configuration is missing ${key}`);
   }
   return value;
 }
@@ -10279,7 +10279,7 @@ function parseManagedEnv(content) {
     throw new Error("Invalid subscription bridge port");
   }
   if (upstream === "opencode-go" && !upstreamKey) {
-    throw new Error(`Managed CLIProxyAPI configuration is missing ${ENV_UPSTREAM_KEY}`);
+    throw new Error(`Managed local provider proxy configuration is missing ${ENV_UPSTREAM_KEY}`);
   }
   return {
     apiKey: requireEnvValue(values, ENV_CLIENT_KEY),
@@ -10467,12 +10467,12 @@ async function readManagedEnv(profileId) {
 async function readExistingManagedEnv(profileId) {
   const paths = profilePaths(profileId);
   if (!await fileExists(paths.envFile)) {
-    throw new Error("Managed CLIProxyAPI data is missing. The account may have been purged; add it again instead of recreating its private login state.");
+    throw new Error("Managed local provider proxy data is missing. The account may have been purged; add it again instead of recreating its private login state.");
   }
   try {
     return await readManagedEnv(profileId);
   } catch {
-    throw new Error("Managed CLIProxyAPI private environment is invalid. Do not recreate it automatically; add the account again.");
+    throw new Error("Managed local provider proxy private environment is invalid. Do not recreate it automatically; add the account again.");
   }
 }
 async function writeRuntimeConfig(profileId, port) {
@@ -11133,7 +11133,7 @@ async function acquireManagedCLIProxyAPILease(profile) {
     const paths = profilePaths(profile.profileId);
     const managed = await readExistingManagedEnv(profile.profileId);
     if (!await hasManagedCLIProxyAPILogin(profile.profileId)) {
-      throw new Error(`No valid CLIProxyAPI ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`);
+      throw new Error(`No valid ${CLI_PROXY_API_UPSTREAMS[managed.upstream].label} login is available. Run \`claudex-switch refresh <alias>\` before starting Claude Code.`);
     }
     await mkdirPrivate(paths.sessionsDir);
     const leasePath = join7(paths.sessionsDir, `${randomUUID3()}.json`);
@@ -11293,18 +11293,18 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
     });
   }
   if (!spec.loginFlag || !spec.authType) {
-    throw new Error(`${spec.label} accounts use an API key and have no CLIProxyAPI login.`);
+    throw new Error(`${spec.label} accounts use an API key and have no local provider proxy login.`);
   }
   const { loginFlag, authType, callbackPort } = spec;
   return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
-      throw new Error("A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before refreshing the login.");
+      throw new Error("A Claude Code session launched by claudex-switch is still using this local provider proxy account. End it before refreshing the login.");
     }
     const stagingAuthDir = join7(paths.dir, `.login-${randomUUID3()}`);
     const loginConfig = join7(paths.dir, "login-runtime.yaml");
     const apiPort = await findAvailablePort();
     if (callbackPort && !await portIsAvailable(callbackPort)) {
-      throw new Error(`CLIProxyAPI ${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`);
+      throw new Error(`${spec.label} OAuth needs localhost:${callbackPort}, but that callback port is already in use. Stop the process using it and retry.`);
     }
     await mkdirPrivate(stagingAuthDir);
     const config = await readExistingManagedEnv(profile.profileId);
@@ -11408,7 +11408,7 @@ async function waitForProcessExit(pid, timeoutMs = 5000) {
 async function stopManagedCLIProxyAPIUnlocked(profile) {
   assertProfileId(profile.profileId);
   if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
-    throw new Error("A Claude Code session launched by claudex-switch is still using this CLIProxyAPI account. End it before stopping or purging the proxy.");
+    throw new Error("A Claude Code session launched by claudex-switch is still using this local provider proxy account. End it before stopping or purging the proxy.");
   }
   const paths = profilePaths(profile.profileId);
   const state = await readState(profile.profileId);
@@ -11657,14 +11657,14 @@ async function saveLocalCLIProxyAPIProfile(name, config) {
 async function updateLocalCLIProxyAPIProfileIdentity(name, authIdentity) {
   const current2 = await readProfileData(name);
   if (current2.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+    throw new Error(`Profile "${name}" is not a local provider proxy profile`);
   }
   await writeProfileData(name, { ...current2, authIdentity });
 }
 async function replaceLocalCLIProxyAPIBinary(name, binaryPath) {
   const current2 = await readProfileData(name);
   if (current2.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+    throw new Error(`Profile "${name}" is not a local provider proxy profile`);
   }
   const resolved = findCLIProxyAPIBinary(binaryPath);
   if (!resolved)
@@ -11807,7 +11807,7 @@ async function prepareIsolatedLocalCLIProxyAPIRun(name) {
   }
   const data = await readProfileData(name);
   if (data.type !== "local-cliproxyapi") {
-    throw new Error(`Profile "${name}" is not a local CLIProxyAPI profile`);
+    throw new Error(`Profile "${name}" is not a local provider proxy profile`);
   }
   const configDir = claudeProfileConfigDir(name);
   const secureStorageDir = claudeProfileSecureStorageDir(name);
@@ -16087,7 +16087,7 @@ async function switchClaude(alias, profileName) {
   if (data.type === "api-key" && data.apiKey) {
     label = source_default.dim(maskKey(data.apiKey));
   } else if (data.type === "local-cliproxyapi") {
-    label = source_default.dim(`CLIProxyAPI · local ${CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label} login`);
+    label = source_default.dim(`local ${CLI_PROXY_API_UPSTREAMS[data.upstream ?? "codex"].label} login`);
   } else {
     const creds = await readCredentials(claudeProfileCredentials(profileName));
     label = formatPlan(creds?.claudeAiOauth?.subscriptionType ?? null);
@@ -19009,7 +19009,7 @@ async function refreshClaude(alias, profileName) {
 }
 async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
   if (!profile.authIdentity) {
-    error("This local CLIProxyAPI account has no saved identity fingerprint and cannot be safely refreshed.");
+    error("This local provider proxy account has no saved identity fingerprint and cannot be safely refreshed.");
     hint("Remove and add it again to create a new isolated local login.");
     blank();
     process.exit(1);
@@ -19031,7 +19031,7 @@ async function refreshLocalCLIProxyAPI(alias, profileName, profile) {
     process.exit(1);
   }
   if (!login?.success || !login.identity) {
-    error(login?.identityMismatch ? `${upstream.label} login completed for a different account; the existing local account was left unchanged.` : `CLIProxyAPI ${upstream.label} login failed or was cancelled; the existing local account was left unchanged.`);
+    error(login?.identityMismatch ? `${upstream.label} login completed for a different account; the existing local account was left unchanged.` : `${upstream.label} login failed or was cancelled; the existing local account was left unchanged.`);
     blank();
     process.exit(1);
   }
@@ -19703,7 +19703,7 @@ var PAGE = `<!doctype html>
     defaultHaikuModel: ["Haiku 映射", "ANTHROPIC_DEFAULT_HAIKU_MODEL"],
     subagentModel: ["子代理模型", "CLAUDE_CODE_SUBAGENT_MODEL"],
     defaultModel: ["默认模型", ""],
-    binaryPath: ["CLIProxyAPI 可执行文件", ""],
+    binaryPath: ["本机代理可执行文件", ""],
     providerType: ["Provider 类型", ""],
     providerName: ["Provider 名称", "model_providers"],
     envKey: ["环境变量名", "env_key"]
@@ -20548,7 +20548,7 @@ var PAGE = `<!doctype html>
   }
 
   // Spells out exactly what is about to be lost. A refusal (an active local
-  // CLIProxyAPI session, say) surfaces in the same panel and removes nothing.
+  // local proxy session, say) surfaces in the same panel and removes nothing.
   function buildDeletePanel(account) {
     var alias = account.alias;
     var panel = el("div", "danger-panel");
@@ -20600,7 +20600,7 @@ var PAGE = `<!doctype html>
     if (account.provider === "claude") {
       if (account.type === "oauth") return "保存的登录凭据会被删除，需要重新登录";
       if (account.type === "api-key") return "API Key 与其账号配置会被删除";
-      return "本机 CLIProxyAPI 的登录与配置会被删除，需要重新登录";
+      return "该服务商的本机代理登录与配置会被删除，需要重新登录";
     }
     if (account.type === "chatgpt") return "Codex 登录文件会被删除，需要重新登录";
     return "API Key 与 Codex 登录文件会被删除";
@@ -21365,7 +21365,7 @@ async function doctor(aliasOrName, options = {}) {
   }
   const profileName = entry.target.provider === "claude" ? entry.target.profileName : await getLinkedClaudeProfile(entry.target);
   if (!profileName) {
-    fail(`Doctor checks local CLIProxyAPI accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`);
+    fail(`Doctor checks local provider proxy accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`);
     return;
   }
   if (!await profileExists(profileName)) {
@@ -21374,7 +21374,7 @@ async function doctor(aliasOrName, options = {}) {
   }
   let profile = await getProfileData(profileName);
   if (profile.type !== "local-cliproxyapi") {
-    fail("Doctor is currently available for local CLIProxyAPI Claude accounts only.");
+    fail("Doctor is currently available for local provider proxy Claude accounts only.");
     return;
   }
   if (options.binaryPath) {
@@ -21417,11 +21417,11 @@ async function doctor(aliasOrName, options = {}) {
     return;
   }
   if (!status.environmentValid) {
-    fail("Managed CLIProxyAPI private environment is invalid or missing. Add the account again; a restart cannot safely recreate its client key.");
+    fail("Managed local provider proxy private environment is invalid or missing. Add the account again; a restart cannot safely recreate its client key.");
     return;
   }
   if (!status.configured && !options.restart) {
-    fail("Managed CLIProxyAPI runtime configuration is missing or invalid. Run `claudex-switch doctor <alias> --restart` to rebuild it from the private environment.");
+    fail("Managed local provider proxy runtime configuration is missing or invalid. Run `claudex-switch doctor <alias> --restart` to rebuild it from the private environment.");
     return;
   }
   if (status.running && !status.healthy && !options.restart) {
@@ -21467,7 +21467,7 @@ async function doctor(aliasOrName, options = {}) {
   if (options.restart && status.running) {
     success2(`${source_default.bold(entry.alias)} managed proxy restarted`);
   } else {
-    success2(`${source_default.bold(entry.alias)} basic local CLIProxyAPI checks passed`);
+    success2(`${source_default.bold(entry.alias)} basic local ${upstream} proxy checks passed`);
     hint(`Use ${source_default.cyan(`claudex-switch doctor ${entry.alias} --live`)} for a small, quota-consuming model request.`);
   }
   blank();
