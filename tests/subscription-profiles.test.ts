@@ -11,6 +11,32 @@ describe("Claude Code subscription profiles", () => {
   beforeEach(resetTestHome);
   afterEach(resetTestHome);
 
+  test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s picker hides duplicate SG while explicit IDs and saved overrides still route", async (upstream) => {
+    const base = "deepseek-v4.1-flash";
+    const sg = `${base}-sg`;
+    const ids = [base, sg];
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi", defaultModel: "fable", upstream,
+    };
+    await initializeManagedCLIProxyAPI(profile.profileId, {
+      upstream, models: pickSubscriptionModels(ids), upstreamModels: ids, subscriptionPort: 12345,
+      upstreamContext: { [base]: 1_000_000, [sg]: 200_000 },
+    });
+    const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: ids.map((id) => ({ id })),
+    }, { inheritModel: true, savedModel: sg });
+    let settings = JSON.parse(await readFile(path, "utf8"));
+    expect(settings.modelPicker.options.map(({ model }: { model: string }) => model)).toEqual(upstream === "cursor" ? ids : [base]);
+    expect(await resolveManagedLocalCLIProxyAPIModel(profile, sg)).toBe(sg);
+    // Discovery from the bridge no longer contains SG; a shared settings pin must still survive.
+    await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: base }],
+    }, { savedModel: sg });
+    settings = JSON.parse(await readFile(path, "utf8"));
+    expect(settings.modelOverrides[sg]).toBeUndefined();
+    expect(settings.modelSettings[sg].autoCompactWindow).toBe(200_000);
+  });
+
   test.each(["cursor", "workbuddy", "workbuddy-ai"] as const)("%s uses the account's exact model IDs and preserves older available versions", async (upstream) => {
     const ids = ["claude-opus-4-6", "claude-opus-5-5", "claude-sonnet-5-5", "gemini-3.8-flash"];
     const models = pickSubscriptionModels(ids);

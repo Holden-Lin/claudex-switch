@@ -79,6 +79,33 @@ function chat(url: string, body: unknown = { model: "real-model", messages: [] }
 }
 
 describe("subscription plugin adapter", () => {
+  test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s curates regional discovery without blocking explicit regional routing", async (upstream) => {
+    const dir = await directory();
+    const base = "deepseek-v4.1-flash";
+    const sg = `${base}-sg`;
+    let includeBase = true;
+    let routed: unknown;
+    const options = fake({ upstream,
+      models: { models: async () => ({
+        ...(includeBase ? { [base]: { name: "DeepSeek V4.1 Flash", rate: 0 } } : {}),
+        [sg]: { name: "DeepSeek V4.1 Flash", rate: 0.03 },
+      }) },
+      fetch: async (_input, init) => { routed = JSON.parse(String(init.body)).model; return Response.json({ choices: [] }); },
+    });
+    await loginSubscriptionPlugin(dir, upstream, 0, () => {}, options);
+    const url = await bridge(dir, options, upstream);
+    const catalog = async () => (await (await fetch(`${url}/v1/models`, { headers: authorization })).json()).data;
+    expect((await catalog()).map(({ id }: { id: string }) => id)).toEqual(upstream === "cursor" ? [base, sg] : [base]);
+    // The inventory is deliberately complete: CLIProxyAPI must register the explicit route.
+    expect((await listSubscriptionModels(dir, upstream, options)).map(({ id }) => id)).toEqual([base, sg]);
+    expect((await chat(url, { model: sg, messages: [], stream: true })).status).toBe(200);
+    expect(routed).toBe(sg);
+    includeBase = false;
+    expect(await catalog()).toEqual([expect.objectContaining({ id: sg,
+      display_name: upstream === "cursor" ? "DeepSeek V4.1 Flash" : "DeepSeek V4.1 Flash · Singapore · x0.03",
+    })]);
+  });
+
   test("loads the three actual plugin factories and lists only OAuth methods offline", async () => {
     const dir = await directory();
     for (const upstream of ["cursor", "workbuddy", "workbuddy-ai"] as const) {

@@ -7604,6 +7604,12 @@ var SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
 function isSubscriptionUpstream(value) {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
 }
+function visibleSubscriptionModels(catalog2, upstream) {
+  if (upstream !== "workbuddy" && upstream !== "workbuddy-ai")
+    return catalog2;
+  const ids = new Set(catalog2.map(({ id }) => id));
+  return catalog2.filter(({ id }) => !id.endsWith("-sg") || !ids.has(id.slice(0, -3)));
+}
 function authPath(directory) {
   return join6(resolve(directory), SUBSCRIPTION_AUTH_FILE);
 }
@@ -7764,7 +7770,9 @@ async function models(ctx) {
     const context2 = value.limit?.context;
     return {
       id,
-      ...value.name ? { display_name: value.name } : {},
+      ...(ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
+        display_name: `${value.name ?? id} · Singapore · ${typeof value.rate === "number" ? `x${value.rate.toFixed(2)}` : "rate unavailable"}`
+      } : value.name ? { display_name: value.name } : {},
       ...typeof context2 === "number" && Number.isSafeInteger(context2) && context2 > 0 ? { context_window: context2 } : {},
       ...typeof value.free === "boolean" ? { free: value.free } : {}
     };
@@ -7883,7 +7891,7 @@ async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
   if (input.method === "GET" && path === "/health")
     return json(200, { status: "ok", upstream: options.upstream });
   if (input.method === "GET" && path === "/v1/models") {
-    return json(200, { object: "list", data: (await models(ctx)).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
+    return json(200, { object: "list", data: visibleSubscriptionModels(await models(ctx), options.upstream).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
   }
   if (input.method !== "POST" || path !== "/v1/chat/completions")
     return json(404, { error: { message: "Unknown endpoint." } });
@@ -10204,7 +10212,7 @@ var ORPHAN_LOCK_GRACE_MS = 60000;
 var LOCK_HEARTBEAT_MS = 1e4;
 var LOOPBACK_HOST = "127.0.0.1";
 var PROFILE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-var SUBSCRIPTION_BRIDGE_REVISION = 3;
+var SUBSCRIPTION_BRIDGE_REVISION = 4;
 function assertProfileId(profileId) {
   if (!PROFILE_ID_PATTERN.test(profileId)) {
     throw new Error("Invalid managed local provider proxy profile id");
@@ -10552,8 +10560,10 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env3[key] = "";
   }
-  const overrides = runtime.models ? profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : {};
-  const windows = runtime.models && isSubscriptionUpstream(profile.upstream) ? subscriptionCompactWindows((await readExistingManagedEnv(profile.profileId)).upstreamContext ?? {}, runtime.models.map(({ id }) => id), overrides) : null;
+  const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream) ? await readExistingManagedEnv(profile.profileId) : null;
+  const routeIds = subscriptionConfig?.upstreamModels ?? runtime.models?.map(({ id }) => id) ?? [];
+  const overrides = runtime.models ? profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(routeIds, config, options.savedModel) : {};
+  const windows = subscriptionConfig ? subscriptionCompactWindows(subscriptionConfig.upstreamContext ?? {}, routeIds, overrides) : null;
   if (windows)
     env3.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
   if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && runtime.models?.some(({ id }) => id === WORKBUDDY_AUTO_MODE_MODEL)) {
@@ -10569,7 +10579,7 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
     ...runtime.models ? {
       modelPicker: {
         replaceBuiltInOptions: true,
-        options: runtime.models.filter((model) => !/image/i.test(model.id) && (profile.upstream !== "antigravity" || !isSupersededAntigravityClaude(model.id, runtime.models.map(({ id }) => id)))).map((model) => ({
+        options: visibleSubscriptionModels(runtime.models, profile.upstream).filter((model) => !/image/i.test(model.id) && (profile.upstream !== "antigravity" || !isSupersededAntigravityClaude(model.id, runtime.models.map(({ id }) => id)))).map((model) => ({
           model: model.id,
           label: model.display_name ?? model.id,
           description: `${CLI_PROXY_API_UPSTREAMS[profile.upstream ?? "codex"].label} · ${model.id}`

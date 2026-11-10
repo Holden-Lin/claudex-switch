@@ -42,13 +42,15 @@ globalThis.fetch = async (input, init) => {
     const priced = (id, name, maxInputTokens, credits) => ({ id, name, maxInputTokens,
       maxOutputTokens: 8192, supportsImages: false, supportsTools: true, ...(credits ? { credits } : {}) });
     return Response.json({ code: 0, data: {
-      agents: [{ name: "cli", models: ["default-model", model, "free-flash", "limited-model", "paid-model"] }],
+      agents: [{ name: "cli", models: ["default-model", model, "free-flash", "limited-model", "paid-model", "deepseek-v4.1-flash", "deepseek-v4.1-flash-sg"] }],
       models: [
         priced("default-model", "Auto", 176000),
         priced(model, "Synthetic Claude Sonnet", 200000, "x1.00"),
         priced("free-flash", "Synthetic Free Flash", 1000000, "x0.00"),
         priced("limited-model", "Synthetic Limited", 200000, "x0.00"),
         priced("paid-model", "Synthetic Paid", 200000, "x2.00"),
+        priced("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", 200000, "x0.00"),
+        priced("deepseek-v4.1-flash-sg", "DeepSeek V4.1 Flash", 200000, "x0.03"),
       ],
     } });
   }

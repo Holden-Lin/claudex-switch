@@ -61,6 +61,7 @@ import {
   readSubscriptionAuth,
   isSubscriptionUpstream,
   listSubscriptionModels,
+  visibleSubscriptionModels,
   loginSubscriptionPlugin,
   serveSubscriptionBridge,
   subscriptionLoginMethods,
@@ -131,7 +132,8 @@ export interface ManagedCLIProxyAPISetup {
 // Bump when the subscription bridge changes behavior: 1 = WorkBuddy non-stream chats are collected from a stream;
 // 2 = WorkBuddy's written reset times become Retry-After, and its 14018 names the free models.
 // 3 = non-stream WorkBuddy requests without explicit effort reserve their budget for the answer.
-const SUBSCRIPTION_BRIDGE_REVISION = 3;
+// 4 = WorkBuddy discovery hides duplicate Singapore routes while explicit IDs remain registered.
+const SUBSCRIPTION_BRIDGE_REVISION = 4;
 
 interface ManagedRuntimeState {
   pid: number;
@@ -694,13 +696,16 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env[key] = "";
   }
+  const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream)
+    ? await readExistingManagedEnv(profile.profileId) : null;
+  const routeIds = subscriptionConfig?.upstreamModels ?? runtime.models?.map(({ id }) => id) ?? [];
   const overrides = runtime.models
     ? profile.upstream === "antigravity"
       ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
-      : subscriptionModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
+      : subscriptionModelOverrides(routeIds, config, options.savedModel)
     : {};
-  const windows = runtime.models && isSubscriptionUpstream(profile.upstream)
-    ? subscriptionCompactWindows((await readExistingManagedEnv(profile.profileId)).upstreamContext ?? {}, runtime.models.map(({ id }) => id), overrides)
+  const windows = subscriptionConfig
+    ? subscriptionCompactWindows(subscriptionConfig.upstreamContext ?? {}, routeIds, overrides)
     : null;
   if (windows) env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
   // The auto mode classifier otherwise follows the sonnet tier, WorkBuddy's
@@ -725,7 +730,7 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
       modelPicker: {
         replaceBuiltInOptions: true,
         // Retired Claude versions only answer "no longer available".
-        options: runtime.models.filter((model) => !/image/i.test(model.id)
+        options: visibleSubscriptionModels(runtime.models, profile.upstream).filter((model) => !/image/i.test(model.id)
           && (profile.upstream !== "antigravity"
             || !isSupersededAntigravityClaude(model.id, runtime.models!.map(({ id }) => id)))).map((model) => ({
           model: model.id,

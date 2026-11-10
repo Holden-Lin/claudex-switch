@@ -56,6 +56,13 @@ export function isSubscriptionUpstream(value: unknown): value is SubscriptionUps
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
 }
 
+// Keep the full catalog for routing explicit IDs; curate only discovery surfaces.
+export function visibleSubscriptionModels<T extends { id: string }>(catalog: T[], upstream: unknown): T[] {
+  if (upstream !== "workbuddy" && upstream !== "workbuddy-ai") return catalog;
+  const ids = new Set(catalog.map(({ id }) => id));
+  return catalog.filter(({ id }) => !id.endsWith("-sg") || !ids.has(id.slice(0, -3)));
+}
+
 function authPath(directory: string): string {
   return join(resolve(directory), SUBSCRIPTION_AUTH_FILE);
 }
@@ -214,7 +221,9 @@ async function models(ctx: Context): Promise<Model[]> {
     const context = (value.limit as { context?: unknown } | undefined)?.context;
     return {
       id,
-      ...(value.name ? { display_name: value.name } : {}),
+      ...((ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
+        display_name: `${value.name ?? id} · Singapore · ${typeof value.rate === "number" ? `x${value.rate.toFixed(2)}` : "rate unavailable"}`,
+      } : value.name ? { display_name: value.name } : {}),
       ...(typeof context === "number" && Number.isSafeInteger(context) && context > 0 ? { context_window: context } : {}),
       // WorkBuddy's plugin marks the models that cost no credits (x0.00).
       ...(typeof value.free === "boolean" ? { free: value.free } : {}),
@@ -344,7 +353,7 @@ async function bridgeResponse(input: {
   const path = new URL(input.url, "http://127.0.0.1").pathname;
   if (input.method === "GET" && path === "/health") return json(200, { status: "ok", upstream: options.upstream });
   if (input.method === "GET" && path === "/v1/models") {
-    return json(200, { object: "list", data: (await models(ctx)).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
+    return json(200, { object: "list", data: visibleSubscriptionModels(await models(ctx), options.upstream).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
   }
   if (input.method !== "POST" || path !== "/v1/chat/completions") return json(404, { error: { message: "Unknown endpoint." } });
   if (Number(input.headers.get("content-length")) > MAX_BODY_BYTES) throw new HTTPError(413, "Request body is too large.");
