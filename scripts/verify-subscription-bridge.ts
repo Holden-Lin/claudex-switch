@@ -59,15 +59,15 @@ const { cliProxyAPIProfileDir } = await import(join(repo, "src/lib/paths.ts"));
 const profileId = managed.createManagedCLIProxyAPIProfileId();
 const profileName = `cliproxy-${profileId}`;
 const profile = { type: "local-cliproxyapi" as const, profileId, binaryPath: binary,
-  upstream: "workbuddy" as const, defaultModel: "fable" };
+  upstream: "workbuddy-ai" as const, defaultModel: "fable" };
 const bin = join(home, "bin");
 await mkdir(bin);
 await symlink(claude, join(bin, "claude"));
 await symlink(entry, join(bin, "claudex-switch"));
 process.env.PATH = `${bin}:${process.env.PATH}`;
-await managed.initializeManagedCLIProxyAPI(profileId, { upstream: "workbuddy" });
+await managed.initializeManagedCLIProxyAPI(profileId, { upstream: "workbuddy-ai" });
 await writeFile(join(cliProxyAPIProfileDir(profileId), "plugin-auth.json"), JSON.stringify({
-  version: 1, upstream: "workbuddy", auth: { type: "oauth", uid: "synthetic-account",
+  version: 1, upstream: "workbuddy-ai", auth: { type: "oauth", uid: "synthetic-account",
     accountId: "synthetic-account", access: "synthetic-access-no-vendor-validity", refresh: "synthetic-refresh",
     expires: Date.now() + 365 * 24 * 60 * 60 * 1000 },
 }), { mode: 0o600 });
@@ -105,15 +105,19 @@ try {
   const events = (await readFile(fixtureLog, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(events.filter((event) => event.type === "read").length, 2);
   // Claude Code's default tier reaches the real plugin as the account's free model, not the paid or unpriced ones.
-  assert(events.filter((event) => event.type === "chat").every((event) => event.model === "free-flash"), "The account's free model must reach the real plugin.");
+  assert(events.some((event) => event.type === "chat" && event.model === "deepseek-v4.1-flash"), "Free DS must reach the real plugin.");
+  assert(events.filter((event) => event.type === "chat").every((event) => event.model === "deepseek-v4.1-flash"));
   assert(events.some((event) => event.type === "result" && event.proof === nonce && event.toolResults === 2));
   assert.equal(events.filter((event) => event.type === "blocked").length, 0, "Unexpected external request attempted.");
   const settings = JSON.parse(await readFile(join(cliProxyAPIProfileDir(profileId), "claude-settings.json"), "utf8"));
+  const deepseekOptions = settings.modelPicker.options.filter((option: { model: string }) => option.model.startsWith("deepseek-"));
+  assert.deepEqual(deepseekOptions.map((option: { model: string }) => option.model), ["deepseek-v4.1-flash"]);
+  await writeFile(join(output, "picker.json"), JSON.stringify(deepseekOptions, null, 2) + "\n");
   assert.equal(settings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS, "1000000", "The catalog's context window must reach Claude Code.");
   assert.equal(settings.modelSettings?.["claude-sonnet-5-5"]?.autoCompactWindow, 200000);
   // Tiers and Claude Code's own unlisted IDs use the widest x0.00 model, never the unpriced Auto.
-  for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) assert.equal(settings.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`], "free-flash", `${tier} must map to the free model.`);
-  assert.equal(settings.modelOverrides?.["claude-opus-5-5"], "free-flash");
+  for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) assert.equal(settings.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`], "deepseek-v4.1-flash", `${tier} must map to free DS.`);
+  assert.equal(settings.modelOverrides?.["claude-opus-5-5"], "deepseek-v4.1-flash");
   // Side queries and Claude Code's non-streaming fallback reach stream-only WorkBuddy as one JSON answer.
   const runtime = await managed.ensureManagedCLIProxyAPI(profile);
   const single = await fetch(`${runtime.baseUrl}/v1/messages`, { method: "POST",
@@ -143,10 +147,25 @@ try {
   assert.equal(exhausted.status, 429, exhaustedText);
   assert(exhaustedText.includes("models at x0.00 still answer: free-flash, limited-model") && !exhaustedText.includes("even for 0-rate free models"),
     `14018 must name the free models: ${exhaustedText}`);
+  child = Bun.spawn([...args.slice(0, 6), "--model", "deepseek-v4.1-flash-sg", ...args.slice(6)], {
+    env: process.env, cwd: home, stdout: "pipe", stderr: "pipe",
+  });
+  const sgTimeout = setTimeout(() => child?.kill("SIGTERM"), 90_000);
+  const sgOutput = new Response(child.stdout).text();
+  const sgErrors = new Response(child.stderr).text();
+  const sgCode = await child.exited;
+  clearTimeout(sgTimeout);
+  const [sgText, sgErrorText] = await Promise.all([sgOutput, sgErrors]);
+  await writeFile(join(output, "claude-sg-stream.jsonl"), sgText);
+  await writeFile(join(output, "sg-stderr.txt"), sgErrorText);
+  assert.equal(sgCode, 0, sgErrorText);
+  assert(sgText.includes(`SUBSCRIPTION_BRIDGE_OK ${nonce}`), "Explicit SG launch must complete its real tool rounds.");
+  const sgEvents = (await readFile(fixtureLog, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert(sgEvents.some((event) => event.type === "chat" && event.model === "deepseek-v4.1-flash-sg"));
   // A bridge started before the current revision restarts on the next idle launch.
   const stateFile = join(cliProxyAPIProfileDir(profileId), "state.json");
   const { bridgeRevision, ...oldState } = JSON.parse(await readFile(stateFile, "utf8"));
-  assert.equal(bridgeRevision, 3);
+  assert.equal(bridgeRevision, 4);
   assert.equal(await managed.stopStaleManagedCLIProxyAPI(profile), false);
   await writeFile(stateFile, JSON.stringify(oldState), { mode: 0o600 });
   assert.equal(await managed.stopStaleManagedCLIProxyAPI(profile), true);
@@ -155,6 +174,7 @@ try {
     claudeCodeVersion: initialization?.claude_code_version, permissionMode: initialization?.permissionMode,
     extensionlessNodeLauncher: true, separateReadTurns: readTurns.length, proof: nonce,
     freeTier: settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL, writtenResetCooldownSeconds: coolingSeconds,
+    deepseekPicker: deepseekOptions, explicitSGRouted: true,
     evidenceDirectory: output };
   await writeFile(evidenceFile, JSON.stringify(receipt, null, 2) + "\n");
   console.log(JSON.stringify(receipt, null, 2));

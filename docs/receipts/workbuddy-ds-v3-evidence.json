@@ -1,0 +1,271 @@
+{
+  "scope": "Superseded interpretation: requested/response IDs are client-side only. v4 billing API confirms these calls were billed as deepseek-v4.1-flash-sg; see workbuddy-ds-v4-evidence.json.",
+  "versions": {
+    "claude": "2.1.321",
+    "cliProxyAPI": "7.3.15",
+    "workBuddyPlugin": "0.1.30"
+  },
+  "catalog": {
+    "deepseek": [
+      {
+        "id": "deepseek-v4.1-flash-sg",
+        "display_name": "Deepseek-V4.1-Flash · Singapore · x0.11",
+        "context_window": 1000000,
+        "free": false
+      }
+    ],
+    "free": [
+      "hy4free",
+      "hy3"
+    ],
+    "evidence": [
+      {
+        "type": "catalog",
+        "host": "www.workbuddy.ai",
+        "status": 200,
+        "deepseek": [
+          {
+            "id": "deepseek-v4.1-flash-sg",
+            "name": "Deepseek-V4.1-Flash",
+            "credits": "x0.11",
+            "inCli": true
+          }
+        ]
+      }
+    ]
+  },
+  "credits": {
+    "before": {
+      "used": 100,
+      "total": 130
+    },
+    "after": {
+      "used": 100,
+      "total": 130
+    },
+    "after-review": {
+      "used": 101.53,
+      "total": 130
+    }
+  },
+  "minimalRequest": {
+    "model": "deepseek-v4.1-flash",
+    "status": 200,
+    "usage": {
+      "input": 14,
+      "output": 2,
+      "credit": 0
+    }
+  },
+  "reviewRequests": [
+    {
+      "number": 1,
+      "startedAt": "2026-11-10T01:29:00.524Z",
+      "completedAt": "2026-11-10T01:29:02.298Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 64000,
+        "tools": 0
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 763,
+          "output": 12,
+          "credit": 0.01
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    },
+    {
+      "number": 2,
+      "startedAt": "2026-11-10T01:29:00.606Z",
+      "completedAt": "2026-11-10T01:29:04.211Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 64000,
+        "tools": 34,
+        "effort": "high"
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 15686,
+          "output": 286,
+          "credit": 0.47
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    },
+    {
+      "number": 3,
+      "startedAt": "2026-11-10T01:29:05.600Z",
+      "completedAt": "2026-11-10T01:29:08.744Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 64000,
+        "tools": 34,
+        "effort": "high"
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 15837,
+          "output": 253,
+          "credit": 0.04
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    },
+    {
+      "number": 4,
+      "startedAt": "2026-11-10T01:29:09.065Z",
+      "completedAt": "2026-11-10T01:29:11.514Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 64000,
+        "tools": 34,
+        "effort": "high"
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 16049,
+          "output": 166,
+          "credit": 0.04
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    },
+    {
+      "number": 5,
+      "startedAt": "2026-11-10T01:29:11.657Z",
+      "completedAt": "2026-11-10T01:29:13.527Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 2112,
+        "tools": 0,
+        "stop": [
+          "</block>"
+        ],
+        "effort": "none"
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 34953,
+          "output": 4,
+          "credit": 0.84
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    },
+    {
+      "number": 6,
+      "startedAt": "2026-11-10T01:29:14.128Z",
+      "completedAt": "2026-11-10T01:29:17.525Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 64000,
+        "tools": 34,
+        "effort": "high"
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 16163,
+          "output": 363,
+          "credit": 0.06
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    },
+    {
+      "number": 7,
+      "startedAt": "2026-11-10T01:29:17.724Z",
+      "completedAt": "2026-11-10T01:29:22.912Z",
+      "host": "www.workbuddy.ai",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 64000,
+        "tools": 34,
+        "effort": "high"
+      },
+      "status": 200,
+      "responseModels": [
+        "deepseek-v4.1-flash"
+      ],
+      "usage": [
+        {
+          "input": 16655,
+          "output": 394,
+          "credit": 0.07
+        }
+      ],
+      "verdicts": [],
+      "codes": []
+    }
+  ],
+  "reviewCreditTotal": 1.53,
+  "classifier": [
+    {
+      "timestamp": "2026-11-10T01:29:11.596Z",
+      "event": "classifier_request_started",
+      "model": "deepseek-v4.1-flash",
+      "stage": "xml_s1",
+      "tool": "Bash"
+    },
+    {
+      "timestamp": "2026-11-10T01:29:13.537Z",
+      "event": "classifier_request_finished",
+      "stage": "xml_s1",
+      "outcome": "ok",
+      "durationMs": "1941",
+      "tool": "Bash"
+    }
+  ],
+  "originalDaemon": {
+    "pid": 51883,
+    "bridgeRevision": 3,
+    "restarted": false
+  },
+  "authoritativeBilledModel": "deepseek-v4.1-flash-sg",
+  "billingCorrectionReference": "workbuddy-ds-v4-evidence.json"
+}

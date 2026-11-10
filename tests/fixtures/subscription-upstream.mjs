@@ -38,17 +38,25 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.pathname === "/v3/config") {
     log({ type: "catalog", host: url.hostname });
+    if (process.env.CLAUDEX_SUBSCRIPTION_PAID_ONLY === "1") {
+      const id = "deepseek-v4.1-flash-sg";
+      return Response.json({ code: 0, data: { agents: [{ name: "cli", models: [id] }],
+        models: [{ id, name: "DeepSeek", credits: "x0.11", maxInputTokens: 1_000_000, maxOutputTokens: 8192, supportsTools: true }],
+      } });
+    }
     // Like WorkBuddy AI: an unpriced Auto first, paid models, and x0.00 ones.
     const priced = (id, name, maxInputTokens, credits) => ({ id, name, maxInputTokens,
       maxOutputTokens: 8192, supportsImages: false, supportsTools: true, ...(credits ? { credits } : {}) });
     return Response.json({ code: 0, data: {
-      agents: [{ name: "cli", models: ["default-model", model, "free-flash", "limited-model", "paid-model"] }],
+      agents: [{ name: "cli", models: ["default-model", model, "free-flash", "limited-model", "paid-model", "deepseek-v4.1-flash", "deepseek-v4.1-flash-sg"] }],
       models: [
         priced("default-model", "Auto", 176000),
         priced(model, "Synthetic Claude Sonnet", 200000, "x1.00"),
         priced("free-flash", "Synthetic Free Flash", 1000000, "x0.00"),
         priced("limited-model", "Synthetic Limited", 200000, "x0.00"),
         priced("paid-model", "Synthetic Paid", 200000, "x2.00"),
+        priced("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", 200000, "x0.00"),
+        priced("deepseek-v4.1-flash-sg", "DeepSeek V4.1 Flash", 200000, "x0.03"),
       ],
     } });
   }

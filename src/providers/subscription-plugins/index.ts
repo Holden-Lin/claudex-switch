@@ -9,6 +9,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { openExternalUrl } from "../../lib/browser";
 import type { UsageFetchResult } from "../../types";
+import { WORKBUDDY_DEEPSEEK_MODEL } from "./model-policy";
+export { WORKBUDDY_DEEPSEEK_MODEL } from "./model-policy";
 
 export type SubscriptionUpstream = "cursor" | "workbuddy" | "workbuddy-ai";
 type Auth = { type: "oauth"; access?: string; refresh?: string; source?: string; [key: string]: unknown };
@@ -54,6 +56,13 @@ export const SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
 
 export function isSubscriptionUpstream(value: unknown): value is SubscriptionUpstream {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
+}
+
+// Keep the full catalog for routing explicit IDs; curate only discovery surfaces.
+export function visibleSubscriptionModels<T extends { id: string }>(catalog: T[], upstream: unknown): T[] {
+  if (upstream !== "workbuddy" && upstream !== "workbuddy-ai") return catalog;
+  const ids = new Set(catalog.map(({ id }) => id));
+  return catalog.filter(({ id }) => !id.endsWith("-sg") || !ids.has(id.slice(0, -3)));
 }
 
 function authPath(directory: string): string {
@@ -212,9 +221,18 @@ async function models(ctx: Context): Promise<Model[]> {
   }
   return Object.entries(catalog).map(([id, value]) => {
     const context = (value.limit as { context?: unknown } | undefined)?.context;
+    let displayName = value.name;
+    if (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") {
+      // The plugin defaults a missing price to rate=0; free=false distinguishes it from a confirmed zero price.
+      const rate = typeof value.rate === "number" && (value.rate > 0 || value.free === true)
+        ? `x${value.rate.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })}`
+        : value.free === true ? "x0.00" : undefined;
+      displayName = [value.name ?? id, ...(id.endsWith("-sg") ? ["Singapore"] : []),
+        ...(rate ? [`${rate}${value.free === true ? " (free)" : ""}`] : [])].join(" · ");
+    }
     return {
       id,
-      ...(value.name ? { display_name: value.name } : {}),
+      ...(displayName ? { display_name: displayName } : {}),
       ...(typeof context === "number" && Number.isSafeInteger(context) && context > 0 ? { context_window: context } : {}),
       // WorkBuddy's plugin marks the models that cost no credits (x0.00).
       ...(typeof value.free === "boolean" ? { free: value.free } : {}),
@@ -224,6 +242,43 @@ async function models(ctx: Context): Promise<Model[]> {
 
 export async function listSubscriptionModels(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<Model[]> {
   return models(await context(directory, upstream, options));
+}
+
+export interface SubscriptionBillingRecord {
+  requestId: string;
+  billedModel: string;
+  credit: number;
+  client?: string;
+  requestTime?: string;
+}
+
+/** The official usage page's model column is authoritative; response.model can echo a different ID. */
+export async function listSubscriptionBillingRecords(
+  directory: string,
+  upstream: "workbuddy" | "workbuddy-ai",
+  range: { startTime: string; endTime: string },
+  options: SubscriptionPluginOptions = {},
+): Promise<SubscriptionBillingRecord[]> {
+  const ctx = await context(directory, upstream, options);
+  const loader = await ctx.plugin.auth.loader(ctx.getAuth);
+  if (!loader.baseURL || !loader.fetch) throw new Error("Subscription is not signed in.");
+  const endpoint = new URL("/billing/meter/get-user-request-usage", loader.baseURL);
+  const response = await loader.fetch(endpoint.href, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...range, pageNum: 1, pageSize: 50 }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new Error(`Subscription billing records returned HTTP ${response.status}.`);
+  const body = await response.json() as { code?: unknown; data?: { data?: unknown } };
+  if (body.code !== 0 || !Array.isArray(body.data?.data)) throw new Error("Subscription billing records are unavailable.");
+  return body.data.data.flatMap((row) => {
+    if (!row || typeof row.requestId !== "string" || typeof row.model !== "string"
+      || typeof row.credit !== "number" || !Number.isFinite(row.credit) || row.credit < 0) return [];
+    return [{ requestId: row.requestId, billedModel: row.model, credit: row.credit,
+      ...(typeof row.client === "string" ? { client: row.client } : {}),
+      ...(typeof row.requestTime === "string" ? { requestTime: row.requestTime } : {}),
+    }];
+  });
 }
 
 export async function fetchSubscriptionUsage(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<UsageFetchResult> {
@@ -344,7 +399,7 @@ async function bridgeResponse(input: {
   const path = new URL(input.url, "http://127.0.0.1").pathname;
   if (input.method === "GET" && path === "/health") return json(200, { status: "ok", upstream: options.upstream });
   if (input.method === "GET" && path === "/v1/models") {
-    return json(200, { object: "list", data: (await models(ctx)).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
+    return json(200, { object: "list", data: visibleSubscriptionModels(await models(ctx), options.upstream).map((model) => ({ ...model, object: "model", owned_by: options.upstream })) });
   }
   if (input.method !== "POST" || path !== "/v1/chat/completions") return json(404, { error: { message: "Unknown endpoint." } });
   if (Number(input.headers.get("content-length")) > MAX_BODY_BYTES) throw new HTTPError(413, "Request body is too large.");

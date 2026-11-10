@@ -527,6 +527,7 @@ export async function runAliasSession(
         runtime,
         {
           inheritModel: inheritProxyModel,
+          modelOverride: runOptions.modelOverride ? resolvedModel : undefined,
           // The private user settings can retain a Claude ID that this
           // account's upstream does not list.
           savedModel: (await readJson<{ model?: string }>(join(configDir!, "settings.json"), {})).model,

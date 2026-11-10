@@ -1,0 +1,53 @@
+{
+  "scope": "v5 CF1 source-refresh fix; all vendor transport synthetic, fake Claude and converter, zero real account or chat requests.",
+  "rejectedCommit": "e77f7dd",
+  "sharedPolicy": "src/providers/subscription-plugins/model-policy.ts",
+  "productionPath": "ensureManagedCLIProxyAPIUnlocked -> refreshManagedSubscriptionModels -> pickSubscriptionModels -> shared canFallbackSubscriptionModel -> persisted tier mappings",
+  "baselineBuiltLauncher": {
+    "entry": "git show e77f7dd:dist/claudex-switch.js saved as .mjs",
+    "test": "bun scripts/verify-subscription-catalog-refresh.ts <e77-built-cli>",
+    "expectedExit": 1,
+    "actualExit": 0,
+    "failure": "workbuddy silently launched paid SG; FIXTURE_CLAUDE_LAUNCHED",
+    "vendorChatRequests": 0
+  },
+  "fixedBuiltLauncher": {
+    "passed": true,
+    "vendorChatRequests": 0,
+    "results": [
+      {
+        "upstream": "workbuddy",
+        "automatic": "blocked before Claude",
+        "persistedTiers": {
+          "fableModel": "deepseek-v4.1-flash",
+          "opusModel": "deepseek-v4.1-flash",
+          "sonnetModel": "deepseek-v4.1-flash",
+          "haikuModel": "deepseek-v4.1-flash"
+        },
+        "explicitSG": "launched fake Claude with SG argv, overriding stale base-DS profile env"
+      },
+      {
+        "upstream": "workbuddy-ai",
+        "automatic": "blocked before Claude",
+        "persistedTiers": {
+          "fableModel": "deepseek-v4.1-flash",
+          "opusModel": "deepseek-v4.1-flash",
+          "sonnetModel": "deepseek-v4.1-flash",
+          "haikuModel": "deepseek-v4.1-flash"
+        },
+        "explicitSG": "launched fake Claude with SG argv, overriding stale base-DS profile env"
+      }
+    ]
+  },
+  "operationRegressions": {
+    "workbuddyAndWorkbuddyAi": "Two successive actual refresh operations using real plugin and synthetic paid-only catalog preserve all four base DS tiers; default fails clearly; explicit SG and profile env SG work.",
+    "freshPaidOnlyCatalog": "Unselected tiers retain unresolved family placeholders, never paid catalog IDs.",
+    "cursor": "Previous selection behavior unchanged."
+  },
+  "otherTierWritersAudit": [
+    "Only one production pickSubscriptionModels call, in the shared refresh operation.",
+    "Reused subscription daemons expose the catalog but do not rewrite saved tier mappings.",
+    "The other catalog rewrite is inside the Antigravity-only branch.",
+    "Initialization writes placeholders or supplied mappings; manual edits remain explicit actions."
+  ]
+}
