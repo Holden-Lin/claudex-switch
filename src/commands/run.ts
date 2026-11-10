@@ -30,10 +30,12 @@ import {
   CLAUDE_DEFAULT_OPUS_MODEL,
   CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS,
   localCLIProxyAPIExtraEnv,
+  apiProfileExtraEnv,
   normalizeCustomEnv,
   prepareApiProfileClaudeSettings,
   prepareOAuthProfileClaudeSettings,
 } from "../providers/claude/settings";
+import { isRelayrouterGLMProfile, startRelayrouterSession, type RelayrouterSession } from "../providers/claude/relayrouter";
 import {
   acquireManagedCLIProxyAPILease,
   ensureManagedCLIProxyAPI,
@@ -581,6 +583,7 @@ export async function runAliasSession(
     ...spawnForwardedArgs,
   ];
   let baseEnv: NodeJS.ProcessEnv | undefined;
+  let relayrouterSession: RelayrouterSession | undefined;
   let releaseOpenCode: (() => Promise<void>) | undefined;
   let openCodeCompactionGuard: OpenCodeCompactionGuard | undefined;
   try {
@@ -608,12 +611,18 @@ export async function runAliasSession(
         secureStorageDir,
         configDir,
       );
+      if (claudeProfileName && profile?.type === "api-key" && isRelayrouterGLMProfile(profile)) {
+        relayrouterSession = await startRelayrouterSession(profile.baseUrl!);
+        await prepareApiProfileClaudeSettings(claudeProfileName, profile, relayrouterSession.baseUrl);
+        baseEnv!.ANTHROPIC_BASE_URL = relayrouterSession.baseUrl;
+      }
     }
     if (isOpenCode && runOptions.modelOverride && resolvedModel) {
       await updateDefaultModel(entry, resolvedModel);
     }
   } catch (err) {
     await releaseOpenCode?.();
+    await relayrouterSession?.close();
     error(err instanceof Error ? err.message : String(err));
     blank();
     return 1;
@@ -659,6 +668,7 @@ export async function runAliasSession(
       try {
         await localLease?.release();
         await releaseOpenCode?.();
+        await relayrouterSession?.close();
       } catch {
         // A failed cleanup leaves only a PID-scoped lease; manager lifecycle
         // code removes it after this launcher has exited.
@@ -987,7 +997,7 @@ function buildClaudeApiEnvironment(
     config.defaultHaikuModel,
   );
   setOptionalEnv(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
-  applyCustomEnv(env, config.env);
+  Object.assign(env, apiProfileExtraEnv(config));
 
   return env;
 }

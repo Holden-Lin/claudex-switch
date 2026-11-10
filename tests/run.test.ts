@@ -675,6 +675,49 @@ describe("run alias session", () => {
     });
   });
 
+  test("RelayRouter GLM selection persists with its window and cheap side-query model", async () => {
+    await addApiKeyProfile("relayrouter", {
+      apiKey: "fixture-relay-key",
+      baseUrl: "https://api.relayrouter.ai",
+      model: "gpt-6-astra",
+    });
+    await saveAliases({ version: 1, aliases: [{
+      alias: "relayrouter", target: { provider: "claude", profileName: "relayrouter" }, createdAt: 1,
+    }] });
+    await writeFile(SETTINGS_FILE, JSON.stringify({ env: {
+      ANTHROPIC_MODEL: "gpt-6-astra", ANTHROPIC_SMALL_FAST_MODEL: "gpt-6-astra",
+      CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40",
+    } }));
+
+    const calls: SpawnCall[] = [];
+    await runAliasSession("relayrouter", ["--model", "glm-5.3-flash", "--effort", "high"], createSpawn(calls));
+    expect((await getProfileData("relayrouter") as { model: string }).model).toBe("glm-5.3-flash");
+    expect(calls[0]?.args).toContain("glm-5.3-flash");
+    await runAliasSession("relayrouter", [], createSpawn(calls));
+    for (const call of calls) {
+      expect(call.env?.ANTHROPIC_BASE_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      expect(call.env?.ANTHROPIC_MODEL).toBe("glm-5.3-flash");
+      expect(call.env?.ANTHROPIC_SMALL_FAST_MODEL).toBe("glm-5.3-flash");
+      expect(call.env?.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBe("1000000");
+      expect(call.env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe("800000");
+      expect(call.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe("");
+      expect(call.env?.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
+      expect(call.env?.CLAUDE_CODE_AUTO_MODE_MODEL).toBe("glm-5.3-flash");
+      await expect(fetch(`${call.env?.ANTHROPIC_BASE_URL}/v1/models`)).rejects.toThrow();
+    }
+    const settings = await readJson<{ model: string; env: Record<string, string> }>(claudeProfileClaudeSettingsFile("relayrouter"), { model: "", env: {} });
+    expect(settings.model).toBe("glm-5.3-flash");
+    for (const key of ["ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL", "CLAUDE_CODE_MAX_CONTEXT_TOKENS", "CLAUDE_CODE_AUTO_COMPACT_WINDOW", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE", "CLAUDE_CODE_AUTO_MODE_SERVER", "CLAUDE_CODE_AUTO_MODE_MODEL"]) {
+      expect(settings.env[key]).toBe(calls[1]?.env?.[key]);
+    }
+
+    await runAliasSession("relayrouter", ["--model", "gpt-6-astra"], createSpawn(calls));
+    expect(calls[2]?.env?.ANTHROPIC_MODEL).toBe("gpt-6-astra");
+    expect(calls[2]?.env?.ANTHROPIC_BASE_URL).toBe("https://api.relayrouter.ai");
+    expect(calls[2]?.env?.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBeUndefined();
+    expect(calls[2]?.env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBeUndefined();
+  });
+
   test("expands a Claude --model shorthand into the canonical model id", async () => {
     await addApiKeyProfile("api", {
       apiKey: "sk-ant-profile",

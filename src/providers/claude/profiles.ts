@@ -37,6 +37,7 @@ import { readOAuthAccount, writeOAuthAccount } from "./account";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
 import {
   applyApiConfig,
+  apiProfileExtraEnv,
   applyOAuthConfig,
   applyLocalCLIProxyAPIConfig,
   clearApiConfig,
@@ -927,6 +928,6 @@ function sameApiConfig(
       normalizeOptionalValue(actual.defaultOpusModel) &&
     normalizeOptionalValue(expected.defaultHaikuModel) ===
       normalizeOptionalValue(actual.defaultHaikuModel) &&
-    sameCustomEnv(expected.env, actual.env)
+    sameCustomEnv(apiProfileExtraEnv(expected), actual.env)
   );
 }
