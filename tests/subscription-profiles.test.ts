@@ -39,7 +39,7 @@ describe("Claude Code subscription profiles", () => {
       upstream: "workbuddy-ai", models: paid, upstreamModels: [base, sg], upstreamFree: [base], subscriptionPort: 12345,
     });
     const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
-      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: base }],
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: base, free: true }],
     }, { inheritModel: true, savedModel: "claude-opus-5-5" });
     const settings = JSON.parse(await readFile(path, "utf8"));
     for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) expect(settings.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`]).toBe(base);
@@ -47,6 +47,13 @@ describe("Claude Code subscription profiles", () => {
     expect(settings.modelOverrides["claude-opus-5-5"]).toBe(base);
     expect(settings.modelOverrides["claude-haiku-5-5"]).toBe(base);
     expect(await resolveManagedLocalCLIProxyAPIModel(profile, sg)).toBe(sg);
+    // A cached free list must not override today's catalog price.
+    await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: base, free: false }],
+    });
+    const repriced = JSON.parse(await readFile(path, "utf8"));
+    expect(repriced.env.CLAUDE_CODE_AUTO_MODE_MODEL).toBeUndefined();
+    expect(repriced.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe(sg);
   });
 
   test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s picker hides duplicate SG while explicit IDs and saved overrides still route", async (upstream) => {
@@ -137,7 +144,7 @@ describe("Claude Code subscription profiles", () => {
         upstreamFree: ids.filter((id) => id === "deepseek-v4.1-flash"),
       });
       const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
-        port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: ids.map((id) => ({ id })),
+        port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: ids.map((id) => ({ id, free: id === "deepseek-v4.1-flash" })),
       }, { inheritModel: true });
       return JSON.parse(await readFile(path, "utf8")).env as Record<string, string>;
     };

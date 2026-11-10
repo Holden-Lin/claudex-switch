@@ -1,0 +1,331 @@
+{
+  "scope": "v4: authoritative billed-model evidence. Response model and advertised x0.00 are not free-billing proof. No paid route added; final diagnostics are billing-only.",
+  "account": {
+    "profileAlias": "workbuddy",
+    "officialCliLogin": "holden.lam42@… (existing login, official /status)",
+    "build": "international / external",
+    "authDomain": "www.codebuddy.ai",
+    "workBuddyPlanReportedByCli": "free",
+    "codeBuddySpecificPlan": "unknown",
+    "whyServerBillsSg": "unknown; regional/account/plan causality not exposed by observed records"
+  },
+  "officialCli": {
+    "version": "2.182.0",
+    "selector": {
+      "chosen": "deepseek-v4.1-flash",
+      "advertisedCredits": "x0.00",
+      "sgAdvertisedCredits": "x0.03"
+    },
+    "probePrompt": "Reply OK.",
+    "result": "OK",
+    "liveTransportRequests": [
+      {
+        "event": "request",
+        "number": 2,
+        "time": "2026-11-10T01:51:51.770Z",
+        "host": "www.codebuddy.ai",
+        "path": "/v2/chat/completions",
+        "method": "POST",
+        "headers": {
+          "user-agent": "CLI/2.182.0 CodeBuddy/2.182.0",
+          "x-agent-intent": "craft",
+          "x-agent-purpose": "conversation_topic",
+          "x-agent-runtime": "other",
+          "x-agent-type": "auxiliary",
+          "x-conversation-request-id": "01a1c3278d40724db0a4b83c1c6cc6ee",
+          "x-domain": "www.codebuddy.ai",
+          "x-ide-name": "CLI",
+          "x-ide-type": "CLI",
+          "x-ide-version": "2.182.0",
+          "x-product": "SaaS",
+          "x-request-id": "01a1c3278d617745825b5388c71e3189",
+          "x-requested-with": "XMLHttpRequest"
+        },
+        "body": {}
+      },
+      {
+        "event": "request",
+        "number": 3,
+        "time": "2026-11-10T01:51:51.781Z",
+        "host": "www.codebuddy.ai",
+        "path": "/v2/chat/completions",
+        "method": "POST",
+        "headers": {
+          "user-agent": "CLI/2.182.0 CodeBuddy/2.182.0",
+          "x-agent-intent": "craft",
+          "x-agent-purpose": "conversation",
+          "x-agent-runtime": "other",
+          "x-agent-type": "main",
+          "x-conversation-request-id": "01a1c3278d367993b3604ed70449ef76",
+          "x-domain": "www.codebuddy.ai",
+          "x-ide-name": "CLI",
+          "x-ide-type": "CLI",
+          "x-ide-version": "2.182.0",
+          "x-product": "SaaS",
+          "x-request-id": "01a1c3278da6718083ff00e8ffc5bbda",
+          "x-requested-with": "XMLHttpRequest",
+          "x-root-request-id": "01a1c3278d367993b3604ed70449ef76"
+        },
+        "body": {}
+      },
+      {
+        "event": "request",
+        "number": 4,
+        "time": "2026-11-10T01:51:53.806Z",
+        "host": "www.codebuddy.ai",
+        "path": "/v2/chat/completions",
+        "method": "POST",
+        "headers": {
+          "user-agent": "CLI/2.182.0 CodeBuddy/2.182.0",
+          "x-agent-intent": "craft",
+          "x-agent-purpose": "prompt_suggestion",
+          "x-agent-runtime": "other",
+          "x-agent-type": "auxiliary",
+          "x-conversation-request-id": "01a1c327958473e091c7d0e1ff61f7b5",
+          "x-domain": "www.codebuddy.ai",
+          "x-ide-name": "CLI",
+          "x-ide-type": "CLI",
+          "x-ide-version": "2.182.0",
+          "x-product": "SaaS",
+          "x-request-id": "01a1c327959e7d4a9ee203dd770de44e",
+          "x-requested-with": "XMLHttpRequest",
+          "x-root-request-id": "01a1c3278d367993b3604ed70449ef76"
+        },
+        "body": {}
+      }
+    ],
+    "liveBodyCaptureLimit": "Initial observer did not decode gzip; actual live trace models and separately blocked serialized selection are included, not mislabelled as live body capture.",
+    "traceModels": [
+      {
+        "type": "generation",
+        "model": "deepseek-v4.1-flash",
+        "startedAt": "2026-11-10T01:51:53.758Z"
+      },
+      {
+        "type": "generation",
+        "model": "deepseek-v4.1-flash",
+        "startedAt": "2026-11-10T01:51:53.758Z",
+        "inputBytes": 1009,
+        "inputModels": [],
+        "inputKeys": "list",
+        "outputBytes": 641,
+        "outputModels": [
+          "deepseek-v4.1-flash"
+        ],
+        "outputKeys": "list"
+      },
+      {
+        "type": "generation",
+        "model": "deepseek-v4.1-flash",
+        "startedAt": "2026-11-10T01:51:51.720Z"
+      },
+      {
+        "type": "generation",
+        "model": "deepseek-v4.1-flash",
+        "startedAt": "2026-11-10T01:51:51.720Z",
+        "inputBytes": 83,
+        "inputModels": [],
+        "outputBytes": 612,
+        "outputModels": [
+          "deepseek-v4.1-flash"
+        ],
+        "outputKeys": "list"
+      },
+      {
+        "type": "generation",
+        "model": "deepseek-v4.1-flash",
+        "startedAt": "2026-11-10T01:51:51.650Z"
+      },
+      {
+        "type": "generation",
+        "model": "deepseek-v4.1-flash",
+        "startedAt": "2026-11-10T01:51:51.650Z",
+        "inputBytes": 2590,
+        "inputModels": [],
+        "inputKeys": "list",
+        "outputBytes": 668,
+        "outputModels": [
+          "deepseek-v4.1-flash"
+        ],
+        "outputKeys": "list"
+      }
+    ],
+    "serializedSelectionBlockedBeforeSend": {
+      "time": "2026-11-10T02:03:20.048Z",
+      "blockedBeforeSend": true,
+      "host": "www.codebuddy.ai",
+      "path": "/v2/chat/completions",
+      "headers": {
+        "content-type": "application/json",
+        "x-requested-with": "XMLHttpRequest",
+        "x-agent-purpose": "conversation",
+        "x-ide-type": "CLI",
+        "x-ide-name": "CLI",
+        "x-ide-version": "2.182.0",
+        "x-agent-intent": "craft",
+        "x-agent-runtime": "other",
+        "x-agent-type": "main",
+        "content-encoding": "gzip",
+        "x-domain": "www.codebuddy.ai",
+        "x-product": "SaaS",
+        "user-agent": "CLI/2.182.0 CodeBuddy/2.182.0"
+      },
+      "bodyKeys": [
+        "model",
+        "messages",
+        "tools",
+        "temperature",
+        "max_tokens",
+        "stream",
+        "stream_options",
+        "reasoning_effort",
+        "verbosity",
+        "extra_vars",
+        "cache_retention",
+        "reasoning_summary"
+      ],
+      "extraVarsKeys": [
+        "harnessMetadata",
+        "initiator",
+        "interactionType"
+      ],
+      "routingExtraVars": {},
+      "selection": {
+        "model": "deepseek-v4.1-flash",
+        "stream": true,
+        "max_tokens": 128000
+      }
+    },
+    "billedRecords": [
+      {
+        "requestId": "01a1c327958473e091c7d0e1ff61f7b5",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.01,
+        "client": "CLI",
+        "requestTime": "2026-11-10 09:51:50"
+      },
+      {
+        "requestId": "01a1c3278d367993b3604ed70449ef76",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.69,
+        "client": "CLI",
+        "requestTime": "2026-11-10 09:51:49"
+      },
+      {
+        "requestId": "01a1c3278d40724db0a4b83c1c6cc6ee",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.02,
+        "client": "CLI",
+        "requestTime": "2026-11-10 09:51:48"
+      }
+    ],
+    "correlatedRecords": [
+      {
+        "conversationRequestId": "01a1c3278d40724db0a4b83c1c6cc6ee",
+        "purpose": "conversation_topic",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.02
+      },
+      {
+        "conversationRequestId": "01a1c3278d367993b3604ed70449ef76",
+        "purpose": "conversation",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.69
+      },
+      {
+        "conversationRequestId": "01a1c327958473e091c7d0e1ff61f7b5",
+        "purpose": "prompt_suggestion",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.01
+      }
+    ],
+    "billedCreditTotal": 0.72
+  },
+  "previousWorkBuddyProbe": {
+    "requestedAndResponseModel": "deepseek-v4.1-flash",
+    "upstreamCallCount": 7,
+    "beforeCreditsUsed": 100,
+    "afterCreditsUsed": 101.53,
+    "creditsTotal": 130,
+    "billedModel": "deepseek-v4.1-flash-sg",
+    "billedRecords": [
+      {
+        "requestId": "6c0732ccc0628d418409cb56e40431c1",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.07,
+        "client": "WorkBuddy",
+        "requestTime": "2026-11-10 09:29:18"
+      },
+      {
+        "requestId": "f56007362b33fd3212de22f160554faa",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.84,
+        "client": "WorkBuddy",
+        "requestTime": "2026-11-10 09:29:09"
+      },
+      {
+        "requestId": "9516ae118095c330d0b71bc67d02be6e",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.61,
+        "client": "WorkBuddy",
+        "requestTime": "2026-11-10 09:28:59"
+      },
+      {
+        "requestId": "bf0fe7ca6c43e1d463291e87b44aa80f",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0.01,
+        "client": "WorkBuddy",
+        "requestTime": "2026-11-10 09:28:57"
+      },
+      {
+        "requestId": "57814e2e068c2f811f09c705f731c34c",
+        "billedModel": "deepseek-v4.1-flash-sg",
+        "credit": 0,
+        "client": "WorkBuddy",
+        "requestTime": "2026-11-10 09:17:13"
+      }
+    ],
+    "billedCreditTotal": 1.53,
+    "minimal16TokenProbeAlsoBilledSg": true
+  },
+  "billingSource": {
+    "endpointPath": "/billing/meter/get-user-request-usage",
+    "method": "POST",
+    "request": {
+      "startTime": "2026-11-10 00:00:00",
+      "endTime": "2026-11-10 23:59:59",
+      "pageNum": 1,
+      "pageSize": 50
+    },
+    "correlationKey": "X-Conversation-Request-ID -> billing requestId",
+    "officialClientReadStatus": 200,
+    "workBuddyReadTransport": {
+      "host": "www.workbuddy.ai",
+      "path": "/billing/meter/get-user-request-usage",
+      "headers": {
+        "user-agent": "WorkBuddy/5.5.6",
+        "x-agent-purpose": "conversation",
+        "x-agent-type": "main",
+        "x-domain": "www.workbuddy.ai",
+        "x-ide-name": "WorkBuddy",
+        "x-ide-type": "WorkBuddy",
+        "x-ide-version": "5.5.6",
+        "x-product": "SaaS"
+      }
+    },
+    "readOnlyScript": "bun scripts/inspect-workbuddy-billing.ts workbuddy 2026-11-10",
+    "recordCount": 8
+  },
+  "chinaBuild": {
+    "pluginEndpoint": "https://copilot.tencent.com",
+    "loginWebDomain": "www.workbuddy.cn",
+    "officialCliAuthClass": "internal",
+    "testedLogin": false,
+    "freeBillingEntitlement": "unknown; not inferred"
+  },
+  "originalDaemon": {
+    "pid": 51883,
+    "bridgeRevision": 3,
+    "restarted": false
+  }
+}

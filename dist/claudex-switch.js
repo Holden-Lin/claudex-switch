@@ -7769,13 +7769,18 @@ async function models(ctx) {
   }
   return Object.entries(catalog2).map(([id, value]) => {
     const context2 = value.limit?.context;
+    let displayName = value.name;
+    if (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") {
+      const rate = typeof value.rate === "number" && (value.rate > 0 || value.free === true) ? `x${value.rate.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })}` : value.free === true ? "x0.00" : undefined;
+      displayName = [
+        value.name ?? id,
+        ...id.endsWith("-sg") ? ["Singapore"] : [],
+        ...rate ? [`${rate}${value.free === true ? " (free)" : ""}`] : []
+      ].join(" · ");
+    }
     return {
       id,
-      ...(ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id === WORKBUDDY_DEEPSEEK_MODEL && value.free === true ? {
-        display_name: `${value.name ?? id} · x0.00 (free)`
-      } : (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
-        display_name: `${value.name ?? id} · Singapore · ${typeof value.rate === "number" ? `x${value.rate.toFixed(2)}` : "rate unavailable"}`
-      } : value.name ? { display_name: value.name } : {},
+      ...displayName ? { display_name: displayName } : {},
       ...typeof context2 === "number" && Number.isSafeInteger(context2) && context2 > 0 ? { context_window: context2 } : {},
       ...typeof value.free === "boolean" ? { free: value.free } : {}
     };
@@ -10547,7 +10552,8 @@ function antigravityModelOverrides(ids, tiers, savedModel) {
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
   const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream) ? await readExistingManagedEnv(profile.profileId) : null;
-  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+  const freeDeepSeek = (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && runtime.models?.some((model) => model.id === WORKBUDDY_DEEPSEEK_MODEL && model.free === true);
+  if (freeDeepSeek) {
     config.fableModel = config.opusModel = config.sonnetModel = config.haikuModel = WORKBUDDY_DEEPSEEK_MODEL;
   }
   const paths = profilePaths(profile.profileId);
@@ -10571,7 +10577,7 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   const windows = subscriptionConfig ? subscriptionCompactWindows(subscriptionConfig.upstreamContext ?? {}, routeIds, overrides) : null;
   if (windows)
     env3.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
-  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+  if (freeDeepSeek) {
     env3.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_DEEPSEEK_MODEL;
   }
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
@@ -10712,7 +10718,11 @@ async function listManagedCLIProxyAPICatalog(runtime) {
     if (!response.ok)
       return [];
     const body = await response.json();
-    const models2 = (body.data ?? []).flatMap((model) => typeof model.id === "string" && model.id.trim() ? [{ id: model.id, ...typeof model.display_name === "string" ? { display_name: model.display_name } : {} }] : []);
+    const models2 = (body.data ?? []).flatMap((model) => typeof model.id === "string" && model.id.trim() ? [{
+      id: model.id,
+      ...typeof model.display_name === "string" ? { display_name: model.display_name } : {},
+      ...typeof model.free === "boolean" ? { free: model.free } : {}
+    }] : []);
     return [...new Map(models2.map((model) => [model.id, model])).values()].sort((a, b) => a.id.localeCompare(b.id));
   } catch {
     return [];

@@ -16,6 +16,7 @@ export interface CLIProxyAPIModelMap {
 export interface CLIProxyAPIModel {
   id: string;
   display_name?: string;
+  free?: boolean;
 }
 
 export interface CLIProxyAPIUpstreamSpec {

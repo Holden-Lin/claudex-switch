@@ -220,13 +220,18 @@ async function models(ctx: Context): Promise<Model[]> {
   }
   return Object.entries(catalog).map(([id, value]) => {
     const context = (value.limit as { context?: unknown } | undefined)?.context;
+    let displayName = value.name;
+    if (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") {
+      // The plugin defaults a missing price to rate=0; free=false distinguishes it from a confirmed zero price.
+      const rate = typeof value.rate === "number" && (value.rate > 0 || value.free === true)
+        ? `x${value.rate.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false })}`
+        : value.free === true ? "x0.00" : undefined;
+      displayName = [value.name ?? id, ...(id.endsWith("-sg") ? ["Singapore"] : []),
+        ...(rate ? [`${rate}${value.free === true ? " (free)" : ""}`] : [])].join(" · ");
+    }
     return {
       id,
-      ...((ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id === WORKBUDDY_DEEPSEEK_MODEL && value.free === true ? {
-        display_name: `${value.name ?? id} · x0.00 (free)`,
-      } : (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
-        display_name: `${value.name ?? id} · Singapore · ${typeof value.rate === "number" ? `x${value.rate.toFixed(2)}` : "rate unavailable"}`,
-      } : value.name ? { display_name: value.name } : {}),
+      ...(displayName ? { display_name: displayName } : {}),
       ...(typeof context === "number" && Number.isSafeInteger(context) && context > 0 ? { context_window: context } : {}),
       // WorkBuddy's plugin marks the models that cost no credits (x0.00).
       ...(typeof value.free === "boolean" ? { free: value.free } : {}),
@@ -236,6 +241,43 @@ async function models(ctx: Context): Promise<Model[]> {
 
 export async function listSubscriptionModels(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<Model[]> {
   return models(await context(directory, upstream, options));
+}
+
+export interface SubscriptionBillingRecord {
+  requestId: string;
+  billedModel: string;
+  credit: number;
+  client?: string;
+  requestTime?: string;
+}
+
+/** The official usage page's model column is authoritative; response.model can echo a different ID. */
+export async function listSubscriptionBillingRecords(
+  directory: string,
+  upstream: "workbuddy" | "workbuddy-ai",
+  range: { startTime: string; endTime: string },
+  options: SubscriptionPluginOptions = {},
+): Promise<SubscriptionBillingRecord[]> {
+  const ctx = await context(directory, upstream, options);
+  const loader = await ctx.plugin.auth.loader(ctx.getAuth);
+  if (!loader.baseURL || !loader.fetch) throw new Error("Subscription is not signed in.");
+  const endpoint = new URL("/billing/meter/get-user-request-usage", loader.baseURL);
+  const response = await loader.fetch(endpoint.href, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...range, pageNum: 1, pageSize: 50 }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new Error(`Subscription billing records returned HTTP ${response.status}.`);
+  const body = await response.json() as { code?: unknown; data?: { data?: unknown } };
+  if (body.code !== 0 || !Array.isArray(body.data?.data)) throw new Error("Subscription billing records are unavailable.");
+  return body.data.data.flatMap((row) => {
+    if (!row || typeof row.requestId !== "string" || typeof row.model !== "string"
+      || typeof row.credit !== "number" || !Number.isFinite(row.credit) || row.credit < 0) return [];
+    return [{ requestId: row.requestId, billedModel: row.model, credit: row.credit,
+      ...(typeof row.client === "string" ? { client: row.client } : {}),
+      ...(typeof row.requestTime === "string" ? { requestTime: row.requestTime } : {}),
+    }];
+  });
 }
 
 export async function fetchSubscriptionUsage(directory: string, upstream: SubscriptionUpstream, options: SubscriptionPluginOptions = {}): Promise<UsageFetchResult> {

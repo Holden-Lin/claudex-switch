@@ -1,5 +1,5 @@
 {
-  "scope": "Real WorkBuddy AI account; credential and transcript fields omitted. Review used production-generated settings + owned bridge/converter; original normal CLI rejected the absent base ID. Review is functional but NOT free.",
+  "scope": "Superseded interpretation: requested/response IDs are client-side only. v4 billing API confirms these calls were billed as deepseek-v4.1-flash-sg; see workbuddy-ds-v4-evidence.json.",
   "versions": {
     "claude": "2.1.321",
     "cliProxyAPI": "7.3.15",
@@ -265,5 +265,7 @@
     "pid": 51883,
     "bridgeRevision": 3,
     "restarted": false
-  }
+  },
+  "authoritativeBilledModel": "deepseek-v4.1-flash-sg",
+  "billingCorrectionReference": "workbuddy-ds-v4-evidence.json"
 }

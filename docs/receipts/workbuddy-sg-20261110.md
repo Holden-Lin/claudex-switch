@@ -1,99 +1,95 @@
-# WorkBuddy DS 路由与计费核验 · v3
+# WorkBuddy / CodeBuddy DS 计费核验与修复 · v4 FINAL
 
-**当前账号不能证明 DS 免费，因此本轮为 PARTIAL FINAL。** 真实 auto mode 评审已运行成功：7 次上游请求及响应全是 `deepseek-v4.1-flash`，没有 SG，但实际扣了 **1.53 积分**。已停止调用、撤回拟补入的“免费 DS”目录项，保留菜单去重及防止基础 DS 静默转到收费档位的修复；尚未合并、发布。
+**用户关于“实际按 SG 计费”的判断正确。** 账单 API 已确认：前一轮 WorkBuddy 的 7 次上游调用虽然请求和响应都写基础 DS，实际按 SG 扣了 **1.53 积分**；官方 CodeBuddy 自身选 x0.00 基础 DS 后也按 SG 计费，本轮极小提示及自动旁路合计 **0.72 积分**。没有找到按非 SG 免费计费的线路，未接入任何收费 CodeBuddy 路线；按 ROOT 最新范围，只交付禁止静默付费回退、如实标价及**只读账单核对**，不再发聊天探测。
 
-## 合同、用户要求与范围
+## 合同与原话
 
-- Dispatch：`CXS-WB-SG-20261110`；原合同版本 `CXS-WB-SG-20261110-v1`，SHA256 `13910024aa057231b861d4a0cb882945c9a279fd3db7cb535562f2d17bae9019`。
-- 本回执版本：`CXS-WB-SG-20261110-v3`，取代 v2；后续合同为 ROOT 的 `followup-v3.md`。
-- 用户原话（v3）：「claudex-switch workbuddy --run --cliproxy claudecode 必须要能选（x0.00 免费）的ds，然后我们拿它来review。现在之所以会耗额度是因为每次用的都是sg的」。
-- 用户原话（原合同引用）：「Claudex-switch我之前是不是让修过为什么模型列表是有ds sg的问题？」「修好了吗」「workbuddy模型列表」。10-23：「为什么我在codebuddy里看模型列表只有1个deepseek,claudex-switch workbuddy --run --cliproxy claudecode还会有一个sg地区的」。
-- ROOT 已确认：底层 CLIProxyAPI `/v1/models` 可以保留 SG 注册，以支持显式 SG 路由；订阅桥目录和 Claude 选择器去重。list / webconfig 只有档位映射，没有待改的 WorkBuddy 目录菜单；当前没有 WorkBuddy → Codex / OpenCode 变体。
-- ROOT 后续授权：真实 HOME 中正常 CLI / 插件可自己读取现有登录；agent 不打开、复制、软链或打印凭据文件。用户原守护进程不重启。
+- Dispatch：`CXS-WB-SG-20261110`，原 contract version：`CXS-WB-SG-20261110-v1`；原合同 SHA256：`13910024aa057231b861d4a0cb882945c9a279fd3db7cb535562f2d17bae9019`。
+- 本回执版本：`CXS-WB-SG-20261110-v4`；按 ROOT 的 `followup-v4.md` 及最新收尾指令执行，取代此前 v2 / v3 回执结论。
+- 用户原话：「claudex-switch workbuddy --run --cliproxy claudecode 必须要能选（x0.00 免费）的ds，然后我们拿它来review。现在之所以会耗额度是因为每次用的都是sg的」。
+- 用户原话：「用的不是免费的」（附 WorkBuddy 账单截图）；「你让它直接运行 codebuddy并选择免费ds，看看要怎么选到」；「然后再看cliproxy怎么做」。
+- ROOT 最终指令：没找到免费计费线路前不接收费 CodeBuddy 路线、不再发聊天；区域 / 账号类型 / 国际国内版 / 套餐有证据写证据，无证据写未知；给用户一步动作；保留不悄悄退到付费模型、如实标价、只读账单核对，测试 / verify 后写 v4 FINAL。
+- 原边界不变：不打开、复制、软链或打印凭据文件；CLI / 插件运行时读取自己的现有登录获 ROOT 明确授权；不重启用户运行中的代理，不买套餐、不换账号，不改 ROOT routing.json。合并 / 发版仍需 ROOT review ACCEPT。
 
-## 真实证据与结论
+## 先纠正 v3 结论
 
-证据文件：[白名单请求与额度记录](workbuddy-ds-v3-evidence.json)。组件：Claude Code **2.1.321**、CLIProxyAPI **7.3.15**、WorkBuddy 插件 **0.1.30**。
+v3 的模型抓包和额度增量是事实，但“没有 SG，因此基础 DS 本身付费 / 与 SG 无关”的推断错误：**请求和响应的 model 可以都是基础 ID，服务端账单却记录为 SG。** 用户截图和本轮独立读取的账单 API 一致，用户判断正确。
 
-| 观测 | 结果 |
-| --- | --- |
-| 真实账号 `/v3/config` | DS 只有 `deepseek-v4.1-flash-sg`，`credits=x0.11`；免费目录项仅 `hy4free`、`hy3` |
-| 已装正常命令 `claudex-switch workbuddy --run --cliproxy claudecode --model deepseek-v4.1-flash -p 'Reply exactly DS_FREE_OK.'` | 本地拒绝：`model "deepseek-v4.1-flash" is not in the account catalog`；没有聊天上游调用 |
-| 一次直接通过真实插件发送基础 DS，14 输入 / 2 输出 token | HTTP 200，请求与响应都是基础 ID，`usage.credit=0`；额度仍 100 / 130 |
-| 随后的真实 auto mode review | 7 次请求与响应都为基础 DS，无 SG、无其他模型；各次 credit 为 0.01、0.47、0.04、0.04、0.84、0.06、0.07，合计 **1.53** |
-| CLI 自己的实际额度读取 | 评审前已用 **100 / 130**；评审后 **101.53 / 130**，增量与上游用量精确相同 |
-| 分类器 | 01:29:11.596Z `classifier_request_started`，model=基础 DS，stage=`xml_s1`；01:29:13.537Z finished，outcome=`ok`，耗时 1941ms；实际 34953 输入 / 4 输出 token，credit **0.84** |
-| 标题 / 无工具旁路 | 一次 tools=0、max_tokens=64000 的基础 DS 请求，763 输入 / 12 输出，credit **0.01**；非分类器 |
+16 token 请求显示的 credit=0 只是小额显示 / 取整，账单仍标 `deepseek-v4.1-flash-sg`，不能当作免费证据。也不能从目录 x0.00 推导实际免扣费。原 [v3 白名单记录](workbuddy-ds-v3-evidence.json) 已补入此更正，原始请求 / 响应字段保留，避免改写历史数据。
 
-极小调用的 credit=0 **不能证明免费**：它与较大请求实际扣费并存，符合小额计费取整的表现，但供应商具体取整规则未核实。先前据该小请求拟补入免费目录项的判断已撤回，最终代码没有该补项。
+## 官方 CodeBuddy 的实际结果
 
-结论：本次不是“基础 ID 必然被本地插件改成 SG”。真实抓包已证明基础 ID 原样到上游、也原样返回，仍产生扣费。当前账号的基础 DS 不能标为已验证的 x0.00 免费评审路线；成功运行 auto mode 不等于免费。
-
-## 历史调查与代码根因
-
-- 插件 `provider.models` 用 `Object.fromEntries(ms.map(m => [m.id, ...]))`，按 ID 建表；重名只会改显示名，未发现名字覆盖成 SG 的代码。插件 `loader.fetch` 保留请求体中的 model。
-- 当前原代理配置仅注册 SG，没有 `base → SG` alias；四档目前都是 hy4free。原守护进程 PID **51883**、bridgeRevision **3**，整个调查前后未变。
-- 11-05 原始代理错误日志已不在当前保留范围内；现存 10 份是 11-09 日志，只有 hy4free / 6004 相关记录。不能据此还原那一天所有上游请求，更不能把今天的抓包冒充过去的抓包。
-- 共享 Claude 会话记录找到基础 DS 响应和 14018 报错，但记录跨账号共享，且响应模型字段不能证明原始请求或实际计费，故不据此断言历史调用均走 SG。
-- **已复现的静默回退缺陷**：保存的基础 DS 缺席目录时，`resolveManagedLocalCLIProxyAPIDefaultModel` 回退到 Fable 档位；生成设置的 `subscriptionModelOverrides` 也会把缺席的保存模型映射到 Fable。若该档位是 SG，基础 DS 就会静默变成 SG。基线单测已复现；历史那批请求是否经过这两处仍缺原始抓包。
-
-## 最终修改
-
-1. 共用筛选器只处理 WorkBuddy 两版：有基础 ID 时隐藏相应 SG；只有 SG 则保留并标地区与插件费率。CLIProxyAPI 的完整路由注册表保留，显式 SG 可用。
-2. 基础 DS 缺席时，默认模型解析明确报错；共享设置中保存的基础 DS 也不再被重写成收费档位。两处共用同一条禁止回退规则。
-3. **只有上游目录明确标记基础 DS 免费时**，菜单显示 `x0.00 (free)`，会话的四档和分类器默认使用基础 DS；显式模型 ID 与显式 profile env 仍保留。当前真实目录没有这样的免费 DS，所以不会凭 SG 条目推断或补造一个。
-4. 桥版本升至 4。下一次空闲启动更新旧桥，不强停活动会话；隐藏的 SG 路由保留自己的压缩窗口。
-5. 新增受保护的真实探测脚本 `scripts/verify-workbuddy-free-ds.ts`：只让插件运行时使用既有登录，在真实 HOME 建立自有桥 / converter、生成生产设置；没有免费 DS 目录项则在任何聊天前拒绝，一旦观察到非零 credit 就阻止后续调用。它直接启动 Claude，不宣称覆盖正常 managed CLI 的登录 / 启动路径。
-
-## review 功能证据及限制
-
-为了不重启用户代理、不复制登录，真实 review 使用本轮自建桥和 CLIProxyAPI，以及 `prepareLocalCLIProxyAPIClaudeSettings` 生成的设置。其正常 CLI 临时 alias 因没有独立登录文件而被拒，未伪造登录；随后直接用真实 Claude Code 读取生产生成的设置运行。测试时曾拟补基础 DS 目录项，计费证据出现后已从最终代码撤回。
-
-屏幕摘录：
+使用用户现有登录，直接运行官方 **CodeBuddy Code 2.182.0**，在其 `/model` 选择器选基础 DS；未使用 claudex-switch 代替这一步。选择器与确认屏幕：
 
 ```text
-Claude Code v2.1.321
-DeepSeek V4.1 Flash · x0.00 (free) with xhigh effort
-⏵⏵ auto mode on
-
-Bash(git log -1 --oneline)
-5b6ff18 docs: record ROOT approval of WorkBuddy routing catalog scope
-
-Bash(ls) → AGENTS.md ... src tests tsconfig.json
-
-Bash(uv run --no-project python -c "print(6*7)")
-42
-Allowed by auto mode
-
-REVIEW_DS_OK
+Select Model
+❯ deepseek-v4.1-flash    ✔ (x0.00)
+  deepseek-v4.1-flash-sg   (x0.03)
+Switched model to Deepseek-V4.1-Flash.
+> Reply OK.
+● OK
 ```
 
-**屏幕当时的 free 标签来自后来撤回的补项，不是免费证据。** git / ls 属于只读命令，不要求每次调用分类器；Python 确实经过分类器，debug outcome=ok。没有添加 allowedTools、审批 hook 或 bypassPermissions。
+`/status` 显示现有国际版登录，主模型 / Lite / Reasoning 都为基础 DS。官方运行时 trace 的模型与输出模型也为基础 DS。
 
-这证明真实基础 DS 的 review 功能可用，但同时证明该评审扣了 1.53 积分。当前不能把这条路线交给 ROOT 当免费评审：
+[完整白名单证据](workbuddy-ds-v4-evidence.json) 中，真实 HTTP 头的 `X-Conversation-Request-ID` 与账单 `requestId` 精确匹配：
+
+| 用途 | 请求 ID | 账单模型 | 积分 |
+| --- | --- | --- | --- |
+| 主对话 | `01a1c3278d367993b3604ed70449ef76` | `deepseek-v4.1-flash-sg` | 0.69 |
+| 标题 `conversation_topic` | `01a1c3278d40724db0a4b83c1c6cc6ee` | `deepseek-v4.1-flash-sg` | 0.02 |
+| 建议 `prompt_suggestion` | `01a1c327958473e091c7d0e1ff61f7b5` | `deepseek-v4.1-flash-sg` | 0.01 |
+
+这一次只提交了 `Reply OK.`；官方交互客户端自动附带系统上下文、标题与建议请求，仍产生了 0.72 积分。之后没有再发真实聊天或 review。后续序列化检查全部在发送正文前阻断，不产生新的模型调用。
+
+## 线路差异与“为什么 SG”
+
+| 项目 | 官方 CodeBuddy | WorkBuddy AI 插件 | 国内 WorkBuddy |
+| --- | --- | --- | --- |
+| 聊天端点 | `www.codebuddy.ai/v2/chat/completions` | `www.workbuddy.ai/v2/chat/completions` | 源码为 `copilot.tencent.com/v2/chat/completions` |
+| 账号域 / 构建 | `X-Domain=www.codebuddy.ai`；官方源码对应 External | 实际只读请求头 `X-Domain=www.workbuddy.ai`；国际版 | 源码国内域 `www.workbuddy.cn` / `copilot.tencent.com`，未切换或验证此登录 |
+| 客户端 | `X-IDE-Type/Name=CLI`；`CLI/2.182.0 CodeBuddy/2.182.0` | `X-IDE-Type/Name=WorkBuddy`；`WorkBuddy/5.5.6` | 源码 WorkBuddy 客户端头 |
+| Agent | 主请求 main / conversation；旁路 auxiliary | main / conversation | 插件国内分支不补国际版的 main 头 |
+| 模型选择 | 基础 DS；Lite / Reasoning 也是基础 DS | 前轮 7 次请求 / 响应均为基础 DS | 无真实调用证据 |
+| 已验证账单 | SG | SG | **未知** |
+
+官方真实请求使用 gzip。初次被动观察器没有解码真实请求体；随后在官方 `--model deepseek-v4.1-flash` 路径上解码已完整序列化的 gzip 请求，并在发送前阻断：model 为基础 DS，没有额外 region / plan / tier 字段；extra_vars 只有 harnessMetadata、initiator、interactionType。该资料明确标为“发送前捕获”，不冒充已发送请求体。
+
+**已知**：本次登录走国际版域；官方选择器标 x0.00；两种客户端的真实账单均为 SG；WorkBuddy 额度读取曾报告 `plan=free`、总额 130。服务端把这批调用记到 SG 是确定事实。
+
+**未知**：是否由物理 IP 区域、账号注册区域、个人 / 企业账号类型、某个产品专属套餐或服务端计费规则导致。现有 API 没有返回重映射原因；`plan=free` 和国际版域不能证明因果。CodeBuddy 独立产品的具体套餐权益也未核实。国内版是否能免费、需要哪个套餐或另一账号，均无证据，不能保证换国内版或买套餐就能解决。
+
+**用户自己下一步（一句话）**：请把上述主请求 ID 和 `/model` 的 x0.00 截图发给官方客服 `codebuddy@tencent.com`，要求说明该国际版账号为何按 SG 计费，以及获得非 SG 免费 DS 权益的明确条件。
+
+## 保留的代码与只读核对
+
+- 只按实时模型目录显示，不推断免费、不补目录外模型；已知费率按原小数精度标注，明确免费才标 x0.00 (free)。插件把未知价格填成 0，故 free=false 的 0 不当作已知免费价格。
+- 仅当基础模型确实在目录中时隐藏同名 SG；基础模型缺席时保留 SG，并标 Singapore / 实际费率。原始路由注册表仍保留显式 SG，Cursor 等其他服务商不受影响。
+- 保存的基础 DS 缺席目录时，不再通过默认模型或共享设置映射静默退到 Fable / 收费 SG；两处使用同一禁止回退规则。此修复约束**本地改模型**，不声称能阻止供应商在后端按 SG 计费。
+- 如实时目录明确标免费 DS，会话默认档位及分类器使用它；不以旧免费缓存覆盖当前目录。显式模型 / profile env 保留，隐藏的 SG 压缩窗口保留。
+- 通过官方前端公开代码找到 `POST /billing/meter/get-user-request-usage`，新增 `listSubscriptionBillingRecords`；由插件自己认证，只返回 requestId、**billedModel**、credit、client、requestTime，丢弃 userPrompt 等字段。两个产品域独立读取的 8 条记录一致。
+- 删除会发聊天的 `verify-workbuddy-free-ds.ts`，换为仓库内的只读脚本：不启动代理、不启动登录、不调用聊天端点。
 
 ```sh
-claudex-switch workbuddy --run --cliproxy claudecode --model deepseek-v4.1-flash
+bun scripts/inspect-workbuddy-billing.ts workbuddy 2026-11-10
 ```
 
-这是最终应使用的精确模型选择命令，**当前真实目录会拒绝它，不能作为已可用的免费评审启动线**。不要替换为 SG，也不要通过补造免费目录项绕过。只有供应商 / 当前登录账号真正恢复基础 DS 免费目录及免费计费后，才用此命令验收并启用 review route。未改 ROOT 的 routing.json。
+实际输出示例（仅第一页，最多 50 条）：
 
-## 检查与交付
+```json
+{"requestId":"01a1c3278d367993b3604ed70449ef76","billedModel":"deepseek-v4.1-flash-sg","credit":0.69,"client":"CLI","requestTime":"2026-11-10 09:51:49"}
+```
 
-- 最终基线回归：替换两个实现文件为 `4d49b57` 后，`30 pass / 8 fail / 211 expect()`；还原后新增用例通过。覆盖遗漏基础 DS 的付费回退、所有默认旁路档位、免费标签、SG-only 不补造免费项、Cursor 不受影响、显式 SG 及隐藏窗口。
-- `bun run verify` 最终：**463 pass / 0 fail / 2369 expect()**，43 文件、35.16 秒；文档检查、构建、构建版 help 通过。
-- `bunx tsc --noEmit` 和 `git diff --check` 通过。
-- 最终合成全链路：真实 Claude Code + CLIProxyAPI + 真实插件，`--run --cliproxy claudecode` 生成一个免费 DS 菜单项，默认四档与旁路为基础 DS，显式 SG 完成两轮 Read；这不证明当前真实账号免费。
-- 最终真实 helper 在当前目录返回 `No free DS entry.`，聊天前拒绝；没有再次收费验证。
-- 私有原始材料：`/tmp/cxs-wb-v3/`；可分享的白名单模型、状态、用量、额度及分类器结果已存入本回执旁的 JSON。未提交原始调试日志或会话正文。
-- 本轮自有 alias / profile、桥、converter、Claude 和 tmux 测试窗口已清理；真实用户原守护进程不变。忽略数据仅 `node_modules/`（约 32 MB，可重建）；工作树保留待 ROOT 决策，未手动加锁。
+当前没有按免费计费的线路，因此没有把官方 CodeBuddy 的收费路径接入 claudex-switch，也没有提供“可免费评审”的启动线。未改用户账号、套餐或 ROOT 的路由。
 
-## ROOT 接续、发布判断与改进建议
+## 验证与交接
 
-- **未完成项**：当前账号没有已证明免费的 DS；正常 CLI 的真实免费 DS review 无法完成。因此提交 **PARTIAL FINAL v3**，不是成功免费路线的 FINAL。
-- 不再尝试可能收费的请求；请 ROOT 向供应商 / 用户确认该账号的 DS 免费权益及真实费率，或由用户明确选择别的已确认免费路线。当前只保留免费目录证据，不把 hy4free 冒充 DS，不切换账户。
-- 防止静默付费回退和菜单标价值得发布，但必须先有 ROOT review ACCEPT 和明确发布通知。现版本 1.28.3，建议下一个可用补丁号；未 merge、bump、tag、release 或安装。
-- 发布步骤仍为：整合共享 TODO / req_changelog → merge 分支 → 将 package.json 改为下一补丁号（例如 1.28.4）→ `bun run build` → `bun run verify` → `git add package.json dist/claudex-switch.js` → `git commit -m 'release: v1.28.4'` → `git tag v1.28.4` → `git push origin main v1.28.4`。CI 创建 Release / 资产 / formula，之后拉取 formula 提交并跑 `bun run release:guard`；不要手动创建 Release 或手改 formula。
-- 建议 integrator 的 TODO / 沿革：原话按本回执记录；2026-11-10 实测基础 DS 本身扣费（100→101.53），并非每次费用都来自 SG；免费 DS 目标待供应商 / 权益确认。代码已防止缺席目录的保存 DS 静默落到收费档位，发布待评审。
-- 建议更新 proxy-auto-mode 技能：单次极小请求 credit=0 不足以证明免费；必须核对足够代表实际 review 的请求和真实额度增量，发现非零费用后停止。不能从名字、旧截图、缺失目录或 SG 后缀推断免费权益。
-- 审批记录：隔离 HOME + 软链登录最初被 auto-review 拒绝（原因：仍触发凭据文件读取）；未执行该方案。ROOT 澄清运行时认证允许后，改为真实 HOME 正常 CLI / 插件读取，无凭据打开、复制或软链。正常路径后续受原代理不重启的合同边界限制，不是新的自动审批拒绝。
+- 最终 `bun run verify`：**467 pass / 0 fail / 2385 expect()**，43 文件、38.35 秒；类型检查、文档检查、构建及构建版 help 均通过。完整日志 `/tmp/cxs-wb-v4/verify-final.log`。
+- `tests/subscription-profiles.test.ts` 在基线 `4d49b57` 实测 **9 pass / 5 fail / 66 expect()**，是行为失败而非缺新导出的编译失败；最终聚焦两文件 **42 pass / 0 fail / 253 expect()**。覆盖目录价格、去重、无静默付费回退、实时免费标记，以及“credit=0 但 billedModel=SG”的记录解析；不返回私有提示词。
+- 已有真实 Claude Code / CLIProxyAPI + 合成上游启动链路验证通过。v4 不再做真实 review；官方测试只做一次微型用户提示及其自动旁路，后续均为只读 API / 发送前阻断。
+- 只读脚本已在现有 WorkBuddy 登录下运行，返回 8 条账单，全部 SG；与官方 CodeBuddy 运行时读到的数据相符，未发送聊天。
+- 原用户守护进程 PID **51883**、bridgeRevision **3** 未被重启。自有 CodeBuddy 测试进程 **21755 / 32343** 已正常 SIGTERM 退出；测试 tmux 和新建浏览器标签页均已关闭。CodeBuddy 不在 tmux-ops 的 agent-exit 识别名单，故先验证 pane 身份再终止自有进程，最后用工具收尾；没有操作其他用户会话。
+- 原始私有材料 `/tmp/cxs-wb-v4/`；提交的 JSON 不含令牌、鉴权头、提示词正文或账单页面的私人请求内容。工作树忽略数据只有可重建的 `node_modules/`（约 32 MB），保留供 ROOT 评审，无个人锁。
+- 需要补丁发布才能交付已装 CLI 的本地回退 / 标价修复；当前版本 1.28.3。仍待 ROOT review ACCEPT 后再合并、bump 下一补丁号、`bun run build`、`bun run verify`、提交、tag、push；CI 建 Release / 资产 / formula，之后拉取 formula 提交并跑 `bun run release:guard`。本轮没有 merge、tag、release 或安装。
+- 建议 integrator 的 TODO / 沿革：用户关于 SG 计费判断已证实；官方 CodeBuddy x0.00 选择同样计入 SG。具体区域 / 账号 / 套餐原因未知，由用户携请求 ID 联系官方；代码保留防静默付费回退、真实目录价格及只读账单核对。不更新共享 TODO / req_changelog / memory。
+- 建议技能更新：免费判定必须核对账单计费模型与请求 ID；目录标价、回显 model、单次 credit=0 或总额度差值均不能替代该证据。

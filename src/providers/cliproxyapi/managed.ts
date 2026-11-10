@@ -579,7 +579,7 @@ async function readExistingManagedEnv(profileId: string): Promise<ManagedEnv> {
   }
 }
 
-export async function writeRuntimeConfig(
+async function writeRuntimeConfig(
   profileId: string,
   port: number,
 ): Promise<ManagedEnv> {
@@ -677,8 +677,9 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
     ? await readExistingManagedEnv(profile.profileId) : null;
   // Picking DS must not leave side queries on an older paid or Auto tier.
   // These session defaults leave explicit full model IDs and profile overrides usable.
-  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai")
-    && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+  const freeDeepSeek = (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai")
+    && runtime.models?.some((model) => model.id === WORKBUDDY_DEEPSEEK_MODEL && model.free === true);
+  if (freeDeepSeek) {
     config.fableModel = config.opusModel = config.sonnetModel = config.haikuModel = WORKBUDDY_DEEPSEEK_MODEL;
   }
   const paths = profilePaths(profile.profileId);
@@ -714,8 +715,7 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   if (windows) env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
   // The auto mode classifier otherwise follows the sonnet tier, WorkBuddy's
   // Auto router (unknown credits, 176K), on every tool call it judges.
-  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai")
-    && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+  if (freeDeepSeek) {
     env.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_DEEPSEEK_MODEL;
   }
   // Extra env the user attached to this profile (e.g. CLAUDE_CODE_EFFORT_LEVEL)
@@ -909,10 +909,11 @@ async function listManagedCLIProxyAPICatalog(
       signal: controller.signal,
     });
     if (!response.ok) return [];
-    const body = (await response.json()) as { data?: Array<{ id?: unknown; display_name?: unknown }> };
+    const body = (await response.json()) as { data?: Array<{ id?: unknown; display_name?: unknown; free?: unknown }> };
     const models = (body.data ?? []).flatMap((model) =>
       typeof model.id === "string" && model.id.trim()
-        ? [{ id: model.id, ...(typeof model.display_name === "string" ? { display_name: model.display_name } : {}) }]
+        ? [{ id: model.id, ...(typeof model.display_name === "string" ? { display_name: model.display_name } : {}),
+          ...(typeof model.free === "boolean" ? { free: model.free } : {}) }]
         : [],
     );
     return [...new Map(models.map((model) => [model.id, model])).values()]

@@ -7,6 +7,7 @@ import {
   hasSubscriptionLogin,
   isSubscriptionUpstream,
   listSubscriptionModels,
+  listSubscriptionBillingRecords,
   loginSubscriptionPlugin,
   serveSubscriptionBridge,
   SUBSCRIPTION_AUTH_FILE,
@@ -79,6 +80,24 @@ function chat(url: string, body: unknown = { model: "real-model", messages: [] }
 }
 
 describe("subscription plugin adapter", () => {
+  test("reads the official billed model even when a zero-credit request used the base ID", async () => {
+    const dir = await directory();
+    const range = { startTime: "2026-11-10 00:00:00", endTime: "2026-11-10 23:59:59" };
+    const options = fake({ upstream: "workbuddy-ai", fetch: async (url, init) => {
+      expect(url).toBe("https://example.com/billing/meter/get-user-request-usage");
+      expect(JSON.parse(String(init.body))).toEqual({ ...range, pageNum: 1, pageSize: 50 });
+      return Response.json({ code: 0, data: { total: 2, data: [
+        { requestId: "actual-conversation-request", model: "deepseek-v4.1-flash-sg", credit: 0, client: "WorkBuddy", requestTime: "2026-11-10 09:17:13", userPrompt: "private-prompt-sentinel" },
+        { requestId: "invalid-row", model: "deepseek-v4.1-flash", credit: "0" },
+      ] } });
+    } });
+    await loginSubscriptionPlugin(dir, "workbuddy-ai", 0, () => {}, options);
+    const records = await listSubscriptionBillingRecords(dir, "workbuddy-ai", range, options);
+    expect(records).toEqual([{ requestId: "actual-conversation-request", billedModel: "deepseek-v4.1-flash-sg", credit: 0, client: "WorkBuddy", requestTime: "2026-11-10 09:17:13" }]);
+    expect(JSON.stringify(records)).not.toContain("private-prompt-sentinel");
+    await expect(listSubscriptionBillingRecords(dir, "workbuddy-ai", range, fake({ upstream: "workbuddy-ai", fetch: async () => Response.json({ code: 0, data: null }) }))).rejects.toThrow("unavailable");
+  });
+
   test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s curates regional discovery without blocking explicit regional routing", async (upstream) => {
     const dir = await directory();
     const base = "regional-model";
@@ -118,6 +137,24 @@ describe("subscription plugin adapter", () => {
     const url = await bridge(dir, options, "workbuddy-ai");
     const catalog = await (await fetch(`${url}/v1/models`, { headers: authorization })).json();
     expect(catalog.data.map(({ id }: { id: string }) => id)).toEqual(["deepseek-v4.1-flash-sg"]);
+  });
+
+  test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s preserves catalog prices without inferring that a zero multiplier is free", async (upstream) => {
+    const dir = await directory();
+    const options = fake({ upstream, models: { models: async () => ({
+      "deepseek-v4.1-flash": { name: "DeepSeek", free: false, rate: 0.11 },
+      free: { name: "Free model", free: true, rate: 0 },
+      zero: { name: "Zero rate", free: false, rate: 0 },
+      fraction: { name: "Fractional price", rate: 0.035 },
+      unknown: { name: "Unknown price" },
+    }) } });
+    await loginSubscriptionPlugin(dir, upstream, 0, () => {}, options);
+    const catalog = await listSubscriptionModels(dir, upstream, options);
+    expect(catalog.map(({ display_name }) => display_name)).toEqual(upstream === "cursor"
+      ? ["DeepSeek", "Free model", "Zero rate", "Fractional price", "Unknown price"]
+      : ["DeepSeek · x0.11", "Free model · x0.00 (free)", "Zero rate", "Fractional price · x0.035", "Unknown price"]);
+    expect(catalog[0]?.free).toBe(false);
+    expect(catalog[2]?.free).toBe(false);
   });
 
   test("loads the three actual plugin factories and lists only OAuth methods offline", async () => {
@@ -401,7 +438,7 @@ describe("subscription plugin adapter", () => {
       // A model with no readable price is not free.
       const live = [
         { id: "real-wb-model", display_name: "WorkBuddy live model", context_window: 1_000_000, free: false },
-        { id: "free-wb-model", display_name: "WorkBuddy free model", context_window: 1_000_000, free: true },
+        { id: "free-wb-model", display_name: "WorkBuddy free model · x0.00 (free)", context_window: 1_000_000, free: true },
       ];
       expect(lists).toEqual([live, live]);
       expect(refreshes).toBe(1);
