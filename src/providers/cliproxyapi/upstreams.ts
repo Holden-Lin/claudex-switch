@@ -3,6 +3,8 @@
 // facts differ per upstream. Profiles written before upstreams existed have
 // no marker and are ChatGPT/Codex.
 import type { SubscriptionUpstream } from "../subscription-plugins";
+import { canFallbackSubscriptionModel } from "../subscription-plugins/model-policy";
+export { canFallbackSubscriptionModel } from "../subscription-plugins/model-policy";
 
 export type CLIProxyAPIUpstream = "codex" | "antigravity" | "opencode-go" | SubscriptionUpstream;
 
@@ -94,6 +96,7 @@ export interface SubscriptionPricing {
   free: string[];
   previousFree: string[] | null;
   context: Record<string, number>;
+  upstream?: SubscriptionUpstream;
 }
 
 const FAST_MODEL = /haiku|flash|mini/i;
@@ -118,7 +121,13 @@ export function pickSubscriptionModels(ids: string[], current?: CLIProxyAPIModel
   // one never checked against prices, or free until now, moves to a free model.
   const keep = (tier: keyof CLIProxyAPIModelMap, fallback: string) => {
     const kept = current?.[tier];
-    if (!kept || !ids.includes(kept)) return fallback;
+    if (!kept || !ids.includes(kept)) {
+      // Priced catalogs are WorkBuddy's original contract; Cursor callers name their upstream explicitly.
+      if (pricing && !canFallbackSubscriptionModel(pricing.upstream ?? "workbuddy", kept ?? "", fallback, free)) {
+        return kept || tier.replace(/Model$/, "");
+      }
+      return fallback;
+    }
     if (!free.length || free.includes(kept)) return kept;
     return pricing?.previousFree && !pricing.previousFree.includes(kept) ? kept : fallback;
   };

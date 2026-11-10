@@ -2283,6 +2283,16 @@ function assertCLIProxyAPICompatibility(binaryPath, upstream) {
   }
 }
 
+// src/providers/subscription-plugins/model-policy.ts
+var WORKBUDDY_DEEPSEEK_MODEL = "deepseek-v4.1-flash";
+function canFallbackSubscriptionModel(upstream, model, target, free = []) {
+  if (upstream !== "workbuddy" && upstream !== "workbuddy-ai")
+    return true;
+  if (model === WORKBUDDY_DEEPSEEK_MODEL)
+    return false;
+  return target === undefined || free.includes(target);
+}
+
 // src/providers/cliproxyapi/upstreams.ts
 var SUBSCRIPTION_SPEC = {
   loginFlag: null,
@@ -2350,8 +2360,12 @@ function pickSubscriptionModels(ids, current, pricing) {
   const fast = (free.length ? widest(free.filter((id) => FAST_MODEL.test(id))) : newest(ids.filter((id) => FAST_MODEL.test(id)))) ?? sonnet;
   const keep = (tier, fallback) => {
     const kept = current?.[tier];
-    if (!kept || !ids.includes(kept))
+    if (!kept || !ids.includes(kept)) {
+      if (pricing && !canFallbackSubscriptionModel(pricing.upstream ?? "workbuddy", kept ?? "", fallback, free)) {
+        return kept || tier.replace(/Model$/, "");
+      }
       return fallback;
+    }
     if (!free.length || free.includes(kept))
       return kept;
     return pricing?.previousFree && !pricing.previousFree.includes(kept) ? kept : fallback;
@@ -7601,7 +7615,6 @@ var contexts = new Map;
 var MAX_BODY_BYTES = 16 * 1024 * 1024;
 var STREAM_ONLY = new Set(["workbuddy", "workbuddy-ai"]);
 var SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
-var WORKBUDDY_DEEPSEEK_MODEL = "deepseek-v4.1-flash";
 function isSubscriptionUpstream(value) {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
 }
@@ -10511,12 +10524,12 @@ async function isExpectedRuntimeConfig(paths, state, managed) {
     return false;
   }
 }
-async function getLocalCLIProxyAPISettings(profile, runtime) {
+async function getLocalCLIProxyAPISettings(profile, runtime, modelOverride) {
   const config = await readManagedEnv(profile.profileId);
   return {
     apiKey: runtime.apiKey,
     baseUrl: runtime.baseUrl,
-    model: await resolveManagedLocalCLIProxyAPIDefaultModel(profile),
+    model: modelOverride ?? await resolveManagedLocalCLIProxyAPIDefaultModel(profile),
     fableModel: config.fableModel,
     sonnetModel: config.sonnetModel,
     opusModel: config.opusModel,
@@ -10550,8 +10563,15 @@ function antigravityModelOverrides(ids, tiers, savedModel) {
   return overrides;
 }
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
-  const config = await getLocalCLIProxyAPISettings(profile, runtime);
+  const config = await getLocalCLIProxyAPISettings(profile, runtime, options.modelOverride);
   const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream) ? await readExistingManagedEnv(profile.profileId) : null;
+  const namedModel = options.modelOverride || profile.env?.ANTHROPIC_MODEL?.trim() || profile.defaultModel;
+  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && subscriptionConfig && namedModel === config.model && subscriptionConfig.upstreamModels.includes(namedModel)) {
+    for (const tier of ["fableModel", "opusModel", "sonnetModel", "haikuModel"]) {
+      if (!subscriptionConfig.upstreamModels.includes(config[tier]))
+        config[tier] = namedModel;
+    }
+  }
   const freeDeepSeek = (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && runtime.models?.some((model) => model.id === WORKBUDDY_DEEPSEEK_MODEL && model.free === true);
   if (freeDeepSeek) {
     config.fableModel = config.opusModel = config.sonnetModel = config.haikuModel = WORKBUDDY_DEEPSEEK_MODEL;
@@ -10583,6 +10603,8 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env3[key] = value;
   }
+  if (options.modelOverride)
+    env3.ANTHROPIC_MODEL = options.modelOverride;
   if (profile.upstream === "antigravity")
     env3.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = "";
   await writePrivateJson(paths.claudeSettingsFile, {
@@ -10615,9 +10637,6 @@ function subscriptionCompactWindows(context2, ids, overrides) {
     ...Object.entries(overrides).map(([id, target]) => [id, { autoCompactWindow: windowOf(target) }])
   ]);
   return { maxContext: Math.max(...ids.map(windowOf)), modelSettings };
-}
-function canFallbackSubscriptionModel(upstream, model) {
-  return !((upstream === "workbuddy" || upstream === "workbuddy-ai") && model === WORKBUDDY_DEEPSEEK_MODEL);
 }
 function subscriptionModelOverrides(ids, tiers, savedModel, upstream) {
   const overrides = {};
@@ -10672,10 +10691,11 @@ async function resolveManagedLocalCLIProxyAPIModel(profile, input) {
 }
 async function resolveManagedLocalCLIProxyAPIDefaultModel(profile) {
   const config = await readExistingManagedEnv(profile.profileId);
-  const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
+  const envModel = (config.upstream === "workbuddy" || config.upstream === "workbuddy-ai") && profile.env?.ANTHROPIC_MODEL?.trim();
+  const model = envModel ? resolveLocalCLIProxyAPIModelFromConfig(envModel, config) : resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
   if (isSubscriptionUpstream(config.upstream)) {
-    if (!config.upstreamModels.includes(model) && !canFallbackSubscriptionModel(config.upstream, model)) {
-      throw new Error(`Saved WorkBuddy model "${WORKBUDDY_DEEPSEEK_MODEL}" is absent from this account's catalog; refusing to substitute another model. Check the account's model availability before retrying.`);
+    if (!config.upstreamModels.includes(model) && !canFallbackSubscriptionModel(config.upstream, model, config.fableModel, config.upstreamFree ?? [])) {
+      throw new Error(`Saved WorkBuddy model "${model}" is absent from this account's catalog; refusing to substitute another model. Select an available model explicitly.`);
     }
     return config.upstreamModels.includes(model) ? model : config.fableModel;
   }
@@ -11052,6 +11072,22 @@ async function ensureManagedCLIProxyAPI(profile) {
   assertProfileId(profile.profileId);
   return withStartupLock(profile.profileId, () => ensureManagedCLIProxyAPIUnlocked(profile));
 }
+async function refreshManagedSubscriptionModels(profileId) {
+  const managed = await readExistingManagedEnv(profileId);
+  if (!isSubscriptionUpstream(managed.upstream))
+    throw new Error("Expected a subscription upstream.");
+  const models2 = await listSubscriptionModels(profilePaths(profileId).dir, managed.upstream);
+  const ids = models2.map(({ id }) => id);
+  const upstreamContext = Object.fromEntries(models2.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : []));
+  const upstreamFree = models2.filter((model) => model.free).map(({ id }) => id);
+  await updateManagedCLIProxyAPISetup(profileId, {
+    models: pickSubscriptionModels(ids, managed, { free: upstreamFree, previousFree: managed.upstreamFree, context: upstreamContext, upstream: managed.upstream }),
+    upstreamModels: ids,
+    upstreamContext,
+    upstreamFree,
+    subscriptionPort: await findAvailablePort()
+  });
+}
 async function ensureManagedCLIProxyAPIUnlocked(profile) {
   const paths = profilePaths(profile.profileId);
   const state = await readState(profile.profileId);
@@ -11079,17 +11115,7 @@ async function ensureManagedCLIProxyAPIUnlocked(profile) {
     await rm2(paths.stateFile, { force: true });
   }
   if (isSubscriptionUpstream(managed.upstream)) {
-    const models2 = await listSubscriptionModels(paths.dir, managed.upstream);
-    const ids = models2.map(({ id }) => id);
-    const upstreamContext = Object.fromEntries(models2.flatMap(({ id, context_window }) => context_window ? [[id, context_window]] : []));
-    const upstreamFree = models2.filter((model) => model.free).map(({ id }) => id);
-    await updateManagedCLIProxyAPISetup(profile.profileId, {
-      models: pickSubscriptionModels(ids, managed, { free: upstreamFree, previousFree: managed.upstreamFree, context: upstreamContext }),
-      upstreamModels: ids,
-      upstreamContext,
-      upstreamFree,
-      subscriptionPort: await findAvailablePort()
-    });
+    await refreshManagedSubscriptionModels(profile.profileId);
     managed = await readExistingManagedEnv(profile.profileId);
   }
   for (let attempt = 0;attempt < 3; attempt += 1) {
@@ -16744,6 +16770,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       }
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, {
         inheritModel: inheritProxyModel,
+        modelOverride: runOptions.modelOverride ? resolvedModel : undefined,
         savedModel: (await readJson(join16(configDir, "settings.json"), {})).model
       });
     } catch (err) {

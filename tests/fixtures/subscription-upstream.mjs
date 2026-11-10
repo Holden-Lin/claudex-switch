@@ -38,6 +38,12 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.pathname === "/v3/config") {
     log({ type: "catalog", host: url.hostname });
+    if (process.env.CLAUDEX_SUBSCRIPTION_PAID_ONLY === "1") {
+      const id = "deepseek-v4.1-flash-sg";
+      return Response.json({ code: 0, data: { agents: [{ name: "cli", models: [id] }],
+        models: [{ id, name: "DeepSeek", credits: "x0.11", maxInputTokens: 1_000_000, maxOutputTokens: 8192, supportsTools: true }],
+      } });
+    }
     // Like WorkBuddy AI: an unpriced Auto first, paid models, and x0.00 ones.
     const priced = (id, name, maxInputTokens, credits) => ({ id, name, maxInputTokens,
       maxOutputTokens: 8192, supportsImages: false, supportsTools: true, ...(credits ? { credits } : {}) });

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { initializeManagedCLIProxyAPI, prepareLocalCLIProxyAPIClaudeSettings, resolveManagedLocalCLIProxyAPIModel, resolveManagedLocalCLIProxyAPIDefaultModel } from "../src/providers/cliproxyapi/managed";
+import { initializeManagedCLIProxyAPI, prepareLocalCLIProxyAPIClaudeSettings, resolveManagedLocalCLIProxyAPIModel, resolveManagedLocalCLIProxyAPIDefaultModel, refreshManagedSubscriptionModels, getLocalCLIProxyAPISettings } from "../src/providers/cliproxyapi/managed";
+import { cliProxyAPIProfileDir } from "../src/lib/paths";
 import { CLI_PROXY_API_UPSTREAMS, parseUpstream, pickSubscriptionModels } from "../src/providers/cliproxyapi/upstreams";
 import { isSubscriptionName } from "../src/commands/cliproxy";
 import type { LocalCLIProxyAPIProfileData } from "../src/types";
@@ -10,6 +12,61 @@ import { resetTestHome } from "./helpers";
 describe("Claude Code subscription profiles", () => {
   beforeEach(resetTestHome);
   afterEach(resetTestHome);
+
+  test.each(["workbuddy", "workbuddy-ai"] as const)("%s real catalog refresh preserves missing free DS tiers and explicit SG still works", async (upstream) => {
+    const base = "deepseek-v4.1-flash", sg = `${base}-sg`;
+    const saved = { fableModel: base, opusModel: base, sonnetModel: base, haikuModel: base };
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi", defaultModel: "fable", upstream,
+    };
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream, models: saved, upstreamModels: [base, sg], upstreamFree: [base] });
+    await writeFile(join(cliProxyAPIProfileDir(profile.profileId), "plugin-auth.json"), JSON.stringify({
+      version: 1, upstream, auth: { type: "oauth", access: "fixture-access", uid: "fixture-user", expires: Date.now() + 3_600_000 },
+    }));
+    const originalFetch = globalThis.fetch;
+    let catalogReads = 0;
+    globalThis.fetch = (async (input) => {
+      expect(new URL(String(input)).pathname).toBe("/v3/config");
+      catalogReads++;
+      return Response.json({ code: 0, data: {
+        agents: [{ name: "cli", models: [sg] }], models: [{ id: sg, name: "DeepSeek", credits: "x0.11", maxInputTokens: 1_000_000 }],
+      } });
+    }) as typeof fetch;
+    try {
+      // This is the real refresh operation invoked by ensureManagedCLIProxyAPIUnlocked;
+      // only the vendor catalog transport is replaced, never selection or persistence.
+      await refreshManagedSubscriptionModels(profile.profileId);
+      await refreshManagedSubscriptionModels(profile.profileId);
+      expect(catalogReads).toBe(2);
+      const runtime = { port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: sg, free: false }] };
+      const stored = await getLocalCLIProxyAPISettings({ ...profile, defaultModel: sg }, runtime);
+      for (const tier of ["fableModel", "opusModel", "sonnetModel", "haikuModel"] as const) expect(stored[tier]).toBe(base);
+      await expect(resolveManagedLocalCLIProxyAPIDefaultModel(profile)).rejects.toThrow("refusing to substitute");
+      await expect(prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, { inheritModel: true })).rejects.toThrow("refusing to substitute");
+      expect(await resolveManagedLocalCLIProxyAPIModel(profile, sg)).toBe(sg);
+      const path = await prepareLocalCLIProxyAPIClaudeSettings({ ...profile, defaultModel: sg }, runtime);
+      const explicit = JSON.parse(await readFile(path, "utf8"));
+      expect(explicit.model).toBe(sg);
+      for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) expect(explicit.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`]).toBe(sg);
+      await prepareLocalCLIProxyAPIClaudeSettings({ ...profile, env: { ANTHROPIC_MODEL: sg, CLAUDE_CODE_AUTO_MODE_MODEL: sg } }, runtime);
+      const envChoice = JSON.parse(await readFile(path, "utf8"));
+      expect(envChoice.env.ANTHROPIC_MODEL).toBe(sg);
+      expect(envChoice.env.CLAUDE_CODE_AUTO_MODE_MODEL).toBe(sg);
+      await prepareLocalCLIProxyAPIClaudeSettings({ ...profile, env: { ANTHROPIC_MODEL: base } }, runtime, { modelOverride: sg });
+      const flagChoice = JSON.parse(await readFile(path, "utf8"));
+      expect(flagChoice.model).toBe(sg);
+      expect(flagChoice.env.ANTHROPIC_MODEL).toBe(sg);
+      const unchanged = await getLocalCLIProxyAPISettings({ ...profile, defaultModel: sg }, runtime);
+      expect(unchanged.fableModel).toBe(base);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  test("paid-only WorkBuddy discovery leaves unchosen tiers unset and Cursor keeps its old behavior", () => {
+    const sg = "deepseek-v4.1-flash-sg";
+    const pricing = { free: [], previousFree: null, context: {} };
+    expect(pickSubscriptionModels([sg], undefined, pricing)).toEqual({ fableModel: "fable", opusModel: "opus", sonnetModel: "sonnet", haikuModel: "haiku" });
+    expect(pickSubscriptionModels([sg], undefined, { ...pricing, upstream: "cursor" })).toEqual({ fableModel: sg, opusModel: sg, sonnetModel: sg, haikuModel: sg });
+  });
 
   test("an omitted saved free DS never silently falls back to the paid SG tier", async () => {
     const base = "deepseek-v4.1-flash", sg = `${base}-sg`;

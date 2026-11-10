@@ -9,6 +9,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { openExternalUrl } from "../../lib/browser";
 import type { UsageFetchResult } from "../../types";
+import { WORKBUDDY_DEEPSEEK_MODEL } from "./model-policy";
+export { WORKBUDDY_DEEPSEEK_MODEL } from "./model-policy";
 
 export type SubscriptionUpstream = "cursor" | "workbuddy" | "workbuddy-ai";
 type Auth = { type: "oauth"; access?: string; refresh?: string; source?: string; [key: string]: unknown };
@@ -51,7 +53,6 @@ const MAX_BODY_BYTES = 16 * 1024 * 1024;
 // WorkBuddy refuses non-stream chats (error 11101); the Cursor plugin answers them itself.
 const STREAM_ONLY = new Set<SubscriptionUpstream>(["workbuddy", "workbuddy-ai"]);
 export const SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
-export const WORKBUDDY_DEEPSEEK_MODEL = "deepseek-v4.1-flash";
 
 export function isSubscriptionUpstream(value: unknown): value is SubscriptionUpstream {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";

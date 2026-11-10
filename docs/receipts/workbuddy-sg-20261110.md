@@ -1,15 +1,40 @@
-# WorkBuddy / CodeBuddy DS 计费核验与修复 · v4 FINAL
+# WorkBuddy / CodeBuddy DS 计费核验与修复 · v5 FINAL
 
-**用户关于“实际按 SG 计费”的判断正确。** 账单 API 已确认：前一轮 WorkBuddy 的 7 次上游调用虽然请求和响应都写基础 DS，实际按 SG 扣了 **1.53 积分**；官方 CodeBuddy 自身选 x0.00 基础 DS 后也按 SG 计费，本轮极小提示及自动旁路合计 **0.72 积分**。没有找到按非 SG 免费计费的线路，未接入任何收费 CodeBuddy 路线；按 ROOT 最新范围，只交付禁止静默付费回退、如实标价及**只读账单核对**，不再发聊天探测。
+**v5 已修复 r2 的 CF1：目录刷新不再先把缺失的基础 DS 四档改成收费 SG。** 同一条禁止付费回退规则用于源头选择、默认解析及保存模型映射；完整构建版启动测试在 e77f7dd 上失败、修复后通过。本轮不发任何真实聊天请求。
+
+既有 v4 计费结论保持：**用户关于“实际按 SG 计费”的判断正确。** 账单 API 已确认：前一轮 WorkBuddy 的 7 次上游调用虽然请求和响应都写基础 DS，实际按 SG 扣了 **1.53 积分**；官方 CodeBuddy 自身选 x0.00 基础 DS 后也按 SG 计费，本轮极小提示及自动旁路合计 **0.72 积分**。没有找到按非 SG 免费计费的线路，未接入任何收费 CodeBuddy 路线；按 ROOT 最新范围，只交付禁止静默付费回退、如实标价及**只读账单核对**，不再发聊天探测。
 
 ## 合同与原话
 
 - Dispatch：`CXS-WB-SG-20261110`，原 contract version：`CXS-WB-SG-20261110-v1`；原合同 SHA256：`13910024aa057231b861d4a0cb882945c9a279fd3db7cb535562f2d17bae9019`。
-- 本回执版本：`CXS-WB-SG-20261110-v4`；按 ROOT 的 `followup-v4.md` 及最新收尾指令执行，取代此前 v2 / v3 回执结论。
+- 本回执版本：`CXS-WB-SG-20261110-v5`；增加 r2 REJECT / CF1 的 `fix-request-r2.md` 要求，取代 v4 代码候选。v4 的真实计费证据保留，不重新探测。
 - 用户原话：「claudex-switch workbuddy --run --cliproxy claudecode 必须要能选（x0.00 免费）的ds，然后我们拿它来review。现在之所以会耗额度是因为每次用的都是sg的」。
 - 用户原话：「用的不是免费的」（附 WorkBuddy 账单截图）；「你让它直接运行 codebuddy并选择免费ds，看看要怎么选到」；「然后再看cliproxy怎么做」。
 - ROOT 最终指令：没找到免费计费线路前不接收费 CodeBuddy 路线、不再发聊天；区域 / 账号类型 / 国际国内版 / 套餐有证据写证据，无证据写未知；给用户一步动作；保留不悄悄退到付费模型、如实标价、只读账单核对，测试 / verify 后写 v4 FINAL。
 - 原边界不变：不打开、复制、软链或打印凭据文件；CLI / 插件运行时读取自己的现有登录获 ROOT 明确授权；不重启用户运行中的代理，不买套餐、不换账号，不改 ROOT routing.json。合并 / 发版仍需 ROOT review ACCEPT。
+
+## v5：堵住目录刷新源头（CF1）
+
+- 旧缺陷：`pickSubscriptionModels` 在基础 DS 不再列出、没有免费候选时，先把四档重写成目录第一项收费 SG；后置解析器看到 SG 已在目录，无法再发现原先的基础 DS。这不是只改报错能解决的问题，先前测试未走刷新写入链路，遗漏了此问题。
+- 现在把规则放在 `subscription-plugins/model-policy.ts`，由 `pickSubscriptionModels`、默认模型解析及保存模型覆盖共用。WorkBuddy 两版缺失的基础 DS 保持原选择；其他缺失档位也不自动落到付费候选。新账号只有付费目录时保留未解析档位别名，并明确要求用户选择，不把别名当作可用上游模型发送。
+- `ensureManagedCLIProxyAPIUnlocked` 调用唯一的 `refreshManagedSubscriptionModels` 完成真实插件目录读取、选择和持久化。刷新不会把保存的基础 DS 改成 SG / Fable 等付费模型；运行时在启动 Claude 前明确报 `refusing to substitute another model`。
+- 显式选择目录中的具体模型（`--model …-sg`、profile env 的 `ANTHROPIC_MODEL`）继续有效；CLI 参数优先于 profile 中过期的基础 DS 主模型。只为该明确选择的会话补齐缺失的档位，不悄悄重写持久化四档。显式分类器 env 仍保留。Cursor 继续旧的选择行为。
+- 扫描所有 `pickSubscriptionModels` 与模型映射写入：生产中只有上述订阅刷新调用；复用订阅守护进程的目录同步不写四档；另一处目录自动重写只在 Antigravity 分支；初始化保留占位或传入值，手动编辑仍属明确动作。
+
+[刷新链路证据](workbuddy-refresh-v5-evidence.json) 与测试：
+
+```sh
+bun scripts/verify-subscription-catalog-refresh.ts
+```
+
+测试使用临时 HOME、真实构建版 CLI / 真实插件选择与持久化代码，供应商目录、转换器和 Claude 是本地测试替身。目录只有 `deepseek-v4.1-flash-sg` x0.11，保存的四档都是基础 DS；不发模型请求。
+
+- 对 e77f7dd 的历史构建运行同一脚本：自动启动返回 **0**，出现 `FIXTURE_CLAUDE_LAUNCHED`，断言期望退出 **1**，因此按真实行为失败，不靠缺少新导出的编译错误。
+- 修复后两版 WorkBuddy 都在启动假 Claude 前被阻止，持久化四档保持基础 DS；显式 `--model …-sg` 可启动，假客户端收到的模型参数确为 SG。供应商聊天请求计数 **0**。
+- 直接运行生产使用的刷新操作两次，验证持久化与重复刷新；验证 profile env 的主模型 / 分类器显式 SG；验证新建付费目录不选收费项及 Cursor 兼容。
+- 最终 `bun run verify`：**471 pass / 0 fail / 2431 expect()**，44 文件、30.88 秒；文档、构建和 help 通过。`bunx tsc --noEmit`、`git diff --check` 通过。完整日志 `/tmp/cxs-v5-verify-last.log`，e77 失败日志 `/tmp/cxs-v5-e77-refresh.log`。
+
+下面的真实账号观察均为 v4 已有证据；v5 未向 WorkBuddy / CodeBuddy 发聊天，未重新验额度或发 review。
 
 ## 先纠正 v3 结论
 
@@ -84,7 +109,7 @@ bun scripts/inspect-workbuddy-billing.ts workbuddy 2026-11-10
 
 ## 验证与交接
 
-- 最终 `bun run verify`：**467 pass / 0 fail / 2385 expect()**，43 文件、38.35 秒；类型检查、文档检查、构建及构建版 help 均通过。完整日志 `/tmp/cxs-wb-v4/verify-final.log`。
+- v4 时的 `bun run verify`：**467 pass / 0 fail / 2385 expect()**，43 文件、38.35 秒；类型检查、文档检查、构建及构建版 help 均通过。完整日志 `/tmp/cxs-wb-v4/verify-final.log`。
 - `tests/subscription-profiles.test.ts` 在基线 `4d49b57` 实测 **9 pass / 5 fail / 66 expect()**，是行为失败而非缺新导出的编译失败；最终聚焦两文件 **42 pass / 0 fail / 253 expect()**。覆盖目录价格、去重、无静默付费回退、实时免费标记，以及“credit=0 但 billedModel=SG”的记录解析；不返回私有提示词。
 - 已有真实 Claude Code / CLIProxyAPI + 合成上游启动链路验证通过。v4 不再做真实 review；官方测试只做一次微型用户提示及其自动旁路，后续均为只读 API / 发送前阻断。
 - 只读脚本已在现有 WorkBuddy 登录下运行，返回 8 条账单，全部 SG；与官方 CodeBuddy 运行时读到的数据相符，未发送聊天。
