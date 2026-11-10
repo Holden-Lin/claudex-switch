@@ -7601,6 +7601,7 @@ var contexts = new Map;
 var MAX_BODY_BYTES = 16 * 1024 * 1024;
 var STREAM_ONLY = new Set(["workbuddy", "workbuddy-ai"]);
 var SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
+var WORKBUDDY_DEEPSEEK_MODEL = "deepseek-v4.1-flash";
 function isSubscriptionUpstream(value) {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
 }
@@ -7770,7 +7771,9 @@ async function models(ctx) {
     const context2 = value.limit?.context;
     return {
       id,
-      ...(ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
+      ...(ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id === WORKBUDDY_DEEPSEEK_MODEL && value.free === true ? {
+        display_name: `${value.name ?? id} · x0.00 (free)`
+      } : (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
         display_name: `${value.name ?? id} · Singapore · ${typeof value.rate === "number" ? `x${value.rate.toFixed(2)}` : "rate unavailable"}`
       } : value.name ? { display_name: value.name } : {},
       ...typeof context2 === "number" && Number.isSafeInteger(context2) && context2 > 0 ? { context_window: context2 } : {},
@@ -10541,9 +10544,12 @@ function antigravityModelOverrides(ids, tiers, savedModel) {
   }
   return overrides;
 }
-var WORKBUDDY_AUTO_MODE_MODEL = "deepseek-v4.1-flash";
 async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options = {}) {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
+  const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream) ? await readExistingManagedEnv(profile.profileId) : null;
+  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+    config.fableModel = config.opusModel = config.sonnetModel = config.haikuModel = WORKBUDDY_DEEPSEEK_MODEL;
+  }
   const paths = profilePaths(profile.profileId);
   const env3 = {
     ...await getClaudeRunEnvOverrides(),
@@ -10560,14 +10566,13 @@ async function prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, options =
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env3[key] = "";
   }
-  const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream) ? await readExistingManagedEnv(profile.profileId) : null;
   const routeIds = subscriptionConfig?.upstreamModels ?? runtime.models?.map(({ id }) => id) ?? [];
-  const overrides = runtime.models ? profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(routeIds, config, options.savedModel) : {};
+  const overrides = runtime.models ? profile.upstream === "antigravity" ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel) : subscriptionModelOverrides(routeIds, config, options.savedModel, profile.upstream) : {};
   const windows = subscriptionConfig ? subscriptionCompactWindows(subscriptionConfig.upstreamContext ?? {}, routeIds, overrides) : null;
   if (windows)
     env3.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(windows.maxContext);
-  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && runtime.models?.some(({ id }) => id === WORKBUDDY_AUTO_MODE_MODEL)) {
-    env3.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_AUTO_MODE_MODEL;
+  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+    env3.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_DEEPSEEK_MODEL;
   }
   for (const [key, value] of Object.entries(localCLIProxyAPIExtraEnv(profile.env))) {
     env3[key] = value;
@@ -10605,10 +10610,15 @@ function subscriptionCompactWindows(context2, ids, overrides) {
   ]);
   return { maxContext: Math.max(...ids.map(windowOf)), modelSettings };
 }
-function subscriptionModelOverrides(ids, tiers, savedModel) {
+function canFallbackSubscriptionModel(upstream, model) {
+  return !((upstream === "workbuddy" || upstream === "workbuddy-ai") && model === WORKBUDDY_DEEPSEEK_MODEL);
+}
+function subscriptionModelOverrides(ids, tiers, savedModel, upstream) {
   const overrides = {};
   for (const id of [...CLAUDE_CODE_MODEL_IDS, ...savedModel ? [savedModel] : []]) {
     if (ids.includes(id))
+      continue;
+    if (!canFallbackSubscriptionModel(upstream, id))
       continue;
     const family = id.match(/^claude-(fable|opus|sonnet|haiku)(?:-|$)/i)?.[1]?.toLowerCase();
     overrides[id] = family ? tiers[`${family}Model`] : tiers.fableModel;
@@ -10657,8 +10667,12 @@ async function resolveManagedLocalCLIProxyAPIModel(profile, input) {
 async function resolveManagedLocalCLIProxyAPIDefaultModel(profile) {
   const config = await readExistingManagedEnv(profile.profileId);
   const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
-  if (isSubscriptionUpstream(config.upstream))
+  if (isSubscriptionUpstream(config.upstream)) {
+    if (!config.upstreamModels.includes(model) && !canFallbackSubscriptionModel(config.upstream, model)) {
+      throw new Error(`Saved WorkBuddy model "${WORKBUDDY_DEEPSEEK_MODEL}" is absent from this account's catalog; refusing to substitute another model. Check the account's model availability before retrying.`);
+    }
     return config.upstreamModels.includes(model) ? model : config.fableModel;
+  }
   if (config.upstream !== "antigravity")
     return model;
   return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;

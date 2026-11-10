@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { initializeManagedCLIProxyAPI, prepareLocalCLIProxyAPIClaudeSettings, resolveManagedLocalCLIProxyAPIModel } from "../src/providers/cliproxyapi/managed";
+import { initializeManagedCLIProxyAPI, prepareLocalCLIProxyAPIClaudeSettings, resolveManagedLocalCLIProxyAPIModel, resolveManagedLocalCLIProxyAPIDefaultModel } from "../src/providers/cliproxyapi/managed";
 import { CLI_PROXY_API_UPSTREAMS, parseUpstream, pickSubscriptionModels } from "../src/providers/cliproxyapi/upstreams";
 import { isSubscriptionName } from "../src/commands/cliproxy";
 import type { LocalCLIProxyAPIProfileData } from "../src/types";
@@ -10,6 +10,44 @@ import { resetTestHome } from "./helpers";
 describe("Claude Code subscription profiles", () => {
   beforeEach(resetTestHome);
   afterEach(resetTestHome);
+
+  test("an omitted saved free DS never silently falls back to the paid SG tier", async () => {
+    const base = "deepseek-v4.1-flash", sg = `${base}-sg`;
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi", defaultModel: base, upstream: "workbuddy-ai",
+    };
+    await initializeManagedCLIProxyAPI(profile.profileId, {
+      upstream: "workbuddy-ai", models: { fableModel: sg, opusModel: sg, sonnetModel: sg, haikuModel: sg }, upstreamModels: [sg], subscriptionPort: 12345,
+    });
+    await expect(resolveManagedLocalCLIProxyAPIDefaultModel(profile)).rejects.toThrow("refusing to substitute");
+    profile.defaultModel = sg;
+    const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: sg }],
+    }, { inheritModel: true, savedModel: base });
+    const settings = JSON.parse(await readFile(path, "utf8"));
+    expect(settings.modelOverrides[base]).toBeUndefined();
+    expect(await resolveManagedLocalCLIProxyAPIModel(profile, sg)).toBe(sg);
+  });
+
+  test("free DS sessions keep classifier and all tier side calls off previously saved paid SG", async () => {
+    const base = "deepseek-v4.1-flash", sg = `${base}-sg`;
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi", defaultModel: base, upstream: "workbuddy-ai",
+    };
+    const paid = { fableModel: sg, opusModel: sg, sonnetModel: sg, haikuModel: sg };
+    await initializeManagedCLIProxyAPI(profile.profileId, {
+      upstream: "workbuddy-ai", models: paid, upstreamModels: [base, sg], upstreamFree: [base], subscriptionPort: 12345,
+    });
+    const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
+      port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: [{ id: base }],
+    }, { inheritModel: true, savedModel: "claude-opus-5-5" });
+    const settings = JSON.parse(await readFile(path, "utf8"));
+    for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) expect(settings.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`]).toBe(base);
+    expect(settings.env.CLAUDE_CODE_AUTO_MODE_MODEL).toBe(base);
+    expect(settings.modelOverrides["claude-opus-5-5"]).toBe(base);
+    expect(settings.modelOverrides["claude-haiku-5-5"]).toBe(base);
+    expect(await resolveManagedLocalCLIProxyAPIModel(profile, sg)).toBe(sg);
+  });
 
   test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s picker hides duplicate SG while explicit IDs and saved overrides still route", async (upstream) => {
     const base = "deepseek-v4.1-flash";
@@ -94,7 +132,10 @@ describe("Claude Code subscription profiles", () => {
         type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: "/unused/cliproxyapi",
         defaultModel: "fable", upstream, ...(env ? { env } : {}),
       };
-      await initializeManagedCLIProxyAPI(profile.profileId, { upstream, models: pickSubscriptionModels(ids), upstreamModels: ids, subscriptionPort: 12345 });
+      await initializeManagedCLIProxyAPI(profile.profileId, {
+        upstream, models: pickSubscriptionModels(ids), upstreamModels: ids, subscriptionPort: 12345,
+        upstreamFree: ids.filter((id) => id === "deepseek-v4.1-flash"),
+      });
       const path = await prepareLocalCLIProxyAPIClaudeSettings(profile, {
         port: 12346, baseUrl: "http://127.0.0.1:12346", apiKey: "fixture-client", models: ids.map((id) => ({ id })),
       }, { inheritModel: true });

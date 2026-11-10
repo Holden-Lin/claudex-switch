@@ -66,6 +66,7 @@ import {
   serveSubscriptionBridge,
   subscriptionLoginMethods,
   SUBSCRIPTION_AUTH_FILE,
+  WORKBUDDY_DEEPSEEK_MODEL,
 } from "../subscription-plugins";
 import { select } from "@inquirer/prompts";
 import { info } from "../../lib/ui";
@@ -132,7 +133,7 @@ export interface ManagedCLIProxyAPISetup {
 // Bump when the subscription bridge changes behavior: 1 = WorkBuddy non-stream chats are collected from a stream;
 // 2 = WorkBuddy's written reset times become Retry-After, and its 14018 names the free models.
 // 3 = non-stream WorkBuddy requests without explicit effort reserve their budget for the answer.
-// 4 = WorkBuddy discovery hides duplicate Singapore routes while explicit IDs remain registered.
+// 4 = WorkBuddy discovery separates free DS from SG; missing saved DS never falls back to a paid tier.
 const SUBSCRIPTION_BRIDGE_REVISION = 4;
 
 interface ManagedRuntimeState {
@@ -578,7 +579,7 @@ async function readExistingManagedEnv(profileId: string): Promise<ManagedEnv> {
   }
 }
 
-async function writeRuntimeConfig(
+export async function writeRuntimeConfig(
   profileId: string,
   port: number,
 ): Promise<ManagedEnv> {
@@ -663,9 +664,6 @@ export function antigravityModelOverrides(
   return overrides;
 }
 
-// WorkBuddy AI listed it free (x0.00) with a 1M window on 2026-10-23.
-const WORKBUDDY_AUTO_MODE_MODEL = "deepseek-v4.1-flash";
-
 // Claude Code accepts a settings file path. Keeping the generated client API
 // key in this 0600 file prevents it from appearing in argv, shell history, or
 // the `Running ...` line that claudex-switch prints for a session.
@@ -675,6 +673,14 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   options: { inheritModel?: boolean; savedModel?: string } = {},
 ): Promise<string> {
   const config = await getLocalCLIProxyAPISettings(profile, runtime);
+  const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream)
+    ? await readExistingManagedEnv(profile.profileId) : null;
+  // Picking DS must not leave side queries on an older paid or Auto tier.
+  // These session defaults leave explicit full model IDs and profile overrides usable.
+  if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai")
+    && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+    config.fableModel = config.opusModel = config.sonnetModel = config.haikuModel = WORKBUDDY_DEEPSEEK_MODEL;
+  }
   const paths = profilePaths(profile.profileId);
   const env: Record<string, string> = {
     ...await getClaudeRunEnvOverrides(),
@@ -696,13 +702,11 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env[key] = "";
   }
-  const subscriptionConfig = runtime.models && isSubscriptionUpstream(profile.upstream)
-    ? await readExistingManagedEnv(profile.profileId) : null;
   const routeIds = subscriptionConfig?.upstreamModels ?? runtime.models?.map(({ id }) => id) ?? [];
   const overrides = runtime.models
     ? profile.upstream === "antigravity"
       ? antigravityModelOverrides(runtime.models.map(({ id }) => id), config, options.savedModel)
-      : subscriptionModelOverrides(routeIds, config, options.savedModel)
+      : subscriptionModelOverrides(routeIds, config, options.savedModel, profile.upstream)
     : {};
   const windows = subscriptionConfig
     ? subscriptionCompactWindows(subscriptionConfig.upstreamContext ?? {}, routeIds, overrides)
@@ -711,8 +715,8 @@ export async function prepareLocalCLIProxyAPIClaudeSettings(
   // The auto mode classifier otherwise follows the sonnet tier, WorkBuddy's
   // Auto router (unknown credits, 176K), on every tool call it judges.
   if ((profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai")
-    && runtime.models?.some(({ id }) => id === WORKBUDDY_AUTO_MODE_MODEL)) {
-    env.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_AUTO_MODE_MODEL;
+    && subscriptionConfig?.upstreamFree?.includes(WORKBUDDY_DEEPSEEK_MODEL)) {
+    env.CLAUDE_CODE_AUTO_MODE_MODEL = WORKBUDDY_DEEPSEEK_MODEL;
   }
   // Extra env the user attached to this profile (e.g. CLAUDE_CODE_EFFORT_LEVEL)
   // is applied after the managed keys, and can never shadow one of them.
@@ -771,10 +775,15 @@ function subscriptionCompactWindows(
   return { maxContext: Math.max(...ids.map(windowOf)), modelSettings };
 }
 
-function subscriptionModelOverrides(ids: string[], tiers: CLIProxyAPIModelMap, savedModel?: string): Record<string, string> {
+function canFallbackSubscriptionModel(upstream: CLIProxyAPIUpstream | undefined, model: string): boolean {
+  return !((upstream === "workbuddy" || upstream === "workbuddy-ai") && model === WORKBUDDY_DEEPSEEK_MODEL);
+}
+
+function subscriptionModelOverrides(ids: string[], tiers: CLIProxyAPIModelMap, savedModel?: string, upstream?: CLIProxyAPIUpstream): Record<string, string> {
   const overrides: Record<string, string> = {};
   for (const id of [...CLAUDE_CODE_MODEL_IDS, ...(savedModel ? [savedModel] : [])]) {
     if (ids.includes(id)) continue;
+    if (!canFallbackSubscriptionModel(upstream, id)) continue;
     const family = id.match(/^claude-(fable|opus|sonnet|haiku)(?:-|$)/i)?.[1]?.toLowerCase();
     overrides[id] = family ? tiers[`${family}Model` as keyof CLIProxyAPIModelMap] : tiers.fableModel;
   }
@@ -845,7 +854,12 @@ export async function resolveManagedLocalCLIProxyAPIDefaultModel(
 ): Promise<string> {
   const config = await readExistingManagedEnv(profile.profileId);
   const model = resolveLocalCLIProxyAPIDefaultModelFromConfig(profile, config);
-  if (isSubscriptionUpstream(config.upstream)) return config.upstreamModels.includes(model) ? model : config.fableModel;
+  if (isSubscriptionUpstream(config.upstream)) {
+    if (!config.upstreamModels.includes(model) && !canFallbackSubscriptionModel(config.upstream, model)) {
+      throw new Error(`Saved WorkBuddy model "${WORKBUDDY_DEEPSEEK_MODEL}" is absent from this account's catalog; refusing to substitute another model. Check the account's model availability before retrying.`);
+    }
+    return config.upstreamModels.includes(model) ? model : config.fableModel;
+  }
   if (config.upstream !== "antigravity") return model;
   return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
 }

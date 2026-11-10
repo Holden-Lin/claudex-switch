@@ -105,8 +105,8 @@ try {
   const events = (await readFile(fixtureLog, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(events.filter((event) => event.type === "read").length, 2);
   // Claude Code's default tier reaches the real plugin as the account's free model, not the paid or unpriced ones.
-  assert(events.some((event) => event.type === "chat" && event.model === "free-flash"), "The account's free model must reach the real plugin.");
-  assert(events.filter((event) => event.type === "chat").every((event) => ["free-flash", "deepseek-v4.1-flash"].includes(event.model)));
+  assert(events.some((event) => event.type === "chat" && event.model === "deepseek-v4.1-flash"), "Free DS must reach the real plugin.");
+  assert(events.filter((event) => event.type === "chat").every((event) => event.model === "deepseek-v4.1-flash"));
   assert(events.some((event) => event.type === "result" && event.proof === nonce && event.toolResults === 2));
   assert.equal(events.filter((event) => event.type === "blocked").length, 0, "Unexpected external request attempted.");
   const settings = JSON.parse(await readFile(join(cliProxyAPIProfileDir(profileId), "claude-settings.json"), "utf8"));
@@ -116,8 +116,8 @@ try {
   assert.equal(settings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS, "1000000", "The catalog's context window must reach Claude Code.");
   assert.equal(settings.modelSettings?.["claude-sonnet-5-5"]?.autoCompactWindow, 200000);
   // Tiers and Claude Code's own unlisted IDs use the widest x0.00 model, never the unpriced Auto.
-  for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) assert.equal(settings.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`], "free-flash", `${tier} must map to the free model.`);
-  assert.equal(settings.modelOverrides?.["claude-opus-5-5"], "free-flash");
+  for (const tier of ["FABLE", "OPUS", "SONNET", "HAIKU"]) assert.equal(settings.env[`ANTHROPIC_DEFAULT_${tier}_MODEL`], "deepseek-v4.1-flash", `${tier} must map to free DS.`);
+  assert.equal(settings.modelOverrides?.["claude-opus-5-5"], "deepseek-v4.1-flash");
   // Side queries and Claude Code's non-streaming fallback reach stream-only WorkBuddy as one JSON answer.
   const runtime = await managed.ensureManagedCLIProxyAPI(profile);
   const single = await fetch(`${runtime.baseUrl}/v1/messages`, { method: "POST",

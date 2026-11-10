@@ -81,7 +81,7 @@ function chat(url: string, body: unknown = { model: "real-model", messages: [] }
 describe("subscription plugin adapter", () => {
   test.each(["workbuddy", "workbuddy-ai", "cursor"] as const)("%s curates regional discovery without blocking explicit regional routing", async (upstream) => {
     const dir = await directory();
-    const base = "deepseek-v4.1-flash";
+    const base = "regional-model";
     const sg = `${base}-sg`;
     let includeBase = true;
     let routed: unknown;
@@ -104,6 +104,20 @@ describe("subscription plugin adapter", () => {
     expect(await catalog()).toEqual([expect.objectContaining({ id: sg,
       display_name: upstream === "cursor" ? "DeepSeek V4.1 Flash" : "DeepSeek V4.1 Flash · Singapore · x0.03",
     })]);
+  });
+
+  test("WorkBuddy AI never invents a free base DS from a paid SG-only catalog", async () => {
+    const dir = await directory();
+    const options = fake({ upstream: "workbuddy-ai", models: { models: async () => ({
+      "deepseek-v4.1-flash-sg": { name: "Deepseek-V4.1-Flash", free: false, rate: 0.11, limit: { context: 1_000_000 } },
+    }) } });
+    await loginSubscriptionPlugin(dir, "workbuddy-ai", 0, () => {}, options);
+    expect(await listSubscriptionModels(dir, "workbuddy-ai", options)).toEqual([
+      { id: "deepseek-v4.1-flash-sg", display_name: "Deepseek-V4.1-Flash · Singapore · x0.11", context_window: 1_000_000, free: false },
+    ]);
+    const url = await bridge(dir, options, "workbuddy-ai");
+    const catalog = await (await fetch(`${url}/v1/models`, { headers: authorization })).json();
+    expect(catalog.data.map(({ id }: { id: string }) => id)).toEqual(["deepseek-v4.1-flash-sg"]);
   });
 
   test("loads the three actual plugin factories and lists only OAuth methods offline", async () => {

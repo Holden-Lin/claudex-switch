@@ -51,6 +51,7 @@ const MAX_BODY_BYTES = 16 * 1024 * 1024;
 // WorkBuddy refuses non-stream chats (error 11101); the Cursor plugin answers them itself.
 const STREAM_ONLY = new Set<SubscriptionUpstream>(["workbuddy", "workbuddy-ai"]);
 export const SUBSCRIPTION_AUTH_FILE = "plugin-auth.json";
+export const WORKBUDDY_DEEPSEEK_MODEL = "deepseek-v4.1-flash";
 
 export function isSubscriptionUpstream(value: unknown): value is SubscriptionUpstream {
   return value === "cursor" || value === "workbuddy" || value === "workbuddy-ai";
@@ -221,7 +222,9 @@ async function models(ctx: Context): Promise<Model[]> {
     const context = (value.limit as { context?: unknown } | undefined)?.context;
     return {
       id,
-      ...((ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
+      ...((ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id === WORKBUDDY_DEEPSEEK_MODEL && value.free === true ? {
+        display_name: `${value.name ?? id} · x0.00 (free)`,
+      } : (ctx.provider.id === "workbuddy" || ctx.provider.id === "workbuddy-ai") && id.endsWith("-sg") ? {
         display_name: `${value.name ?? id} · Singapore · ${typeof value.rate === "number" ? `x${value.rate.toFixed(2)}` : "rate unavailable"}`,
       } : value.name ? { display_name: value.name } : {}),
       ...(typeof context === "number" && Number.isSafeInteger(context) && context > 0 ? { context_window: context } : {}),
