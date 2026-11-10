@@ -1,10 +1,12 @@
 # WorkBuddy 模型去重回执
 
-默认 Claude Code 模型菜单现在只显示一个 DeepSeek V4.1 Flash；显式指定 SG 仍可运行。候选分支等待 ROOT 评审，尚未合并或发布。底层 CLIProxyAPI 路由注册表保留 SG，已通过 `signal ask` 请求 ROOT 确认此目录例外。
+默认 Claude Code 模型菜单现在只显示一个 DeepSeek V4.1 Flash；显式指定 SG 仍可运行。ROOT 已确认底层 CLIProxyAPI 路由注册表保留 SG 的范围，实施与验证均完成。候选分支等待 ROOT 评审，尚未合并或发布。
 
 ## 合同与原因
 
 - Dispatch：`CXS-WB-SG-20261110`，版本 `CXS-WB-SG-20261110-v1`；合同 SHA256：`13910024aa057231b861d4a0cb882945c9a279fd3db7cb535562f2d17bae9019`。
+- 回执版本：`CXS-WB-SG-20261110-v2`，替代范围确认前的 PARTIAL FINAL。
+- ROOT 范围确认原话：「可以。CLIProxyAPI 原始路由目录（/v1/models）保留 -sg，因为显式 --model 指定 -sg 要能路由；用户看到的列表（订阅桥目录 + Claude 选择器）隐藏同名重复项即可。WorkBuddy 没有 Codex/OpenCode 变体、list/webconfig 只显示档位映射，就不用改。继续实现和真实验证。」
 - 用户原话（合同引用）：「Claudex-switch我之前是不是让修过为什么模型列表是有ds sg的问题？」「修好了吗」「workbuddy模型列表」。10-23：「为什么我在codebuddy里看模型列表只有1个deepseek,claudex-switch workbuddy --run --cliproxy claudecode还会有一个sg地区的」。
 - WorkBuddy AI 插件的 cli 目录同时提供基础模型与 `-sg`，显示名相同；10-23 仅解释了上游差异，没有修改菜单。桥接目录和 Claude Code 选择器均直接展示两个 ID。
 
@@ -13,7 +15,7 @@
 - 一个共用筛选器服务桥接 `/v1/models` 和 Claude Code `modelPicker.options`；只对 `workbuddy` / `workbuddy-ai` 生效。有基础 ID 时隐藏相应 `-sg`；基础 ID 缺席则保留 SG，显示 `DeepSeek V4.1 Flash · Singapore · x0.03`，费率来自插件。Cursor 与 Antigravity 不变。
 - `listSubscriptionModels` 保留完整路由库存。受管配置继续注册 SG，因此 `--model`、档位映射及共享设置中保存的 SG ID 都继续有效；SG 自己的压缩窗口也保留。桥接修订号升至 4，旧桥在下一次空闲启动时更新，不强停活动会话。
 - `list` 只显示已选档位映射；webconfig 仅编辑 defaultModel 文本，没有 WorkBuddy 目录菜单。当前只支持 WorkBuddy → Claude Code；Codex / OpenCode 的反向代理仍未实现，不共享此模型目录。没有 `availableModels` 写入路径，实际使用 `modelPicker.options`。
-- **待 ROOT 确认的例外**：CLIProxyAPI 自身 `/v1/models` 是其静态路由注册表，仍含 SG。删除配置里的 SG 会同时删除显式路由；本次没有修改第三方代理。用户实际的菜单与桥接目录均已去重。此项不宣称满足“每个底层目录都隐藏 SG”。
+- **ROOT 已确认**：CLIProxyAPI 自身 `/v1/models` 是其静态路由注册表，保留 SG 以支持显式路由；用户看到的菜单与桥接目录均已去重。该范围确认不等同于代码评审 ACCEPT。
 
 ## 验证证据
 
@@ -43,6 +45,6 @@ git push origin main v1.28.4
 
 随后由 CI 创建 Release、资产和 Homebrew formula；不要手动创建 Release 或编辑 formula。检查 Release / CI 后拉取 formula 提交，运行 `bun run release:guard`。用户退出旧 WorkBuddy 会话后重开即可更新菜单。
 
-整合者可用的 TODO / 沿革摘要：2026-11-10 修复 WorkBuddy 同名 DeepSeek SG 菜单重复；基础模型在场时隐藏 SG，仅 SG 时标地区和费率；显式 SG 及窗口保留。用户原话见本回执，决策与原话分开记录；底层路由注册表例外需先由 ROOT 决定。
+整合者可用的 TODO / 沿革摘要：2026-11-10 修复 WorkBuddy 同名 DeepSeek SG 菜单重复；基础模型在场时隐藏 SG，仅 SG 时标地区和费率；显式 SG 及窗口保留。用户原话见本回执，决策与原话分开记录；ROOT 已确认保留底层路由注册表中的 SG。
 
 收尾清单：仅保留忽略目录 `node_modules/`（约 32 MB，依赖安装，可重建），无真实账号数据、个人锁或本任务仍运行的守护进程。工作树保留用于本分支评审与后续合并，清理由 ROOT 在落地主流程决定。
