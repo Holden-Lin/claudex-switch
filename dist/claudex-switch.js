@@ -1858,6 +1858,137 @@ async function writeOAuthAccount(account) {
 // src/providers/claude/settings.ts
 import { chmod, mkdir, readdir } from "fs/promises";
 import { dirname } from "path";
+
+// src/providers/claude/relayrouter.ts
+import { createServer } from "node:http";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+function isRelayrouterGLMProfile(config) {
+  return config.model === "glm-5.3-flash" && /^https:\/\/api\.relayrouter\.ai(?::443)?(?:\/|$)/i.test(config.baseUrl ?? "");
+}
+async function startRelayrouterSession(upstreamBaseUrl) {
+  const upstream = new URL(upstreamBaseUrl);
+  if (typeof Bun !== "undefined") {
+    const server2 = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      idleTimeout: 0,
+      maxRequestBodySize: 64 * 1024 * 1024,
+      fetch: (request) => forward(request, upstream),
+      error: () => gatewayError()
+    });
+    return { baseUrl: `http://127.0.0.1:${server2.port}`, close: async () => {
+      await server2.stop(true);
+    } };
+  }
+  const server = createServer(async (request, response) => {
+    const abort = new AbortController;
+    const disconnected = () => {
+      if (!response.writableFinished)
+        abort.abort();
+    };
+    request.once("aborted", disconnected);
+    response.once("close", disconnected);
+    request.socket.once("close", disconnected);
+    try {
+      const headers = new Headers;
+      for (const [name, value] of Object.entries(request.headers)) {
+        if (value !== undefined)
+          headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+      }
+      const chunks = [];
+      for await (const chunk of request)
+        chunks.push(Buffer.from(chunk));
+      const result = await forward(new Request(`http://127.0.0.1${request.url}`, {
+        method: request.method,
+        headers,
+        signal: abort.signal,
+        ...chunks.length ? { body: Buffer.concat(chunks) } : {}
+      }), upstream);
+      response.writeHead(result.status, Object.fromEntries(result.headers));
+      if (result.body) {
+        await pipeline(Readable.fromWeb(result.body), response, { signal: abort.signal });
+      } else
+        response.end();
+    } catch {
+      if (abort.signal.aborted || response.destroyed)
+        return;
+      if (response.headersSent)
+        response.destroy();
+      else {
+        const result = gatewayError();
+        response.writeHead(result.status, Object.fromEntries(result.headers));
+        response.end(await result.text());
+      }
+    } finally {
+      request.removeListener("aborted", disconnected);
+      response.removeListener("close", disconnected);
+      request.socket.removeListener("close", disconnected);
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.removeListener("error", reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    close: () => new Promise((resolve) => {
+      server.close(() => resolve());
+      server.closeAllConnections();
+    })
+  };
+}
+async function forward(request, upstream) {
+  const incoming = new URL(request.url);
+  const messages = request.method === "POST" && ["/v1/messages", "/v1/messages/count_tokens"].includes(incoming.pathname);
+  if (!messages && !(request.method === "GET" && incoming.pathname === "/v1/models"))
+    return new Response(null, { status: 404 });
+  const target = new URL(upstream);
+  target.pathname = `${upstream.pathname.replace(/\/$/, "")}${incoming.pathname}`;
+  target.search = incoming.search;
+  let body;
+  if (messages) {
+    let payload;
+    try {
+      payload = JSON.parse(await request.text());
+    } catch {
+      return new Response(null, { status: 400 });
+    }
+    if (!payload || typeof payload !== "object" || Array.isArray(payload))
+      return new Response(null, { status: 400 });
+    if (payload.model === "glm-5.3-flash" && Array.isArray(payload.messages)) {
+      payload.messages = payload.messages.flatMap((message) => {
+        if (message?.role !== "assistant" || !Array.isArray(message.content))
+          return [message];
+        const content = message.content.filter((block) => block?.type !== "thinking" && block?.type !== "redacted_thinking");
+        if (!content.length && message.content.length)
+          return [];
+        return [{ ...message, content }];
+      });
+    }
+    body = JSON.stringify(payload);
+  }
+  const headers = transportHeaders(request.headers);
+  headers.delete("host");
+  headers.delete("accept-encoding");
+  const result = await fetch(target, { method: request.method, headers, body, signal: request.signal, redirect: "manual" });
+  return new Response(result.body, { status: result.status, headers: transportHeaders(result.headers) });
+}
+function transportHeaders(original) {
+  const headers = new Headers(original);
+  for (const name of ["connection", "keep-alive", "transfer-encoding", "content-length", "content-encoding"])
+    headers.delete(name);
+  return headers;
+}
+function gatewayError() {
+  return Response.json({ error: { type: "api_error", message: "RelayRouter request failed." } }, { status: 502 });
+}
+
+// src/providers/claude/settings.ts
 var CLAUDE_DEFAULT_OPUS_MODEL = "claude-opus-5-5";
 function localCLIProxyAPIAuthEnv(apiKey) {
   return { ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: apiKey };
@@ -1866,6 +1997,19 @@ function localCLIProxyAPIExtraEnv(extraEnv) {
   return {
     CLAUDE_CODE_AUTO_MODE_SERVER: "0",
     ...normalizeCustomEnv(extraEnv)
+  };
+}
+function apiProfileExtraEnv(config) {
+  return {
+    ...isRelayrouterGLMProfile(config) ? {
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: "1000000",
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: "800000",
+      CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "",
+      ANTHROPIC_SMALL_FAST_MODEL: "glm-5.3-flash",
+      CLAUDE_CODE_AUTO_MODE_MODEL: "glm-5.3-flash",
+      CLAUDE_CODE_AUTO_MODE_SERVER: "0"
+    } : {},
+    ...normalizeCustomEnv(config.env)
   };
 }
 var CLAUDE_ENV_KEYS = [
@@ -1997,7 +2141,9 @@ async function applyApiConfig(config) {
   setEnvValue(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
   setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env, config.env);
+  const extra = apiProfileExtraEnv(config);
+  Object.assign(env, extra);
+  await commitManagedEnv(settings, env, extra, Object.keys(extra).filter((key) => extra[key] === ""));
 }
 async function applyOAuthConfig(model, extraEnv) {
   const settings = await read();
@@ -2023,13 +2169,13 @@ async function applyLocalCLIProxyAPIConfig(config, extraEnv) {
   setTopLevelModel(settings, config.model);
   await commitManagedEnv(settings, env, localCLIProxyAPIExtraEnv(extraEnv), CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS);
 }
-async function prepareApiProfileClaudeSettings(name, config) {
+async function prepareApiProfileClaudeSettings(name, config, baseUrlOverride) {
   const env = await getClaudeRunEnvOverrides();
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
     env[key] = "";
   }
   env.ANTHROPIC_API_KEY = config.apiKey;
-  env.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
+  env.ANTHROPIC_BASE_URL = baseUrlOverride ?? config.baseUrl ?? "";
   env.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
   env.ANTHROPIC_MODEL = config.model ?? "";
   env.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
@@ -2037,7 +2183,7 @@ async function prepareApiProfileClaudeSettings(name, config) {
   env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL;
   env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
   env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
-  for (const [key, value] of Object.entries(normalizeCustomEnv(config.env))) {
+  for (const [key, value] of Object.entries(apiProfileExtraEnv(config))) {
     env[key] = value;
   }
   const settings = { env, ...config.model ? { model: config.model } : {} };
@@ -2077,8 +2223,9 @@ async function getClaudeRunEnvOverrides() {
   ]);
   const profiles = await readdir(CLAUDE_PROFILES_DIR).catch(() => []);
   for (const name of profiles) {
-    const profile = await readJson(claudeProfileDataFile(name), {});
-    for (const key of Object.keys(normalizeCustomEnv(profile.env)))
+    const profile = await readJson(claudeProfileDataFile(name), { type: "oauth" });
+    const extra = profile.type === "api-key" ? apiProfileExtraEnv(profile) : normalizeCustomEnv(profile.env);
+    for (const key of Object.keys(extra))
       keys.add(key);
   }
   const managed = await readManagedExtraEnvKeys();
@@ -2131,7 +2278,7 @@ import {
   stat as stat2,
   writeFile as writeFile3
 } from "fs/promises";
-import { createServer as createServer2 } from "net";
+import { createServer as createServer3 } from "net";
 import { platform as platform4 } from "os";
 import { basename as basename2, dirname as dirname3, join as join7, resolve as resolve2 } from "path";
 import { createHash as createHash6, randomBytes as randomBytes4, randomUUID as randomUUID3 } from "crypto";
@@ -7605,10 +7752,10 @@ var WorkBuddyAIAuthPlugin = makePlugin(SITES["workbuddy-ai"]);
 // src/providers/subscription-plugins/index.ts
 import { createHash as createHash5, randomUUID as randomUUID2, timingSafeEqual } from "node:crypto";
 import { chmod as chmod2, mkdir as mkdir2, readFile as readFile3, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer as createServer2 } from "node:http";
 import { join as join6, resolve } from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { Readable as Readable2 } from "node:stream";
+import { pipeline as pipeline2 } from "node:stream/promises";
 var FACTORIES = { cursor: CursorAuthPlugin, workbuddy: WorkBuddyAuthPlugin, "workbuddy-ai": WorkBuddyAIAuthPlugin };
 var writes = new Map;
 var contexts = new Map;
@@ -8104,7 +8251,7 @@ async function serveSubscriptionBridge(options) {
       }
     };
   }
-  const server = createServer(async (request2, response) => {
+  const server = createServer2(async (request2, response) => {
     const abort = new AbortController;
     const disconnected = () => {
       if (!response.writableFinished)
@@ -8126,7 +8273,7 @@ async function serveSubscriptionBridge(options) {
       });
       response.writeHead(upstream.status, responseHeaders);
       if (upstream.body) {
-        await pipeline(Readable.fromWeb(upstream.body), response, { signal: abort.signal });
+        await pipeline2(Readable2.fromWeb(upstream.body), response, { signal: abort.signal });
       } else
         response.end();
     } catch (error) {
@@ -10824,7 +10971,7 @@ function delay(ms) {
 }
 async function portIsAvailable(port) {
   return new Promise((resolveAvailable) => {
-    const server = createServer2();
+    const server = createServer3();
     const closeAndResolve = (available) => {
       server.close(() => resolveAvailable(available));
     };
@@ -10836,7 +10983,7 @@ async function portIsAvailable(port) {
 }
 async function findAvailablePort() {
   return new Promise((resolvePort, reject) => {
-    const server = createServer2();
+    const server = createServer3();
     server.once("error", reject);
     server.listen({ host: LOOPBACK_HOST, port: 0, exclusive: true }, () => {
       const address = server.address();
@@ -12081,7 +12228,7 @@ function sameCustomEnv(expected, actual) {
 function sameApiConfig(expected, actual) {
   if (!actual)
     return false;
-  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultFableModel) === normalizeOptionalValue(actual.defaultFableModel) && normalizeOptionalValue(expected.subagentModel) === normalizeOptionalValue(actual.subagentModel) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel) && sameCustomEnv(expected.env, actual.env);
+  return expected.apiKey === actual.apiKey && normalizeOptionalValue(expected.baseUrl) === normalizeOptionalValue(actual.baseUrl) && normalizeOptionalValue(expected.authToken) === normalizeOptionalValue(actual.authToken) && normalizeOptionalValue(expected.model) === normalizeOptionalValue(actual.model) && normalizeOptionalValue(expected.defaultFableModel) === normalizeOptionalValue(actual.defaultFableModel) && normalizeOptionalValue(expected.subagentModel) === normalizeOptionalValue(actual.subagentModel) && normalizeOptionalValue(expected.defaultSonnetModel) === normalizeOptionalValue(actual.defaultSonnetModel) && normalizeOptionalValue(expected.defaultOpusModel) === normalizeOptionalValue(actual.defaultOpusModel) && normalizeOptionalValue(expected.defaultHaikuModel) === normalizeOptionalValue(actual.defaultHaikuModel) && sameCustomEnv(apiProfileExtraEnv(expected), actual.env);
 }
 
 // src/lib/account-display.ts
@@ -15814,7 +15961,7 @@ import {
   utimes
 } from "fs/promises";
 import { join as join14 } from "path";
-import { pipeline as pipeline2 } from "stream/promises";
+import { pipeline as pipeline3 } from "stream/promises";
 import { promisify as promisify2 } from "util";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
@@ -15921,7 +16068,7 @@ async function rewriteRolloutProvider(filePath, targetProvider, managedProviders
       out.write(updatedLine + first.separator, (err) => err ? reject(err) : resolve3());
     });
     if (first.restOffset < size) {
-      await pipeline2(createReadStream(filePath, { start: first.restOffset }), out);
+      await pipeline3(createReadStream(filePath, { start: first.restOffset }), out);
     } else {
       await new Promise((resolve3, reject) => {
         out.end((err) => err ? reject(err) : resolve3());
@@ -16798,6 +16945,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     ...spawnForwardedArgs
   ];
   let baseEnv;
+  let relayrouterSession;
   let releaseOpenCode;
   let openCodeCompactionGuard;
   try {
@@ -16815,12 +16963,18 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       openCodeCompactionGuard = prepared.compactionGuard;
     } else {
       baseEnv = await getRunEnvironment(entry, profile, runOptions.headerEnabled, secureStorageDir, configDir);
+      if (claudeProfileName && profile?.type === "api-key" && isRelayrouterGLMProfile(profile)) {
+        relayrouterSession = await startRelayrouterSession(profile.baseUrl);
+        await prepareApiProfileClaudeSettings(claudeProfileName, profile, relayrouterSession.baseUrl);
+        baseEnv.ANTHROPIC_BASE_URL = relayrouterSession.baseUrl;
+      }
     }
     if (isOpenCode && runOptions.modelOverride && resolvedModel) {
       await updateDefaultModel(entry, resolvedModel);
     }
   } catch (err) {
     await releaseOpenCode?.();
+    await relayrouterSession?.close();
     error(err instanceof Error ? err.message : String(err));
     blank();
     return 1;
@@ -16851,6 +17005,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       try {
         await localLease?.release();
         await releaseOpenCode?.();
+        await relayrouterSession?.close();
       } catch {}
       resolve3(code);
     };
@@ -17069,7 +17224,7 @@ function buildClaudeApiEnvironment(config) {
   setOptionalEnv(env3, "ANTHROPIC_DEFAULT_OPUS_MODEL", config.defaultOpusModel || CLAUDE_DEFAULT_OPUS_MODEL);
   setOptionalEnv(env3, "ANTHROPIC_DEFAULT_HAIKU_MODEL", config.defaultHaikuModel);
   setOptionalEnv(env3, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
-  applyCustomEnv(env3, config.env);
+  Object.assign(env3, apiProfileExtraEnv(config));
   return env3;
 }
 function buildClaudeLocalCLIProxyAPIEnvironment(secureStorageDir, configDir, extraEnv) {
@@ -19559,7 +19714,7 @@ async function update() {
 }
 
 // src/webconfig/server.ts
-import { createServer as createServer3 } from "http";
+import { createServer as createServer4 } from "http";
 import { randomBytes as randomBytes6, timingSafeEqual as timingSafeEqual2 } from "crypto";
 
 // src/webconfig/page.ts
@@ -21184,7 +21339,7 @@ var MAX_BODY_BYTES2 = 1e6;
 async function startWebConfigServer(options = {}) {
   const host = options.host ?? "127.0.0.1";
   const token = randomBytes6(32).toString("base64url");
-  const server = createServer3((req, res) => {
+  const server = createServer4((req, res) => {
     handleRequest(req, res, token, host).catch(() => {
       sendJson(res, 500, { error: "internal error" });
     });

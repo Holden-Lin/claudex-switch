@@ -9,10 +9,12 @@ import {
   claudeProfileDataFile,
 } from "../../lib/paths";
 import { readJson, writeJson, writeJsonSecure } from "../../lib/fs";
+import { isRelayrouterGLMProfile } from "./relayrouter";
 import type {
   ClaudeApiProfileConfig,
   CustomEnv,
   OAuthProfileData,
+  ProfileData,
 } from "../../types";
 
 type Settings = Record<string, unknown>;
@@ -47,6 +49,22 @@ export function localCLIProxyAPIExtraEnv(extraEnv?: CustomEnv): CustomEnv {
   return {
     CLAUDE_CODE_AUTO_MODE_SERVER: "0",
     ...normalizeCustomEnv(extraEnv),
+  };
+}
+
+export function apiProfileExtraEnv(config: ClaudeApiProfileConfig): CustomEnv {
+  return {
+    ...(isRelayrouterGLMProfile(config) ? {
+      // Z.AI publishes a 1M window; the relay's /v1/models only lists IDs.
+      // Keep the raw ID: adding [1m] can change gateway routing.
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: "1000000",
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: "800000",
+      CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "",
+      ANTHROPIC_SMALL_FAST_MODEL: "glm-5.3-flash",
+      CLAUDE_CODE_AUTO_MODE_MODEL: "glm-5.3-flash",
+      CLAUDE_CODE_AUTO_MODE_SERVER: "0",
+    } : {}),
+    ...normalizeCustomEnv(config.env),
   };
 }
 
@@ -259,7 +277,9 @@ export async function applyApiConfig(
   setEnvValue(env, "CLAUDE_CODE_SUBAGENT_MODEL", config.subagentModel);
 
   setTopLevelModel(settings, config.model);
-  await commitManagedEnv(settings, env, config.env);
+  const extra = apiProfileExtraEnv(config);
+  Object.assign(env, extra);
+  await commitManagedEnv(settings, env, extra, Object.keys(extra).filter((key) => extra[key] === ""));
 }
 
 export async function applyOAuthConfig(
@@ -309,6 +329,7 @@ export async function applyLocalCLIProxyAPIConfig(
 export async function prepareApiProfileClaudeSettings(
   name: string,
   config: ClaudeApiProfileConfig,
+  baseUrlOverride?: string,
 ): Promise<string> {
   const env = await getClaudeRunEnvOverrides();
   for (const key of CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS) {
@@ -316,7 +337,7 @@ export async function prepareApiProfileClaudeSettings(
   }
 
   env.ANTHROPIC_API_KEY = config.apiKey;
-  env.ANTHROPIC_BASE_URL = config.baseUrl ?? "";
+  env.ANTHROPIC_BASE_URL = baseUrlOverride ?? config.baseUrl ?? "";
   env.ANTHROPIC_AUTH_TOKEN = config.authToken ?? "";
   env.ANTHROPIC_MODEL = config.model ?? "";
   env.ANTHROPIC_DEFAULT_FABLE_MODEL = config.defaultFableModel ?? "";
@@ -326,7 +347,7 @@ export async function prepareApiProfileClaudeSettings(
   env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel ?? "";
   env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel ?? "";
 
-  for (const [key, value] of Object.entries(normalizeCustomEnv(config.env))) {
+  for (const [key, value] of Object.entries(apiProfileExtraEnv(config))) {
     env[key] = value;
   }
 
@@ -391,8 +412,9 @@ export async function getClaudeRunEnvOverrides(): Promise<SettingsEnv> {
   // extra keys must already be masked, even if it has never been activated.
   const profiles = await readdir(CLAUDE_PROFILES_DIR).catch(() => [] as string[]);
   for (const name of profiles) {
-    const profile = await readJson<{ env?: CustomEnv }>(claudeProfileDataFile(name), {});
-    for (const key of Object.keys(normalizeCustomEnv(profile.env))) keys.add(key);
+    const profile = await readJson<ProfileData>(claudeProfileDataFile(name), { type: "oauth" });
+    const extra = profile.type === "api-key" ? apiProfileExtraEnv(profile) : normalizeCustomEnv(profile.env);
+    for (const key of Object.keys(extra)) keys.add(key);
   }
   const managed = await readManagedExtraEnvKeys();
   const env = normalizeEnv(await read());
