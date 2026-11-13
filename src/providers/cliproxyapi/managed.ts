@@ -633,7 +633,7 @@ export async function getLocalCLIProxyAPISettings(
 
 // Claude Code's own current IDs; it sends one when the shared settings saved a
 // /model default (2026-10-22: "claude-opus-5-5" → "unknown provider").
-const CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"];
+const CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"];
 
 // A saved Claude model or a version-specific agent can still use a bare
 // Anthropic ID. Map it to the same registered version, including its tier;

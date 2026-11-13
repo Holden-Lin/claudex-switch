@@ -43,8 +43,14 @@ describe("resolveModelShorthand", () => {
   });
 
   test("maps a bare fable alias to the latest fable", () => {
-    expect(resolveModelShorthand("claude", "fable")).toBe("claude-fable-5-1");
-    expect(resolveModelShorthand("claude", "FABLE")).toBe("claude-fable-5-1");
+    expect(resolveModelShorthand("claude", "fable")).toBe("claude-fable-5-2");
+    expect(resolveModelShorthand("claude", "FABLE")).toBe("claude-fable-5-2");
+  });
+
+  test("keeps an explicit older fable version reachable", () => {
+    expect(resolveModelShorthand("claude", "fable5.1")).toBe("claude-fable-5-1");
+    expect(resolveModelShorthand("claude", "claude-fable-5-1")).toBe("claude-fable-5-1");
+    expect(resolveModelShorthand("claude", "fable5.2")).toBe("claude-fable-5-2");
   });
 
   test("keeps versioned fable aliases pinned", () => {

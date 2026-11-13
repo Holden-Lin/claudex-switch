@@ -209,6 +209,7 @@ describe("--cliproxy claudecode", () => {
       "claude-opus-5-5": "claude-opus-5-5-high",
       "claude-sonnet-5-5": "claude-sonnet-5-5-high",
       "claude-haiku-5-5": "gemini-3.8-flash-high",
+      "claude-fable-5-2": "claude-opus-5-5-high",
       "claude-fable-5-1": "claude-opus-5-5-high",
       "claude-opus-4-6-thinking": "claude-opus-5-5-high",
       "claude-opus-4-6": "claude-opus-5-5-high",

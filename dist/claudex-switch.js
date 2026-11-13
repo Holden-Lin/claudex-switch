@@ -10684,7 +10684,7 @@ async function getLocalCLIProxyAPISettings(profile, runtime, modelOverride) {
     subagentModel: config.upstream === "codex" ? CLI_PROXY_API_DEFAULTS.subagentModel : null
   };
 }
-var CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"];
+var CLAUDE_CODE_MODEL_IDS = ["claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"];
 function antigravityModelOverrides(ids, tiers, savedModel) {
   const overrides = {};
   for (const id of ids) {
@@ -16387,7 +16387,7 @@ var CODEX_NAMED_ALIASES = {
   terra: "gpt-6.1-terra",
   luna: "gpt-6-luna"
 };
-var CLAUDE_LATEST_FABLE = "claude-fable-5-1";
+var CLAUDE_LATEST_FABLE = "claude-fable-5-2";
 function isModelEffort(value) {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
 }
@@ -19376,7 +19376,7 @@ import { spawnSync as spawnSync8 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
-  version: "1.28.5",
+  version: "1.28.6",
   description: "Local CLI account switcher and quota viewer for Claude Code, Codex, and OpenCode Go",
   type: "module",
   bin: {

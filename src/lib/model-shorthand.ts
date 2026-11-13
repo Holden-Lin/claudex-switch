@@ -44,7 +44,7 @@ const CODEX_NAMED_ALIASES: Record<string, string> = {
 };
 
 // A bare `fable` follows the latest Fable release.
-const CLAUDE_LATEST_FABLE = "claude-fable-5-1";
+const CLAUDE_LATEST_FABLE = "claude-fable-5-2";
 
 export function isModelEffort(value: string | undefined): value is string {
   return value !== undefined && MODEL_EFFORT_LEVELS.has(value.toLowerCase());
