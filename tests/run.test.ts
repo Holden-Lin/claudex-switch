@@ -1013,7 +1013,7 @@ describe("run alias session", () => {
       "--permission-mode",
       "auto",
       "--model",
-      "claude-fable-5-1",
+      "claude-fable-5-2",
       "--effort",
       "max",
       ...apiSettingsArgs("api"),

@@ -200,7 +200,7 @@ v1.25.7 起，每次启动核对代理当前注册的模型 ID，保留仍有效
 v1.25.8 起，新启动的代理会先等待目录稳定。CLIProxyAPI 7.3.20 启动约 2 秒先返回二进制内置的旧目录（只有已停用的 Opus / Sonnet 4.6），约 4 秒后换成远程目录（含 `claude-opus-5-5-high`、`claude-sonnet-5-5-high`）。旧版取第一份目录，于是默认映射停在 Opus 4.6，`claude-opus-5-5` 无对应项。若共享 `settings.json` 用 `/model` 存了该默认值，就报 `400 unknown provider for model claude-opus-5-5`。现在最多等 12 秒，目录变化即继续；已运行的代理不再等待。此外：
 - 有新版本时，旧 Claude 版本的档位映射改到同系列最新版；Gemini 等其它系列仍按原设定。
 - `/model` 菜单隐藏已被取代的 Claude 版本，因为它们只回复 "no longer available"。
-- `modelOverrides` 把 Claude Code 自己的 ID（`claude-opus-5-5`、`claude-sonnet-5-5`、`claude-haiku-5-5`、`claude-fable-5-1`、已保存的 `/model` 默认值）映射到代理的真实 ID。
+- `modelOverrides` 把 Claude Code 自己的 ID（`claude-opus-5-5`、`claude-sonnet-5-5`、`claude-haiku-5-5`、`claude-fable-5-2`、`claude-fable-5-1`、已保存的 `/model` 默认值）映射到代理的真实 ID。
 
 Claude Code ≥2.1.242 的 `/model` 菜单由本次目录生成，显示完整 ID、去除重复的 Fable→Opus 项，并列出 Gemini 等文本模型。图片模型不放入编码会话菜单。更早客户端仍使用四档环境变量映射。目录表示代理注册情况，不保证账号对每个模型都有使用资格；上游权限及额度错误仍保留。
 
