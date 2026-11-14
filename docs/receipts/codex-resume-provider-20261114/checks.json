@@ -1,0 +1,39 @@
+{
+  "codexVersion": "0.167.0",
+  "fixture": "Synthetic custom API provider to built-in OpenAI API provider; unit tests separately cover ChatGPT profiles",
+  "modelTurnSent": false,
+  "realCredentialsRead": false,
+  "originalHistorySha256": "ff96ac2af361a458d9fa2d41b60f794ab1ffe2a4913159aeb524fcf4b1fd07e8",
+  "before": {
+    "locked": true,
+    "modelShown": false,
+    "savedQuestionShown": true,
+    "savedReplyShown": true,
+    "rolloutProvider": "hybaliez",
+    "sqliteProvider": "hybaliez",
+    "globalProviderUnchanged": true,
+    "globalAccountUnchanged": true,
+    "globalAuthUnchanged": true,
+    "privateProvider": "openai",
+    "privateRelayDefinitionPresent": false,
+    "originalHistoryPreserved": true,
+    "appendedRecordTypes": []
+  },
+  "after": {
+    "locked": false,
+    "modelShown": true,
+    "savedQuestionShown": true,
+    "savedReplyShown": true,
+    "rolloutProvider": "openai",
+    "sqliteProvider": "openai",
+    "globalProviderUnchanged": true,
+    "globalAccountUnchanged": true,
+    "globalAuthUnchanged": true,
+    "privateProvider": "openai",
+    "privateRelayDefinitionPresent": false,
+    "originalHistoryPreserved": true,
+    "appendedRecordTypes": [
+      "thread_settings_applied"
+    ]
+  }
+}
