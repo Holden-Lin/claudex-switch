@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { spawn, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
-import { ensureOpenCodeProfileReady } from "./use";
+import { ensureOpenCodeProfileReady, syncCodexSessionVisibility } from "./use";
 import { updateDefaultModel } from "./model";
 import {
   CLIPROXY_CLIENT_NAMES,
@@ -58,7 +58,7 @@ import {
   isDefaultCodexAccount,
   prepareCodexRunHome,
 } from "../providers/codex/run-home";
-import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
+import { findAccountByKey, loadRegistry, managedProviderNames } from "../providers/codex/registry";
 import {
   getOpenCodeProfileData,
   normalizeOpenCodeGoModel,
@@ -455,6 +455,7 @@ export async function runAliasSession(
         account.auth_mode === "apikey" ? account.api_provider?.model : null,
       );
     }
+    await syncCodexSessionVisibility(account, managedProviderNames(reg));
   } else if (isOpenCode && openCodeProfileId) {
     await ensureOpenCodeProfileReady(aliasOrName, openCodeProfileId);
   }

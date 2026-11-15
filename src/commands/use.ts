@@ -176,7 +176,7 @@ async function switchCodex(
     await saveRegistry(reg);
   }
 
-  await syncSessionVisibility(account, managedProviderNames(reg));
+  await syncCodexSessionVisibility(account, managedProviderNames(reg));
 
   const plan = formatPlan(
     account.plan ?? account.last_usage?.plan_type ?? null,
@@ -200,11 +200,10 @@ async function switchCodex(
   blank();
 }
 
-// Codex only lists sessions whose stored model_provider matches the active
-// one, so a provider-changing switch (official <-> relay) would hide history.
-// Re-stamp the visibility metadata to the new provider. Best effort: a locked
-// file or busy DB must never fail the switch itself.
-async function syncSessionVisibility(
+// Resume uses the session's recorded provider even when the CLI config picks
+// another one. Both global switches and private runs must restamp managed
+// sessions; otherwise resume can hit the old relay or a missing-provider lock.
+export async function syncCodexSessionVisibility(
   account: CodexRegistryAccount,
   managedProviders: Set<string>,
 ): Promise<void> {
@@ -220,7 +219,7 @@ async function syncSessionVisibility(
       info(
         `Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`,
       );
-      hint("Sessions from both API and subscription could be /resume now.");
+      hint("Managed sessions now resume with this account's provider.");
     }
   } catch {
     // Session visibility sync is best effort.

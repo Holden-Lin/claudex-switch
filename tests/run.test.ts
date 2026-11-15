@@ -7,6 +7,7 @@ import {
   test,
 } from "bun:test";
 import type { ChildProcess } from "child_process";
+import { Database } from "bun:sqlite";
 import { EventEmitter } from "events";
 import { lstat, mkdir, readFile, readlink, stat, symlink, writeFile } from "fs/promises";
 import { dirname, join } from "path";
@@ -1333,6 +1334,85 @@ describe("run alias session", () => {
     expect(await fileExists(codexRunHome(accountKey))).toBe(false);
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
   });
+
+  test.each(["private ChatGPT", "default ChatGPT", "relay"] as const)(
+    "%s run resumes managed sessions with the selected provider before launching",
+    async (mode) => {
+      const officialKey = "user-1::acct-1";
+      const relayKey = "apikey::relay";
+      const registry = createRegistry(officialKey);
+      registry.accounts.push({
+        ...registry.accounts[0]!,
+        account_key: relayKey,
+        alias: "relay",
+        auth_mode: "apikey",
+        api_provider: {
+          type: "custom",
+          name: "hybaliez",
+          base_url: "https://relay.example.com/v1",
+          model: "gpt-5.4",
+          env_key: "OPENAI_API_KEY",
+        },
+      });
+      registry.active_account_key = mode === "private ChatGPT" ? relayKey : officialKey;
+      const targetKey = mode === "relay" ? relayKey : officialKey;
+      const targetProvider = mode === "relay" ? "hybaliez" : "openai";
+      const previousProvider = mode === "relay" ? "openai" : "hybaliez";
+      await saveAliases({
+        version: 1,
+        aliases: [{ alias: "cx", target: { provider: "codex", accountKey: targetKey }, createdAt: 1 }],
+      });
+      await saveRegistry(registry);
+      const officialAuth = codexChatGptAuth("user-1", "acct-1");
+      const relayAuth: CodexAuthFile = { auth_mode: "apikey", OPENAI_API_KEY: "synthetic-relay-key" };
+      await saveAccountAuth(officialKey, officialAuth);
+      await saveAccountAuth(relayKey, relayAuth);
+      const globalAuth = JSON.stringify(mode === "private ChatGPT" ? relayAuth : officialAuth);
+      const globalConfig = mode === "private ChatGPT"
+        ? 'model_provider = "hybaliez"\nmodel = "gpt-5.4"\n[model_providers.hybaliez]\nname = "hybaliez"\nbase_url = "https://relay.example.com/v1"\nexperimental_bearer_token = "synthetic-relay-key"\n'
+        : 'model = "gpt-6.1-sol"\ncli_auth_credentials_store = "file"\n';
+      await writeFile(CODEX_AUTH_FILE, globalAuth);
+      await writeFile(CODEX_CONFIG_FILE, globalConfig);
+      const history = '{"type":"event_msg","payload":{"type":"user_message","message":"Keep the saved conversation"}}\n';
+      const rollouts = [
+        ["sessions/old.jsonl", previousProvider],
+        ["archived_sessions/old.jsonl", previousProvider],
+        ["sessions/local.jsonl", "ollama"],
+      ];
+      for (const [path, provider] of rollouts) {
+        await mkdir(dirname(join(CODEX_DIR, path)), { recursive: true });
+        await writeFile(join(CODEX_DIR, path), `${JSON.stringify({ type: "session_meta", payload: { id: path, model_provider: provider } })}\n${history}`);
+      }
+      const db = new Database(join(CODEX_DIR, "state_5.sqlite"));
+      db.exec("CREATE TABLE threads (id TEXT PRIMARY KEY, model_provider TEXT NOT NULL)");
+      db.prepare("INSERT INTO threads VALUES (?, ?)").run("old", previousProvider);
+      db.prepare("INSERT INTO threads VALUES (?, ?)").run("local", "ollama");
+      db.close();
+
+      const calls: SpawnCall[] = [];
+      const exitCode = await runAliasSession("cx", ["resume", "thread-45x"], (command, args, options) => {
+        const resumed = new Database(join(CODEX_DIR, "state_5.sqlite"), { readonly: true });
+        try {
+          expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'old'").get()).toEqual({ model_provider: targetProvider });
+          expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'local'").get()).toEqual({ model_provider: "ollama" });
+        } finally {
+          resumed.close();
+        }
+        return createSpawn(calls)(command, args, options);
+      });
+
+      expect(exitCode).toBe(0);
+      expect(calls[0]?.args.slice(-2)).toEqual(["resume", "thread-45x"]);
+      for (const [path, provider] of rollouts) {
+        const [first, ...rest] = (await readFile(join(CODEX_DIR, path), "utf-8")).split("\n");
+        expect(JSON.parse(first).payload.model_provider).toBe(provider === "ollama" ? provider : targetProvider);
+        expect(rest.join("\n")).toBe(history);
+      }
+      expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(globalAuth);
+      expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toBe(globalConfig);
+      expect((await loadRegistry()).active_account_key).toBe(registry.active_account_key);
+    },
+  );
 
   test("saves Codex token rotation from a private run home", async () => {
     const accountKey = "user-1::acct-1";

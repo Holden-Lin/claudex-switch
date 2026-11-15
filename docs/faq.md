@@ -28,7 +28,7 @@ Read the [Claude](./use-cases/claude-parallel.md), [Codex](./use-cases/codex-acc
 
 ## Does it preserve Codex history when switching providers?
 
-When switching between providers managed by claudex-switch, it can update the Codex provider-visibility metadata in rollout files and `state_5.sqlite` so sessions remain discoverable in `/resume`. The session message content is not rewritten. A custom provider configured outside the manager is left alone.
+全局切换和 `-run` 都会将受管会话在 rollout 文件及 `state_5.sqlite` 中的 provider 元数据同步到所选账号。旧会话因此可用该账号继续，避免恢复时仍指向旧中转站或出现 “Model provider unavailable”。消息正文和未受管 provider 的会话保持原样；正在打开的 rollout 文件会跳过，请先退出原会话。`-run` 保留全局默认账号及配置。参见 [Codex 跨账号恢复示例](./use-cases/codex-accounts.md)。
 
 ## What does `list` show? Does it make a network request?
 

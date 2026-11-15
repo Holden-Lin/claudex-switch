@@ -1,6 +1,6 @@
 # Switch Codex accounts and preserve `/resume` visibility
 
-中文摘要：`claudex-switch <alias>` 会替换全局 auth / config；`<alias> -run` 不切换默认账号，非默认账号在私有 `CODEX_HOME` 里只隔离登录；为保持不同 provider 的旧会话在 `/resume` 中可见，工具只重写受管会话的 provider 可见性元数据，不改消息内容。
+中文摘要：`claudex-switch <alias>` 会替换全局 auth / config；`<alias> -run` 不切换默认账号，非默认账号在私有 `CODEX_HOME` 里隔离登录及必要的 provider 配置；全局切换和 `-run` 都会将受管会话的 provider 元数据同步到所选账号，使跨 provider 的旧会话可以继续，不改消息内容。
 
 Use this when you have multiple Codex ChatGPT logins or API-key profiles and want one local alias per saved account:
 
@@ -19,7 +19,15 @@ claudex-switch cx -run
 - If `cx` is already the default, Codex runs on `~/.codex` directly.
 - Otherwise Codex runs with `CODEX_HOME=~/.claudex-switch/codex-run/<account>`. Only `auth.json` is private (mode `0600`). `config.toml` is linked to the shared one; a private copy is written only when the account's provider routing differs, for example a relay API key. Every other entry (sessions, `state_5.sqlite`, skills, hooks, `AGENTS.md`) links back to `~/.codex`. The account's default model is passed with `--model`. Tokens Codex refreshes during the run are saved back to the account snapshot when it exits.
 
-Session provider metadata is not restamped for a `-run`, so sessions from an official account and from a relay account show up in each other's `/resume` only after a global switch syncs them. Edits Codex makes to a private `config.toml` stay in that copy. Treat the shell environment, project context, tools, and local filesystem as shared.
+全局切换和 `-run` 都会同步受管会话的 provider 元数据（rollout 首行及 `state_5.sqlite`）。Codex 恢复会话时会沿用记录的 provider，仅覆盖启动配置里的 `model_provider` 不能解除旧 provider 缺失的锁卡。同步后，会话使用所选账号的 provider；全局默认账号、登录和配置不因 `-run` 改变。手动配置、未受管的 provider 会话保持原样；正在被进程打开的 rollout 文件会跳过，请先退出原会话再恢复。
+
+例如，从中转账号 `45x` 的会话转到官方账号 `holdenx`，退出原会话后运行：
+
+```sh
+claudex-switch holdenx --run resume --all
+```
+
+在列表中选择旧会话；已知 ID 时可将 `--all` 换成会话 ID。即使全局默认账号已经是 `holdenx`，启动前仍会同步。中转站此前的余额不足错误会保留在对话历史中；它不会被当作新账号的额度。Codex 对私有 `config.toml` 的编辑留在该副本中；shell 环境、项目、工具和本地文件仍共享。
 
 The default launch uses `--approve-for-me` (Codex Auto permission mode with the workspace-write sandbox). `--autoreview on|off` separately toggles the Codex Stop multi-agent completion-review hook for that run; neither flag changes account authorization or makes a run fully isolated.
 

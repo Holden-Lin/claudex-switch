@@ -15,11 +15,10 @@ import { promisify } from "util";
 import { CODEX_DIR } from "../../lib/paths";
 import { fileExists } from "../../lib/fs";
 
-// Codex hides historical sessions whose recorded model_provider differs from
-// the active one, both in /resume (rollout first lines) and in the desktop
-// thread list (state_5.sqlite). Switching accounts through claudex-switch can
-// flip the active provider (official "openai" vs a custom relay), so after a
-// switch we rewrite that visibility metadata to the new provider. Only
+// Codex uses the historical session's recorded model_provider on resume,
+// regardless of the active provider (official "openai" vs a custom relay).
+// Switching or launching an account restamps rollout first lines and the
+// desktop thread list (state_5.sqlite) to that account's provider. Only
 // metadata moves: message content and encrypted payloads stay untouched, same
 // approach as https://github.com/Dailin521/codex-provider-sync.
 
