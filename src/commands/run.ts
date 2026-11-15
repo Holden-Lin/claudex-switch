@@ -58,7 +58,7 @@ import {
   isDefaultCodexAccount,
   prepareCodexRunHome,
 } from "../providers/codex/run-home";
-import { findAccountByKey, loadRegistry, managedProviderNames } from "../providers/codex/registry";
+import { findAccountByKey, loadRegistry } from "../providers/codex/registry";
 import {
   getOpenCodeProfileData,
   normalizeOpenCodeGoModel,
@@ -455,7 +455,7 @@ export async function runAliasSession(
         account.auth_mode === "apikey" ? account.api_provider?.model : null,
       );
     }
-    await syncCodexSessionVisibility(account, managedProviderNames(reg));
+    await syncCodexSessionVisibility(reg, account);
   } else if (isOpenCode && openCodeProfileId) {
     await ensureOpenCodeProfileReady(aliasOrName, openCodeProfileId);
   }
@@ -731,6 +731,15 @@ export async function runAliasSession(
             await syncActiveAuthSnapshot(await loadRegistry());
           } catch {
             // Best effort; Codex's active auth file remains authoritative.
+          }
+        }
+        if (entry.target.provider === "codex") {
+          // Codex 0.169+ scopes the sessions this run created to its login;
+          // share them now so a plain `codex` on another account sees them.
+          try {
+            await syncCodexSessionVisibility(await loadRegistry(), null);
+          } catch {
+            // Best effort; the next switch or run shares them too.
           }
         }
         const signalExitCode = signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1;

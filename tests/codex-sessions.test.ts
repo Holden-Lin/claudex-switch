@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { mkdir, open, readFile, stat, utimes, writeFile } from "fs/promises";
+import { zstdCompressSync, zstdDecompressSync } from "zlib";
 import { dirname, join } from "path";
 import { CODEX_DIR } from "../src/lib/paths";
-import { syncCodexSessionProviders } from "../src/providers/codex/sessions";
+import {
+  syncCodexSessions,
+  zstdFrameContentSize,
+  type CodexSessionCreator,
+} from "../src/providers/codex/sessions";
 import { saveAliases } from "../src/alias/store";
 import { saveAccountAuth } from "../src/providers/codex/auth";
 import { saveRegistry } from "../src/providers/codex/registry";
@@ -14,6 +19,14 @@ import type { CodexRegistry } from "../src/types";
 // Mirrors managedProviderNames() output for a registry containing an official
 // account plus relay accounts named hybaliez and 1000x.
 const MANAGED = new Set(["openai", "hybaliez", "1000x"]);
+
+function syncCodexSessionProviders(
+  target: string,
+  managed: Set<string>,
+  sharedCreators: CodexSessionCreator[] = [],
+) {
+  return syncCodexSessions({ provider: { target, managed }, sharedCreators });
+}
 
 function sessionMetaLine(provider: string | null, id = "thread-1"): string {
   const payload: Record<string, unknown> = {
@@ -69,7 +82,7 @@ function readProviders(): Array<{ id: string; model_provider: string }> {
   return rows;
 }
 
-describe("syncCodexSessionProviders", () => {
+describe("syncCodexSessions providers", () => {
   beforeEach(async () => {
     await resetTestHome();
   });
@@ -85,7 +98,7 @@ describe("syncCodexSessionProviders", () => {
     );
     const archived = await writeSession(
       "archived_sessions/rollout-3.jsonl",
-      sessionMetaLine("1000x", "t-archived"),
+      sessionMetaLine("hybaliez", "t-archived"),
     );
 
     const result = await syncCodexSessionProviders("openai", MANAGED);
@@ -103,16 +116,25 @@ describe("syncCodexSessionProviders", () => {
     );
   });
 
-  test("stamps a provider onto session_meta lines missing one", async () => {
-    const missing = await writeSession(
-      "sessions/rollout.jsonl",
-      sessionMetaLine(null, "t-missing"),
+  test("stamps a missing provider only into reclaimed padding", async () => {
+    // No room: Codex already falls back to the configured provider.
+    const tight = await writeSession(
+      "sessions/tight.jsonl",
+      sessionMetaLine(null, "t-tight"),
     );
+    // Padding left by an earlier sync can hold the new field.
+    const padded = sessionMetaLine(null, "t-padded").replace(/\}$/, `${" ".repeat(40)}}`);
+    const roomy = await writeSession("sessions/roomy.jsonl", padded);
 
     const result = await syncCodexSessionProviders("hybaliez", MANAGED);
 
     expect(result.rolloutFilesUpdated).toBe(1);
-    const firstLine = (await readFile(missing, "utf-8")).split("\n")[0];
+    expect(result.providerSkipped).toBe(0);
+    expect((await readFile(tight, "utf-8")).split("\n")[0]).toBe(
+      sessionMetaLine(null, "t-tight"),
+    );
+    const firstLine = (await readFile(roomy, "utf-8")).split("\n")[0];
+    expect(Buffer.byteLength(firstLine)).toBe(Buffer.byteLength(padded));
     expect(JSON.parse(firstLine).payload.model_provider).toBe("hybaliez");
   });
 
@@ -196,7 +218,7 @@ describe("syncCodexSessionProviders", () => {
     ]);
   });
 
-  test("repairs empty provider metadata in rollouts and the DB", async () => {
+  test("repairs empty provider metadata in the DB without growing rollouts", async () => {
     const empty = await writeSession(
       "sessions/empty.jsonl",
       sessionMetaLine("", "t-empty"),
@@ -208,10 +230,10 @@ describe("syncCodexSessionProviders", () => {
 
     const result = await syncCodexSessionProviders("openai", MANAGED);
 
-    expect(result.rolloutFilesUpdated).toBe(1);
+    expect(result.rolloutFilesUpdated).toBe(0);
     expect(result.sqliteRowsUpdated).toBe(1);
     const firstLine = (await readFile(empty, "utf-8")).split("\n")[0];
-    expect(JSON.parse(firstLine).payload.model_provider).toBe("openai");
+    expect(firstLine).toBe(sessionMetaLine("", "t-empty"));
     expect(readProviders()).toEqual([
       { id: "t-empty", model_provider: "openai" },
       { id: "t-ok", model_provider: "openai" },
@@ -284,6 +306,242 @@ describe("syncCodexSessionProviders", () => {
     expect(result.rolloutFilesUpdated).toBe(1);
     const after = await stat(rollout);
     expect(after.mtime.toISOString()).toBe(past.toISOString());
+  });
+});
+
+const HOLDEN = { userId: "user-holden", accountId: "acct-holden" };
+const SATOSHI = { userId: "user-satoshi", accountId: "acct-satoshi" };
+const BODY = `{"timestamp":"2026-11-15T07:22:14.000Z","ordinal":1,"type":"event_msg","payload":{"type":"user_message","message":"keep me"}}\n`;
+
+// Mirrors a Codex 0.169 rollout header: scoped marker and creator ids first,
+// provider in the middle, large base_instructions after it.
+function codexMetaLine(options: {
+  id: string;
+  provider?: string;
+  scoped?: boolean;
+  creator?: { userId: string; accountId: string } | null;
+}): string {
+  const payload: Record<string, unknown> = {};
+  if (options.scoped ?? true) payload.account_scoped = true;
+  if (options.creator !== null) {
+    const creator = options.creator ?? HOLDEN;
+    payload.creator_user_id = creator.userId;
+    payload.creator_account_id = creator.accountId;
+  }
+  Object.assign(payload, {
+    session_id: options.id,
+    id: options.id,
+    timestamp: "2026-11-15T07:21:45.613Z",
+    cwd: "/tmp/项目",
+    originator: "codex-tui",
+    cli_version: "0.169.0",
+    source: "cli",
+    model_provider: options.provider ?? "openai",
+    base_instructions: { text: "You are Codex. \"quoted\" \u2028 text" },
+    history_mode: "paginated",
+  });
+  return JSON.stringify({
+    timestamp: "2026-11-15T07:22:13.084Z",
+    ordinal: 0,
+    type: "session_meta",
+    payload,
+  });
+}
+
+function rolloutName(id: string, dir = "sessions/2026/11/15"): string {
+  return `${dir}/rollout-2026-11-15T16-21-45-${id}.jsonl`;
+}
+
+function createHistoryDb(rows: Array<[string, number]>): void {
+  const db = new Database(join(CODEX_DIR, "thread_history_1.sqlite"));
+  db.exec(
+    "CREATE TABLE thread_history_projection_state (thread_id TEXT PRIMARY KEY, next_rollout_byte_offset INTEGER NOT NULL, next_rollout_ordinal INTEGER NOT NULL)",
+  );
+  const insert = db.prepare(
+    "INSERT INTO thread_history_projection_state VALUES (?, ?, 1)",
+  );
+  for (const [id, offset] of rows) insert.run(id, offset);
+  db.close();
+}
+
+async function firstLineOf(path: string): Promise<string> {
+  return (await readFile(path, "utf-8")).split("\n")[0]!;
+}
+
+describe("syncCodexSessions sharing and byte offsets", () => {
+  beforeEach(async () => {
+    await resetTestHome();
+  });
+
+  test("shares sessions another managed ChatGPT account created", async () => {
+    const line = codexMetaLine({ id: "01a1de15-6114-7540-9e96-8b4ddbf1b133" });
+    const path = await writeSession(rolloutName("01a1de15-6114-7540-9e96-8b4ddbf1b133"), line, BODY);
+
+    const result = await syncCodexSessions({
+      provider: null,
+      sharedCreators: [SATOSHI, HOLDEN],
+    });
+
+    expect(result).toMatchObject({ rolloutFilesUpdated: 1, sessionsShared: 1 });
+    const after = await firstLineOf(path);
+    expect(Buffer.byteLength(after)).toBe(Buffer.byteLength(line));
+    const expected = JSON.parse(line);
+    delete expected.payload.account_scoped;
+    expect(JSON.parse(after)).toEqual(expected);
+    expect((await readFile(path, "utf-8")).slice(after.length + 1)).toBe(BODY);
+  });
+
+  test("keeps the scope of unmanaged, creator-less and reverted sessions", async () => {
+    const stranger = codexMetaLine({
+      id: "t-stranger",
+      creator: { userId: "user-x", accountId: "acct-x" },
+    });
+    const anonymous = codexMetaLine({ id: "t-anon", creator: null });
+    // A reverted thread's filename carries a different rollout id.
+    const reverted = codexMetaLine({ id: "t-reverted" });
+    const paths = [
+      await writeSession(rolloutName("t-stranger"), stranger, BODY),
+      await writeSession(rolloutName("t-anon"), anonymous, BODY),
+      await writeSession(
+        "sessions/2026/11/15/rollout-2026-11-15T16-21-45-t-reverted_t-rollout2.jsonl",
+        reverted,
+        BODY,
+      ),
+    ];
+
+    const result = await syncCodexSessions({
+      provider: null,
+      sharedCreators: [HOLDEN, SATOSHI],
+    });
+
+    expect(result.rolloutFilesUpdated).toBe(0);
+    expect(await firstLineOf(paths[0]!)).toBe(stranger);
+    expect(await firstLineOf(paths[1]!)).toBe(anonymous);
+    expect(await firstLineOf(paths[2]!)).toBe(reverted);
+  });
+
+  test("pads a shorter provider so every later byte keeps its offset", async () => {
+    const line = codexMetaLine({ id: "t-relay", provider: "hybaliez", scoped: false, creator: null });
+    const path = await writeSession(rolloutName("t-relay"), line, BODY);
+    const before = await stat(path);
+
+    const result = await syncCodexSessionProviders("openai", MANAGED);
+
+    expect(result).toMatchObject({ rolloutFilesUpdated: 1, providerStamped: 1 });
+    const after = await firstLineOf(path);
+    expect(after.endsWith("  }")).toBe(true);
+    expect(JSON.parse(after).payload.model_provider).toBe("openai");
+    expect((await stat(path)).size).toBe(before.size);
+    expect((await readFile(path, "utf-8")).slice(after.length + 1)).toBe(BODY);
+  });
+
+  test("never grows a first line: a longer provider is skipped with its thread row", async () => {
+    const line = codexMetaLine({ id: "t-old", provider: "openai", scoped: false, creator: null });
+    const path = await writeSession(rolloutName("t-old"), line, BODY);
+    createStateDb([
+      ["t-old", "openai"],
+      ["t-elsewhere", "openai"],
+    ]);
+
+    const result = await syncCodexSessionProviders("hybaliez", MANAGED);
+
+    expect(result).toMatchObject({ rolloutFilesUpdated: 0, providerSkipped: 1, sqliteRowsUpdated: 1 });
+    expect(await firstLineOf(path)).toBe(line);
+    expect(readProviders()).toEqual([
+      { id: "t-elsewhere", model_provider: "hybaliez" },
+      { id: "t-old", model_provider: "openai" },
+    ]);
+  });
+
+  test("reuses earlier padding, so a provider round trip restores the original bytes", async () => {
+    const line = codexMetaLine({ id: "t-trip", provider: "hybaliez", scoped: false, creator: null });
+    const path = await writeSession(rolloutName("t-trip"), line, BODY);
+
+    await syncCodexSessionProviders("openai", MANAGED);
+    const result = await syncCodexSessionProviders("hybaliez", MANAGED);
+
+    expect(result.providerStamped).toBe(1);
+    expect(await firstLineOf(path)).toBe(line);
+  });
+
+  test("dropping the scope marker makes room for a longer provider", async () => {
+    const managed = codexMetaLine({ id: "t-managed", provider: "openai" });
+    const anonymous = codexMetaLine({ id: "t-anon", provider: "openai", creator: null });
+    const managedPath = await writeSession(rolloutName("t-managed"), managed, BODY);
+    const anonPath = await writeSession(rolloutName("t-anon"), anonymous, BODY);
+
+    const result = await syncCodexSessionProviders("hybaliez", MANAGED, [HOLDEN]);
+
+    expect(result).toMatchObject({ providerStamped: 2, sessionsShared: 1, providerSkipped: 0 });
+    for (const [path, original] of [[managedPath, managed], [anonPath, anonymous]] as const) {
+      const after = JSON.parse(await firstLineOf(path));
+      expect(Buffer.byteLength(await firstLineOf(path))).toBe(Buffer.byteLength(original));
+      expect(after.payload.model_provider).toBe("hybaliez");
+      expect(after.payload.account_scoped).toBeUndefined();
+      expect(after.payload.creator_user_id).toBe(JSON.parse(original).payload.creator_user_id);
+    }
+  });
+
+  test("rewrites compressed rollouts in place and keeps their decoded size", async () => {
+    const id = "t-zst";
+    const line = codexMetaLine({ id, provider: "hybaliez" });
+    const plain = Buffer.from(`${line}\n${BODY}`);
+    const path = join(CODEX_DIR, `${rolloutName(id)}.zst`);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, zstdCompressSync(plain));
+    const past = new Date("2026-06-01T00:00:00Z");
+    await utimes(path, past, past);
+
+    const result = await syncCodexSessionProviders("openai", MANAGED, [HOLDEN]);
+
+    expect(result).toMatchObject({ rolloutFilesUpdated: 1, providerStamped: 1, sessionsShared: 1 });
+    const compressed = await readFile(path);
+    expect(zstdFrameContentSize(compressed.subarray(0, 18))).toBe(plain.length);
+    const decoded = zstdDecompressSync(compressed).toString("utf-8");
+    const [first, ...rest] = decoded.split("\n");
+    expect(JSON.parse(first!).payload).toMatchObject({ model_provider: "openai", id });
+    expect(JSON.parse(first!).payload.account_scoped).toBeUndefined();
+    expect(rest.join("\n")).toBe(BODY);
+    expect((await stat(path)).mtime.toISOString()).toBe(past.toISOString());
+  });
+
+  test("restores rollouts an earlier sync shortened to Codex's history offset", async () => {
+    const shortened = codexMetaLine({ id: "t-short", scoped: false, creator: null });
+    const shortPath = await writeSession(rolloutName("t-short"), shortened, BODY);
+    const intact = codexMetaLine({ id: "t-intact", scoped: false, creator: null });
+    const intactPath = await writeSession(rolloutName("t-intact"), intact, BODY);
+    const foreign = codexMetaLine({ id: "t-foreign", scoped: false, creator: null });
+    const foreignPath = await writeSession(rolloutName("t-foreign"), foreign, BODY);
+    const size = (await stat(shortPath)).size;
+    createHistoryDb([
+      ["t-short", size + 2],
+      // Fully projected and still in sync.
+      ["t-intact", (await stat(intactPath)).size],
+      // Far beyond what a metadata edit could explain.
+      ["t-foreign", (await stat(foreignPath)).size + 4096],
+    ]);
+
+    const result = await syncCodexSessions({ provider: null, sharedCreators: [] });
+
+    expect(result).toMatchObject({ rolloutFilesUpdated: 1, rolloutsRepaired: 1 });
+    expect((await stat(shortPath)).size).toBe(size + 2);
+    const repaired = await firstLineOf(shortPath);
+    expect(JSON.parse(repaired)).toEqual(JSON.parse(shortened));
+    expect((await readFile(shortPath, "utf-8")).slice(repaired.length + 1)).toBe(BODY);
+    expect(await firstLineOf(intactPath)).toBe(intact);
+    expect(await firstLineOf(foreignPath)).toBe(foreign);
+  });
+
+  test("a share-only pass leaves providers and thread rows alone", async () => {
+    const line = codexMetaLine({ id: "t-share", provider: "hybaliez" });
+    const path = await writeSession(rolloutName("t-share"), line, BODY);
+    createStateDb([["t-share", "hybaliez"]]);
+
+    const result = await syncCodexSessions({ provider: null, sharedCreators: [HOLDEN] });
+
+    expect(result).toMatchObject({ sessionsShared: 1, providerStamped: 0, sqliteRowsUpdated: 0 });
+    expect(JSON.parse(await firstLineOf(path)).payload.model_provider).toBe("hybaliez");
+    expect(readProviders()).toEqual([{ id: "t-share", model_provider: "hybaliez" }]);
   });
 });
 

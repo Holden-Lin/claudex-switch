@@ -209,3 +209,21 @@ export function managedProviderNames(reg: CodexRegistry): Set<string> {
   }
   return names;
 }
+
+// ChatGPT logins claudex-switch manages. Codex 0.169+ scopes new sessions to
+// their creator; sessions of these logins are shared across every account.
+export function managedSessionCreators(
+  reg: CodexRegistry,
+): Array<{ userId: string; accountId: string }> {
+  return reg.accounts
+    .filter(
+      (account) =>
+        account.auth_mode === "chatgpt" &&
+        Boolean(account.chatgpt_user_id) &&
+        Boolean(account.chatgpt_account_id),
+    )
+    .map((account) => ({
+      userId: account.chatgpt_user_id,
+      accountId: account.chatgpt_account_id,
+    }));
+}

@@ -9,6 +9,7 @@ import {
 import type { ChildProcess } from "child_process";
 import { Database } from "bun:sqlite";
 import { EventEmitter } from "events";
+import { mkdirSync, writeFileSync } from "fs";
 import { lstat, mkdir, readFile, readlink, stat, symlink, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { saveAliases } from "../src/alias/store";
@@ -1375,14 +1376,18 @@ describe("run alias session", () => {
       await writeFile(CODEX_CONFIG_FILE, globalConfig);
       const history = '{"type":"event_msg","payload":{"type":"user_message","message":"Keep the saved conversation"}}\n';
       const rollouts = [
-        ["sessions/old.jsonl", previousProvider],
-        ["archived_sessions/old.jsonl", previousProvider],
-        ["sessions/local.jsonl", "ollama"],
+        ["sessions/old.jsonl", "old", previousProvider],
+        ["archived_sessions/old.jsonl", "old-archived", previousProvider],
+        ["sessions/local.jsonl", "local", "ollama"],
       ];
-      for (const [path, provider] of rollouts) {
+      for (const [path, id, provider] of rollouts) {
         await mkdir(dirname(join(CODEX_DIR, path)), { recursive: true });
-        await writeFile(join(CODEX_DIR, path), `${JSON.stringify({ type: "session_meta", payload: { id: path, model_provider: provider } })}\n${history}`);
+        await writeFile(join(CODEX_DIR, path), `${JSON.stringify({ type: "session_meta", payload: { id, model_provider: provider } })}\n${history}`);
       }
+      // A first line never grows (Codex addresses history by byte offset):
+      // "openai" -> "hybaliez" has no room, so the relay run leaves those
+      // sessions and their thread rows on their original provider.
+      const expectedProvider = mode === "relay" ? previousProvider : targetProvider;
       const db = new Database(join(CODEX_DIR, "state_5.sqlite"));
       db.exec("CREATE TABLE threads (id TEXT PRIMARY KEY, model_provider TEXT NOT NULL)");
       db.prepare("INSERT INTO threads VALUES (?, ?)").run("old", previousProvider);
@@ -1393,7 +1398,7 @@ describe("run alias session", () => {
       const exitCode = await runAliasSession("cx", ["resume", "thread-45x"], (command, args, options) => {
         const resumed = new Database(join(CODEX_DIR, "state_5.sqlite"), { readonly: true });
         try {
-          expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'old'").get()).toEqual({ model_provider: targetProvider });
+          expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'old'").get()).toEqual({ model_provider: expectedProvider });
           expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'local'").get()).toEqual({ model_provider: "ollama" });
         } finally {
           resumed.close();
@@ -1403,9 +1408,10 @@ describe("run alias session", () => {
 
       expect(exitCode).toBe(0);
       expect(calls[0]?.args.slice(-2)).toEqual(["resume", "thread-45x"]);
-      for (const [path, provider] of rollouts) {
-        const [first, ...rest] = (await readFile(join(CODEX_DIR, path), "utf-8")).split("\n");
-        expect(JSON.parse(first).payload.model_provider).toBe(provider === "ollama" ? provider : targetProvider);
+      for (const [path, , provider] of rollouts) {
+        const content = await readFile(join(CODEX_DIR, path), "utf-8");
+        const [first, ...rest] = content.split("\n");
+        expect(JSON.parse(first).payload.model_provider).toBe(provider === "ollama" ? provider : expectedProvider);
         expect(rest.join("\n")).toBe(history);
       }
       expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(globalAuth);
@@ -1413,6 +1419,49 @@ describe("run alias session", () => {
       expect((await loadRegistry()).active_account_key).toBe(registry.active_account_key);
     },
   );
+
+  test("shares the sessions a Codex run created once it exits", async () => {
+    const officialKey = "user-1::acct-1";
+    const otherKey = "user-2::acct-2";
+    const registry = createRegistry(officialKey);
+    registry.accounts.push({
+      ...registry.accounts[0]!,
+      account_key: otherKey,
+      chatgpt_user_id: "user-2",
+      chatgpt_account_id: "acct-2",
+      alias: "other",
+    });
+    registry.active_account_key = otherKey;
+    await saveAliases({
+      version: 1,
+      aliases: [{ alias: "cx", target: { provider: "codex", accountKey: officialKey }, createdAt: 1 }],
+    });
+    await saveRegistry(registry);
+    await saveAccountAuth(officialKey, codexChatGptAuth("user-1", "acct-1"));
+    await saveAccountAuth(otherKey, codexChatGptAuth("user-2", "acct-2"));
+    await writeFile(CODEX_AUTH_FILE, JSON.stringify(codexChatGptAuth("user-2", "acct-2")));
+    const id = "01a1de15-6114-7540-9e96-8b4ddbf1b133";
+    const rollout = join(CODEX_DIR, "sessions", "2026", "11", "15", `rollout-2026-11-15T16-21-45-${id}.jsonl`);
+    const meta = JSON.stringify({
+      type: "session_meta",
+      payload: { account_scoped: true, creator_user_id: "user-1", creator_account_id: "acct-1", id, model_provider: "openai" },
+    });
+    const body = '{"type":"event_msg","payload":{"type":"user_message","message":"new run"}}\n';
+
+    const exitCode = await runAliasSession("cx", [], (command, args, options) => {
+      // Codex 0.169 writes the new session scoped to the run's login.
+      mkdirSync(dirname(rollout), { recursive: true });
+      writeFileSync(rollout, `${meta}\n${body}`);
+      return createSpawn([])(command, args, options);
+    });
+
+    expect(exitCode).toBe(0);
+    const [first, ...rest] = (await readFile(rollout, "utf-8")).split("\n");
+    expect(Buffer.byteLength(first!)).toBe(Buffer.byteLength(meta));
+    expect(JSON.parse(first!).payload).toEqual({ creator_user_id: "user-1", creator_account_id: "acct-1", id, model_provider: "openai" });
+    expect(rest.join("\n")).toBe(body);
+    expect((await loadRegistry()).active_account_key).toBe(otherKey);
+  });
 
   test("saves Codex token rotation from a private run home", async () => {
     const accountKey = "user-1::acct-1";

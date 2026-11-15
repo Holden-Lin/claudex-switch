@@ -30,6 +30,8 @@ Read the [Claude](./use-cases/claude-parallel.md), [Codex](./use-cases/codex-acc
 
 全局切换和 `-run` 都会将受管会话在 rollout 文件及 `state_5.sqlite` 中的 provider 元数据同步到所选账号。旧会话因此可用该账号继续，避免恢复时仍指向旧中转站或出现 “Model provider unavailable”。消息正文和未受管 provider 的会话保持原样；正在打开的 rollout 文件会跳过，请先退出原会话。`-run` 保留全局默认账号及配置。参见 [Codex 跨账号恢复示例](./use-cases/codex-accounts.md)。
 
+**切换 Codex 账号后看不到另一个 ChatGPT 账号的会话？** Codex 0.169 起，新会话只在创建它的 ChatGPT 账号的 `/resume` 中显示。claudex-switch 在全局切换、`-run` 启动前及 `-run` 退出后，会把受管账号所建会话改为共享（去掉 `account_scoped` 标记，保留创建者 id）。只用裸 `codex` 新建的会话，会在下一次运行 claudex-switch 切换或 `-run` 时共享。元数据修改保持 rollout 首行字节长度不变；若更长的中转 provider 名放不下，该旧会话保留原 provider，可回到创建它的账号恢复。
+
 ## What does `list` show? Does it make a network request?
 
 The human-readable `claudex-switch list` fetches provider usage where supported: Claude OAuth and Codex ChatGPT windows, OpenCode Go rolling / weekly / monthly windows, and supported relay key / account balances. Requests can fail or return unavailable data; `null` or an unavailable note is not a zero quota. Some usage checks can refresh and persist OAuth credentials or provider account metadata.

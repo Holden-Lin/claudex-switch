@@ -2,6 +2,8 @@
 
 ## Now
 
+- [x] 2026-11-15：v1.28.8 修 Codex 0.169 按 ChatGPT 账号隐藏 `/resume` 会话：受管账号所建会话在切换、`-run` 前后改为共享；rollout 首行修改保持字节长度（旧版改短会让 Codex 恢复后跳过追加记录，自动补回）；覆盖 `.jsonl.zst`。498 测、真实数据副本 + 真实 Codex 0.169 app-server 前后对比通过。
+
 - [x] 2026-10-31：v1.26.11 修复 OpenCode Console 将 `opencode-go.models: {}` 改为“继承官方目录”后，`openlam42 --run` 误报没有 Go model。模型配置按 overlay 解释，仍排除显式禁用、未知目录及 Zen 路由。416 项测试、类型 / 文档检查、构建和真实 OpenCode 2.0.32 订阅验收通过；构建版已用真实 `openlam42` 进入显示 DeepSeek V4.1 Flash / OpenCode Go 的 TUI。
 
 - [x] 2026-10-30：v1.26.10 接入已实测的 agy 模型组额度与 WorkBuddy 套餐 / 积分；查不到的套餐和额度隐藏占位文字，保留有效登录与配置提示。416 项测试、类型 / 文档检查、构建通过；隔离 HOME 的构建版命令从真实接口拉数、写缓存并渲染，源登录文件哈希未变。
@@ -32,6 +34,7 @@
 
 ## Next
 
+- [ ] v1.28.8：升级后运行一次 `claudex-switch satoshix`（应提示共享 8 个、修复 3 个会话），再 `codex resume` 确认 holdenx 的“优化流动性奖励看板排序”出现；真实 TUI 未在本次验证。
 - [ ] v1.26.4：结束现有 workbuddy 会话后重新运行，确认不再出现 11101 报错。
 - [ ] v1.26.2：结束现有 workbuddy 会话后重新运行 `claudex-switch workbuddy --run --cliproxy claudecode`，确认启动时无 “doesn't recognize the model” 警告，deepseek-v4.1-flash 长会话不再在约 70K 压缩。
 - [ ] v1.26.1：在本人终端运行 `claudex-switch workbuddy --run --cliproxy claudecode`，区域选国际版，完成浏览器登录，核对 `/model` 并做一次短对话及 Read 调用。

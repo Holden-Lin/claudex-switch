@@ -11,6 +11,7 @@ import {
   findAccountByKey,
   codexAccountProviderName,
   managedProviderNames,
+  managedSessionCreators,
 } from "../providers/codex/registry";
 import {
   readAccountAuth,
@@ -18,7 +19,7 @@ import {
   syncActiveAuthSnapshot,
 } from "../providers/codex/auth";
 import { applyCodexApiProvider } from "../providers/codex/config";
-import { syncCodexSessionProviders } from "../providers/codex/sessions";
+import { syncCodexSessions } from "../providers/codex/sessions";
 import {
   getOpenCodeProfileData,
   hasOpenCodeGoCredential,
@@ -36,7 +37,7 @@ import {
   formatProvider,
   info,
 } from "../lib/ui";
-import type { AliasEntry, CodexRegistryAccount } from "../types";
+import type { AliasEntry, CodexRegistry, CodexRegistryAccount } from "../types";
 
 export async function use(aliasOrName: string): Promise<AliasEntry> {
   blank();
@@ -176,7 +177,7 @@ async function switchCodex(
     await saveRegistry(reg);
   }
 
-  await syncCodexSessionVisibility(account, managedProviderNames(reg));
+  await syncCodexSessionVisibility(reg, account);
 
   const plan = formatPlan(
     account.plan ?? account.last_usage?.plan_type ?? null,
@@ -201,25 +202,44 @@ async function switchCodex(
 }
 
 // Resume uses the session's recorded provider even when the CLI config picks
-// another one. Both global switches and private runs must restamp managed
-// sessions; otherwise resume can hit the old relay or a missing-provider lock.
+// another one, and Codex 0.169+ hides sessions created by other ChatGPT
+// accounts. Global switches and private runs restamp managed sessions to the
+// account's provider and share the scoped ones; `account` null (after a run
+// exits) only shares the sessions that run created.
 export async function syncCodexSessionVisibility(
-  account: CodexRegistryAccount,
-  managedProviders: Set<string>,
+  reg: CodexRegistry,
+  account: CodexRegistryAccount | null,
 ): Promise<void> {
-  const targetProvider = codexAccountProviderName(account);
-  if (!targetProvider) return;
+  const targetProvider = account ? codexAccountProviderName(account) : null;
+  if (account && !targetProvider) return;
 
   try {
-    const result = await syncCodexSessionProviders(
-      targetProvider,
-      managedProviders,
-    );
-    if (result.rolloutFilesUpdated > 0 || result.sqliteRowsUpdated > 0) {
+    const result = await syncCodexSessions({
+      provider: targetProvider
+        ? { target: targetProvider, managed: managedProviderNames(reg) }
+        : null,
+      sharedCreators: managedSessionCreators(reg),
+    });
+    if (result.providerStamped > 0 || result.sqliteRowsUpdated > 0) {
       info(
-        `Synced ${result.rolloutFilesUpdated} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`,
+        `Synced ${result.providerStamped} session file(s) and ${result.sqliteRowsUpdated} thread row(s) to provider "${targetProvider}"`,
       );
       hint("Managed sessions now resume with this account's provider.");
+    }
+    if (result.sessionsShared > 0) {
+      info(
+        `Shared ${result.sessionsShared} Codex session(s) across your accounts`,
+      );
+    }
+    if (result.rolloutsRepaired > 0) {
+      info(
+        `Repaired ${result.rolloutsRepaired} session file(s) shortened by an earlier sync`,
+      );
+    }
+    if (result.providerSkipped > 0 && account) {
+      hint(
+        `${result.providerSkipped} older session(s) keep their provider: a longer name would shift Codex's history offsets. Resume them from the account that created them.`,
+      );
     }
   } catch {
     // Session visibility sync is best effort.
