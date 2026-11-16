@@ -109,7 +109,8 @@ export function parseUsageResponse(data: unknown): UsageInfo | null {
     if (!value || typeof value !== "object") return null;
     const w = value as Record<string, unknown>;
     const percent = w[percentKey];
-    if (typeof percent !== "number" || !Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+    if (typeof percent !== "number") return null;
+    if (percentKey === "percent" && (!Number.isFinite(percent) || percent < 0 || percent > 100)) return null;
     const resetsAt =
       typeof w.resets_at === "string" ? Date.parse(w.resets_at) : NaN;
     return {

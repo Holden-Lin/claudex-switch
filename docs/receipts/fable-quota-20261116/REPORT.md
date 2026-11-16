@@ -9,6 +9,14 @@
 - 分支：`feat/fable-quota-20261116`；实现提交：`cd543d1`。本报告随后单独提交；最终分支 HEAD 记录在 worker FINAL 信号的 `commit` 字段。
 - 未合并、未推送、未改版本。ROOT 负责 review、合并、推送与发布。
 
+## v2 审查修复
+
+- ROOT 审查原话：`parseUsageResponse now drops five_hour/seven_day when utilization > 100 (old code accepted any number). An over-limit account would lose its wk token exactly when it matters. Keep the 0–100 reject only for the new Fable "percent" (or clamp >100 to 100 for all windows; do NOT drop them). Add one test (seven_day utilization 105 still yields a wk value), rerun bun run verify, commit, then append a new FINAL line (version CXS-FABLEQ-20261116-v2) with the new REPORT sha256 to worker.txt.`
+- 修复：原有 `utilization` 恢复接受任意 number 的行为；有限数值及 0–100 范围检查仅用于新 Fable `percent`。
+- 新增一个回归测试：`five_hour=110`、`seven_day=105` 仍保留各窗口，生产格式化器显示 `wk 0%`。
+- v2 验证：`bun run verify` 通过，514 tests / 47 files、0 fail；文档检查、构建及构建产物 help 均通过。日志：`/tmp/cxs-fable-quota-v2-verify.log`；`git diff --check` 通过。下文 513 tests 为 v1 历史证据。
+- 最终交付版本为 `CXS-FABLEQ-20261116-v2`，以 worker.txt 最新 FINAL 的 commit 与报告 SHA-256 为准；本轮继续不推送。
+
 ## 实际字段与含义
 
 2026-11-16 08:21–08:25 UTC，使用现有 `fetchClaudeUsage` 的凭据选择、刷新流程与 OAuth usage endpoint 查询 satoshi、hmanka，两者均返回 HTTP 200。未读取凭据配置文件内容到工具输出，未输出 token/key。响应检查仅输出字段结构、数值及明确白名单的限额元数据。

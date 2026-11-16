@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseUsageResponse } from "../src/providers/claude/usage";
+import { formatUsage } from "../src/lib/ui";
 
 const weekly = { utilization: 38, resets_at: "2026-11-22T07:00:00Z" };
 const fable = {
@@ -11,6 +12,16 @@ const fable = {
 };
 
 describe("Claude usage parser", () => {
+  test("keeps over-limit legacy windows and renders the weekly token", () => {
+    const result = parseUsageResponse({
+      five_hour: { ...weekly, utilization: 110 },
+      seven_day: { ...weekly, utilization: 105 },
+    });
+    expect(result?.fiveHourUsedPercent).toBe(110);
+    expect(result?.weeklyUsedPercent).toBe(105);
+    expect(formatUsage(result, null)).toContain("wk 0%");
+  });
+
   test("reads the model-scoped weekly percentage and its own reset", () => {
     expect(parseUsageResponse({
       seven_day: weekly,
