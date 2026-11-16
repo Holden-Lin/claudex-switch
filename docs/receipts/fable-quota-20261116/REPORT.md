@@ -7,7 +7,7 @@
 - dispatch_id：`CXS-FABLEQ-20261116`；版本：`CXS-FABLEQ-20261116-v1`。
 - 合同 SHA-256：`5553f76ce30efdbb79e494cb1ce69fd20ced7fe3f2d685632003000105804b99`，已校验。
 - 分支：`feat/fable-quota-20261116`；实现提交：`cd543d1`。本报告随后单独提交；最终分支 HEAD 记录在 worker FINAL 信号的 `commit` 字段。
-- 未合并、未推送、未改版本。ROOT 负责 review、合并、推送与发布。
+- v1/v2 未合并、未推送、未改版本；v3 按 ROOT 指令准备 1.29.0。ROOT 负责 review、合并、推送与发布。
 
 ## v2 审查修复
 
@@ -16,6 +16,10 @@
 - 新增一个回归测试：`five_hour=110`、`seven_day=105` 仍保留各窗口，生产格式化器显示 `wk 0%`。
 - v2 验证：`bun run verify` 通过，514 tests / 47 files、0 fail；文档检查、构建及构建产物 help 均通过。日志：`/tmp/cxs-fable-quota-v2-verify.log`；`git diff --check` 通过。下文 513 tests 为 v1 历史证据。
 - 最终交付版本为 `CXS-FABLEQ-20261116-v2`，以 worker.txt 最新 FINAL 的 commit 与报告 SHA-256 为准；本轮继续不推送。
+
+## v3 发布准备
+
+按 ROOT 指令将 package 与生成构建升级为 `1.29.0`，新增四条中文发布说明 `docs/release-notes/v1.29.0.md`。`bun run verify` 通过：514 tests / 47 files、0 fail，文档检查、构建与 help 均成功（日志 `/tmp/cxs-fable-quota-v3-verify.log`）。未 push/tag；最终版本 `CXS-FABLEQ-20261116-v3` 的 HEAD 与本报告 SHA-256 见最新 FINAL。
 
 ## 实际字段与含义
 
@@ -64,7 +68,7 @@ JSON 追加可选数值字段 `usage.fableWeeklyUsedPercent`、`usage.fableWeekl
 
 ## 发布与移交
 
-建议 ROOT 合并后发一个补丁版本：这是 CLI 用户可见功能，已安装用户需要发布后才能通过更新获取。当前 package 版本仍为 `1.28.8`，worker 未执行 push/tag/release。
+ROOT 在 v3 审查后决定按用户可见新功能发布 `1.29.0`，覆盖 v1 的补丁版本建议。package 与生成构建现为 `1.29.0`；worker 未执行 push/tag/release，已安装用户需等 ROOT 发布后更新。
 
 工作树保留供 ROOT review／landing；worker 未加锁。工作树内无保留的 ignored 数据。临时测试 HOME 与日志位于 `/tmp/cxs-fable-e2e-PiNKsW`、`/tmp/cxs-fable-quota-{e2e,focused,verify}.log`，仅含隔离虚拟凭据或非敏感测试证据。
 
