@@ -968,6 +968,10 @@ function jsonUsage(usage: UsageInfo | null): UsageInfo | null {
     fiveHourResetsAt: safeTimestamp(usage.fiveHourResetsAt),
     weeklyUsedPercent: safePercent(usage.weeklyUsedPercent),
     weeklyResetsAt: safeTimestamp(usage.weeklyResetsAt),
+    ...(usage.fableWeeklyUsedPercent !== undefined ? {
+      fableWeeklyUsedPercent: safePercent(usage.fableWeeklyUsedPercent),
+      fableWeeklyResetsAt: safeTimestamp(usage.fableWeeklyResetsAt),
+    } : {}),
     monthlyUsedPercent: safePercent(usage.monthlyUsedPercent),
     monthlyResetsAt: safeTimestamp(usage.monthlyResetsAt),
     ...(usage.groups ? { groups: usage.groups.map(({ name, usage }) => ({ name, usage: jsonUsage(usage)! })) } : {}),

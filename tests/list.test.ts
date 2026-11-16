@@ -4,6 +4,7 @@ import { join } from "path";
 import { saveAliases } from "../src/alias/store";
 import { list } from "../src/commands/list";
 import { current } from "../src/commands/current";
+import { formatWeeklyReset } from "../src/lib/ui";
 import { aliasSection } from "../src/lib/account-display";
 import {
   CLAUDE_JSON,
@@ -482,6 +483,41 @@ describe("list", () => {
     const reset = new Date(Date.parse("2026-08-02T04:00:00Z"));
     const label = `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][reset.getDay()]}${String(reset.getHours()).padStart(2, "0")}`;
     expect(output()).toContain(`wk 61% ${label}`);
+    expect(output()).not.toContain("fable");
+  });
+
+  test("shows Fable quota through the usage cache, cached list, and JSON list", async () => {
+    await saveAliases({ version: 1, aliases: [{
+      alias: "work",
+      target: { provider: "claude", profileName: "work" },
+      createdAt: 1,
+    }] });
+    await writeClaudeOAuthProfile("work", makeClaudeCreds());
+    const fableReset = "2026-11-23T08:00:00Z";
+    mockFetch((url) => url === "https://api.anthropic.com/api/oauth/usage"
+      ? new Response(JSON.stringify({
+          ...JSON.parse(CLAUDE_USAGE_BODY),
+          limits: [{
+            kind: "weekly_scoped", group: "weekly", percent: 42,
+            resets_at: fableReset,
+            scope: { model: { id: null, display_name: "Fable" } },
+          }],
+        }))
+      : null);
+
+    await list();
+    const expected = `wk 61%${formatWeeklyReset(Date.parse("2026-08-02T04:00:00Z"))} · fable 58%${formatWeeklyReset(Date.parse(fableReset))}`;
+    expect(output()).toContain(expected);
+    console.log.mockClear();
+    await list({ cached: true, background: true, spawnRefresh: () => {} });
+    expect(output()).toContain(expected);
+    console.log.mockClear();
+    await list({ json: true });
+    expect(JSON.parse(output()).accounts[0].usage).toMatchObject({
+      weeklyUsedPercent: 39,
+      fableWeeklyUsedPercent: 42,
+      fableWeeklyResetsAt: Date.parse(fableReset),
+    });
   });
 
   test("shows the Claude plan from the freshest matching local credentials", async () => {

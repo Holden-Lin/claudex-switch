@@ -113,6 +113,11 @@ export function formatUsage(
         `${chalk.dim("wk")} ${colorRemaining(100 - usage.weeklyUsedPercent)}${formatWeeklyReset(usage.weeklyResetsAt)}`,
       );
     }
+    if (usage.fableWeeklyUsedPercent != null) {
+      parts.push(
+        `${chalk.dim("fable")} ${colorRemaining(100 - usage.fableWeeklyUsedPercent)}${formatWeeklyReset(usage.fableWeeklyResetsAt ?? null)}`,
+      );
+    }
     if (
       usage.monthlyUsedPercent !== null &&
       usage.monthlyUsedPercent !== undefined
