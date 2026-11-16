@@ -101,31 +101,45 @@ async function requestUsage(
   }
 }
 
-function parseUsageResponse(data: unknown): UsageInfo | null {
+export function parseUsageResponse(data: unknown): UsageInfo | null {
   if (!data || typeof data !== "object") return null;
   const obj = data as Record<string, unknown>;
 
-  const window = (value: unknown) => {
+  const window = (value: unknown, percentKey = "utilization") => {
     if (!value || typeof value !== "object") return null;
     const w = value as Record<string, unknown>;
-    if (typeof w.utilization !== "number") return null;
+    const percent = w[percentKey];
+    if (typeof percent !== "number" || !Number.isFinite(percent) || percent < 0 || percent > 100) return null;
     const resetsAt =
       typeof w.resets_at === "string" ? Date.parse(w.resets_at) : NaN;
     return {
-      usedPercent: w.utilization,
+      usedPercent: percent,
       resetsAt: Number.isFinite(resetsAt) ? resetsAt : null,
     };
   };
 
   const fiveHour = window(obj.five_hour);
   const weekly = window(obj.seven_day);
-  if (!fiveHour && !weekly) return null;
+  const fableLimit = Array.isArray(obj.limits)
+    ? obj.limits.find((limit) =>
+        limit?.kind === "weekly_scoped" &&
+        limit?.group === "weekly" &&
+        typeof limit?.scope?.model?.display_name === "string" &&
+        limit.scope.model.display_name.toLowerCase() === "fable",
+      )
+    : null;
+  const fable = window(fableLimit, "percent");
+  if (!fiveHour && !weekly && !fable) return null;
 
   return {
     fiveHourUsedPercent: fiveHour?.usedPercent ?? null,
     fiveHourResetsAt: fiveHour?.resetsAt ?? null,
     weeklyUsedPercent: weekly?.usedPercent ?? null,
     weeklyResetsAt: weekly?.resetsAt ?? null,
+    ...(fable ? {
+      fableWeeklyUsedPercent: fable.usedPercent,
+      fableWeeklyResetsAt: fable.resetsAt,
+    } : {}),
   };
 }
 

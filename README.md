@@ -70,6 +70,7 @@ claudex-switch list
 按 Claude、Antigravity、WorkBuddy 国内版 / 国际版、Cursor、Codex、OpenCode 分区，只显示已有账号的分区。旧 ChatGPT 代理账号不在列表、选择器和 `current` 中显示，也不再提供新增入口；已有别名仍可运行，`list --json` 保留完整清单。
 
 展示账号状态、5h / 每周额度剩余百分比（如 `5h 89% · wk 61% Wed16`）及中转站余额。
+Claude 用量 API 返回 Fable 专属周窗口时，追加 `fable 58% Sun16`（该窗口剩余百分比及本地时区重置时间）；未返回时不显示，也不按每周额度的 50% 推算。此接口不提供可用 reset 次数。
 
 ### 3. 启动或切换账号
 - **方式 A（推荐）：独立会话运行（凭证隔离，不影响全局默认账号）**
