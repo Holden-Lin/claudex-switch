@@ -936,7 +936,8 @@ function applyAutoreview(
 
   const env = { ...(baseEnv ?? process.env) };
   if (override) {
-    delete env[CODEX_COMPLETION_REVIEW_DISABLED_ENV];
+    // Explicit "0": the OpenCode completion-review plugin is off unless asked for.
+    env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] = "0";
   } else {
     env[CODEX_COMPLETION_REVIEW_DISABLED_ENV] = "1";
   }

@@ -1409,7 +1409,7 @@ describe("OpenCode Go profiles", () => {
       expect(calls[0]?.env?.[envName]).toBe("1");
       // The private V2 environment is still the one OpenCode receives.
       expect(calls[0]?.env?.OPENCODE_CONFIG_CONTENT).toBeDefined();
-      expect(calls[1]?.env?.[envName]).toBeUndefined();
+      expect(calls[1]?.env?.[envName]).toBe("0");
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Autoreview: off (default)"));
       expect(process.env[envName]).toBe("1");
     } finally {

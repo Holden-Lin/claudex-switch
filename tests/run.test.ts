@@ -866,7 +866,7 @@ describe("run alias session", () => {
         "gpt-5.4",
         "--continue",
       ]);
-      expect(calls[0]?.env?.[envName]).toBeUndefined();
+      expect(calls[0]?.env?.[envName]).toBe("0");
       expect(calls[1]?.env?.[envName]).toBe("1");
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Autoreview: off (default)"));
       expect(process.env[envName]).toBe("1");
