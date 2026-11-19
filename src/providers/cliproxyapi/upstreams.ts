@@ -51,7 +51,7 @@ export const CLI_PROXY_API_UPSTREAMS: Record<CLIProxyAPIUpstream, CLIProxyAPIUps
     callbackPort: 1455,
     authType: "codex",
     defaults: {
-      fableModel: "gpt-6-astra",
+      fableModel: "gpt-6.2-astra",
       sonnetModel: "gpt-6.1-terra",
       opusModel: "gpt-6.1-terra",
       haikuModel: "gpt-6-luna",

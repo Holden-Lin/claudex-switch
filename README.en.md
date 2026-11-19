@@ -97,7 +97,7 @@ Supports clean shorthand names, takes effect immediately, and saves as the accou
 # Claude: bare numbers map to Opus (5.5 → claude-opus-5-5)
 claudex-switch work -run --model 5.5 max
 
-# Codex: supports astra / sol / luna / terra (terra → gpt-6.1-terra)
+# Codex: supports astra / sol / luna / terra (astra → gpt-6.2-astra, sol → gpt-6.2-sol, terra → gpt-6.1-terra)
 claudex-switch cx -run --model sol xhigh
 ```
 

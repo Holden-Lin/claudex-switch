@@ -790,16 +790,16 @@ describe("run alias session", () => {
     expect(calls[0]?.args).toEqual([
       "--approve-for-me",
       "--model",
-      "gpt-6.1-sol",
+      "gpt-6.2-sol",
       "--continue",
     ]);
-    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-6.1-sol");
+    expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-6.2-sol");
 
     await runAliasSession("cx", [], createSpawn(calls));
     expect(calls[1]?.args).toEqual([
       "--approve-for-me",
       "--model",
-      "gpt-6.1-sol",
+      "gpt-6.2-sol",
     ]);
     // A non-default account never rewrites the shared config.
     expect(await fileExists(CODEX_CONFIG_FILE)).toBe(false);
