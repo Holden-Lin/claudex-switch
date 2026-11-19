@@ -191,11 +191,11 @@ describe("model command", () => {
     await model("custom-cx", "sol");
 
     const savedRegistry = await loadRegistry();
-    expect(savedRegistry.accounts[0]?.default_model).toBe("gpt-6.1-sol");
+    expect(savedRegistry.accounts[0]?.default_model).toBe("gpt-6.2-sol");
 
     const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
     expect(config).toContain('model_provider = "admin"');
-    expect(config).toContain('model = "gpt-6.1-sol"');
+    expect(config).toContain('model = "gpt-6.2-sol"');
     expect(config).toContain('experimental_bearer_token = "sk-test"');
   });
 });

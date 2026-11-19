@@ -1,0 +1,18 @@
+{
+  "source": "Codex upstream cache; independently confirmed by live codex app-server model/list (includeHidden=true), nextCursor=null",
+  "fetched_at": "2026-11-19T01:20:05.094019Z",
+  "models": [
+    "gpt-6.2-sol",
+    "gpt-6.2-astra",
+    "gpt-6.1-terra",
+    "gpt-reserve",
+    "gpt-6.1-sol",
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "codex-auto-review"
+  ]
+}

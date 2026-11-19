@@ -66,7 +66,7 @@ Claude Code 收到 429 会自动重试，实测约 10 次、3 分钟后报错停
 
 ```text
 $ claudex-switch chatgpt --run
-  ● Running claude --permission-mode auto --model gpt-6-astra --settings <私有配置路径>
+  ● Running claude --permission-mode auto --model gpt-6.2-astra --settings <私有配置路径>
 ```
 
 上述为格式示例，提示符和本机路径可随终端不同。启动输出不包含生成的客户端密钥。`--model` 会按项目既有规则保存为该账号下次启动的默认模型；其后的 effort 只影响本次运行。用 `claudex-switch model chatgpt fable` 可恢复默认。
@@ -87,12 +87,12 @@ $ claudex-switch chatgpt --run
 
 | 入口 | 映射 | effort |
 |---|---|---|
-| 默认 / Fable | `gpt-6-astra` | 正常继承 Claude 当前设置 |
+| 默认 / Fable | `gpt-6.2-astra` | 正常继承 Claude 当前设置 |
 | Opus / Sonnet | `gpt-6.1-terra` | 正常继承 Claude 当前设置 |
 | Haiku | `gpt-6-luna` | 正常继承 Claude 当前设置 |
 | 普通子代理 | `claudex-terra-max` → `gpt-6.1-terra` | 仅该私有别名强制 `max` |
 
-Opus / Sonnet 映射适用于新账号；已有账号保留保存的映射。子代理映射在代理下次空闲重启后更新。
+Fable / Opus / Sonnet 映射适用于新账号；已有账号保留保存的映射。子代理映射在代理下次空闲重启后更新。
 
 `CLAUDE_CODE_SUBAGENT_MODEL` 设置子代理模型；`CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` 要求 Claude Code 强制使用它，包括通常自行指定模型的 Explore、Plan 等。FORCE 自身不设置推理强度，因此代理还对私有别名添加精确的 `reasoning.effort=max` 覆盖。主对话直接调用 Terra 时不匹配这条覆盖规则。
 
@@ -184,7 +184,7 @@ CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callba
 ```text
 $ claudex-switch cx --run --cliproxy claudecode        # 别名 = 额度来源；Claude Code 只是客户端
   First use: Claude Code needs its own ChatGPT login for cx (once).
-  ● Running claude --permission-mode auto --model gpt-6-astra --settings <私有配置路径>
+  ● Running claude --permission-mode auto --model gpt-6.2-astra --settings <私有配置路径>
 ```
 
 | 上游 | 来源 | 登录 | 运行配置要点 |

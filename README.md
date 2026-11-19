@@ -98,7 +98,7 @@ Claude 用量 API 返回 Fable 专属周窗口时，追加 `fable 58% Sun16`（�
 # Claude 示例：裸数字直接映射 Opus（5.5 → claude-opus-5-5）
 claudex-switch work -run --model 5.5 max
 
-# Codex 示例：支持 astra / sol / luna / terra（terra → gpt-6.1-terra）
+# Codex 示例：支持 astra / sol / luna / terra（astra → gpt-6.2-astra，sol → gpt-6.2-sol，terra → gpt-6.1-terra）
 claudex-switch cx -run --model sol xhigh
 ```
 

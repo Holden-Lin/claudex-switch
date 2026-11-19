@@ -73,14 +73,21 @@ describe("resolveModelShorthand", () => {
   });
 
   test("named codex aliases track the newest generation of each tier", () => {
-    expect(resolveModelShorthand("codex", "astra")).toBe("gpt-6-astra");
-    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6.1-sol");
-    expect(resolveModelShorthand("codex", "Sol")).toBe("gpt-6.1-sol");
+    expect(resolveModelShorthand("codex", "astra")).toBe("gpt-6.2-astra");
+    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6.2-sol");
+    expect(resolveModelShorthand("codex", "Sol")).toBe("gpt-6.2-sol");
     expect(resolveModelShorthand("codex", "luna")).toBe("gpt-6-luna");
     expect(resolveModelShorthand("codex", "terra")).toBe("gpt-6.1-terra");
     expect(resolveModelShorthand("codex", "Terra")).toBe("gpt-6.1-terra");
     expect(resolveModelShorthand("codex", "gpt-5.6-terra")).toBe("gpt-5.6-terra");
     expect(resolveModelShorthand("codex", "gpt-6-sol")).toBe("gpt-6-sol");
+    expect(resolveModelShorthand("codex", "gpt-6.1-sol")).toBe("gpt-6.1-sol");
+  });
+
+  test("latest astra and sol aliases preserve older full model ids", () => {
+    expect(resolveModelShorthand("codex", "Astra")).toBe("gpt-6.2-astra");
+    expect(resolveModelShorthand("codex", "sol")).toBe("gpt-6.2-sol");
+    expect(resolveModelShorthand("codex", "gpt-6-astra")).toBe("gpt-6-astra");
     expect(resolveModelShorthand("codex", "gpt-6.1-sol")).toBe("gpt-6.1-sol");
   });
 

@@ -393,7 +393,7 @@ describe("managed local CLIProxyAPI", () => {
       expect(exitCode).toBe(0);
       expect(calls).toHaveLength(1);
       expect(calls[0]?.args).not.toContain("--bare");
-      expect(calls[0]?.args).toContain("gpt-6-astra");
+      expect(calls[0]?.args).toContain("gpt-6.2-astra");
       expect(calls[0]?.args).toContain("--settings");
       expect(calls[0]?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
       expect(calls[0]?.env?.CLAUDE_CODE_USE_BEDROCK).toBeUndefined();
@@ -539,7 +539,7 @@ describe("managed local CLIProxyAPI", () => {
   });
 
   test("resolves local mapping without changing existing Claude shorthand", () => {
-    expect(resolveLocalCLIProxyAPIModel("fable")).toBe("gpt-6-astra");
+    expect(resolveLocalCLIProxyAPIModel("fable")).toBe("gpt-6.2-astra");
     expect(resolveLocalCLIProxyAPIModel("opus")).toBe("gpt-6.1-terra");
     expect(resolveLocalCLIProxyAPIModel("sonnet")).toBe("gpt-6.1-terra");
     expect(resolveLocalCLIProxyAPIModel("gpt-5.6-terra")).toBe("gpt-5.6-terra");
