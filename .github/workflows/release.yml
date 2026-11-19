@@ -9,7 +9,23 @@ permissions:
   contents: write
 
 jobs:
+  opencode-v2-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run OpenCode V2 runtime contract
+        uses: ./.github/actions/opencode-v2-runtime
+
   release:
+    # Keep every tag artifact and publication step behind the runtime contract.
+    needs: opencode-v2-runtime
     runs-on: ubuntu-latest
 
     steps:
