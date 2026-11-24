@@ -82,7 +82,7 @@ $ claudex-switch chatgpt --run
 2. 为每个账号生成稳定 UUID，作为独立存储和代理的标识；显示别名仅指向该 profile。重命名不搬迁登录态，删除别名后复用名称不会覆盖旧账号。
 3. CLIProxyAPI 自己完成 ChatGPT OAuth，不读取或复制现有 Codex 登录。先写临时认证目录，检查仅有一个有效 Codex 凭据，再替换。刷新时核验同一账号的单向身份指纹，登录失败、取消或换错账号不覆盖原登录。
 4. 每账号一个回环代理，同账号的多个会话复用它，不同账号不混池。生成配置固定监听 `127.0.0.1`，使用随机客户端密钥，禁用管理接口和控制面板；密钥不会放到命令行参数。
-5. 所有 `local-cliproxyapi` 账号（包括 WorkBuddy、agy）均可切为全局默认账号；新增只保存账号，编辑当前全局账号时同步设置。`--run` 给 Claude 独立配置和凭据目录，通过私有 `--settings` 文件注入路由。预先覆盖全局切换可写入的路由键，并保留启动时的模型设置，所以 OAuth、API Key 和代理独立会话不受之后的全局切换影响。保留正常配置发现，不加 `--bare`；中和继承的 OAuth token、Bedrock/Vertex/Foundry 路由，避免走错账号。未使用 `-run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享 `settings.json`。
+5. 所有 `local-cliproxyapi` 账号（包括 WorkBuddy、agy）均可切为全局默认账号；新增只保存账号，编辑当前全局账号时同步设置。Antigravity 和 Cursor 的 `--run` 默认启动原生终端，WorkBuddy 需显式指定代理前端。使用 `--cliproxy claudecode`（或 `cc` 简写）启动 Claude Code 时，给 Claude 独立配置和凭据目录，通过私有 `--settings` 文件注入路由。预先覆盖全局切换可写入的路由键，并保留启动时的模型设置，所以 OAuth、API Key 和代理独立会话不受之后的全局切换影响。保留正常配置发现，不加 `--bare`；中和继承的 OAuth token、Bedrock/Vertex/Foundry 路由，避免走错账号。未使用 `-run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享 `settings.json`。
 
 所有 Claude `-run` 类型的用户 `settings.json` 在每次启动时从当前全局设置重建，再通过私有覆盖文件应用该账号的路由、模型和 env。全局 hooks、permissions、autoMode 规则和用户自定义键会进入下一次启动；旧符号链接和 v1.27.0 已生成的私有文件都会自动刷新。会话中的 `/model` 或其他用户设置写入只影响私有副本，不写回全局，下一次启动会被丢弃。要让设置长期生效，请修改共享用户设置，或用 `model` / `webconfig` 保存账号配置。此重建仅针对私有用户 `settings.json`，项目级配置写入仍正常保留。技能、agents、hooks 所需文件和 CLAUDE.md 继续共享，项目配置仍从启动目录发现。
 6. 列表和普通 doctor 不请求上游模型。doctor 检查本机配置、认证文件、进程归属，运行中的代理另做本机鉴权探测；`--live` 明确只验证 Luna，不代表所有模型或剩余额度均可用。
