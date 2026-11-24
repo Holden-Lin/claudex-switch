@@ -21,7 +21,7 @@
 
 可用 `claudex-switch add wb2`，选择 `WorkBuddy Subscription`（再选国际版 / 国内版）、`Antigravity Subscription — agy (Gemini)` 或 `Cursor Subscription`，完成现有登录流程后保存订阅。之后用 `claudex-switch wb2 --run --cliproxy claudecode`，自动配置本机代理并启动 Claude Code 前端。菜单不再单列「Claude Code · WorkBuddy / Antigravity / Cursor」组合。
 
-旧组合创建的别名保留原有登录，直接使用同一条 `--cliproxy claudecode` 命令即可；旧的 `claudex-switch wb2 -run` 和 `claudex-switch wb2 cc` 也继续兼容。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 按现有账号流程管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
+旧组合创建的别名保留原有登录，直接使用同一条 `--cliproxy claudecode` 命令即可；`claudex-switch wb2 cc` 仍等价于 `--run --cliproxy claudecode`，包括 `--model hy4free -p "提示词"` 一次性调用。bare `--run` 现在按订阅选择原生前端：AGY 启动 `agy`，Cursor 启动 `cursor agent`；WorkBuddy 暂无已确认的原生命令，会明确报错并提示使用 `--cliproxy claudecode`。原生终端使用它自己的登录，不会导入或切换代理别名的凭据。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 按现有账号流程管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
 
 ```bash
 claudex-switch agy --run --cliproxy claudecode
