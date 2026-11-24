@@ -351,7 +351,7 @@ async function createAntigravityAlias(
   );
   hint("Consider logging in with a Google account you can afford to lose Antigravity access on.");
   const accepted = await (options.confirmRisk ??
-    (() => confirm({ message: "Continue with Antigravity for Claude Code?", default: false })))();
+    (() => confirm({ message: "Continue with Antigravity subscription?", default: false })))();
   if (!accepted) throw new UserFacingError("Cancelled; nothing was created.");
 
   const binaryPath = await requireBinary(options);
@@ -367,7 +367,7 @@ async function createAntigravityAlias(
 
   const models = await getLocalCLIProxyAPISettings(profile, runtime!);
 
-  success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`Claude Code · ${upstreamLabel("antigravity")}`)}`);
+  success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`${upstreamLabel("antigravity")} subscription`)}`);
   printMapping(models);
   return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
 }
@@ -392,13 +392,13 @@ async function createSubscriptionAlias(alias: string, upstream: SubscriptionUpst
       ],
     })))();
   }
-  info(`First use: sign in to ${upstreamLabel(upstream)} for Claude Code.`);
+  info(`First use: sign in to ${upstreamLabel(upstream)} subscription.`);
   const { profileName, profile, runtime } = await createManagedProfile(
     binaryPath, { upstream },
     (profileId) => loginOrThrow(profileId, binaryPath, upstreamLabel(upstream)),
     (name) => addAlias(alias, { provider: "claude", profileName: name }),
   );
-  success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`Claude Code · ${upstreamLabel(upstream)}`)}`);
+  success(`Saved as alias ${chalk.bold(alias)}  ${chalk.dim(`${upstreamLabel(upstream)} subscription`)}`);
   printMapping(await getLocalCLIProxyAPISettings(profile, runtime!));
   return findAlias(await loadAliases(), alias) ?? claudeEntry(alias, profileName);
 }

@@ -16,12 +16,13 @@ import {
   cliProxyAPIEnvFile,
   cliProxyAPIProfileDir,
 } from "../src/lib/paths";
-import { getProfileData } from "../src/providers/claude/profiles";
+import { getProfileData, saveLocalCLIProxyAPIProfile } from "../src/providers/claude/profiles";
 import {
   ANTIGRAVITY_CATALOG,
   acquireManagedCLIProxyAPILease,
   antigravityModelOverrides,
   ensureManagedCLIProxyAPI,
+  initializeManagedCLIProxyAPI,
   prepareLocalCLIProxyAPIClaudeSettings,
   stopManagedCLIProxyAPI,
   stopStaleManagedCLIProxyAPI,
@@ -383,6 +384,32 @@ describe("--cliproxy claudecode", () => {
     const err = await resolveCLIProxyClaudeEntry("holden", options).catch((e) => e);
     expect(err).toBeInstanceOf(UserFacingError);
     expect(err.message).toContain("already a Claude account");
+  });
+
+  test.each(["antigravity", "workbuddy", "workbuddy-ai", "cursor"] as const)("legacy %s combination aliases reuse their saved profile with --cliproxy", async (upstream) => {
+    const profileName = "legacy-combination";
+    const profile: LocalCLIProxyAPIProfileData = {
+      type: "local-cliproxyapi", profileId: randomUUID(), binaryPath: FIXTURE_BINARY,
+      upstream, defaultModel: "fable", authIdentity: "fixture-account",
+    };
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream });
+    await saveLocalCLIProxyAPIProfile(profileName, profile);
+    if (upstream !== "antigravity") {
+      await writeFile(join(cliProxyAPIProfileDir(profile.profileId), "plugin-auth.json"), JSON.stringify({
+        version: 1, upstream, auth: { type: "oauth", access: "fixture-access" },
+      }));
+    }
+    const entry = { alias: "old-subscription", target: { provider: "claude" as const, profileName }, createdAt: 1 };
+    const registry = await loadAliases();
+    registry.aliases.push(entry);
+    await saveAliases(registry);
+
+    expect(await resolveCLIProxyClaudeEntry(entry.alias, {
+      resolveBinary: async () => { throw new Error("must reuse the saved binary"); },
+      confirmRisk: async () => { throw new Error("must reuse the saved subscription"); },
+    })).toEqual(entry);
+    expect(await getProfileData(profileName)).toEqual(profile);
+    expect(await loadAliases()).toEqual(registry);
   });
 
   test("agy repairs persisted bare IDs on reuse, renders the catalog and resolves explicit versions", async () => {

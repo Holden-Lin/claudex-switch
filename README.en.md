@@ -81,7 +81,7 @@ Displays account status, 5-hour / weekly remaining quota percentages (e.g., `5h 
   claudex-switch personal
   ```
 
-`claudex-switch add <alias>` supports WorkBuddy (international / China), Antigravity (agy), and Cursor. Enter an alias or `use <alias>` to make it the global default, including for a bare `claude`; `-run` sessions keep their own model and routing. Sessions started without `-run`, or with older launchers, follow global switches because Claude Code reloads the shared `settings.json`. `<alias> --help` / `-h` only prints help.
+`claudex-switch add <alias>` offers WorkBuddy (international / China), Antigravity (agy / Gemini), and Cursor as subscriptions. Run `claudex-switch <alias> --run --cliproxy claudecode` to launch Claude Code with that subscription. The menu no longer lists separate “Claude Code · subscription” combinations. Aliases created by those older entries still work with the same `--cliproxy claudecode` command; no new login is needed. Enter an alias or `use <alias>` to make it the global default, including for a bare `claude`; `-run` sessions keep their own model and routing. Sessions started without `-run`, or with older launchers, follow global switches because Claude Code reloads the shared `settings.json`. `<alias> --help` / `-h` only prints help.
 
 `claudex-switch agy cc` is short for `agy -run --cliproxy claudecode`, also available for other proxy / Codex / Go aliases. Unrecognized arguments after an alias fail without switching accounts. In a Claude `-run` session, `/model` saves only to that account's private user settings; skills, hooks, and CLAUDE.md remain available.
 
@@ -117,7 +117,15 @@ claudex-switch cx --run --cliproxy claudecode
 
 # Run Claude Code with OpenCode Go quota
 claudex-switch go-work --run --cliproxy claudecode
+
+# Run Claude Code with an Antigravity (agy / Gemini), WorkBuddy, or Cursor subscription
+claudex-switch agy --run --cliproxy claudecode
+claudex-switch workbuddy --run --cliproxy claudecode
+claudex-switch workbuddy-ai --run --cliproxy claudecode  # international
+claudex-switch cursor --run --cliproxy claudecode
 ```
+
+Antigravity asks you to confirm the proxy-use risk before browser login. WorkBuddy asks you to select its region; WorkBuddy and Cursor then offer their supported login methods. You can also add a custom alias through `claudex-switch add <alias>` and use the same `--cliproxy claudecode` command.
 
 ### 4. Refresh Expired Logins
 When an OAuth session expires locally, refresh it in one command without re-adding the account:
