@@ -133,16 +133,16 @@ export async function add(alias: string): Promise<void> {
         value: "claude-apikey" as const,
       },
       {
-        name: "Claude Code · WorkBuddy",
-        value: "claude-workbuddy" as const,
+        name: "WorkBuddy Subscription — international / China",
+        value: "workbuddy" as const,
       },
       {
-        name: "Claude Code · Antigravity",
-        value: "claude-antigravity" as const,
+        name: "Antigravity Subscription — agy (Gemini)",
+        value: "antigravity" as const,
       },
       {
-        name: "Claude Code · Cursor",
-        value: "claude-cursor" as const,
+        name: "Cursor Subscription",
+        value: "cursor" as const,
       },
       {
         name: "Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)",
@@ -170,11 +170,11 @@ export async function add(alias: string): Promise<void> {
     case "claude-apikey":
       await addClaudeApiKey(alias);
       break;
-    case "claude-workbuddy":
-    case "claude-antigravity":
-    case "claude-cursor":
-      await createCLIProxyClaudeAlias(alias, accountType.slice("claude-".length) as "workbuddy" | "antigravity" | "cursor");
-      hint(`Run ${chalk.cyan(`claudex-switch ${alias}`)} to switch the global default, or add ${chalk.cyan("-run")} for an isolated session.`);
+    case "workbuddy":
+    case "antigravity":
+    case "cursor":
+      await createCLIProxyClaudeAlias(alias, accountType);
+      hint(`Run ${chalk.cyan(`claudex-switch ${alias} --run --cliproxy claudecode`)} to use this subscription in Claude Code.`);
       blank();
       break;
     case "codex-chatgpt":

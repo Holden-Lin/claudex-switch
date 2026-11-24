@@ -17,15 +17,20 @@
 
 积分为零只表示收费模型的积分耗尽，不代表 x0.00 免费模型不能用。查不到的套餐、额度不显示 `unknown` / `quota unavailable`。接口超时或令牌尚未续期时，有历史额度就保留并标出时间，无历史数据就隐藏。Antigravity 的登录续期仍由 CLIProxyAPI 管理，查询不会另行轮换其令牌。`list --cached` 复用后台缓存；`--no-usage` 不请求额度。
 
-## WorkBuddy / Cursor 订阅
+## Antigravity / WorkBuddy / Cursor 订阅
 
-可用 `claudex-switch add wb2`，选择 WorkBuddy（再选国际版 / 国内版）、Antigravity 或 Cursor，完成现有登录流程后保存账号。之后用 `claudex-switch wb2 -run` 或 `claudex-switch wb2 cc` 即可通过本机代理启动 Claude Code，无需额外代理参数或配置。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 均按普通 Claude 代理账号管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
+可用 `claudex-switch add wb2`，选择 `WorkBuddy Subscription`（再选国际版 / 国内版）、`Antigravity Subscription — agy (Gemini)` 或 `Cursor Subscription`，完成现有登录流程后保存订阅。之后用 `claudex-switch wb2 --run --cliproxy claudecode`，自动配置本机代理并启动 Claude Code 前端。菜单不再单列「Claude Code · WorkBuddy / Antigravity / Cursor」组合。
+
+旧组合创建的别名保留原有登录，直接使用同一条 `--cliproxy claudecode` 命令即可；旧的 `claudex-switch wb2 -run` 和 `claudex-switch wb2 cc` 也继续兼容。`list`、`rename`、`remove`、`purge`、`refresh`、`model` 和 `webconfig` 按现有账号流程管理；`claudex-switch wb2` 或 `use wb2` 切为全局默认，之后裸 `claude` 使用它。
 
 ```bash
+claudex-switch agy --run --cliproxy claudecode
 claudex-switch workbuddy --run --cliproxy claudecode
 claudex-switch workbuddy-ai --run --cliproxy claudecode
 claudex-switch cursor --run --cliproxy claudecode
 ```
+
+Antigravity（agy / Gemini 订阅）首次运行时先确认代理使用风险，再完成浏览器登录；也可以通过 `add` 保存自定义别名。后续 `--cliproxy claudecode` 复用该订阅，在 Claude Code 的 `/model` 菜单选择其目录中的 Claude、Gemini 等模型。
 
 首次运行 `workbuddy` 先选区域：国际版（workbuddy.ai）或国内版（workbuddy.cn），选定后该别名固定使用此版本；`workbuddy-ai` 直接使用国际版，无需选择。两个版本账号互不通用，登录与模型目录分别保存。之后选择登录方式，成功后建立别名；后续直接启动 Claude Code，在 `/model` 中选择该账号目录提供的模型。未指定 `--model` 时仍由 Claude Code 选择，不强制主模型；已保存但该订阅不存在的默认模型映射到该订阅的对应档位。不同版本的模型只要仍在订阅目录中就保留。
 

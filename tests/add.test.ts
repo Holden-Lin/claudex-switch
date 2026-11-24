@@ -11,6 +11,7 @@ import { EventEmitter } from "events";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import * as prompts from "@inquirer/prompts";
+import * as cliproxy from "../src/commands/cliproxy";
 
 type SpawnHandler = (
   command: string,
@@ -69,6 +70,7 @@ describe("add", () => {
     prompts.confirm.mockRestore?.();
     prompts.password.mockRestore?.();
     prompts.input.mockRestore?.();
+    cliproxy.createCLIProxyClaudeAlias.mockRestore?.();
     globalThis.fetch = originalFetch;
   });
 
@@ -641,7 +643,20 @@ describe("add", () => {
     errorSpy.mockRestore();
   });
 
-  test("offers upstream names without a ChatGPT proxy or implementation labels", async () => {
+  test.each(["workbuddy", "antigravity", "cursor"] as const)("adds %s through the shared subscription setup and shows the proxy launch command", async (upstream) => {
+    selectHandler = async () => upstream;
+    const create = spyOn(cliproxy, "createCLIProxyClaudeAlias").mockResolvedValue({
+      alias: "my-subscription", target: { provider: "claude", profileName: "fixture-profile" }, createdAt: 1,
+    });
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await add("my-subscription");
+      expect(create).toHaveBeenCalledWith("my-subscription", upstream);
+      expect(logSpy.mock.calls.flat().join("\n")).toContain("claudex-switch my-subscription --run --cliproxy claudecode");
+    } finally { logSpy.mockRestore(); }
+  });
+
+  test("offers subscriptions independently of the Claude Code frontend", async () => {
     selectHandler = async () => { throw new Error("menu captured"); };
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
     try {
@@ -649,10 +664,14 @@ describe("add", () => {
       const options = prompts.select.mock.calls[0][0];
       const choices = options.choices as Array<{ name: string; value: string }>;
       const labels = choices.map((choice) => choice.name).join("\n");
-      expect(labels).toContain("Claude Code · WorkBuddy");
-      expect(labels).toContain("Claude Code · Antigravity");
-      expect(labels).toContain("Claude Code · Cursor");
+      expect(choices).toEqual(expect.arrayContaining([
+        { name: "WorkBuddy Subscription — international / China", value: "workbuddy" },
+        { name: "Antigravity Subscription — agy (Gemini)", value: "antigravity" },
+        { name: "Cursor Subscription", value: "cursor" },
+      ]));
+      expect(labels).not.toContain("Claude Code ·");
       expect(labels).not.toContain("CLIProxyAPI");
+      expect(choices.some((choice) => choice.value.startsWith("claude-") && /workbuddy|antigravity|cursor/.test(choice.value))).toBe(false);
       expect(choices.some((choice) => choice.value === "claude-local-cliproxyapi")).toBe(false);
       expect(choices.some((choice) => choice.value === "codex-chatgpt")).toBe(true);
     } finally { logSpy.mockRestore(); }
