@@ -275,10 +275,31 @@ export async function runAliasSession(
   openCodeVersionDetector: () => OpenCodeVersion | null = detectOpenCodeVersion,
   openCodeCredentialSync?: OpenCodeV2CredentialSync,
 ): Promise<number> {
+  // Subscription aliases retain their legacy Claude profile storage, but that
+  // storage does not choose the frontend. Only --cliproxy requests Claude.
+  const nativeEntry = !forwardedArgs.includes("--cliproxy")
+    ? await resolveAliasOrExit(aliasOrName)
+    : undefined;
+  if (nativeEntry) {
+    if (nativeEntry.target.provider === "claude") {
+      const profile = await getProfileData(nativeEntry.target.profileName);
+      if (profile.type === "local-cliproxyapi") {
+        if (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") {
+          error("Native WorkBuddy terminal launch is not supported yet.");
+          hint(`Run claudex-switch ${aliasOrName} --run --cliproxy claudecode (or ${aliasOrName} cc) to use Claude Code.`);
+          blank();
+          return 1;
+        }
+        if (profile.upstream === "antigravity" || profile.upstream === "cursor") {
+          return runNativeSubscription(profile.upstream, forwardedArgs, spawnCommand);
+        }
+      }
+    }
+  }
   const runOptions = parseRunArgumentOptions(forwardedArgs);
-  const entry = runOptions.cliproxyClient
+  const entry = nativeEntry ?? (runOptions.cliproxyClient
     ? await resolveCLIProxyEntryOrExit(aliasOrName)
-    : await resolveAliasOrExit(aliasOrName);
+    : await resolveAliasOrExit(aliasOrName));
   const supportsAutoreview =
     entry.target.provider === "codex" || entry.target.provider === "opencode";
   if (
@@ -745,6 +766,46 @@ export async function runAliasSession(
         const signalExitCode = signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1;
         await finish(code ?? signalExitCode);
       })();
+    });
+  });
+}
+
+function runNativeSubscription(
+  upstream: "antigravity" | "cursor",
+  forwardedArgs: string[],
+  spawnCommand: SpawnCommand,
+): Promise<number> {
+  const command = upstream === "antigravity" ? "agy" : "cursor";
+  const args = upstream === "cursor" ? ["agent", ...forwardedArgs] : forwardedArgs;
+  info("Using the native CLI's own login; the saved proxy alias login is only used with --cliproxy claudecode.");
+  info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
+  return new Promise((resolve) => {
+    let proc: ChildProcess;
+    try {
+      proc = spawnCommand(command, args, { stdio: "inherit" });
+    } catch (err) {
+      error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
+      resolve(1);
+      return;
+    }
+    const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+    const handlers = signals.map((signal) => () => {
+      if (signal === "SIGINT" && process.stdin.isTTY) return;
+      proc.kill(signal);
+    });
+    for (let i = 0; i < signals.length; i += 1) process.on(signals[i]!, handlers[i]!);
+    const cleanup = () => {
+      for (let i = 0; i < signals.length; i += 1) process.off(signals[i]!, handlers[i]!);
+    };
+    proc.on("error", (err) => {
+      cleanup();
+      error(`Failed to start ${command}: ${err.message}`);
+      hint(`Install ${upstream === "antigravity" ? "Antigravity CLI (agy)" : "Cursor CLI (cursor agent)"} and sign in, then retry.`);
+      resolve(1);
+    });
+    proc.on("close", (code, signal) => {
+      cleanup();
+      resolve(code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1));
     });
   });
 }

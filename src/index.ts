@@ -38,6 +38,7 @@ const HELP = `
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
     claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
+    claudex-switch <alias> --run  Start the native CLI (AGY: agy; Cursor: cursor agent; WorkBuddy requires --cliproxy)
     claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
     claudex-switch <alias> cc [args...]  Same as '<alias> -run --cliproxy claudecode'
     claudex-switch add <alias>         Add a new account
