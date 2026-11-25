@@ -82,6 +82,7 @@ import type {
   ClaudeApiProfileConfig,
   CodexRegistryAccount,
   CustomEnv,
+  LocalCLIProxyAPIProfileData,
   ProfileData,
 } from "../types";
 
@@ -290,7 +291,10 @@ export async function runAliasSession(
           blank();
           return 1;
         }
-        if (profile.upstream === "antigravity" || profile.upstream === "cursor") {
+        if (profile.upstream === "antigravity") {
+          return runNativeAntigravity(aliasOrName, profile, forwardedArgs, spawnCommand);
+        }
+        if (profile.upstream === "cursor") {
           return runNativeSubscription(profile.upstream, forwardedArgs, spawnCommand);
         }
       }
@@ -770,19 +774,54 @@ export async function runAliasSession(
   });
 }
 
+async function runNativeAntigravity(
+  alias: string,
+  profile: LocalCLIProxyAPIProfileData,
+  forwardedArgs: string[],
+  spawnCommand: SpawnCommand,
+): Promise<number> {
+  let lease: ManagedCLIProxyAPILease | undefined;
+  try {
+    lease = await acquireManagedCLIProxyAPILease(profile);
+    const runtime = await ensureManagedCLIProxyAPI(profile);
+    const models = runtime.models!.map(({ id }) => id);
+    const args = forwardedArgs.some((arg) => arg === "--model" || arg.startsWith("--model="))
+      ? forwardedArgs
+      : ["--model", await resolveManagedLocalCLIProxyAPIDefaultModel(profile), ...forwardedArgs];
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      // AGY's gateway speaks Gemini generateContent, so use the proxy root,
+      // not the OpenAI /v1 prefix. Credentials stay out of argv and settings.
+      AGY_LLM_GATEWAY_URL: runtime.baseUrl,
+      AGY_LLM_GATEWAY_API_KEY: runtime.apiKey,
+      AGY_LLM_GATEWAY_MODELS: models.join(","),
+    };
+    delete env.AGY_LLM_GATEWAY_HEADERS;
+    delete env.AGY_LLM_GATEWAY_PROXY_URL;
+    info(`Using Antigravity account saved as ${chalk.cyan(alias)}.`);
+    return await runNativeSubscription("antigravity", args, spawnCommand, env);
+  } catch (err) {
+    error(`Failed to start agy for ${alias}: ${err instanceof Error ? err.message : String(err)}`);
+    return 1;
+  } finally {
+    await lease?.release();
+  }
+}
+
 function runNativeSubscription(
   upstream: "antigravity" | "cursor",
   forwardedArgs: string[],
   spawnCommand: SpawnCommand,
+  env?: NodeJS.ProcessEnv,
 ): Promise<number> {
   const command = upstream === "antigravity" ? "agy" : "cursor";
   const args = upstream === "cursor" ? ["agent", ...forwardedArgs] : forwardedArgs;
-  info("Using the native CLI's own login; the saved proxy alias login is only used with --cliproxy claudecode.");
+  if (upstream === "cursor") info("Using the native CLI's own login; the saved proxy alias login is only used with --cliproxy claudecode.");
   info(`Running ${chalk.cyan([command, ...args].join(" "))}`);
   return new Promise((resolve) => {
     let proc: ChildProcess;
     try {
-      proc = spawnCommand(command, args, { stdio: "inherit" });
+      proc = spawnCommand(command, args, { stdio: "inherit", ...(env ? { env } : {}) });
     } catch (err) {
       error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
       resolve(1);
