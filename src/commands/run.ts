@@ -1,5 +1,6 @@
 import chalk from "chalk";
-import { spawn, spawnSync, type ChildProcess } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
+import { chmod, mkdir } from "node:fs/promises";
 import { findAlias, loadAliases } from "../alias/store";
 import { ensureOpenCodeProfileReady, syncCodexSessionVisibility } from "./use";
 import { updateDefaultModel } from "./model";
@@ -11,6 +12,7 @@ import {
 } from "./cliproxy";
 import { blank, error, hint, info } from "../lib/ui";
 import { readJson } from "../lib/fs";
+import { claudeProfileDir } from "../lib/paths";
 import { join } from "path";
 import {
   isModelEffort,
@@ -40,12 +42,12 @@ import {
   acquireManagedCLIProxyAPILease,
   ensureManagedCLIProxyAPI,
   prepareLocalCLIProxyAPIClaudeSettings,
-  resolveManagedAntigravityRunModel,
   resolveManagedLocalCLIProxyAPIDefaultModel,
   resolveManagedLocalCLIProxyAPIModel,
   stopStaleManagedCLIProxyAPI,
   type ManagedCLIProxyAPILease,
 } from "../providers/cliproxyapi/managed";
+import { antigravityModelBase } from "../providers/cliproxyapi/upstreams";
 import {
   readAccountAuth,
   syncActiveAuthSnapshot,
@@ -293,7 +295,7 @@ export async function runAliasSession(
           return 1;
         }
         if (profile.upstream === "antigravity") {
-          return runNativeAntigravity(aliasOrName, profile, forwardedArgs, spawnCommand);
+          return runNativeAntigravity(nativeEntry.alias, nativeEntry.target.profileName, forwardedArgs, spawnCommand);
         }
         if (profile.upstream === "cursor") {
           return runNativeSubscription(profile.upstream, forwardedArgs, spawnCommand);
@@ -777,42 +779,36 @@ export async function runAliasSession(
 
 async function runNativeAntigravity(
   alias: string,
-  profile: LocalCLIProxyAPIProfileData,
+  profileName: string,
   forwardedArgs: string[],
   spawnCommand: SpawnCommand,
 ): Promise<number> {
-  let lease: ManagedCLIProxyAPILease | undefined;
   try {
-    lease = await acquireManagedCLIProxyAPILease(profile);
-    const runtime = await ensureManagedCLIProxyAPI(profile);
-    const models = runtime.models!.map(({ id }) => id);
     const requested = splitNativeAgyModelArgs(forwardedArgs);
-    const model = await resolveManagedAntigravityRunModel(profile, requested.model, requested.effort);
+    const directory = join(claudeProfileDir(profileName), "agy-native");
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    if (process.platform !== "win32") await chmod(directory, 0o700);
     const env: NodeJS.ProcessEnv = {
       ...process.env,
-      // AGY's gateway speaks Gemini generateContent, so use the proxy root,
-      // not the OpenAI /v1 prefix. Credentials stay out of argv and settings.
-      AGY_LLM_GATEWAY_URL: runtime.baseUrl,
-      AGY_LLM_GATEWAY_API_KEY: runtime.apiKey,
-      AGY_LLM_GATEWAY_MODELS: models.join(","),
+      // --gemini_dir alone still shares agy's OS keychain login on macOS.
+      AGY_CLI_FORCE_FILE_TOKEN_STORAGE: "1",
     };
-    delete env.AGY_LLM_GATEWAY_HEADERS;
-    delete env.AGY_LLM_GATEWAY_PROXY_URL;
-    // agy resolves --model before its gateway catalog loads; until then it
-    // falls back to the `model` saved in ~/.gemini/antigravity-cli/settings.json
-    // and the TUI can stay on that model. A session-only settings value (never
-    // written to that file) names the same model in agy's own label form.
-    const label = requested.rest.some((arg) => arg === "--settings" || arg.startsWith("--settings="))
-      ? undefined
-      : agyGatewayModelLabel(model, env);
-    const args = ["--model", model, ...(label ? ["--settings", JSON.stringify({ model: label })] : []), ...requested.rest];
-    info(`Using Antigravity account saved as ${chalk.cyan(alias)}.`);
+    for (const key of Object.keys(env)) {
+      if (key.startsWith("AGY_LLM_GATEWAY_")) delete env[key];
+    }
+    delete env.AGY_ADC_AUTH;
+    const { model, effort } = requested;
+    const modelId = model ? resolveModelShorthand("claude", model) : undefined;
+    const tiered = !!(modelId && effort && /^(?:claude|gemini|gpt)-[\w.-]+$/i.test(modelId));
+    const args = ["--gemini_dir", directory, "--app_data_dir", "antigravity-cli"];
+    if (modelId) args.push("--model", tiered ? `${antigravityModelBase(modelId)}-${effort}` : modelId);
+    if (effort && !tiered) args.push("--effort", effort);
+    args.push(...requested.rest);
+    info(`Using Antigravity native profile ${chalk.cyan(alias)}. Sign in through agy when prompted.`);
     return await runNativeSubscription("antigravity", args, spawnCommand, env);
   } catch (err) {
     error(`Failed to start agy for ${alias}: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
-  } finally {
-    await lease?.release();
   }
 }
 
@@ -821,12 +817,19 @@ async function runNativeAntigravity(
  * `--model <model> [effort]` / `--model "<model> <effort>"` and agy's own
  * `--model=<model>`, `--effort <effort>`.
  */
-export function splitNativeAgyModelArgs(args: string[]): { model?: string; effort?: string; rest: string[] } {
+function splitNativeAgyModelArgs(args: string[]): { model?: string; effort?: string; rest: string[] } {
   const rest: string[] = [];
   let model: string | undefined;
   let effort: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
+    if (arg === "--") {
+      rest.push(...args.slice(index));
+      break;
+    }
+    if (/^--?(?:gemini_dir|app_data_dir)(?:=|$)/.test(arg)) {
+      throw new Error(`Remove ${arg.split("=")[0]}; the alias selects the Antigravity profile directory.`);
+    }
     const inlineModel = arg.match(/^--?model=(.*)$/s);
     if (MODEL_FLAGS.has(arg) || inlineModel) {
       const value = (inlineModel ? inlineModel[1] : args[++index])?.trim();
@@ -847,17 +850,6 @@ export function splitNativeAgyModelArgs(args: string[]): { model?: string; effor
     rest.push(arg);
   }
   return { model, effort, rest };
-}
-
-/** agy's display label for a gateway model ID (`agy models`: "<id>\t<label>"). */
-function agyGatewayModelLabel(model: string, env: NodeJS.ProcessEnv): string | undefined {
-  const result = spawnSync("agy", ["models"], { env, encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"] });
-  if (result.status !== 0 || typeof result.stdout !== "string") return undefined;
-  for (const line of result.stdout.split("\n")) {
-    const [id, label] = line.split("\t");
-    if (id === model && label?.trim()) return label.trim();
-  }
-  return undefined;
 }
 
 function runNativeSubscription(

@@ -941,36 +941,6 @@ export async function resolveManagedLocalCLIProxyAPIDefaultModel(
   return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
 }
 
-/**
- * The catalog ID native agy should run. An effort picks that tier of the model
- * ("gemini-4-neon" + "xhigh" → "gemini-4-neon-xhigh"): behind the proxy every
- * tier is its own ID, and agy rejects `--effort` for a tiered ID. A named tier
- * the account lacks is refused instead of silently swapped for another one.
- */
-export async function resolveManagedAntigravityRunModel(
-  profile: LocalCLIProxyAPIProfileData,
-  input: string | undefined,
-  effort?: string,
-): Promise<string> {
-  const config = await readExistingManagedEnv(profile.profileId);
-  const ids = config.upstreamModels;
-  const model = input === undefined
-    ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
-    : resolveLocalCLIProxyAPIModelFromConfig(input, config);
-  const stem = antigravityModelBase(model);
-  const tiers = ids.filter((id) => antigravityModelBase(id) === stem);
-  const choices = tiers.length ? `Available tiers: ${tiers.join(", ")}` : `Available models: ${ids.join(", ")}`;
-  if (effort) {
-    const wanted = `${stem}-${effort.toLowerCase()}`;
-    if (ids.includes(wanted)) return wanted;
-    throw new Error(`Antigravity model "${wanted}" is not in this account's catalog. ${choices}`);
-  }
-  if (ids.includes(model)) return model;
-  const matched = stem === model ? matchAntigravityModel(model, ids) : undefined;
-  if (matched) return matched;
-  throw new Error(`Antigravity model "${model}" is not in this account's catalog. ${choices}`);
-}
-
 function baseUrl(port: number): string {
   return `http://${LOOPBACK_HOST}:${port}`;
 }

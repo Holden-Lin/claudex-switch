@@ -174,8 +174,10 @@ export async function add(alias: string): Promise<void> {
     case "antigravity":
     case "cursor":
       await createCLIProxyClaudeAlias(alias, accountType);
-      if (accountType !== "workbuddy") {
-        hint(`Run ${chalk.cyan(`claudex-switch ${alias} --run`)} to launch ${accountType === "antigravity" ? "agy" : "cursor agent"} with its own native login.`);
+      if (accountType === "antigravity") {
+        hint(`Run ${chalk.cyan(`claudex-switch ${alias} --run`)} and sign in through agy to set up this alias's native profile.`);
+      } else if (accountType === "cursor") {
+        hint(`Run ${chalk.cyan(`claudex-switch ${alias} --run`)} to launch cursor agent with its native login.`);
       }
       hint(`Run ${chalk.cyan(`claudex-switch ${alias} --run --cliproxy claudecode`)} to use this subscription in Claude Code.`);
       blank();

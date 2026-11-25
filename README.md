@@ -82,7 +82,9 @@ Claude 用量 API 返回 Fable 专属周窗口时，追加 `fable 58% Sun16`（�
   claudex-switch personal
   ```
 
-`claudex-switch add <alias>` 按订阅选择 WorkBuddy（国际版 / 国内版）、Antigravity（agy / Gemini）或 Cursor，保存后，AGY 别名的 `--run` 默认启动 `agy`，Cursor 默认启动 `cursor agent`。AGY 通过该别名独有的本地代理使用已保存的账号，不修改 AGY 的全局登录；不带 `--model` 时用该账号保存的模型，`--model gemini-4-neon xhigh`、`--model gemini-4-neon-high --effort xhigh` 等写法都会换成账号目录里的 `gemini-4-neon-xhigh` 再启动，目录里没有的档位会直接报错并列出可选档位，不会悄悄换模型；Cursor 原生终端仍使用自己的登录。显式 `--cliproxy claudecode`（或 `cc`）则启动 Claude Code，并使用代理别名的独立登录。WorkBuddy 暂无已确认的原生启动方式，bare `--run` 会报错并提示加 `--cliproxy claudecode`。用 `claudex-switch <alias> --run --cliproxy claudecode` 启动 Claude Code 前端。菜单不再单列「Claude Code · 订阅」组合；旧组合创建的别名继续可用，也支持同一条 `--cliproxy claudecode` 命令，无需重新登录。直接输入别名或 `use <alias>` 会将它设为全局默认账号，之后裸 `claude` 使用该账号；`-run` 会话保留自己的模型和路由。未使用 `-run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享的 `settings.json`。`<alias> --help` / `-h` 只显示帮助。
+`claudex-switch add <alias>` 支持 WorkBuddy（国际版 / 国内版）、Antigravity 和 Cursor。保存后的 AGY 别名运行 `claudex-switch <alias> --run`，会直接打开该账号的独立原生 `agy` profile。首次使用时在 `agy` 的 Google OAuth 界面选对账号，之后沿用该目录的登录、设置和会话。用 `/usage` 看订阅额度，用 `/model` 保存原生默认模型，或用 `--model gemini-4-neon xhigh` 指定本次模型。原生 profile 的目录与文件凭据选项已在 agy 1.5.17 验证，属于未公开接口。
+
+Cursor 的 `--run` 启动 `cursor agent` 并沿用其原生登录。显式 `--cliproxy claudecode`（或 `cc`）启动 Claude Code 并使用已保存的代理登录，旧组合创建的别名也可用。WorkBuddy 的 `--run` 需要指定 `--cliproxy claudecode`。直接输入别名或 `use <alias>` 会将账号设为全局默认，之后裸 `claude` 使用该账号。Claude Code 的 `--run` 会话保留自己的模型和路由。`<alias> --help` / `-h` 只显示帮助。
 
 `claudex-switch agy cc` 是 `agy -run --cliproxy claudecode` 的快捷写法，也支持其他代理 / Codex / Go 别名。别名后无法识别的参数会报错，不会切换账号。Claude `-run` 的 `/model` 只保存到该账号的私有用户设置，不会改全局默认模型；技能、hooks 和 CLAUDE.md 仍可正常使用。
 

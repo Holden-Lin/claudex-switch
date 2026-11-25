@@ -2,6 +2,8 @@
 
 ## Now
 
+- [x] 2026-11-25：v1.30.0 将 AGY 别名的 `--run` 改为独立原生 profile，首次由官方 `agy` 完成 Google 登录。536 项测试、类型／文档检查与构建通过，构建版在隔离 HOME 用真实 agy 1.5.17 打开独立 OAuth 登录界面。
+
 - [x] 2026-11-15：v1.28.8 修 Codex 0.169 按 ChatGPT 账号隐藏 `/resume` 会话：受管账号所建会话在切换、`-run` 前后改为共享；rollout 首行修改保持字节长度（旧版改短会让 Codex 恢复后跳过追加记录，自动补回）；覆盖 `.jsonl.zst`。498 测、真实数据副本 + 真实 Codex 0.169 app-server 前后对比通过。
 
 - [x] 2026-10-31：v1.26.11 修复 OpenCode Console 将 `opencode-go.models: {}` 改为“继承官方目录”后，`openlam42 --run` 误报没有 Go model。模型配置按 overlay 解释，仍排除显式禁用、未知目录及 Zen 路由。416 项测试、类型 / 文档检查、构建和真实 OpenCode 2.0.32 订阅验收通过；构建版已用真实 `openlam42` 进入显示 DeepSeek V4.1 Flash / OpenCode Go 的 TUI。
@@ -34,6 +36,7 @@
 
 ## Next
 
+- [ ] v1.30.0：分别运行 `claudex-switch agylam42 --run` 和 `claudex-switch agy --run`，在各自 OAuth 页面完成一次登录，重开核对邮箱及 `/usage`。
 - [ ] (11-25) **修 main 上已红的 RelayRouter GLM 选择持久化测试** — 完成信号：bun test 全绿
   测试 `run alias session > RelayRouter GLM selection persists with its window and cheap side-query model` 在 v1.29.3 前的 main 上就失败；ROOT 11-25 合入 993960a 后全量 bun test 发现，旧 main 复现，非 CX-AGYRUNACCT 引入。
 - [ ] v1.28.8：升级后运行一次 `claudex-switch satoshix`（应提示共享 8 个、修复 3 个会话），再 `codex resume` 确认 holdenx 的“优化流动性奖励看板排序”出现；真实 TUI 未在本次验证。
