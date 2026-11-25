@@ -36,6 +36,8 @@ import {
   pickOpenCodeGoModels,
   matchAntigravityModel,
   reconcileAntigravityModels,
+  antigravityGatewayAliases,
+  withoutAntigravityGatewayAliases,
 } from "../src/providers/cliproxyapi/upstreams";
 import { loadRegistry, saveRegistry } from "../src/providers/codex/registry";
 import {
@@ -655,6 +657,34 @@ describe("upstream model picking", () => {
     expect(matchAntigravityModel("claude-opus-5-5-max", ids.filter((id) => !id.endsWith("-max")))).toBe("claude-opus-5-5-high");
     expect(matchAntigravityModel("claude-opus-5-5", [...ids, "claude-opus-5-5"])).toBe("claude-opus-5-5");
     expect(matchAntigravityModel("claude-opus-5-6", ids)).toBeUndefined();
+  });
+  // What real agy 1.5.17 sent to a fake gateway for each ID of the user's
+  // Antigravity catalog (2026-11-25, `agy --model <id> -p hi`). Every alias
+  // must equal the path agy uses, and every unchanged ID must get none.
+  const AGY_GATEWAY_PROBE: Record<string, string> = {
+    "claude-opus-4-6-thinking": "claude-opus-4-6-thinking", "claude-opus-5-5-high": "claude-opus-5-5-high",
+    "claude-sonnet-4-6": "claude-sonnet-4-6", "claude-sonnet-5-5-high": "claude-sonnet-5-5-high",
+    "gemini-3-flash": "gemini-3-flash", "gemini-3.1-flash-lite": "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite": "gemini-3.5-flash-lite", "gemini-3.8-flash-high": "gemini-3.8-flash",
+    "gemini-3.8-flash-tiered": "gemini-3.8-flash-tiered", "gemini-4-argon-high": "gemini-4-argon",
+    "gemini-4-carbon-high": "gemini-4-carbon", "gemini-4-hydrogen-xhigh": "gemini-4-hydrogen",
+    "gemini-4-neon-xhigh": "gemini-4-neon", "gpt-oss-120b-medium": "gpt-oss-120b-medium",
+  };
+  test("gateway aliases map exactly the names agy sends for tiered Gemini IDs", () => {
+    const ids = Object.keys(AGY_GATEWAY_PROBE);
+    const aliases = antigravityGatewayAliases(ids);
+    expect(Object.fromEntries(aliases.map(({ name, alias }) => [name, alias])))
+      .toEqual(Object.fromEntries(Object.entries(AGY_GATEWAY_PROBE).filter(([id, sent]) => id !== sent)));
+    // The proxy echoes forked aliases in /v1/models; they are not account IDs.
+    const configured = aliases.map(({ alias }) => alias);
+    expect(withoutAntigravityGatewayAliases([...ids, ...configured], configured)).toEqual(ids);
+    // A bare ID the account lists itself stays the upstream's own model.
+    expect(antigravityGatewayAliases(["gemini-3.8-flash-high", "gemini-3.8-flash"])).toEqual([]);
+    // Several tiers of one family: the bare name goes to the strongest.
+    expect(antigravityGatewayAliases(["gemini-4-neon-high", "gemini-4-neon-xhigh", "gemini-4-neon-low"]))
+      .toEqual([{ name: "gemini-4-neon-xhigh", alias: "gemini-4-neon" }]);
+    // A bare Gemini name matches its xhigh-only tier (the saved name is never cut to "-x…").
+    expect(matchAntigravityModel("gemini-4-neon", ids)).toBe("gemini-4-neon-xhigh");
   });
   test("Antigravity prefers the newest plain Claude ids and a Gemini Flash for haiku", () => {
     expect(

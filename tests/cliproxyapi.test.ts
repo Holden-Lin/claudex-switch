@@ -490,6 +490,77 @@ describe("managed local CLIProxyAPI", () => {
     }
   });
 
+  // Real agy 1.5.17 behind the gateway sends "gemini-4-neon" + thinkingLevel
+  // XHIGH for gemini-4-neon-xhigh; CLIProxyAPI answered 400 "unknown provider
+  // for model gemini-4-neon" until the account config aliased the bare name.
+  test("Antigravity gateway aliases route agy's tier-stripped Gemini names, and reach a daemon started before them", async () => {
+    const profile: LocalCLIProxyAPIProfileData = { ...makeProfile(), upstream: "antigravity" };
+    await saveLocalProfile(`cliproxy-${profile.profileId}`, profile);
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream: "antigravity" });
+    await runManagedCLIProxyAPILogin(profile);
+    const previous = { models: process.env.CLAUDEX_FAKE_MODELS, server: process.env.CLAUDEX_FAKE_SERVER_ID };
+    process.env.CLAUDEX_FAKE_MODELS = "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3-flash,gemini-3.8-flash-high,gemini-4-neon-xhigh";
+    process.env.CLAUDEX_FAKE_SERVER_ID = "16025825";
+    const file = cliProxyAPIConfigFile(profile.profileId);
+    const generate = async (runtime: { baseUrl: string; apiKey: string }, model: string) => {
+      const response = await fetch(`${runtime.baseUrl}/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
+        method: "POST", headers: { Authorization: `Bearer ${runtime.apiKey}` }, body: "{}",
+      });
+      return `${response.status} ${await response.text()}`;
+    };
+    try {
+      const runtime = await ensureManagedCLIProxyAPI(profile);
+      // Claude Code and agy still see only the account's own IDs.
+      expect(runtime.models!.map(({ id }) => id)).toEqual(process.env.CLAUDEX_FAKE_MODELS.split(","));
+      expect(await generate(runtime, "gemini-4-neon")).toContain("UPSTREAM:gemini-4-neon-xhigh");
+      expect(await generate(runtime, "gemini-3.8-flash")).toContain("UPSTREAM:gemini-3.8-flash-high");
+      expect(await generate(runtime, "claude-opus-5-5-high")).toContain("UPSTREAM:claude-opus-5-5-high");
+      const configured = await readFile(file, "utf-8");
+      expect(configured).toContain('    - name: "gemini-4-neon-xhigh"\n      alias: "gemini-4-neon"\n      fork: true\n');
+      expect(configured.endsWith("server:\n  server-id: 16025825\n")).toBe(true);
+      expect((await inspectManagedCLIProxyAPI(profile)).configured).toBe(true);
+
+      // A daemon still running the previous release's config (no alias block)
+      // is updated in place through CLIProxyAPI's hot reload, not refused.
+      await writeFile(file, configured.replace(/^oauth-model-alias:\n(?: {2}.*\n)*/m, ""));
+      expect(await generate(runtime, "gemini-4-neon")).toStartWith("400 ");
+      const reused = await ensureManagedCLIProxyAPI(profile);
+      expect(reused.port).toBe(runtime.port);
+      expect(await readFile(file, "utf-8")).toBe(configured);
+      expect(await generate(reused, "gemini-4-neon")).toContain("UPSTREAM:gemini-4-neon-xhigh");
+
+      // Any other difference is still drift for doctor --restart.
+      await writeFile(file, configured.replace("sensitive-words:", "sensitive-words-edited:"));
+      await expect(ensureManagedCLIProxyAPI(profile)).rejects.toThrow("doctor <alias> --restart");
+    } finally {
+      for (const [key, value] of [["CLAUDEX_FAKE_MODELS", previous.models], ["CLAUDEX_FAKE_SERVER_ID", previous.server]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      await stopManagedCLIProxyAPI(profile);
+    }
+  }, 20_000);
+
+  test("a proxy that does not load refreshed Gemini aliases names the restart command", async () => {
+    const profile: LocalCLIProxyAPIProfileData = { ...makeProfile(), upstream: "antigravity" };
+    await saveLocalProfile(`cliproxy-${profile.profileId}`, profile);
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream: "antigravity" });
+    await runManagedCLIProxyAPILogin(profile);
+    process.env.CLAUDEX_FAKE_MODELS = "claude-opus-5-5-high,gemini-4-neon-xhigh";
+    process.env.CLAUDEX_FAKE_NO_ALIAS_RELOAD = "1";
+    try {
+      // First start: the stored catalog is empty, so the aliases arrive only
+      // through the post-sync reload that this binary never performs.
+      await expect(ensureManagedCLIProxyAPI(profile)).rejects.toThrow(
+        "did not load its Gemini model aliases (gemini-4-neon) within 5s. End its sessions, then run `claudex-switch doctor <alias> --restart`",
+      );
+    } finally {
+      delete process.env.CLAUDEX_FAKE_MODELS;
+      delete process.env.CLAUDEX_FAKE_NO_ALIAS_RELOAD;
+      await stopManagedCLIProxyAPI(profile);
+    }
+  }, 20_000);
+
   test.each([400, 401, 429, 503])("keeps HTTP %i distinct from a local proxy health failure", async (status) => {
     const profile = makeProfile();
     await initializeManagedCLIProxyAPI(profile.profileId);
