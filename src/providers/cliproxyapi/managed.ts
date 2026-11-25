@@ -607,7 +607,10 @@ async function isExpectedRuntimeConfig(
     // We generate this small YAML document ourselves. Exact reconstruction
     // validates the host, auth-dir, literal local key and payload override as
     // a coherent config without introducing a YAML parser just for doctor.
-    return raw === renderRuntimeConfig(paths.authDir, managed, port);
+    // CLIProxyAPI 8.x appends its own `server: server-id:` block to the file
+    // it is started with; that is the binary's bookkeeping, not drift.
+    const own = raw.replace(/\nserver:\n {2}server-id: \S+\n?$/, "\n");
+    return own === renderRuntimeConfig(paths.authDir, managed, port);
   } catch {
     return false;
   }

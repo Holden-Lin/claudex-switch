@@ -10669,7 +10669,9 @@ async function isExpectedRuntimeConfig(paths, state, managed) {
     const port = state?.port ?? Number(configuredPort);
     if (!Number.isInteger(port) || port < 1 || port > 65535)
       return false;
-    return raw === renderRuntimeConfig(paths.authDir, managed, port);
+    const own = raw.replace(/\nserver:\n {2}server-id: \S+\n?$/, `
+`);
+    return own === renderRuntimeConfig(paths.authDir, managed, port);
   } catch {
     return false;
   }
