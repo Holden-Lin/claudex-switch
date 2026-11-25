@@ -86,6 +86,27 @@ if (!Number.isInteger(port) || port < 1) {
 }
 
 const startedAt = Date.now();
+
+function fixtureCatalog() {
+  // Like the real 7.3.20: the built-in list first, the remote catalog later.
+  const late = process.env.CLAUDEX_FAKE_MODELS_LATE !== undefined
+    && Date.now() - startedAt >= Number(process.env.CLAUDEX_FAKE_MODELS_LATE_MS ?? 0);
+  return (late ? process.env.CLAUDEX_FAKE_MODELS_LATE : process.env.CLAUDEX_FAKE_MODELS ?? "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high").split(",").filter(Boolean);
+}
+
+// The real binary hot-reloads its config; antigravity `oauth-model-alias`
+// entries with `fork: true` add their alias next to the upstream ID.
+async function forkedAliases(ids) {
+  const current = await readFile(configPath, "utf-8").catch(() => "");
+  const block = current.match(/^oauth-model-alias:\n  antigravity:\n((?:    .*\n)*)/m)?.[1] ?? "";
+  const aliases = new Map();
+  for (const entry of block.matchAll(/- name: (.+)\n {6}alias: (.+)\n {6}fork: true/g)) {
+    const name = JSON.parse(entry[1]);
+    if (ids.includes(name)) aliases.set(JSON.parse(entry[2]), name);
+  }
+  return aliases;
+}
+
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port,
@@ -94,17 +115,19 @@ const server = Bun.serve({
     if (path.startsWith("/v1beta/models/") && path.endsWith(":streamGenerateContent")) {
       const key = JSON.parse(config.match(/^api-keys:\n  - (.+)$/m)[1]);
       if (request.headers.get("authorization") !== `Bearer ${key}`) return new Response("unauthorized", { status: 401 });
+      const model = decodeURIComponent(path.slice("/v1beta/models/".length, -":streamGenerateContent".length));
+      const ids = fixtureCatalog();
+      const upstream = ids.includes(model) ? model : (await forkedAliases(ids)).get(model);
+      if (!upstream) return Response.json({ error: { code: 400, message: `unknown provider for model ${model}`, status: "INVALID_ARGUMENT" } }, { status: 400 });
       const auth = JSON.parse(await readFile(join(authDir, "antigravity-fixture.json"), "utf8"));
-      const chunk = { candidates: [{ content: { role: "model", parts: [{ text: `ACCOUNT:${auth.email}` }] }, finishReason: "STOP", index: 0 }] };
+      const chunk = { candidates: [{ content: { role: "model", parts: [{ text: `ACCOUNT:${auth.email} UPSTREAM:${upstream}` }] }, finishReason: "STOP", index: 0 }] };
       return new Response(`data: ${JSON.stringify(chunk)}\n\n`, { headers: { "content-type": "text/event-stream" } });
     }
     if (path === "/v1/models") {
       // Optional fixture catalog, e.g. what a logged-in Antigravity lists.
-      // Like the real 7.3.20: the built-in list first, the remote catalog later.
-      const late = process.env.CLAUDEX_FAKE_MODELS_LATE !== undefined
-        && Date.now() - startedAt >= Number(process.env.CLAUDEX_FAKE_MODELS_LATE_MS ?? 0);
-      const ids = (late ? process.env.CLAUDEX_FAKE_MODELS_LATE : process.env.CLAUDEX_FAKE_MODELS ?? "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high").split(",").filter(Boolean);
-      return Response.json({ object: "list", data: ids.map((id) => ({ id, object: "model" })) });
+      const ids = fixtureCatalog();
+      const listed = process.env.CLAUDEX_FAKE_NO_ALIAS_RELOAD ? ids : [...ids, ...(await forkedAliases(ids)).keys()];
+      return Response.json({ object: "list", data: listed.map((id) => ({ id, object: "model" })) });
     }
     if (path === "/v1/messages") {
       if (process.env.CLAUDEX_FAKE_AUTO_LOG) {

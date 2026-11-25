@@ -150,14 +150,14 @@ function versionKey(id: string): number[] {
   return (id.match(/\d+/g) ?? []).map(Number);
 }
 
-const MODEL_VARIANT_ORDER = ["high", "max", "thinking", "medium", "low"];
+const MODEL_VARIANT_ORDER = ["high", "xhigh", "max", "thinking", "medium", "low"];
 
 export function antigravityModelBase(id: string): string {
-  return id.replace(/-(thinking|max|high|medium|low)$/i, "");
+  return id.replace(/-(thinking|max|xhigh|high|medium|low)$/i, "");
 }
 
 function variantRank(id: string): number {
-  const suffix = id.match(/-(thinking|max|high|medium|low)$/i)?.[1]?.toLowerCase();
+  const suffix = id.match(/-(thinking|max|xhigh|high|medium|low)$/i)?.[1]?.toLowerCase();
   return suffix ? MODEL_VARIANT_ORDER.indexOf(suffix) + 1 : 0;
 }
 
@@ -190,6 +190,36 @@ export function pickAntigravityModels(ids: string[]): CLIProxyAPIModelMap | null
     sonnetModel: sonnet ?? strongest,
     haikuModel: flash ?? sonnet ?? strongest,
   };
+}
+
+// Native agy (1.5.x) behind a model gateway strips a Gemini ID's thinking tier
+// and sends it as generationConfig.thinkingConfig.thinkingLevel instead:
+// "gemini-4-neon-xhigh" arrives as "gemini-4-neon" + XHIGH. Claude, gpt-oss,
+// "-tiered" and "-lite" IDs are sent unchanged (probed 2026-11-25, agy 1.5.17).
+const AGY_GATEWAY_TIER = /^(gemini-.+)-(xhigh|high|medium|low)$/i;
+const AGY_GATEWAY_TIER_ORDER = ["xhigh", "high", "medium", "low"];
+
+/**
+ * CLIProxyAPI aliases that route agy's tier-stripped Gemini names back to the
+ * catalog ID carrying that tier. One tier per family is listed today; if more
+ * appear, the strongest one receives the bare name. A bare name the account
+ * lists itself is left to the upstream.
+ */
+export function antigravityGatewayAliases(ids: string[]): Array<{ name: string; alias: string }> {
+  const byBase = new Map<string, string>();
+  for (const id of ids) {
+    const match = id.match(AGY_GATEWAY_TIER);
+    if (!match || ids.includes(match[1]!)) continue;
+    const current = byBase.get(match[1]!);
+    const rank = (value: string) => AGY_GATEWAY_TIER_ORDER.indexOf(value.match(AGY_GATEWAY_TIER)![2]!.toLowerCase());
+    if (!current || rank(id) < rank(current)) byBase.set(match[1]!, id);
+  }
+  return [...byBase].map(([alias, name]) => ({ name, alias })).sort((a, b) => a.alias.localeCompare(b.alias));
+}
+
+/** The proxy lists its forked aliases too; keep only the account's own IDs. */
+export function withoutAntigravityGatewayAliases(ids: string[], configured: string[]): string[] {
+  return ids.filter((id) => !configured.includes(id));
 }
 
 /** Match an obsolete bare ID only to a registered variant of that version. */

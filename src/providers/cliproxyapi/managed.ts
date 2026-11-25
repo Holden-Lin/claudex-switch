@@ -50,6 +50,8 @@ import {
   isSupersededAntigravityClaude,
   matchAntigravityModel,
   antigravityModelBase,
+  antigravityGatewayAliases,
+  withoutAntigravityGatewayAliases,
   reconcileAntigravityModels,
   pickSubscriptionModels,
   canFallbackSubscriptionModel,
@@ -99,7 +101,7 @@ const ANTIGRAVITY_SENSITIVE_WORDS = ["Claude Agent SDK", "Claude Code"];
 const LEGACY_HAIKU_DEFAULT = "gpt-5.6-luna";
 const STARTUP_TIMEOUT_MS = 12_000;
 // Measured 2026-10-22 on 7.3.20: built-in list at ~2s, remote catalog at ~6s.
-export const ANTIGRAVITY_CATALOG = { settleMs: 12_000 };
+export const ANTIGRAVITY_CATALOG = { settleMs: 12_000, aliasReloadMs: 5_000 };
 const settledAntigravityDaemons = new Set<string>();
 const LOCK_TIMEOUT_MS = 20_000;
 const ORPHAN_LOCK_GRACE_MS = 60_000;
@@ -418,6 +420,7 @@ function renderRuntimeConfig(
       ...(managed.antigravitySensitiveWords.length
         ? ["  sensitive-words:", ...managed.antigravitySensitiveWords.map((word) => `    - ${yaml(word)}`)]
         : ["  sensitive-words: []"]),
+      ...renderAntigravityGatewayAliases(managed.upstreamModels),
       "",
     ].join("\n");
   }
@@ -442,6 +445,27 @@ function renderRuntimeConfig(
     '        "reasoning.effort": "max"',
     "",
   ].join("\n");
+}
+
+// Native agy sends tier-stripped Gemini names (see antigravityGatewayAliases).
+// `fork` keeps the catalog ID for Claude Code and agy's own model list. This
+// block follows the synced catalog, so it alone may be refreshed on a running
+// daemon: CLIProxyAPI hot-reloads its config file.
+const GATEWAY_ALIAS_BLOCK = /^oauth-model-alias:\n(?: {2}.*\n)*/m;
+
+/** Aliases the daemon was configured with (its /v1/models lists them too). */
+async function configuredAntigravityGatewayAliases(profileId: string): Promise<string[]> {
+  const raw = await readFile(profilePaths(profileId).configFile, "utf-8").catch(() => "");
+  const block = raw.match(GATEWAY_ALIAS_BLOCK)?.[0] ?? "";
+  return [...block.matchAll(/^ {6}alias: (.+)$/gm)].map((match) => JSON.parse(match[1]!) as string);
+}
+
+function renderAntigravityGatewayAliases(ids: string[]): string[] {
+  const aliases = antigravityGatewayAliases(ids);
+  if (!aliases.length) return [];
+  return ["oauth-model-alias:", "  antigravity:", ...aliases.flatMap(({ name, alias }) => [
+    `    - name: ${yaml(name)}`, `      alias: ${yaml(alias)}`, "      fork: true",
+  ])];
 }
 
 // OpenCode Go answers most models over OpenAI chat completions and a few only
@@ -607,12 +631,53 @@ async function isExpectedRuntimeConfig(
     // We generate this small YAML document ourselves. Exact reconstruction
     // validates the host, auth-dir, literal local key and payload override as
     // a coherent config without introducing a YAML parser just for doctor.
-    // CLIProxyAPI 8.x appends its own `server: server-id:` block to the file
-    // it is started with; that is the binary's bookkeeping, not drift.
-    const own = raw.replace(/\nserver:\n {2}server-id: \S+\n?$/, "\n");
-    return own === renderRuntimeConfig(paths.authDir, managed, port);
+    return splitServerIdBlock(raw).own === renderRuntimeConfig(paths.authDir, managed, port);
   } catch {
     return false;
+  }
+}
+
+// CLIProxyAPI 8.x appends its own `server: server-id:` block to the file it is
+// started with; that is the binary's bookkeeping, not drift.
+function splitServerIdBlock(raw: string): { own: string; serverId: string } {
+  const match = raw.match(/\nserver:\n {2}server-id: \S+\n?$/);
+  return match
+    ? { own: raw.slice(0, match.index) + "\n", serverId: match[0].slice(1) }
+    : { own: raw, serverId: "" };
+}
+
+/**
+ * Bring a running Antigravity daemon's gateway aliases in line with the synced
+ * catalog. Returns false when anything else in runtime.yaml differs (real
+ * drift, left to `doctor --restart`).
+ */
+async function refreshAntigravityGatewayAliases(
+  profileId: string,
+  managed: ManagedEnv,
+  runtime: ManagedCLIProxyAPIRuntime,
+): Promise<boolean> {
+  const paths = profilePaths(profileId);
+  let raw: string;
+  try {
+    raw = await readFile(paths.configFile, "utf-8");
+  } catch {
+    return false;
+  }
+  const { own, serverId } = splitServerIdBlock(raw);
+  const expected = renderRuntimeConfig(paths.authDir, managed, runtime.port);
+  if (own === expected) return true;
+  if (own.replace(GATEWAY_ALIAS_BLOCK, "") !== expected.replace(GATEWAY_ALIAS_BLOCK, "")) return false;
+  await writePrivate(paths.configFile, expected + serverId);
+  const aliases = antigravityGatewayAliases(managed.upstreamModels).map(({ alias }) => alias);
+  if (!aliases.length) return true;
+  const deadline = Date.now() + ANTIGRAVITY_CATALOG.aliasReloadMs;
+  for (;;) {
+    const listed = new Set((await listManagedCLIProxyAPICatalog(runtime)).map(({ id }) => id));
+    if (aliases.every((alias) => listed.has(alias))) return true;
+    if (Date.now() >= deadline) {
+      throw new Error(`Antigravity's proxy did not load its Gemini model aliases (${aliases.filter((alias) => !listed.has(alias)).join(", ")}) within ${ANTIGRAVITY_CATALOG.aliasReloadMs / 1000}s. End its sessions, then run \`claudex-switch doctor <alias> --restart\`.`);
+    }
+    await delay(200);
   }
 }
 
@@ -876,6 +941,36 @@ export async function resolveManagedLocalCLIProxyAPIDefaultModel(
   return matchAntigravityModel(model, config.upstreamModels) ?? config.fableModel;
 }
 
+/**
+ * The catalog ID native agy should run. An effort picks that tier of the model
+ * ("gemini-4-neon" + "xhigh" → "gemini-4-neon-xhigh"): behind the proxy every
+ * tier is its own ID, and agy rejects `--effort` for a tiered ID. A named tier
+ * the account lacks is refused instead of silently swapped for another one.
+ */
+export async function resolveManagedAntigravityRunModel(
+  profile: LocalCLIProxyAPIProfileData,
+  input: string | undefined,
+  effort?: string,
+): Promise<string> {
+  const config = await readExistingManagedEnv(profile.profileId);
+  const ids = config.upstreamModels;
+  const model = input === undefined
+    ? await resolveManagedLocalCLIProxyAPIDefaultModel(profile)
+    : resolveLocalCLIProxyAPIModelFromConfig(input, config);
+  const stem = antigravityModelBase(model);
+  const tiers = ids.filter((id) => antigravityModelBase(id) === stem);
+  const choices = tiers.length ? `Available tiers: ${tiers.join(", ")}` : `Available models: ${ids.join(", ")}`;
+  if (effort) {
+    const wanted = `${stem}-${effort.toLowerCase()}`;
+    if (ids.includes(wanted)) return wanted;
+    throw new Error(`Antigravity model "${wanted}" is not in this account's catalog. ${choices}`);
+  }
+  if (ids.includes(model)) return model;
+  const matched = stem === model ? matchAntigravityModel(model, ids) : undefined;
+  if (matched) return matched;
+  throw new Error(`Antigravity model "${model}" is not in this account's catalog. ${choices}`);
+}
+
 function baseUrl(port: number): string {
   return `http://${LOOPBACK_HOST}:${port}`;
 }
@@ -972,11 +1067,20 @@ async function syncAntigravityModels(
     first ??= hasClaude(models) ? key(models) : null;
   }
   settledAntigravityDaemons.add(daemon);
-  const ids = [...new Set(models.map((model) => model.id))];
+  const ids = withoutAntigravityGatewayAliases(
+    [...new Set(models.map((model) => model.id))],
+    await configuredAntigravityGatewayAliases(profileId),
+  );
+  models = models.filter(({ id }) => ids.includes(id));
   const mappings = reconcileAntigravityModels(ids, managed);
   if (Object.entries(mappings).some(([tier, id]) => managed[tier as keyof CLIProxyAPIModelMap] !== id)
     || JSON.stringify(ids) !== JSON.stringify(managed.upstreamModels)) {
     await updateManagedCLIProxyAPISetup(profileId, { models: mappings, upstreamModels: ids });
+  }
+  // The daemon was configured from the previous catalog; route agy's
+  // tier-stripped Gemini names for the current one.
+  if (!(await refreshAntigravityGatewayAliases(profileId, await readExistingManagedEnv(profileId), runtime))) {
+    throw new Error("Antigravity's running proxy needs updated compatibility settings. End its Claude Code sessions, then run `claudex-switch doctor <alias> --restart` before launching again.");
   }
   return { ...runtime, models };
 }
@@ -1394,7 +1498,10 @@ async function ensureManagedCLIProxyAPIUnlocked(
       (await isOwnedProcess(state));
 
     if (owned) {
-      if (managed.upstream === "antigravity" && !(await isExpectedRuntimeConfig(paths, state, managed))) {
+      if (managed.upstream === "antigravity" && !(await isExpectedRuntimeConfig(paths, state, managed))
+        && !(await refreshAntigravityGatewayAliases(profile.profileId, managed, {
+          port: state.port, baseUrl: baseUrl(state.port), apiKey: managed.apiKey,
+        }))) {
         throw new Error("Antigravity's running proxy needs updated compatibility settings. End its Claude Code sessions, then run `claudex-switch doctor <alias> --restart` before launching again.");
       }
       if (await probeProxy(state.port, managed.apiKey)) {

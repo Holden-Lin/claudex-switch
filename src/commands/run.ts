@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { spawn, type ChildProcess } from "child_process";
+import { spawn, spawnSync, type ChildProcess } from "child_process";
 import { findAlias, loadAliases } from "../alias/store";
 import { ensureOpenCodeProfileReady, syncCodexSessionVisibility } from "./use";
 import { updateDefaultModel } from "./model";
@@ -40,6 +40,7 @@ import {
   acquireManagedCLIProxyAPILease,
   ensureManagedCLIProxyAPI,
   prepareLocalCLIProxyAPIClaudeSettings,
+  resolveManagedAntigravityRunModel,
   resolveManagedLocalCLIProxyAPIDefaultModel,
   resolveManagedLocalCLIProxyAPIModel,
   stopStaleManagedCLIProxyAPI,
@@ -785,9 +786,8 @@ async function runNativeAntigravity(
     lease = await acquireManagedCLIProxyAPILease(profile);
     const runtime = await ensureManagedCLIProxyAPI(profile);
     const models = runtime.models!.map(({ id }) => id);
-    const args = forwardedArgs.some((arg) => arg === "--model" || arg.startsWith("--model="))
-      ? forwardedArgs
-      : ["--model", await resolveManagedLocalCLIProxyAPIDefaultModel(profile), ...forwardedArgs];
+    const requested = splitNativeAgyModelArgs(forwardedArgs);
+    const model = await resolveManagedAntigravityRunModel(profile, requested.model, requested.effort);
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       // AGY's gateway speaks Gemini generateContent, so use the proxy root,
@@ -798,6 +798,14 @@ async function runNativeAntigravity(
     };
     delete env.AGY_LLM_GATEWAY_HEADERS;
     delete env.AGY_LLM_GATEWAY_PROXY_URL;
+    // agy resolves --model before its gateway catalog loads; until then it
+    // falls back to the `model` saved in ~/.gemini/antigravity-cli/settings.json
+    // and the TUI can stay on that model. A session-only settings value (never
+    // written to that file) names the same model in agy's own label form.
+    const label = requested.rest.some((arg) => arg === "--settings" || arg.startsWith("--settings="))
+      ? undefined
+      : agyGatewayModelLabel(model, env);
+    const args = ["--model", model, ...(label ? ["--settings", JSON.stringify({ model: label })] : []), ...requested.rest];
     info(`Using Antigravity account saved as ${chalk.cyan(alias)}.`);
     return await runNativeSubscription("antigravity", args, spawnCommand, env);
   } catch (err) {
@@ -806,6 +814,50 @@ async function runNativeAntigravity(
   } finally {
     await lease?.release();
   }
+}
+
+/**
+ * Split agy's model choice from its other arguments. Accepts claudex-switch's
+ * `--model <model> [effort]` / `--model "<model> <effort>"` and agy's own
+ * `--model=<model>`, `--effort <effort>`.
+ */
+export function splitNativeAgyModelArgs(args: string[]): { model?: string; effort?: string; rest: string[] } {
+  const rest: string[] = [];
+  let model: string | undefined;
+  let effort: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    const inlineModel = arg.match(/^--?model=(.*)$/s);
+    if (MODEL_FLAGS.has(arg) || inlineModel) {
+      const value = (inlineModel ? inlineModel[1] : args[++index])?.trim();
+      if (!value) throw new Error(`Missing model name after ${arg.replace(/=.*$/s, "")}.`);
+      const split = splitModelEffort(value);
+      model = split.model;
+      if (split.effort) effort = split.effort;
+      else if (!inlineModel && isModelEffort(args[index + 1])) effort = args[++index]!.toLowerCase();
+      continue;
+    }
+    const inlineEffort = arg.match(/^--effort=(.*)$/s);
+    if (arg === "--effort" || inlineEffort) {
+      const value = (inlineEffort ? inlineEffort[1] : args[++index])?.trim();
+      if (!value) throw new Error("Missing effort after --effort.");
+      effort = value.toLowerCase();
+      continue;
+    }
+    rest.push(arg);
+  }
+  return { model, effort, rest };
+}
+
+/** agy's display label for a gateway model ID (`agy models`: "<id>\t<label>"). */
+function agyGatewayModelLabel(model: string, env: NodeJS.ProcessEnv): string | undefined {
+  const result = spawnSync("agy", ["models"], { env, encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"] });
+  if (result.status !== 0 || typeof result.stdout !== "string") return undefined;
+  for (const line of result.stdout.split("\n")) {
+    const [id, label] = line.split("\t");
+    if (id === model && label?.trim()) return label.trim();
+  }
+  return undefined;
 }
 
 function runNativeSubscription(

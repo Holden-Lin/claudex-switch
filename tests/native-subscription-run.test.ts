@@ -80,19 +80,118 @@ process.exit(response.ok ? 0 : 1);
 `, { mode: 0o755 });
 }
 
-test("Antigravity native run binds the saved account and preserves arguments", async () => {
+// Behaves like agy 1.5.17 behind a model gateway (probed 2026-11-25): `models`
+// prints "<id>\t<label>", --effort is rejected for a tiered gateway ID, and a
+// Gemini ID's tier is stripped from the request path (sent as thinkingLevel).
+async function realisticAgyFixture() {
+  await writeFile(join(bin, "agy"), `#!/usr/bin/env bun
+const argv = process.argv.slice(2);
+const ids = (process.env.AGY_LLM_GATEWAY_MODELS ?? '').split(',');
+const label = (id) => {
+  const m = id.match(/^gemini-([\\d.]+)-(\\w+)-(xhigh|high|medium|low)$/);
+  const cap = (w) => w[0].toUpperCase() + w.slice(1);
+  return m ? 'Gemini ' + m[1] + ' ' + cap(m[2]) + ' (' + (m[3] === 'xhigh' ? 'XHigh' : cap(m[3])) + ')' : id;
+};
+if (argv[0] === 'models') { for (const id of ids) console.log(id + '\\t' + label(id)); process.exit(0); }
+for (const arg of argv) console.log('agy argument: ' + arg);
+console.log('catalog: ' + process.env.AGY_LLM_GATEWAY_MODELS);
+const model = argv[argv.indexOf('--model') + 1];
+if (argv.includes('--effort')) { console.log('agy: --effort is not supported for model ' + model); process.exit(3); }
+if (!ids.includes(model)) { console.log('agy: model ' + model + ' is not recognized'); process.exit(3); }
+const sent = model.replace(/^(gemini-.+)-(xhigh|high|medium|low)$/i, '$1');
+const response = await fetch(process.env.AGY_LLM_GATEWAY_URL + '/v1beta/models/' + sent + ':streamGenerateContent?alt=sse', {
+  method: 'POST', headers: { Authorization: 'Bearer ' + process.env.AGY_LLM_GATEWAY_API_KEY }, body: '{}',
+});
+console.log('gateway ' + sent + ': ' + response.status + ' ' + await response.text());
+process.exit(response.ok ? 0 : 1);
+`, { mode: 0o755 });
+}
+
+const AGY_CATALOG = "claude-opus-5-5-high,claude-sonnet-5-5-high,gemini-3.8-flash-high,gemini-4-carbon-high,gemini-4-neon-xhigh";
+
+function runAgy(args: string[]) {
+  return spawnSync(process.execPath, ["src/index.ts", "workbuddy", ...args], {
+    cwd: process.cwd(), encoding: "utf8", input: "", timeout: 30_000,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CLAUDEX_DISABLE_AUTO_UPDATE: "1", NO_COLOR: "1", CLAUDEX_FAKE_MODELS: AGY_CATALOG },
+  });
+}
+
+test("Antigravity native run binds the saved account, joins model and effort, and keeps other arguments", async () => {
   await seedAntigravity("new@example.invalid");
-  await nativeGatewayFixture();
-  const result = run(["--run", "--model", "native-model", "--effort", "xhigh", "-p", "hello"]);
+  await realisticAgyFixture();
+  const result = runAgy(["--run", "--model", "claude-sonnet-5-5", "high", "-p", "hello", "--mode", "plan"]);
   expect({ status: result.status, error: result.stderr }).toEqual({ status: 0, error: "" });
   expect(result.stdout).toContain("Using Antigravity account saved as workbuddy");
-  expect(result.stdout).toContain("ACCOUNT:new@example.invalid");
-  for (const arg of ["--model", "native-model", "--effort", "xhigh", "-p", "hello"]) expect(result.stdout).toContain(`agy argument: ${arg}`);
-  expect(result.stdout).toContain("catalog: claude-opus-5-5-high,claude-sonnet-5-5-high");
+  expect(result.stdout).toContain("gateway claude-sonnet-5-5-high: 200");
+  expect(result.stdout).toContain("ACCOUNT:new@example.invalid UPSTREAM:claude-sonnet-5-5-high");
+  const agyArgs = [...result.stdout.matchAll(/agy argument: (.*)/g)].map((match) => match[1]);
+  expect(agyArgs).toEqual(["--model", "claude-sonnet-5-5-high", "--settings", '{"model":"claude-sonnet-5-5-high"}', "-p", "hello", "--mode", "plan"]);
+  // The proxy's forked Gemini aliases never reach agy's or Claude Code's list.
+  expect(result.stdout).toContain(`catalog: ${AGY_CATALOG}`);
   expect(result.stdout).not.toContain("native CLI's own login");
   expect(result.stdout).not.toContain("synthetic-access");
   expect(await readdir(join(cliProxyAPIProfileDir(profile.profileId), "sessions"))).toEqual([]);
-}, 15000);
+}, 30000);
+
+// ROOT 2026-11-25: `agy -run --model gemini-4-neon xhigh` → agy "unexpected
+// argument xhigh"; `--model gemini-4-neon-xhigh` → 400 "unknown provider for
+// model gemini-4-neon"; `--model gemini-4-neon-high --effort xhigh` → agy
+// swapped in another model.
+test("every spelling of gemini-4-neon at xhigh launches gemini-4-neon-xhigh and its request reaches that model", async () => {
+  await seedAntigravity("neon@example.invalid");
+  await realisticAgyFixture();
+  for (const spelling of [
+    ["--model", "gemini-4-neon", "xhigh"],
+    ["--model", "gemini-4-neon xhigh"],
+    ["--model", "gemini-4-neon-high", "--effort", "xhigh"],
+    ["--model=gemini-4-neon-xhigh"],
+    ["--effort=xhigh", "--model", "gemini-4-neon"],
+  ]) {
+    const result = runAgy(["--run", ...spelling, "-p", "hello"]);
+    expect({ spelling, status: result.status, error: result.stderr }).toEqual({ spelling, status: 0, error: "" });
+    expect(result.stdout).toContain(`Running agy --model gemini-4-neon-xhigh --settings {"model":"Gemini 4 Neon (XHigh)"} -p hello`);
+    expect(result.stdout).toContain("gateway gemini-4-neon: 200");
+    expect(result.stdout).toContain("UPSTREAM:gemini-4-neon-xhigh");
+    expect(result.stdout).not.toMatch(/agy argument: (xhigh|--effort)$/m);
+  }
+}, 60000);
+
+test("bare --run uses the account's saved model, also when it is a tiered Gemini model", async () => {
+  await seedAntigravity("saved@example.invalid");
+  await realisticAgyFixture();
+  let result = runAgy(["--run", "-p", "hello"]);
+  expect({ status: result.status, error: result.stderr }).toEqual({ status: 0, error: "" });
+  expect(result.stdout).toContain(`Running agy --model claude-opus-5-5-high --settings {"model":"claude-opus-5-5-high"} -p hello`);
+  expect(result.stdout).toContain("UPSTREAM:claude-opus-5-5-high");
+  await saveLocalCLIProxyAPIProfile("subscription", { ...profile, defaultModel: "gemini-4-carbon-high" });
+  result = runAgy(["--run", "-p", "hello"]);
+  expect({ status: result.status, error: result.stderr }).toEqual({ status: 0, error: "" });
+  expect(result.stdout).toContain(`Running agy --model gemini-4-carbon-high --settings {"model":"Gemini 4 Carbon (High)"} -p hello`);
+  expect(result.stdout).toContain("gateway gemini-4-carbon: 200");
+  expect(result.stdout).toContain("UPSTREAM:gemini-4-carbon-high");
+}, 45000);
+
+test("a tier the account lacks is refused with the available tiers instead of swapping models", async () => {
+  await seedAntigravity("tier@example.invalid");
+  await realisticAgyFixture();
+  for (const spelling of [["--model", "gemini-4-neon", "high"], ["--model", "gemini-4-neon-high"], ["--model", "no-such-model"]]) {
+    const result = runAgy(["--run", ...spelling, "-p", "hello"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("is not in this account's catalog");
+    expect(result.stderr).toContain(spelling[1] === "no-such-model" ? "Available models: claude-opus-5-5-high" : "Available tiers: gemini-4-neon-xhigh");
+    expect(result.stdout).not.toContain("agy argument");
+  }
+  expect(await readdir(join(cliProxyAPIProfileDir(profile.profileId), "sessions"))).toEqual([]);
+}, 45000);
+
+test("a user --settings is passed through untouched and not doubled", async () => {
+  await seedAntigravity("settings@example.invalid");
+  await realisticAgyFixture();
+  const result = runAgy(["--run", "--model", "gemini-4-neon", "xhigh", "--settings", '{"colorScheme":"dark"}', "-p", "hello"]);
+  expect({ status: result.status, error: result.stderr }).toEqual({ status: 0, error: "" });
+  const agyArgs = [...result.stdout.matchAll(/agy argument: (.*)/g)].map((match) => match[1]);
+  expect(agyArgs).toEqual(["--model", "gemini-4-neon-xhigh", "--settings", '{"colorScheme":"dark"}', "-p", "hello"]);
+}, 30000);
 
 test("Antigravity refuses a missing alias login instead of falling back to the native account", async () => {
   await seed("antigravity");
