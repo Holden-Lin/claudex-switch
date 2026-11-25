@@ -34,6 +34,8 @@
 
 ## Next
 
+- [ ] (11-25) **修 main 上已红的 RelayRouter GLM 选择持久化测试** — 完成信号：bun test 全绿
+  测试 `run alias session > RelayRouter GLM selection persists with its window and cheap side-query model` 在 v1.29.3 前的 main 上就失败；ROOT 11-25 合入 993960a 后全量 bun test 发现，旧 main 复现，非 CX-AGYRUNACCT 引入。
 - [ ] v1.28.8：升级后运行一次 `claudex-switch satoshix`（应提示共享 8 个、修复 3 个会话），再 `codex resume` 确认 holdenx 的“优化流动性奖励看板排序”出现；真实 TUI 未在本次验证。
 - [ ] v1.26.4：结束现有 workbuddy 会话后重新运行，确认不再出现 11101 报错。
 - [ ] v1.26.2：结束现有 workbuddy 会话后重新运行 `claudex-switch workbuddy --run --cliproxy claudecode`，确认启动时无 “doesn't recognize the model” 警告，deepseek-v4.1-flash 长会话不再在约 70K 压缩。
