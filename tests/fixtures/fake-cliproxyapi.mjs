@@ -32,6 +32,12 @@ function yamlScalar(key) {
   }
 }
 
+// CLIProxyAPI 8.x appends a generated server id to the config it is given.
+if (process.env.CLAUDEX_FAKE_SERVER_ID) {
+  const { appendFile } = await import("node:fs/promises");
+  await appendFile(configPath, `server:\n  server-id: ${process.env.CLAUDEX_FAKE_SERVER_ID}\n`);
+}
+
 const authDir = yamlScalar("auth-dir");
 const port = Number(yamlScalar("port"));
 

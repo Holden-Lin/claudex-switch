@@ -466,6 +466,30 @@ describe("managed local CLIProxyAPI", () => {
     expect(await hasManagedCLIProxyAPILogin(profile.profileId)).toBe(true);
   });
 
+  test("a binary-appended server-id block is not config drift, but a real edit still is", async () => {
+    const profile: LocalCLIProxyAPIProfileData = { ...makeProfile(), upstream: "antigravity" };
+    const name = `cliproxy-${profile.profileId}`;
+    await saveLocalProfile(name, profile);
+    await initializeManagedCLIProxyAPI(profile.profileId, { upstream: "antigravity" });
+    await runManagedCLIProxyAPILogin(profile);
+    await saveAliases({ version: 1, aliases: [{ alias: "agy-serverid", target: { provider: "claude", profileName: name }, createdAt: 1 }] });
+    process.env.CLAUDEX_FAKE_SERVER_ID = "16025825";
+    try {
+      await ensureManagedCLIProxyAPI(profile);
+      const file = cliProxyAPIConfigFile(profile.profileId);
+      expect(await readFile(file, "utf-8")).toContain("server-id: 16025825");
+      expect((await inspectManagedCLIProxyAPI(profile)).configured).toBe(true);
+      await doctor("agy-serverid", { restart: true });
+      expect((await inspectManagedCLIProxyAPI(profile, { probe: true })).configured).toBe(true);
+      // Anything else appended is still drift.
+      await writeFile(file, `${await readFile(file, "utf-8")}debug: true\n`);
+      expect((await inspectManagedCLIProxyAPI(profile)).configured).toBe(false);
+    } finally {
+      delete process.env.CLAUDEX_FAKE_SERVER_ID;
+      await stopManagedCLIProxyAPI(profile);
+    }
+  });
+
   test.each([400, 401, 429, 503])("keeps HTTP %i distinct from a local proxy health failure", async (status) => {
     const profile = makeProfile();
     await initializeManagedCLIProxyAPI(profile.profileId);
