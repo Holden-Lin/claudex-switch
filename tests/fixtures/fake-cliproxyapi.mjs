@@ -85,6 +85,13 @@ const server = Bun.serve({
   port,
   async fetch(request) {
     const path = new URL(request.url).pathname;
+    if (path.startsWith("/v1beta/models/") && path.endsWith(":streamGenerateContent")) {
+      const key = JSON.parse(config.match(/^api-keys:\n  - (.+)$/m)[1]);
+      if (request.headers.get("authorization") !== `Bearer ${key}`) return new Response("unauthorized", { status: 401 });
+      const auth = JSON.parse(await readFile(join(authDir, "antigravity-fixture.json"), "utf8"));
+      const chunk = { candidates: [{ content: { role: "model", parts: [{ text: `ACCOUNT:${auth.email}` }] }, finishReason: "STOP", index: 0 }] };
+      return new Response(`data: ${JSON.stringify(chunk)}\n\n`, { headers: { "content-type": "text/event-stream" } });
+    }
     if (path === "/v1/models") {
       // Optional fixture catalog, e.g. what a logged-in Antigravity lists.
       // Like the real 7.3.20: the built-in list first, the remote catalog later.
