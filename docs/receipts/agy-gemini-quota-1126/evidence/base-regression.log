@@ -1,0 +1,70 @@
+$ bun test tests/cliproxy-usage.test.ts tests/model-shorthand.test.ts --test-name-pattern "bare Codex|a refresh missing Gemini"
+bun test v1.3.5 (1e86cebd)
+
+tests/model-shorthand.test.ts:
+64 |     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+65 |     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+66 |   });
+67 | 
+68 |   test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6.1-sol"
+Received: "gpt-6.1"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/base-check/tests/model-shorthand.test.ts:69:53)
+(fail) resolveModelShorthand > bare Codex 6.1 always selects sol [0.35ms]
+64 |     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+65 |     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+66 |   });
+67 | 
+68 |   test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6.2-sol"
+Received: "gpt-6.2"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/base-check/tests/model-shorthand.test.ts:69:53)
+(fail) resolveModelShorthand > bare Codex 6.2 always selects sol [0.05ms]
+64 |     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+65 |     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+66 |   });
+67 | 
+68 |   test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6-sol"
+Received: "gpt-6-astra"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/base-check/tests/model-shorthand.test.ts:69:53)
+(fail) resolveModelShorthand > bare Codex 6 always selects sol
+(pass) resolveModelShorthand > bare Codex 5.6 always selects sol
+
+tests/cliproxy-usage.test.ts:
+194 |     spyOn(console, "log").mockImplementation(() => {});
+195 |     await list();
+196 |     globalThis.fetch = (async () => Response.json({ groups: [quota.groups[0]] })) as typeof fetch;
+197 |     console.log.mockClear();
+198 |     await list();
+199 |     expect(console.log.mock.calls.flat().join("\n")).toContain("5h 100% · wk 65%");
+                                                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "5h 100% · wk 65%"
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config  Claude/GPT 5h 37% · wk 21% Thu11\n\n  5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/base-check/tests/cliproxy-usage.test.ts:199:54)
+(fail) proxy quota > a refresh missing Gemini keeps the last valid Gemini quota [595.27ms]
+
+ 1 pass
+ 36 filtered out
+ 4 fail
+ 5 expect() calls
+Ran 5 tests across 2 files. [793.00ms]
+error: script "test" exited with code 1

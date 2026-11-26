@@ -1505,7 +1505,7 @@ describe("run alias session", () => {
     expect(await fileExists(CODEX_AUTH_FILE)).toBe(false);
   });
 
-  test("maps -model and saves it as the Codex account default", async () => {
+  test.each([["6.1", "gpt-6.1-sol"], ["6", "gpt-6-sol"], ["gpt-5-mini", "gpt-5-mini"]])("maps -model %s to %s in spawned Codex arguments and saved default", async (input, expected) => {
     const accountKey = "user-1::acct-1";
     await saveAliases({
       version: 1,
@@ -1533,19 +1533,19 @@ describe("run alias session", () => {
     const calls: SpawnCall[] = [];
     await runAliasSession(
       "cx",
-      ["-model", "gpt-5-mini", "--continue"],
+      ["-model", input, "--continue"],
       createSpawn(calls),
     );
 
     expect(calls[0]?.args).toEqual([
       "--approve-for-me",
       "--model",
-      "gpt-5-mini",
+      expected,
       "--continue",
     ]);
 
     expect((await loadRegistry()).accounts[0]?.default_model).toBe(
-      "gpt-5-mini",
+      expected,
     );
   });
 

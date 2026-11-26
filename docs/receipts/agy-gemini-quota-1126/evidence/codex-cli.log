@@ -1,0 +1,6 @@
+  ● Default Codex account unchanged; this session uses /Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/codex-home/.claudex-switch/codex-run/YXBpa2V5OjpmaXh0dXJl
+  ● Running codex --approve-for-me --model gpt-6.1-sol
+  ● Autoreview: off (default)
+captured codex arg: --approve-for-me
+captured codex arg: --model
+captured codex arg: gpt-6.1-sol

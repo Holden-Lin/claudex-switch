@@ -607,9 +607,8 @@ function renderSection(infos: ListAccountInfo[]): void {
     const model = info.provider !== "opencode" && info.defaultModel
       ? chalk.dim(info.defaultModel)
       : "";
-    const firstQuotaGroup = /^(claude|gpt)/i.test(info.defaultModel ?? "") ? "Claude/GPT" : "Gemini";
-    const usage = formatUsage(info.usage && info.section === "Antigravity"
-      ? { ...info.usage, groups: info.usage.groups?.toSorted((a, b) => Number(b.name === firstQuotaGroup) - Number(a.name === firstQuotaGroup)) }
+    const usage = formatUsage(info.section === "Antigravity"
+      ? info.usage?.groups?.find((group) => group.name === "Gemini")?.usage ?? null
       : info.usage, info.usageNote);
     const balance = formatBalance(info.balance);
     const quota = usage || balance;

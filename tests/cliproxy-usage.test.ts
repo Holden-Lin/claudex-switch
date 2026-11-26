@@ -11,6 +11,7 @@ import { saveLocalCLIProxyAPIProfile } from "../src/providers/claude/profiles";
 import { initializeManagedCLIProxyAPI, updateManagedCLIProxyAPISetup } from "../src/providers/cliproxyapi/managed";
 import { fetchCLIProxyAPIUsage, parseAntigravityQuota } from "../src/providers/cliproxyapi/usage";
 import type { LocalCLIProxyAPIProfileData } from "../src/types";
+import { formatWeeklyReset } from "../src/lib/ui";
 import { resetTestHome } from "./helpers";
 
 const originalFetch = globalThis.fetch;
@@ -22,7 +23,7 @@ const quota = {
       { window: "5h", remainingFraction: 0.37, resetTime: "2026-10-30T07:23:53Z" },
       { window: "weekly", remainingFraction: 0.21, resetTime: "2026-11-05T11:28:53Z" },
     ] },
-    { displayName: "Gemini models", buckets: [{ window: "5h", remainingFraction: 1 }] },
+    { displayName: "Gemini models", buckets: [{ window: "5h", remainingFraction: 1 }, { window: "weekly", remainingFraction: 0.65, resetTime: "2026-12-02T10:15:45Z" }] },
   ],
 };
 
@@ -45,13 +46,14 @@ describe("proxy quota", () => {
     console.log.mockRestore?.();
   });
 
-  test("reads real Antigravity window shapes, labels separate model groups and caches them", async () => {
+  test("reads Gemini windows through live, cached and JSON list without a group prefix", async () => {
     await seed("antigravity");
     let calls = 0;
     globalThis.fetch = (async (url, init) => {
       calls++;
       expect(String(url)).toEndWith(":retrieveUserQuotaSummary");
       expect(new Headers(init?.headers).get("authorization")).toBe("Bearer test-access");
+      expect(new Headers(init?.headers).get("user-agent")).toBe("antigravity/hub/2.25.0 darwin/arm64");
       expect(JSON.parse(String(init?.body))).toEqual({ project: "test-project" });
       return Response.json(quota);
     }) as typeof fetch;
@@ -59,10 +61,8 @@ describe("proxy quota", () => {
     await list();
     const output = console.log.mock.calls.flat().join("\n");
     expect(calls).toBe(1);
-    expect(output).toContain("Claude/GPT 5h 37%");
-    expect(output).toContain("wk 21%");
-    expect(output).toContain("Gemini 5h 100%");
-    expect(output.indexOf("Gemini 5h")).toBeLessThan(output.indexOf("Claude/GPT 5h"));
+    expect(output).toContain(`5h 100% · wk 65%${formatWeeklyReset(Date.parse("2026-12-02T10:15:45Z"))}`);
+    expect(output).not.toMatch(/Claude\/GPT|Gemini 5h/);
     expect(output).toContain("test@example.com");
     expect(output).not.toContain("unknown");
     expect(output).not.toContain("quota unavailable");
@@ -71,7 +71,7 @@ describe("proxy quota", () => {
     console.log.mockClear();
     await list({ cached: true, background: true, spawnRefresh: () => {} });
     expect(calls).toBe(1);
-    expect(console.log.mock.calls.flat().join("\n")).toContain("Claude/GPT 5h 37%");
+    expect(console.log.mock.calls.flat().join("\n")).toContain("5h 100% · wk 65%");
     console.log.mockClear();
     await list({ json: true });
     const account = JSON.parse(console.log.mock.calls.flat().join("\n")).accounts[0];
@@ -162,12 +162,7 @@ describe("proxy quota", () => {
     expect(console.log.mock.calls.flat().join("\n")).not.toContain("nickname@example.com");
   });
 
-  test.each([
-    ["claude-opus-5-5-high", "Claude/GPT"],
-    ["gpt-6.1", "Claude/GPT"],
-    ["gemini-3.8-flash-high", "Gemini"],
-    ["unknown-model", "Gemini"],
-  ])("orders quota for model %s with %s first in live and cached output", async (defaultModel, first) => {
+  test.each(["claude-opus-5-5-high", "gpt-6.1", "gemini-3.8-flash-high", "unknown-model"])("shows only Gemini quota for model %s in live and cached output", async (defaultModel) => {
     const profile = await seed("antigravity");
     await updateManagedCLIProxyAPISetup(profileId, { upstreamModels: [defaultModel] });
     await saveLocalCLIProxyAPIProfile("proxy", { ...profile, defaultModel });
@@ -177,20 +172,42 @@ describe("proxy quota", () => {
       console.log.mockClear();
       await list(options);
       const output = console.log.mock.calls.flat().join("\n");
-      const second = first === "Gemini" ? "Claude/GPT" : "Gemini";
       expect(output).toContain(defaultModel);
-      expect(output.indexOf(`${first} 5h`)).toBeLessThan(output.indexOf(`${second} 5h`));
+      expect(output).toContain("5h 100% · wk 65%");
+      expect(output).not.toMatch(/Claude\/GPT|Gemini 5h/);
     }
   });
 
-  test("Claude/GPT-only quota is labelled without inventing a Gemini window", async () => {
+  test("Claude/GPT-only quota omits unavailable Gemini windows without fallback", async () => {
     await seed("antigravity");
     globalThis.fetch = (async () => Response.json({ groups: [quota.groups[0]] })) as typeof fetch;
     spyOn(console, "log").mockImplementation(() => {});
     await list();
     const output = console.log.mock.calls.flat().join("\n");
-    expect(output).toContain("Claude/GPT 5h 37%");
+    expect(output).not.toMatch(/Claude\/GPT|5h 37%|wk 21%/);
     expect(output).not.toContain("Gemini");
+  });
+
+  test("a refresh missing Gemini keeps the last valid Gemini quota", async () => {
+    await seed("antigravity");
+    globalThis.fetch = (async () => Response.json(quota)) as typeof fetch;
+    spyOn(console, "log").mockImplementation(() => {});
+    await list();
+    globalThis.fetch = (async () => Response.json({ groups: [quota.groups[0]] })) as typeof fetch;
+    console.log.mockClear();
+    await list();
+    expect(console.log.mock.calls.flat().join("\n")).toContain("5h 100% · wk 65%");
+    expect((await readUsageCache()).entries["claude:proxy"].note).toBe("usage n/a");
+  });
+
+  test("Gemini weekly-only summary does not invent a five-hour window", async () => {
+    await seed("antigravity");
+    globalThis.fetch = (async () => Response.json({ groups: [{ displayName: "Gemini Models", buckets: [quota.groups[1].buckets[1]] }] })) as typeof fetch;
+    spyOn(console, "log").mockImplementation(() => {});
+    await list();
+    const row = console.log.mock.calls.flat().join("\n").split("\n").find((line) => line.includes("test@example.com"))!;
+    expect(row).toContain("wk 65%");
+    expect(row).not.toContain("5h");
   });
 
   test("unavailable or expired upstream access returns no quota and does not write credentials", async () => {

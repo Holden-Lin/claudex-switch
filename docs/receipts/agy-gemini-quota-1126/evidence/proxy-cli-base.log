@@ -1,0 +1,62 @@
+version: 1.30.0
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: 
+? What type of account?
+❯ Claude OAuth — Claude subscription (Pro, Max, Team, etc.)
+  Claude API Key — Anthropic API key
+  WorkBuddy Subscription — international / China
+  Antigravity Subscription — agy (Gemini)
+  Cursor Subscription
+  Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)
+  Codex API Key — OpenAI API key
+
+↑↓ navigate • ⏎ select? What type of account?
+  Claude OAuth — Claude subscription (Pro, Max, Team, etc.)
+❯ Claude API Key — Anthropic API key
+  WorkBuddy Subscription — international / China
+  Antigravity Subscription — agy (Gemini)
+  Cursor Subscription
+  Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)
+  Codex API Key — OpenAI API key
+
+↑↓ navigate • ⏎ select? What type of account?
+  Claude OAuth — Claude subscription (Pro, Max, Team, etc.)
+  Claude API Key — Anthropic API key
+❯ WorkBuddy Subscription — international / China
+  Antigravity Subscription — agy (Gemini)
+  Cursor Subscription
+  Codex ChatGPT — ChatGPT login (Plus, Pro, Team, etc.)
+  Codex API Key — OpenAI API key
+
+↑↓ navigate • ⏎ select✔ What type of account? WorkBuddy Subscription — international / China
+? WorkBuddy region
+❯ International (workbuddy.ai)
+  China (workbuddy.cn)
+
+↑↓ navigate • ⏎ select✔ WorkBuddy region International (workbuddy.ai)
+  ● First use: sign in to WorkBuddy AI (international) subscription.
+? WorkBuddy AI (international) login
+❯ WorkBuddy AI account (browser)
+  WorkBuddy AI desktop's sign-in (follows the app account)
+
+↑↓ navigate • ⏎ select✔ WorkBuddy AI (international) login WorkBuddy AI account (browser)
+  ● Sign in to WorkBuddy AI in the browser; this finishes by itself.
+  ● https://fixture.invalid/login?version=2.0.0&loginSessionId=add6a14e1826109f0bfc2d2cac73f451
+  ✓ Saved as alias wb-ai  WorkBuddy AI (international) subscription
+  opus/default → deepseek-v4.1-flash · sonnet → deepseek-v4.1-flash · haiku → deepseek-v4.1-flash
+  Run claudex-switch wb-ai --run --cliproxy claudecode to use this subscription in Claude Code.
+
+
+    at file:///Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/base-check/tests/fixtures/proxy-accounts.mjs:116:5 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v26.6.0

@@ -1,0 +1,3 @@
+NEW: []
+RERUN: cd /Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126 && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY /opt/miniconda3/bin/python3 -m pytest -q --basetemp /Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/.tmp/suite-baseline/rerun-tmp
+suite: 0 failed ⊆ base 8a2e55effaf290b8fa57c2406269bcb386b5601c

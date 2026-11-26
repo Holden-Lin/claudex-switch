@@ -1,0 +1,755 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="542" assertions="2766" failures="0" skipped="0" time="51.023035">
+  <testsuite name="tests/model-shorthand.test.ts" file="tests/model-shorthand.test.ts" tests="23" assertions="75" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="resolveModelShorthand" file="tests/model-shorthand.test.ts" line="9" tests="19" assertions="56" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="expands a bare claude version into the opus series" classname="resolveModelShorthand" time="0.000289" file="tests/model-shorthand.test.ts" line="10" assertions="3" />
+      <testcase name="accepts an explicit claude series prefix" classname="resolveModelShorthand" time="0.000037" file="tests/model-shorthand.test.ts" line="16" assertions="7" />
+      <testcase name="expands a bare claude 5.x version into the opus series" classname="resolveModelShorthand" time="0.000058" file="tests/model-shorthand.test.ts" line="34" assertions="2" />
+      <testcase name="expands opus 5.5" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="39" assertions="3" />
+      <testcase name="maps a bare fable alias to the latest fable" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="45" assertions="2" />
+      <testcase name="keeps an explicit older fable version reachable" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="50" assertions="3" />
+      <testcase name="keeps versioned fable aliases pinned" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="56" assertions="3" />
+      <testcase name="expands a bare codex version into the gpt series" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="62" assertions="3" />
+      <testcase name="bare Codex 6.1 always selects sol" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="68" assertions="1" />
+      <testcase name="bare Codex 6.2 always selects sol" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="68" assertions="1" />
+      <testcase name="bare Codex 6 always selects sol" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="68" assertions="1" />
+      <testcase name="bare Codex 5.6 always selects sol" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="68" assertions="1" />
+      <testcase name="maps aliased codex versions to their full model id" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="72" assertions="4" />
+      <testcase name="named codex aliases track the newest generation of each tier" classname="resolveModelShorthand" time="0.00003" file="tests/model-shorthand.test.ts" line="79" assertions="9" />
+      <testcase name="latest astra and sol aliases preserve older full model ids" classname="resolveModelShorthand" time="0.00006" file="tests/model-shorthand.test.ts" line="91" assertions="4" />
+      <testcase name="honors an explicitly typed gpt id verbatim" classname="resolveModelShorthand" time="0.000028" file="tests/model-shorthand.test.ts" line="98" assertions="2" />
+      <testcase name="accepts an explicit gpt prefix" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="103" assertions="2" />
+      <testcase name="passes through fully qualified model ids unchanged" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="108" assertions="3" />
+      <testcase name="trims whitespace and preserves empty input" classname="resolveModelShorthand" time="0" file="tests/model-shorthand.test.ts" line="116" assertions="2" />
+    </testsuite>
+    <testsuite name="splitModelEffort" file="tests/model-shorthand.test.ts" line="124" tests="2" assertions="6" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="splits a trailing effort tier off the model" classname="splitModelEffort" time="0.000304" file="tests/model-shorthand.test.ts" line="125" assertions="4" />
+      <testcase name="leaves non-effort suffixes untouched" classname="splitModelEffort" time="0" file="tests/model-shorthand.test.ts" line="139" assertions="2" />
+    </testsuite>
+    <testsuite name="isModelEffort" file="tests/model-shorthand.test.ts" line="145" tests="1" assertions="6" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="recognizes effort tiers case-insensitively" classname="isModelEffort" time="0" file="tests/model-shorthand.test.ts" line="146" assertions="6" />
+    </testsuite>
+    <testsuite name="providerEffortLevels" file="tests/model-shorthand.test.ts" line="156" tests="1" assertions="7" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="claude and codex support different tiers" classname="providerEffortLevels" time="0" file="tests/model-shorthand.test.ts" line="157" assertions="7" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/codex-sessions.test.ts" file="tests/codex-sessions.test.ts" tests="21" assertions="81" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="syncCodexSessions providers" file="tests/codex-sessions.test.ts" line="85" tests="11" assertions="37" failures="0" skipped="0" time="1.494" hostname="manka-d-l-5104-holden">
+      <testcase name="rewrites rollout first lines to the target provider" classname="syncCodexSessions providers" time="0.223732" file="tests/codex-sessions.test.ts" line="90" assertions="5" />
+      <testcase name="stamps a missing provider only into reclaimed padding" classname="syncCodexSessions providers" time="0.205461" file="tests/codex-sessions.test.ts" line="119" assertions="5" />
+      <testcase name="leaves malformed and non-session files alone" classname="syncCodexSessions providers" time="0.002219" file="tests/codex-sessions.test.ts" line="141" assertions="3" />
+      <testcase name="updates thread rows in state_5.sqlite" classname="syncCodexSessions providers" time="0.006617" file="tests/codex-sessions.test.ts" line="160" assertions="2" />
+      <testcase name="syncs rollouts even when no state DB exists" classname="syncCodexSessions providers" time="0.201003" file="tests/codex-sessions.test.ts" line="178" assertions="2" />
+      <testcase name="is a no-op when everything already matches" classname="syncCodexSessions providers" time="0.004114" file="tests/codex-sessions.test.ts" line="190" assertions="2" />
+      <testcase name="normalizes casing variants of managed providers" classname="syncCodexSessions providers" time="0.207003" file="tests/codex-sessions.test.ts" line="203" assertions="4" />
+      <testcase name="repairs empty provider metadata in the DB without growing rollouts" classname="syncCodexSessions providers" time="0.003919" file="tests/codex-sessions.test.ts" line="221" assertions="4" />
+      <testcase name="leaves sessions of unmanaged providers untouched" classname="syncCodexSessions providers" time="0.2083" file="tests/codex-sessions.test.ts" line="243" assertions="5" />
+      <testcase name="skips a rollout another process holds open" classname="syncCodexSessions providers" time="0.219143" file="tests/codex-sessions.test.ts" line="271" assertions="3" />
+      <testcase name="preserves rollout timestamps across a rewrite" classname="syncCodexSessions providers" time="0.216552" file="tests/codex-sessions.test.ts" line="296" assertions="2" />
+    </testsuite>
+    <testsuite name="syncCodexSessions sharing and byte offsets" file="tests/codex-sessions.test.ts" line="371" tests="9" assertions="42" failures="0" skipped="0" time="1.827" hostname="manka-d-l-5104-holden">
+      <testcase name="shares sessions another managed ChatGPT account created" classname="syncCodexSessions sharing and byte offsets" time="0.212606" file="tests/codex-sessions.test.ts" line="376" assertions="4" />
+      <testcase name="keeps the scope of unmanaged, creator-less and reverted sessions" classname="syncCodexSessions sharing and byte offsets" time="0.002583" file="tests/codex-sessions.test.ts" line="394" assertions="4" />
+      <testcase name="pads a shorter provider so every later byte keeps its offset" classname="syncCodexSessions sharing and byte offsets" time="0.222178" file="tests/codex-sessions.test.ts" line="423" assertions="5" />
+      <testcase name="never grows a first line: a longer provider is skipped with its thread row" classname="syncCodexSessions sharing and byte offsets" time="0.00539" file="tests/codex-sessions.test.ts" line="438" assertions="3" />
+      <testcase name="reuses earlier padding, so a provider round trip restores the original bytes" classname="syncCodexSessions sharing and byte offsets" time="0.433729" file="tests/codex-sessions.test.ts" line="456" assertions="2" />
+      <testcase name="dropping the scope marker makes room for a longer provider" classname="syncCodexSessions sharing and byte offsets" time="0.216285" file="tests/codex-sessions.test.ts" line="467" assertions="9" />
+      <testcase name="rewrites compressed rollouts in place and keeps their decoded size" classname="syncCodexSessions sharing and byte offsets" time="0.285486" file="tests/codex-sessions.test.ts" line="485" assertions="6" />
+      <testcase name="restores rollouts an earlier sync shortened to Codex&apos;s history offset" classname="syncCodexSessions sharing and byte offsets" time="0.226" file="tests/codex-sessions.test.ts" line="508" assertions="6" />
+      <testcase name="a share-only pass leaves providers and thread rows alone" classname="syncCodexSessions sharing and byte offsets" time="0.227782" file="tests/codex-sessions.test.ts" line="535" assertions="3" />
+    </testsuite>
+    <testsuite name="session visibility sync on switch" file="tests/codex-sessions.test.ts" line="548" tests="1" assertions="2" failures="0" skipped="0" time="0.225" hostname="manka-d-l-5104-holden">
+      <testcase name="switching to a ChatGPT account re-stamps sessions to openai" classname="session visibility sync on switch" time="0.225711" file="tests/codex-sessions.test.ts" line="553" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/auto-update.test.ts" file="tests/auto-update.test.ts" tests="16" assertions="41" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="auto update" file="tests/auto-update.test.ts" line="17" tests="16" assertions="41" failures="0" skipped="0" time="0.009" hostname="manka-d-l-5104-holden">
+      <testcase name="compares semantic versions correctly" classname="auto update" time="0.000133" file="tests/auto-update.test.ts" line="18" assertions="3" />
+      <testcase name="extracts release versions from redirect URLs" classname="auto update" time="0.000097" file="tests/auto-update.test.ts" line="24" assertions="3" />
+      <testcase name="falls back to the GitHub Releases API when the redirect is unavailable" classname="auto update" time="0.000391" file="tests/auto-update.test.ts" line="42" assertions="2" />
+      <testcase name="reports when the installed version is already the latest" classname="auto update" time="0.000046" file="tests/auto-update.test.ts" line="63" assertions="1" />
+      <testcase name="reports when an update is available" classname="auto update" time="0.000105" file="tests/auto-update.test.ts" line="73" assertions="1" />
+      <testcase name="reports unknown when the latest release cannot be checked" classname="auto update" time="0.000105" file="tests/auto-update.test.ts" line="83" assertions="1" />
+      <testcase name="detects a homebrew install from the executable path" classname="auto update" time="0.00021" file="tests/auto-update.test.ts" line="93" assertions="2" />
+      <testcase name="detects a bun install from the executable path" classname="auto update" time="0" file="tests/auto-update.test.ts" line="111" assertions="2" />
+      <testcase name="detects linked entrypoint ownership with Bun installed" classname="auto update" time="0.003814" file="tests/auto-update.test.ts" line="145" assertions="3" />
+      <testcase name="detects resolved entrypoint ownership with Bun installed" classname="auto update" time="0.003089" file="tests/auto-update.test.ts" line="145" assertions="3" />
+      <testcase name="detects npm entrypoint ownership with Bun installed" classname="auto update" time="0.003374" file="tests/auto-update.test.ts" line="145" assertions="2" />
+      <testcase name="does not mis-detect bun when the executable path is outside bun" classname="auto update" time="0.000181" file="tests/auto-update.test.ts" line="194" assertions="1" />
+      <testcase name="reports npm installs as unsupported" classname="auto update" time="0" file="tests/auto-update.test.ts" line="221" assertions="2" />
+      <testcase name="updates with bun and restarts the original command" classname="auto update" time="0.000241" file="tests/auto-update.test.ts" line="274" assertions="6" />
+      <testcase name="manual update ignores the auto-update disable env flag" classname="auto update" time="0.000401" file="tests/auto-update.test.ts" line="331" assertions="8" />
+      <testcase name="continues when auto update is disabled" classname="auto update" time="0.000113" file="tests/auto-update.test.ts" line="392" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/proxy-global-switch.test.ts" file="tests/proxy-global-switch.test.ts" tests="17" assertions="235" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="proxy accounts switch global Claude without redirecting isolated runs" file="tests/proxy-global-switch.test.ts" line="47" tests="17" assertions="235" failures="0" skipped="0" time="3.649" hostname="manka-d-l-5104-holden">
+      <testcase name="starts/reuses the proxy, updates state, then restores OAuth and clears only managed env" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.303925" file="tests/proxy-global-switch.test.ts" line="81" assertions="13" />
+      <testcase name="CLI switches &quot;workbuddy&quot;" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.418787" file="tests/proxy-global-switch.test.ts" line="106" assertions="3" />
+      <testcase name="CLI switches &quot;use&quot;" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.382857" file="tests/proxy-global-switch.test.ts" line="106" assertions="3" />
+      <testcase name="help &quot;workbuddy&quot; changes nothing" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.170375" file="tests/proxy-global-switch.test.ts" line="116" assertions="3" />
+      <testcase name="help &quot;workbuddy&quot; changes nothing" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.167498" file="tests/proxy-global-switch.test.ts" line="116" assertions="3" />
+      <testcase name="help &quot;native&quot; changes nothing" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.164039" file="tests/proxy-global-switch.test.ts" line="116" assertions="3" />
+      <testcase name="help &quot;missing-alias&quot; changes nothing" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.173242" file="tests/proxy-global-switch.test.ts" line="116" assertions="3" />
+      <testcase name="help &quot;use&quot; changes nothing" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.179994" file="tests/proxy-global-switch.test.ts" line="116" assertions="3" />
+      <testcase name="invalid trailing arguments &quot;workbuddy&quot; never switch or write" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.230594" file="tests/proxy-global-switch.test.ts" line="127" assertions="3" />
+      <testcase name="invalid trailing arguments &quot;native&quot; never switch or write" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.192401" file="tests/proxy-global-switch.test.ts" line="127" assertions="3" />
+      <testcase name="invalid trailing arguments &quot;workbuddy&quot; never switch or write" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.199832" file="tests/proxy-global-switch.test.ts" line="127" assertions="3" />
+      <testcase name="invalid trailing arguments &quot;use&quot; never switch or write" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.172189" file="tests/proxy-global-switch.test.ts" line="127" assertions="3" />
+      <testcase name="invalid trailing arguments &quot;use&quot; never switch or write" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.204969" file="tests/proxy-global-switch.test.ts" line="127" assertions="3" />
+      <testcase name="editing the active proxy reapplies its model and extra env" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.286506" file="tests/proxy-global-switch.test.ts" line="135" assertions="5" />
+      <testcase name="a missing proxy configuration leaves global settings, state and credentials untouched" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.062073" file="tests/proxy-global-switch.test.ts" line="149" assertions="2" />
+      <testcase name="every global proxy settings key is already covered by each run overlay before switching" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.290879" file="tests/proxy-global-switch.test.ts" line="157" assertions="177" />
+      <testcase name="API key profiles still switch" classname="proxy accounts switch global Claude without redirecting isolated runs" time="0.058842" file="tests/proxy-global-switch.test.ts" line="193" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/webconfig.test.ts" file="tests/webconfig.test.ts" tests="33" assertions="134" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="webconfig snapshot" file="tests/webconfig.test.ts" line="132" tests="18" assertions="75" failures="0" skipped="0" time="0.057" hostname="manka-d-l-5104-holden">
+      <testcase name="names every alias a delete would also remove" classname="webconfig snapshot" time="0.006312" file="tests/webconfig.test.ts" line="137" assertions="3" />
+      <testcase name="renames an alias without touching the account underneath" classname="webconfig snapshot" time="0.003002" file="tests/webconfig.test.ts" line="164" assertions="4" />
+      <testcase name="rejects a rename to a bad or occupied alias" classname="webconfig snapshot" time="0.002731" file="tests/webconfig.test.ts" line="191" assertions="6" />
+      <testcase name="deletes the account and every alias pointing at it" classname="webconfig snapshot" time="0.006627" file="tests/webconfig.test.ts" line="209" assertions="7" />
+      <testcase name="deletes a codex account and its stored login file" classname="webconfig snapshot" time="0.004361" file="tests/webconfig.test.ts" line="261" assertions="4" />
+      <testcase name="leaves the alias alone when the account underneath cannot be removed" classname="webconfig snapshot" time="0.002285" file="tests/webconfig.test.ts" line="285" assertions="3" />
+      <testcase name="refuses to delete an alias that is already gone" classname="webconfig snapshot" time="0.001147" file="tests/webconfig.test.ts" line="312" assertions="1" />
+      <testcase name="reports each account&apos;s editable fields and current env" classname="webconfig snapshot" time="0.002912" file="tests/webconfig.test.ts" line="317" assertions="14" />
+      <testcase name="saves only the submitted accounts and keeps the rest untouched" classname="webconfig snapshot" time="0.003406" file="tests/webconfig.test.ts" line="371" assertions="3" />
+      <testcase name="re-applies global settings when the edited account is active" classname="webconfig snapshot" time="0.003422" file="tests/webconfig.test.ts" line="408" assertions="3" />
+      <testcase name="accepts a pasted export block verbatim, including subagent routing" classname="webconfig snapshot" time="0.004365" file="tests/webconfig.test.ts" line="454" assertions="3" />
+      <testcase name="neutralizes another profile&apos;s custom env for an isolated OAuth run" classname="webconfig snapshot" time="0.004899" file="tests/webconfig.test.ts" line="509" assertions="5" />
+      <testcase name="rejects invalid values without touching the profile" classname="webconfig snapshot" time="0.002806" file="tests/webconfig.test.ts" line="549" assertions="3" />
+      <testcase name="clears the previous account&apos;s custom env on the next switch" classname="webconfig snapshot" time="0.004343" file="tests/webconfig.test.ts" line="585" assertions="4" />
+      <testcase name="never removes env entries the user added by hand" classname="webconfig snapshot" time="0.00391" file="tests/webconfig.test.ts" line="634" assertions="1" />
+      <testcase name="clears every custom env row on a local CLIProxyAPI profile" classname="webconfig snapshot" time="0.002431" file="tests/webconfig.test.ts" line="664" assertions="2" />
+      <testcase name="refuses to blank a relay account&apos;s base URL" classname="webconfig snapshot" time="0.002552" file="tests/webconfig.test.ts" line="699" assertions="2" />
+      <testcase name="writes codex edits to the registry, auth file and config.toml" classname="webconfig snapshot" time="0.004018" file="tests/webconfig.test.ts" line="719" assertions="7" />
+    </testsuite>
+    <testsuite name="webconfig account creation" file="tests/webconfig.test.ts" line="759" tests="9" assertions="29" failures="0" skipped="0" time="0.024" hostname="manka-d-l-5104-holden">
+      <testcase name="creates a Claude API key account and makes it active" classname="webconfig account creation" time="0.003986" file="tests/webconfig.test.ts" line="764" assertions="5" />
+      <testcase name="creates a Codex relay account and writes config.toml" classname="webconfig account creation" time="0.005298" file="tests/webconfig.test.ts" line="799" assertions="5" />
+      <testcase name="uses the relay&apos;s model as its default model" classname="webconfig account creation" time="0.003971" file="tests/webconfig.test.ts" line="827" assertions="1" />
+      <testcase name="accepts the official Codex provider without relay fields" classname="webconfig account creation" time="0.004582" file="tests/webconfig.test.ts" line="852" assertions="2" />
+      <testcase name="refuses a Codex create that leaves the provider type unset" classname="webconfig account creation" time="0.003057" file="tests/webconfig.test.ts" line="872" assertions="2" />
+      <testcase name="rejects a bad custom env key instead of silently dropping it" classname="webconfig account creation" time="0.001178" file="tests/webconfig.test.ts" line="896" assertions="3" />
+      <testcase name="names the relay model field when a relay create omits it" classname="webconfig account creation" time="0.000996" file="tests/webconfig.test.ts" line="922" assertions="1" />
+      <testcase name="rejects bad input before creating anything" classname="webconfig account creation" time="0.002471" file="tests/webconfig.test.ts" line="944" assertions="8" />
+      <testcase name="refuses to import the same Codex API key twice" classname="webconfig account creation" time="0.003933" file="tests/webconfig.test.ts" line="976" assertions="2" />
+    </testsuite>
+    <testsuite name="webconfig server" file="tests/webconfig.test.ts" line="993" tests="5" assertions="25" failures="0" skipped="0" time="0.037" hostname="manka-d-l-5104-holden">
+      <testcase name="serves the page only with a valid token" classname="webconfig server" time="0.011994" file="tests/webconfig.test.ts" line="1006" assertions="8" />
+      <testcase name="rejects a foreign Host header" classname="webconfig server" time="0.004945" file="tests/webconfig.test.ts" line="1023" assertions="1" />
+      <testcase name="round-trips a save through the HTTP API" classname="webconfig server" time="0.007347" file="tests/webconfig.test.ts" line="1033" assertions="3" />
+      <testcase name="renames and deletes through the HTTP API" classname="webconfig server" time="0.010074" file="tests/webconfig.test.ts" line="1077" assertions="12" />
+      <testcase name="rejects a malformed save body" classname="webconfig server" time="0.005768" file="tests/webconfig.test.ts" line="1132" assertions="1" />
+    </testsuite>
+    <testsuite name="webconfig args" file="tests/webconfig.test.ts" line="1145" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="parses port and open flags" classname="webconfig args" time="0.000152" file="tests/webconfig.test.ts" line="1146" assertions="5" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/opencode-console.test.ts" file="tests/opencode-console.test.ts" tests="15" assertions="83" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="OpenCode browser subscriptions" file="tests/opencode-console.test.ts" line="49" tests="15" assertions="83" failures="0" skipped="0" time="0.175" hostname="manka-d-l-5104-holden">
+      <testcase name="validates subscription dates independently of quota data and pending cancellation" classname="OpenCode browser subscriptions" time="0.001557" file="tests/opencode-console.test.ts" line="61" assertions="13" />
+      <testcase name="clamps exhausted windows and leaves malformed windows unknown" classname="OpenCode browser subscriptions" time="0.000634" file="tests/opencode-console.test.ts" line="75" assertions="4" />
+      <testcase name="reads only native Console OAuth and pins the account/workspace instead of active selection" classname="OpenCode browser subscriptions" time="0.011586" file="tests/opencode-console.test.ts" line="86" assertions="5" />
+      <testcase name="uses each pinned token and workspace for quota and renders correct remaining percentages" classname="OpenCode browser subscriptions" time="0.019822" file="tests/opencode-console.test.ts" line="103" assertions="14" />
+      <testcase name="distinguishes unauthorized, no subscription, offline and missing quota" classname="OpenCode browser subscriptions" time="0.005043" file="tests/opencode-console.test.ts" line="136" assertions="4" />
+      <testcase name="restricts Console to available Go models, disables other models and retains permission settings" classname="OpenCode browser subscriptions" time="0.001295" file="tests/opencode-console.test.ts" line="145" assertions="9" />
+      <testcase name="keeps native free models beside Console Go while disabling paid and unknown models" classname="OpenCode browser subscriptions" time="0.000333" file="tests/opencode-console.test.ts" line="161" assertions="4" />
+      <testcase name="treats Console model settings as overlays while rejecting disabled, unknown and Zen routes" classname="OpenCode browser subscriptions" time="0.002532" file="tests/opencode-console.test.ts" line="183" assertions="3" />
+      <testcase name="maps v1.18.0 stored Zen defaults onto the Go route and never maps Go back to Zen" classname="OpenCode browser subscriptions" time="0.001864" file="tests/opencode-console.test.ts" line="212" assertions="5" />
+      <testcase name="offline list reports the effective Go default for old profiles without rewriting the saved account" classname="OpenCode browser subscriptions" time="0.004132" file="tests/opencode-console.test.ts" line="220" assertions="3" />
+      <testcase name="adds through the subscription menu without an API key and shows verified identity" classname="OpenCode browser subscriptions" time="0.003228" file="tests/opencode-console.test.ts" line="233" assertions="4" />
+      <testcase name="failed or wrong-account refresh keeps the saved metadata and default intact" classname="OpenCode browser subscriptions" time="0.002189" file="tests/opencode-console.test.ts" line="249" assertions="3" />
+      <testcase name="rejected run model does not replace the working default" classname="OpenCode browser subscriptions" time="0.006519" file="tests/opencode-console.test.ts" line="260" assertions="2" />
+      <testcase name="purge refuses a running subscription and keeps its alias and credential until release" classname="OpenCode browser subscriptions" time="0.114608" file="tests/opencode-console.test.ts" line="270" assertions="5" />
+      <testcase name="run releases the native credential lease on normal exit and launch failure" classname="OpenCode browser subscriptions" time="0.006182" file="tests/opencode-console.test.ts" line="286" assertions="5" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/codex-config.test.ts" file="tests/codex-config.test.ts" tests="9" assertions="24" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="codex config arrays" file="tests/codex-config.test.ts" line="15" tests="9" assertions="24" failures="0" skipped="0" time="0.002" hostname="manka-d-l-5104-holden">
+      <testcase name="rewriting config preserves mcp_servers args arrays" classname="codex config arrays" time="0.001582" file="tests/codex-config.test.ts" line="21" assertions="3" />
+      <testcase name="activateCodexOfficialProvider removes top-level openai_base_url" classname="codex config arrays" time="0.000864" file="tests/codex-config.test.ts" line="39" assertions="2" />
+      <testcase name="managed Codex accounts use file credentials for snapshot switching" classname="codex config arrays" time="0.000869" file="tests/codex-config.test.ts" line="50" assertions="1" />
+      <testcase name="repairCodexStringifiedArrays fixes stringified args" classname="codex config arrays" time="0.001032" file="tests/codex-config.test.ts" line="60" assertions="3" />
+      <testcase name="repairCodexStringifiedArrays fixes stringified top-level notify" classname="codex config arrays" time="0.000699" file="tests/codex-config.test.ts" line="74" assertions="3" />
+      <testcase name="repairCodexStringifiedArrays fixes any array-typed key without an allowlist" classname="codex config arrays" time="0.000704" file="tests/codex-config.test.ts" line="86" assertions="4" />
+      <testcase name="repairCodexStringifiedArrays repairs TOML arrays that aren&apos;t strict JSON" classname="codex config arrays" time="0.00064" file="tests/codex-config.test.ts" line="105" assertions="3" />
+      <testcase name="repairCodexStringifiedArrays leaves real arrays and bracket-looking strings alone" classname="codex config arrays" time="0.000538" file="tests/codex-config.test.ts" line="117" assertions="4" />
+      <testcase name="repairCodexStringifiedArrays is a no-op without a config file" classname="codex config arrays" time="0.000203" file="tests/codex-config.test.ts" line="132" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/purge.test.ts" file="tests/purge.test.ts" tests="2" assertions="9" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="purge" file="tests/purge.test.ts" line="60" tests="2" assertions="9" failures="0" skipped="0" time="0.008" hostname="manka-d-l-5104-holden">
+      <testcase name="removes linked aliases, registry entry, and auth snapshot for codex accounts" classname="purge" time="0.004519" file="tests/purge.test.ts" line="71" assertions="6" />
+      <testcase name="removes a private OpenCode Go profile and clears its active state" classname="purge" time="0.004706" file="tests/purge.test.ts" line="121" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/add.test.ts" file="tests/add.test.ts" tests="13" assertions="89" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="add" file="tests/add.test.ts" line="65" tests="13" assertions="89" failures="0" skipped="0" time="0.052" hostname="manka-d-l-5104-holden">
+      <testcase name="adds a codex chatgpt account through isolated browser auth" classname="add" time="0.008606" file="tests/add.test.ts" line="131" assertions="15" />
+      <testcase name="adds a codex api key with a custom provider config" classname="add" time="0.00547" file="tests/add.test.ts" line="218" assertions="16" />
+      <testcase name="adds a claude api key with model mapping config" classname="add" time="0.005059" file="tests/add.test.ts" line="289" assertions="4" />
+      <testcase name="imports the current OpenCode Go credential into a private TUI profile" classname="add" time="0.006452" file="tests/add.test.ts" line="360" assertions="7" />
+      <testcase name="adds an OpenCode V2 account from a masked key prompt without importing global auth" classname="add" time="0.005807" file="tests/add.test.ts" line="396" assertions="10" />
+      <testcase name="imports an existing local OpenCode V2 credential when explicitly selected" classname="add" time="0.008089" file="tests/add.test.ts" line="436" assertions="9" />
+      <testcase name="re-prompts until OpenCode Go accepts the entered key" classname="add" time="0.004802" file="tests/add.test.ts" line="490" assertions="7" />
+      <testcase name="offers relay account balance setup when the base URL is a one-api relay" classname="add" time="0.00519" file="tests/add.test.ts" line="528" assertions="5" />
+      <testcase name="does not save relay credentials the relay rejects" classname="add" time="0.005106" file="tests/add.test.ts" line="594" assertions="3" />
+      <testcase name="adds workbuddy through the shared subscription setup and shows the proxy launch command" classname="add" time="0.001513" file="tests/add.test.ts" line="646" assertions="2" />
+      <testcase name="adds antigravity through the shared subscription setup and shows the proxy launch command" classname="add" time="0.000317" file="tests/add.test.ts" line="646" assertions="2" />
+      <testcase name="adds cursor through the shared subscription setup and shows the proxy launch command" classname="add" time="0.000368" file="tests/add.test.ts" line="646" assertions="2" />
+      <testcase name="offers subscriptions independently of the Claude Code frontend" classname="add" time="0.000694" file="tests/add.test.ts" line="659" assertions="7" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/subscription-profiles.test.ts" file="tests/subscription-profiles.test.ts" tests="17" assertions="126" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="Claude Code subscription profiles" file="tests/subscription-profiles.test.ts" line="12" tests="17" assertions="126" failures="0" skipped="0" time="0.101" hostname="manka-d-l-5104-holden">
+      <testcase name="workbuddy real catalog refresh preserves missing free DS tiers and explicit SG still works" classname="Claude Code subscription profiles" time="0.037695" file="tests/subscription-profiles.test.ts" line="16" assertions="20" />
+      <testcase name="workbuddy-ai real catalog refresh preserves missing free DS tiers and explicit SG still works" classname="Claude Code subscription profiles" time="0.017375" file="tests/subscription-profiles.test.ts" line="16" assertions="20" />
+      <testcase name="paid-only WorkBuddy discovery leaves unchosen tiers unset and Cursor keeps its old behavior" classname="Claude Code subscription profiles" time="0.001001" file="tests/subscription-profiles.test.ts" line="64" assertions="2" />
+      <testcase name="an omitted saved free DS never silently falls back to the paid SG tier" classname="Claude Code subscription profiles" time="0.005251" file="tests/subscription-profiles.test.ts" line="71" assertions="3" />
+      <testcase name="free DS sessions keep classifier and all tier side calls off previously saved paid SG" classname="Claude Code subscription profiles" time="0.004945" file="tests/subscription-profiles.test.ts" line="89" assertions="10" />
+      <testcase name="workbuddy picker hides duplicate SG while explicit IDs and saved overrides still route" classname="Claude Code subscription profiles" time="0.004489" file="tests/subscription-profiles.test.ts" line="116" assertions="4" />
+      <testcase name="workbuddy-ai picker hides duplicate SG while explicit IDs and saved overrides still route" classname="Claude Code subscription profiles" time="0.003351" file="tests/subscription-profiles.test.ts" line="116" assertions="4" />
+      <testcase name="cursor picker hides duplicate SG while explicit IDs and saved overrides still route" classname="Claude Code subscription profiles" time="0.003723" file="tests/subscription-profiles.test.ts" line="116" assertions="4" />
+      <testcase name="cursor uses the account&apos;s exact model IDs and preserves older available versions" classname="Claude Code subscription profiles" time="0.003738" file="tests/subscription-profiles.test.ts" line="142" assertions="10" />
+      <testcase name="workbuddy uses the account&apos;s exact model IDs and preserves older available versions" classname="Claude Code subscription profiles" time="0.003092" file="tests/subscription-profiles.test.ts" line="142" assertions="10" />
+      <testcase name="workbuddy-ai uses the account&apos;s exact model IDs and preserves older available versions" classname="Claude Code subscription profiles" time="0.003134" file="tests/subscription-profiles.test.ts" line="142" assertions="10" />
+      <testcase name="compaction follows each model&apos;s subscription window instead of Claude Code&apos;s 200K guess" classname="Claude Code subscription profiles" time="0.003267" file="tests/subscription-profiles.test.ts" line="167" assertions="3" />
+      <testcase name="WorkBuddy&apos;s auto mode classifier runs on deepseek-v4.1-flash only inside its own session settings" classname="Claude Code subscription profiles" time="0.012762" file="tests/subscription-profiles.test.ts" line="193" assertions="6" />
+      <testcase name="subscription catalogs without windows keep Claude Code&apos;s defaults" classname="Claude Code subscription profiles" time="0.003223" file="tests/subscription-profiles.test.ts" line="218" assertions="2" />
+      <testcase name="Cursor Auto and opaque model IDs are selected only from its catalog" classname="Claude Code subscription profiles" time="0.000617" file="tests/subscription-profiles.test.ts" line="233" assertions="4" />
+      <testcase name="a priced catalog maps every tier to its widest free model and moves auto-picked paid tiers once" classname="Claude Code subscription profiles" time="0.000817" file="tests/subscription-profiles.test.ts" line="241" assertions="6" />
+      <testcase name="provider markers round-trip and unknown markers cannot silently become ChatGPT" classname="Claude Code subscription profiles" time="0.000678" file="tests/subscription-profiles.test.ts" line="265" assertions="8" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/relayrouter-glm.test.ts" file="tests/relayrouter-glm.test.ts" tests="6" assertions="32" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="RelayRouter GLM profile settings" file="tests/relayrouter-glm.test.ts" line="16" tests="6" assertions="32" failures="0" skipped="0" time="0.016" hostname="manka-d-l-5104-holden">
+      <testcase name="explicit profile preferences override generated window and side-query defaults" classname="RelayRouter GLM profile settings" time="0.002214" file="tests/relayrouter-glm.test.ts" line="19" assertions="2" />
+      <testcase name="generated settings are tracked, isolated from other profiles, and removed on a global switch" classname="RelayRouter GLM profile settings" time="0.013631" file="tests/relayrouter-glm.test.ts" line="32" assertions="26" />
+      <testcase name="does not change another endpoint: https://api.deepseek.com/anthropic" classname="RelayRouter GLM profile settings" time="0.001228" file="tests/relayrouter-glm.test.ts" line="55" assertions="1" />
+      <testcase name="does not change another endpoint: https://api.relayrouter.org" classname="RelayRouter GLM profile settings" time="0.000255" file="tests/relayrouter-glm.test.ts" line="55" assertions="1" />
+      <testcase name="does not change another endpoint: https://api.relayrouter.ai.example.com" classname="RelayRouter GLM profile settings" time="0.000278" file="tests/relayrouter-glm.test.ts" line="55" assertions="1" />
+      <testcase name="does not change another endpoint: http://api.relayrouter.ai" classname="RelayRouter GLM profile settings" time="0.000281" file="tests/relayrouter-glm.test.ts" line="55" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/cliproxy-version.test.ts" file="tests/cliproxy-version.test.ts" tests="10" assertions="14" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="CLIProxyAPI tool-history compatibility" file="tests/cliproxy-version.test.ts" line="9" tests="10" assertions="14" failures="0" skipped="0" time="0.036" hostname="manka-d-l-5104-holden">
+      <testcase name="parses the official help banner rather than config or log numbers" classname="CLIProxyAPI tool-history compatibility" time="0.036706" file="tests/cliproxy-version.test.ts" line="10" assertions="5" />
+      <testcase name="rejects an unverified tool-history runtime: 7.3.15" classname="CLIProxyAPI tool-history compatibility" time="0.000102" file="tests/cliproxy-version.test.ts" line="18" assertions="1" />
+      <testcase name="rejects an unverified tool-history runtime: 7.3.18" classname="CLIProxyAPI tool-history compatibility" time="0" file="tests/cliproxy-version.test.ts" line="18" assertions="1" />
+      <testcase name="rejects an unverified tool-history runtime: 7.2.999" classname="CLIProxyAPI tool-history compatibility" time="0.000016" file="tests/cliproxy-version.test.ts" line="18" assertions="1" />
+      <testcase name="rejects an unverified tool-history runtime: 7.3.19-rc1" classname="CLIProxyAPI tool-history compatibility" time="0" file="tests/cliproxy-version.test.ts" line="18" assertions="1" />
+      <testcase name="rejects an unverified tool-history runtime: %s" classname="CLIProxyAPI tool-history compatibility" time="0.000002" file="tests/cliproxy-version.test.ts" line="18" assertions="1" />
+      <testcase name="recognizes versions containing the fix: 7.3.19" classname="CLIProxyAPI tool-history compatibility" time="0" file="tests/cliproxy-version.test.ts" line="22" assertions="1" />
+      <testcase name="recognizes versions containing the fix: 7.3.20" classname="CLIProxyAPI tool-history compatibility" time="0" file="tests/cliproxy-version.test.ts" line="22" assertions="1" />
+      <testcase name="recognizes versions containing the fix: 7.4.0" classname="CLIProxyAPI tool-history compatibility" time="0" file="tests/cliproxy-version.test.ts" line="22" assertions="1" />
+      <testcase name="recognizes versions containing the fix: 8.0.0" classname="CLIProxyAPI tool-history compatibility" time="0" file="tests/cliproxy-version.test.ts" line="22" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/cliproxy-usage.test.ts" file="tests/cliproxy-usage.test.ts" tests="18" assertions="87" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="proxy quota" file="tests/cliproxy-usage.test.ts" line="42" tests="18" assertions="87" failures="0" skipped="0" time="1.329" hostname="manka-d-l-5104-holden">
+      <testcase name="reads Gemini windows through live, cached and JSON list without a group prefix" classname="proxy quota" time="0.158217" file="tests/cliproxy-usage.test.ts" line="49" assertions="19" />
+      <testcase name="reads WorkBuddy plan and credit units through the installed plugin and preserves them in cache" classname="proxy quota" time="0.137504" file="tests/cliproxy-usage.test.ts" line="82" assertions="11" />
+      <testcase name="no-usage and cached failures omit placeholders and never make quota requests" classname="proxy quota" time="0.069748" file="tests/cliproxy-usage.test.ts" line="117" assertions="6" />
+      <testcase name="antigravity reads a local email in list and current without quota requests" classname="proxy quota" time="0.037125" file="tests/cliproxy-usage.test.ts" line="137" assertions="3" />
+      <testcase name="workbuddy reads a local email in list and current without quota requests" classname="proxy quota" time="0.036402" file="tests/cliproxy-usage.test.ts" line="137" assertions="3" />
+      <testcase name="workbuddy-ai reads a local email in list and current without quota requests" classname="proxy quota" time="0.045603" file="tests/cliproxy-usage.test.ts" line="137" assertions="3" />
+      <testcase name="cursor reads a local email in list and current without quota requests" classname="proxy quota" time="0.038709" file="tests/cliproxy-usage.test.ts" line="137" assertions="3" />
+      <testcase name="workbuddy never treats an email-shaped nickname as login email" classname="proxy quota" time="0.036298" file="tests/cliproxy-usage.test.ts" line="152" assertions="2" />
+      <testcase name="workbuddy-ai never treats an email-shaped nickname as login email" classname="proxy quota" time="0.037003" file="tests/cliproxy-usage.test.ts" line="152" assertions="2" />
+      <testcase name="shows only Gemini quota for model claude-opus-5-5-high in live and cached output" classname="proxy quota" time="0.103183" file="tests/cliproxy-usage.test.ts" line="165" assertions="6" />
+      <testcase name="shows only Gemini quota for model gpt-6.1 in live and cached output" classname="proxy quota" time="0.10222" file="tests/cliproxy-usage.test.ts" line="165" assertions="6" />
+      <testcase name="shows only Gemini quota for model gemini-3.8-flash-high in live and cached output" classname="proxy quota" time="0.114203" file="tests/cliproxy-usage.test.ts" line="165" assertions="6" />
+      <testcase name="shows only Gemini quota for model unknown-model in live and cached output" classname="proxy quota" time="0.116551" file="tests/cliproxy-usage.test.ts" line="165" assertions="6" />
+      <testcase name="Claude/GPT-only quota omits unavailable Gemini windows without fallback" classname="proxy quota" time="0.083555" file="tests/cliproxy-usage.test.ts" line="181" assertions="2" />
+      <testcase name="a refresh missing Gemini keeps the last valid Gemini quota" classname="proxy quota" time="0.142289" file="tests/cliproxy-usage.test.ts" line="191" assertions="2" />
+      <testcase name="Gemini weekly-only summary does not invent a five-hour window" classname="proxy quota" time="0.072246" file="tests/cliproxy-usage.test.ts" line="203" assertions="2" />
+      <testcase name="unavailable or expired upstream access returns no quota and does not write credentials" classname="proxy quota" time="0.00352" file="tests/cliproxy-usage.test.ts" line="213" assertions="2" />
+      <testcase name="missing or malformed quota is never guessed as zero or unlimited" classname="proxy quota" time="0.001414" file="tests/cliproxy-usage.test.ts" line="222" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/relayrouter-transport.test.ts" file="tests/relayrouter-transport.test.ts" tests="6" assertions="29" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="RelayRouter session transport" file="tests/relayrouter-transport.test.ts" line="36" tests="6" assertions="29" failures="0" skipped="0" time="1.209" hostname="manka-d-l-5104-holden">
+      <testcase name="Node runtime preserves responses and cancels the upstream when closing" classname="RelayRouter session transport" time="1.182437" file="tests/relayrouter-transport.test.ts" line="37" assertions="4" />
+      <testcase name="strips only assistant reasoning history at /v1/messages and preserves the streamed answer" classname="RelayRouter session transport" time="0.007949" file="tests/relayrouter-transport.test.ts" line="52" assertions="8" />
+      <testcase name="strips only assistant reasoning history at /v1/messages/count_tokens and preserves the streamed answer" classname="RelayRouter session transport" time="0.005685" file="tests/relayrouter-transport.test.ts" line="52" assertions="8" />
+      <testcase name="preserves another selected model and the upstream&apos;s denial/error response" classname="RelayRouter session transport" time="0.005684" file="tests/relayrouter-transport.test.ts" line="79" assertions="4" />
+      <testcase name="rejects malformed bodies and unrelated paths without contacting the upstream" classname="RelayRouter session transport" time="0.00576" file="tests/relayrouter-transport.test.ts" line="92" assertions="4" />
+      <testcase name="closing a session aborts an in-flight upstream response and removes the listener" classname="RelayRouter session transport" time="0.005371" file="tests/relayrouter-transport.test.ts" line="101" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/model.test.ts" file="tests/model.test.ts" tests="4" assertions="9" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="model command" file="tests/model.test.ts" line="29" tests="4" assertions="9" failures="0" skipped="0" time="0.02" hostname="manka-d-l-5104-holden">
+      <testcase name="updates an active Claude OAuth profile default model" classname="model command" time="0.008162" file="tests/model.test.ts" line="37" assertions="2" />
+      <testcase name="updates an active Claude API key profile default model" classname="model command" time="0.005908" file="tests/model.test.ts" line="83" assertions="2" />
+      <testcase name="expands a Claude opus shorthand into the canonical model id" classname="model command" time="0.004445" file="tests/model.test.ts" line="113" assertions="1" />
+      <testcase name="updates an active Codex API key account default model using sol" classname="model command" time="0.00335" file="tests/model.test.ts" line="135" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/cli-version.test.ts" file="tests/cli-version.test.ts" tests="14" assertions="36" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="cli version flags" file="tests/cli-version.test.ts" line="43" tests="14" assertions="36" failures="0" skipped="0" time="1.658" hostname="manka-d-l-5104-holden">
+      <testcase name="doctor help names provider proxies" classname="cli version flags" time="0.112142" file="tests/cli-version.test.ts" line="44" assertions="3" />
+      <testcase name="rejects invalid doctor binary options: &quot;doctor&quot;" classname="cli version flags" time="0.104627" file="tests/cli-version.test.ts" line="54" assertions="2" />
+      <testcase name="rejects invalid doctor binary options: &quot;doctor&quot;" classname="cli version flags" time="0.114349" file="tests/cli-version.test.ts" line="54" assertions="2" />
+      <testcase name="rejects invalid doctor binary options: &quot;doctor&quot;" classname="cli version flags" time="0.103101" file="tests/cli-version.test.ts" line="54" assertions="2" />
+      <testcase name="prints the current version for --version" classname="cli version flags" time="0.100623" file="tests/cli-version.test.ts" line="59" assertions="3" />
+      <testcase name="prints the current version for -V" classname="cli version flags" time="0.106137" file="tests/cli-version.test.ts" line="67" assertions="3" />
+      <testcase name="does not treat -version as a supported flag" classname="cli version flags" time="0.108407" file="tests/cli-version.test.ts" line="75" assertions="2" />
+      <testcase name="blocks repo-local account commands without an isolated home" classname="cli version flags" time="0.104938" file="tests/cli-version.test.ts" line="83" assertions="3" />
+      <testcase name="allows repo-local version checks without an isolated home" classname="cli version flags" time="0.110641" file="tests/cli-version.test.ts" line="94" assertions="2" />
+      <testcase name="requires -run for autoreview via alias shortcut" classname="cli version flags" time="0.103146" file="tests/cli-version.test.ts" line="104" assertions="2" />
+      <testcase name="requires -run for autoreview via use command" classname="cli version flags" time="0.103688" file="tests/cli-version.test.ts" line="104" assertions="2" />
+      <testcase name="rejects a missing autoreview value before provider validation" classname="cli version flags" time="0.150883" file="tests/cli-version.test.ts" line="115" assertions="3" />
+      <testcase name="rejects a invalid autoreview value before provider validation" classname="cli version flags" time="0.128296" file="tests/cli-version.test.ts" line="115" assertions="3" />
+      <testcase name="accepts autoreview through both alias and use session syntaxes" classname="cli version flags" time="0.213082" file="tests/cli-version.test.ts" line="135" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/opencode-catalog.test.ts" file="tests/opencode-catalog.test.ts" tests="5" assertions="34" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="OpenCode private model catalog" file="tests/opencode-catalog.test.ts" line="19" tests="5" assertions="34" failures="0" skipped="0" time="0.025" hostname="manka-d-l-5104-holden">
+      <testcase name="pins new public models before key and Console discovery with private snapshots" classname="OpenCode private model catalog" time="0.011415" file="tests/opencode-catalog.test.ts" line="32" assertions="10" />
+      <testcase name="reuses a fresh snapshot and refreshes a stale one before discovery" classname="OpenCode private model catalog" time="0.007169" file="tests/opencode-catalog.test.ts" line="48" assertions="5" />
+      <testcase name="keeps the last good snapshot on offline, invalid and HTTP failures" classname="OpenCode private model catalog" time="0.005528" file="tests/opencode-catalog.test.ts" line="65" assertions="12" />
+      <testcase name="honors explicit offline, custom file and catalog URL settings" classname="OpenCode private model catalog" time="0.002076" file="tests/opencode-catalog.test.ts" line="84" assertions="5" />
+      <testcase name="falls back to the native bundled catalog when the first refresh fails" classname="OpenCode private model catalog" time="0.000823" file="tests/opencode-catalog.test.ts" line="99" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/cliproxy-dispatch.test.ts" file="tests/cliproxy-dispatch.test.ts" tests="7" assertions="25" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="alias dispatch for --cliproxy" file="tests/cliproxy-dispatch.test.ts" line="25" tests="7" assertions="25" failures="0" skipped="0" time="0.923" hostname="manka-d-l-5104-holden">
+      <testcase name="first-use cursor reaches plugin login and cancelled setup leaves no account" classname="alias dispatch for --cliproxy" time="0.150144" file="tests/cliproxy-dispatch.test.ts" line="26" assertions="5" />
+      <testcase name="first-use workbuddy-ai reaches plugin login and cancelled setup leaves no account" classname="alias dispatch for --cliproxy" time="0.158666" file="tests/cliproxy-dispatch.test.ts" line="26" assertions="5" />
+      <testcase name="first-use bare workbuddy asks for its region and names workbuddy-ai without a terminal" classname="alias dispatch for --cliproxy" time="0.150531" file="tests/cliproxy-dispatch.test.ts" line="42" assertions="4" />
+      <testcase name="an alias that does not exist yet reaches the Antigravity setup" classname="alias dispatch for --cliproxy" time="0.119418" file="tests/cliproxy-dispatch.test.ts" line="57" assertions="2" />
+      <testcase name="an unknown --cliproxy target reports the alias, not an unknown command" classname="alias dispatch for --cliproxy" time="0.11468" file="tests/cliproxy-dispatch.test.ts" line="66" assertions="4" />
+      <testcase name="Antigravity without --cliproxy points at the proxy command" classname="alias dispatch for --cliproxy" time="0.110159" file="tests/cliproxy-dispatch.test.ts" line="77" assertions="3" />
+      <testcase name="an unknown command without --cliproxy still fails as a command" classname="alias dispatch for --cliproxy" time="0.122239" file="tests/cliproxy-dispatch.test.ts" line="87" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/claude-classifier-fallback.test.ts" file="tests/claude-classifier-fallback.test.ts" tests="7" assertions="26" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="local proxy classifier fallback" file="tests/claude-classifier-fallback.test.ts" line="32" tests="7" assertions="26" failures="0" skipped="0" time="0.019" hostname="manka-d-l-5104-holden">
+      <testcase name="tracks default or explicit classifier setting %s on activation" classname="local proxy classifier fallback" time="0.003698" file="tests/claude-classifier-fallback.test.ts" line="39" assertions="2" />
+      <testcase name="tracks default or explicit classifier setting 1 on activation" classname="local proxy classifier fallback" time="0.001982" file="tests/claude-classifier-fallback.test.ts" line="39" assertions="2" />
+      <testcase name="clears generated fallback when globally switching to api" classname="local proxy classifier fallback" time="0.003281" file="tests/claude-classifier-fallback.test.ts" line="45" assertions="2" />
+      <testcase name="clears generated fallback when globally switching to oauth" classname="local proxy classifier fallback" time="0.001901" file="tests/claude-classifier-fallback.test.ts" line="45" assertions="2" />
+      <testcase name="isolated API and OAuth settings neutralize active fallback and preserve explicit preferences" classname="local proxy classifier fallback" time="0.006761" file="tests/claude-classifier-fallback.test.ts" line="53" assertions="10" />
+      <testcase name="direct profiles preserve a user-owned setting outside managed profile ownership" classname="local proxy classifier fallback" time="0.002692" file="tests/claude-classifier-fallback.test.ts" line="72" assertions="2" />
+      <testcase name="inactive profile keys preserve user-owned launch values without exposing them in argv" classname="local proxy classifier fallback" time="0.003859" file="tests/claude-classifier-fallback.test.ts" line="81" assertions="6" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/subscription-plugins.test.ts" file="tests/subscription-plugins.test.ts" tests="28" assertions="169" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="subscription plugin adapter" file="tests/subscription-plugins.test.ts" line="82" tests="28" assertions="169" failures="0" skipped="0" time="0.152" hostname="manka-d-l-5104-holden">
+      <testcase name="reads the official billed model even when a zero-credit request used the base ID" classname="subscription plugin adapter" time="0.002785" file="tests/subscription-plugins.test.ts" line="83" assertions="5" />
+      <testcase name="workbuddy curates regional discovery without blocking explicit regional routing" classname="subscription plugin adapter" time="0.007322" file="tests/subscription-plugins.test.ts" line="101" assertions="6" />
+      <testcase name="workbuddy-ai curates regional discovery without blocking explicit regional routing" classname="subscription plugin adapter" time="0.003401" file="tests/subscription-plugins.test.ts" line="101" assertions="6" />
+      <testcase name="cursor curates regional discovery without blocking explicit regional routing" classname="subscription plugin adapter" time="0.004549" file="tests/subscription-plugins.test.ts" line="101" assertions="6" />
+      <testcase name="WorkBuddy AI never invents a free base DS from a paid SG-only catalog" classname="subscription plugin adapter" time="0.002755" file="tests/subscription-plugins.test.ts" line="128" assertions="3" />
+      <testcase name="workbuddy preserves catalog prices without inferring that a zero multiplier is free" classname="subscription plugin adapter" time="0.001576" file="tests/subscription-plugins.test.ts" line="142" assertions="3" />
+      <testcase name="workbuddy-ai preserves catalog prices without inferring that a zero multiplier is free" classname="subscription plugin adapter" time="0.001496" file="tests/subscription-plugins.test.ts" line="142" assertions="3" />
+      <testcase name="cursor preserves catalog prices without inferring that a zero multiplier is free" classname="subscription plugin adapter" time="0.000957" file="tests/subscription-plugins.test.ts" line="142" assertions="3" />
+      <testcase name="loads the three actual plugin factories and lists only OAuth methods offline" classname="subscription plugin adapter" time="0.00119" file="tests/subscription-plugins.test.ts" line="160" assertions="16" />
+      <testcase name="stores private atomic auth and stable hashed account identity" classname="subscription plugin adapter" time="0.002161" file="tests/subscription-plugins.test.ts" line="175" assertions="10" />
+      <testcase name="desktop login keeps only the plugin marker, with no imported rotating tokens" classname="subscription plugin adapter" time="0.001034" file="tests/subscription-plugins.test.ts" line="195" assertions="2" />
+      <testcase name="normalizes numeric account IDs and refuses an access token as an account identity" classname="subscription plugin adapter" time="0.001511" file="tests/subscription-plugins.test.ts" line="203" assertions="2" />
+      <testcase name="rejects configured fallback and empty catalogs rather than presenting guessed models" classname="subscription plugin adapter" time="0.001157" file="tests/subscription-plugins.test.ts" line="211" assertions="3" />
+      <testcase name="authenticates every endpoint and returns the plugin model IDs" classname="subscription plugin adapter" time="0.005359" file="tests/subscription-plugins.test.ts" line="219" assertions="10" />
+      <testcase name="streams without buffering, forwards session headers, and preserves upstream errors" classname="subscription plugin adapter" time="0.003989" file="tests/subscription-plugins.test.ts" line="232" assertions="13" />
+      <testcase name="WorkBuddy answers a non-stream chat by collecting its stream, and passes stream chats through" classname="subscription plugin adapter" time="0.006641" file="tests/subscription-plugins.test.ts" line="260" assertions="12" />
+      <testcase name="workbuddy keeps a non-stream classifier&apos;s budget for its verdict" classname="subscription plugin adapter" time="0.002825" file="tests/subscription-plugins.test.ts" line="298" assertions="6" />
+      <testcase name="workbuddy-ai keeps a non-stream classifier&apos;s budget for its verdict" classname="subscription plugin adapter" time="0.004556" file="tests/subscription-plugins.test.ts" line="298" assertions="6" />
+      <testcase name="preserves requested effort: {&quot;upstream&quot;:&quot;workbuddy-ai&quot;,&quot;stream&quot;:false,&quot;reasoning_effort&quot;:&quot;high&quot;}" classname="subscription plugin adapter" time="0.003798" file="tests/subscription-plugins.test.ts" line="327" assertions="3" />
+      <testcase name="preserves requested effort: {&quot;upstream&quot;:&quot;workbuddy&quot;,&quot;stream&quot;:true}" classname="subscription plugin adapter" time="0.002634" file="tests/subscription-plugins.test.ts" line="327" assertions="4" />
+      <testcase name="preserves requested effort: {&quot;upstream&quot;:&quot;workbuddy-ai&quot;,&quot;stream&quot;:true,&quot;reasoning_effort&quot;:&quot;max&quot;}" classname="subscription plugin adapter" time="0.004423" file="tests/subscription-plugins.test.ts" line="327" assertions="4" />
+      <testcase name="preserves requested effort: {&quot;upstream&quot;:&quot;cursor&quot;,&quot;stream&quot;:false}" classname="subscription plugin adapter" time="0.002125" file="tests/subscription-plugins.test.ts" line="327" assertions="4" />
+      <testcase name="reads WorkBuddy&apos;s written reset time in either language as seconds" classname="subscription plugin adapter" time="0.000541" file="tests/subscription-plugins.test.ts" line="340" assertions="8" />
+      <testcase name="WorkBuddy refusals: a written reset becomes Retry-After and 14018 names the free models" classname="subscription plugin adapter" time="0.007213" file="tests/subscription-plugins.test.ts" line="355" assertions="12" />
+      <testcase name="serializes concurrent auth.set updates and reads the latest auth on the next request" classname="subscription plugin adapter" time="0.00624" file="tests/subscription-plugins.test.ts" line="394" assertions="3" />
+      <testcase name="the real WorkBuddy plugin refresh callback persists rotated tokens once across parallel model calls" classname="subscription plugin adapter" time="0.014461" file="tests/subscription-plugins.test.ts" line="414" assertions="7" />
+      <testcase name="aborts an upstream stream when the downstream client disconnects" classname="subscription plugin adapter" time="0.008127" file="tests/subscription-plugins.test.ts" line="453" assertions="1" />
+      <testcase name="validates JSON, rejects oversized bodies, and hides internal exceptions" classname="subscription plugin adapter" time="0.060746" file="tests/subscription-plugins.test.ts" line="474" assertions="8" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/codex-auth.test.ts" file="tests/codex-auth.test.ts" tests="6" assertions="14" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="codex auth" file="tests/codex-auth.test.ts" line="21" tests="6" assertions="14" failures="0" skipped="0" time="0.009" hostname="manka-d-l-5104-holden">
+      <testcase name="decodes id tokens with OpenAI auth metadata" classname="codex auth" time="0.003196" file="tests/codex-auth.test.ts" line="26" assertions="2" />
+      <testcase name="decodes current chatgpt claim names and profile email" classname="codex auth" time="0.000343" file="tests/codex-auth.test.ts" line="46" assertions="1" />
+      <testcase name="reads the current plan from the access token before the id token" classname="codex auth" time="0.000461" file="tests/codex-auth.test.ts" line="64" assertions="1" />
+      <testcase name="snapshots and saves auth files with restricted permissions" classname="codex auth" time="0.002312" file="tests/codex-auth.test.ts" line="78" assertions="4" />
+      <testcase name="normalizes api key auth files to Codex CLI format" classname="codex auth" time="0.002465" file="tests/codex-auth.test.ts" line="109" assertions="2" />
+      <testcase name="syncs only a matching active account back to its snapshot" classname="codex auth" time="0.002853" file="tests/codex-auth.test.ts" line="135" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/package-manager-guard.test.ts" file="tests/package-manager-guard.test.ts" tests="2" assertions="6" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="package manager guard" file="tests/package-manager-guard.test.ts" line="4" tests="2" assertions="6" failures="0" skipped="0" time="0.129" hostname="manka-d-l-5104-holden">
+      <testcase name="rejects npm installs with installer guidance" classname="package manager guard" time="0.068499" file="tests/package-manager-guard.test.ts" line="5" assertions="4" />
+      <testcase name="allows bun installs" classname="package manager guard" time="0.061677" file="tests/package-manager-guard.test.ts" line="21" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/build-release-assets.test.ts" file="tests/build-release-assets.test.ts" tests="2" assertions="44" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="build-release-assets.sh" file="tests/build-release-assets.test.ts" line="9" tests="2" assertions="44" failures="0" skipped="0" time="0.476" hostname="manka-d-l-5104-holden">
+      <testcase name="bundles the binary and license notices in every platform archive" classname="build-release-assets.sh" time="0.472751" file="tests/build-release-assets.test.ts" line="10" assertions="41" />
+      <testcase name="fails before packaging when a required license notice is absent" classname="build-release-assets.sh" time="0.004519" file="tests/build-release-assets.test.ts" line="105" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/codex-login.test.ts" file="tests/codex-login.test.ts" tests="2" assertions="10" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="isolated Codex login" file="tests/codex-login.test.ts" line="46" tests="2" assertions="10" failures="0" skipped="0" time="0.004" hostname="manka-d-l-5104-holden">
+      <testcase name="runs standard browser login in a temporary CODEX_HOME" classname="isolated Codex login" time="0.003387" file="tests/codex-login.test.ts" line="74" assertions="8" />
+      <testcase name="leaves existing global auth untouched when login is cancelled" classname="isolated Codex login" time="0.001839" file="tests/codex-login.test.ts" line="109" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/list-json.test.ts" file="tests/list-json.test.ts" tests="9" assertions="66" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="list --json" file="tests/list-json.test.ts" line="262" tests="9" assertions="66" failures="0" skipped="0" time="0.884" hostname="manka-d-l-5104-holden">
+      <testcase name="emits one valid versioned JSON object for an empty inventory" classname="list --json" time="0.107282" file="tests/list-json.test.ts" line="275" assertions="5" />
+      <testcase name="advertises JSON inventory support in help without triggering auto-update" classname="list --json" time="0.1058" file="tests/list-json.test.ts" line="285" assertions="3" />
+      <testcase name="outputs stable allowlisted records for providers in deterministic order" classname="list --json" time="0.136303" file="tests/list-json.test.ts" line="293" assertions="37" />
+      <testcase name="offline JSON makes no network requests or local file changes" classname="list --json" time="0.013123" file="tests/list-json.test.ts" line="376" assertions="2" />
+      <testcase name="serializes quota windows as numeric data and omits provider error notes" classname="list --json" time="0.009674" file="tests/list-json.test.ts" line="394" assertions="4" />
+      <testcase name="handles missing credentials and legacy Claude profiles without profile.json" classname="list --json" time="0.151863" file="tests/list-json.test.ts" line="447" assertions="2" />
+      <testcase name="represents missing provider records without throwing or exposing raw errors" classname="list --json" time="0.121326" file="tests/list-json.test.ts" line="503" assertions="5" />
+      <testcase name="sends generic errors to stderr and never leaks an invalid option" classname="list --json" time="0.117379" file="tests/list-json.test.ts" line="552" assertions="4" />
+      <testcase name="keeps the default list command human-readable" classname="list --json" time="0.125241" file="tests/list-json.test.ts" line="561" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/claude-opus-default.test.ts" file="tests/claude-opus-default.test.ts" tests="3" assertions="8" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="Claude opus default" file="tests/claude-opus-default.test.ts" line="14" tests="3" assertions="8" failures="0" skipped="0" time="0.009" hostname="manka-d-l-5104-holden">
+      <testcase name="supplies Opus 5.5 for OAuth even with clean global settings" classname="Claude opus default" time="0.005466" file="tests/claude-opus-default.test.ts" line="18" assertions="4" />
+      <testcase name="uses default while preserving explicit API mapping %s" classname="Claude opus default" time="0.002879" file="tests/claude-opus-default.test.ts" line="31" assertions="2" />
+      <testcase name="uses default while preserving explicit API mapping relay-opus" classname="Claude opus default" time="0.002592" file="tests/claude-opus-default.test.ts" line="31" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/activity.test.ts" file="tests/activity.test.ts" tests="6" assertions="21" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="activity trend" file="tests/activity.test.ts" line="90" tests="6" assertions="21" failures="0" skipped="0" time="0.354" hostname="manka-d-l-5104-holden">
+      <testcase name="sums tokens from all three tools and the user&apos;s committed source lines per day" classname="activity trend" time="0.341436" file="tests/activity.test.ts" line="95" assertions="6" />
+      <testcase name="refreshes at most once per interval" classname="activity trend" time="0.012598" file="tests/activity.test.ts" line="110" assertions="4" />
+      <testcase name="renders nothing before the first refresh finishes" classname="activity trend" time="0.000556" file="tests/activity.test.ts" line="118" assertions="2" />
+      <testcase name="renders one sparkline column per day with totals and peaks" classname="activity trend" time="0.001107" file="tests/activity.test.ts" line="123" assertions="4" />
+      <testcase name="shows its age once the cached trend is over an hour old" classname="activity trend" time="0.000445" file="tests/activity.test.ts" line="141" assertions="1" />
+      <testsuite name="in list" file="tests/activity.test.ts" line="146" tests="1" assertions="4" failures="0" skipped="0" time="0.001" hostname="manka-d-l-5104-holden">
+        <testcase name="--cached prints the trend from the cache file without computing it" classname="in list &amp;gt; activity trend" time="0.001992" file="tests/activity.test.ts" line="151" assertions="4" />
+      </testsuite>
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/render-formula.test.ts" file="tests/render-formula.test.ts" tests="1" assertions="10" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="render-formula.sh" file="tests/render-formula.test.ts" line="8" tests="1" assertions="10" failures="0" skipped="0" time="0.102" hostname="manka-d-l-5104-holden">
+      <testcase name="renders release urls and checksums for every platform asset" classname="render-formula.sh" time="0.102699" file="tests/render-formula.test.ts" line="9" assertions="10" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/run.test.ts" file="tests/run.test.ts" tests="34" assertions="223" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="run alias session" file="tests/run.test.ts" line="143" tests="34" assertions="223" failures="0" skipped="0" time="0.901" hostname="manka-d-l-5104-holden">
+      <testcase name="forwards SIGTERM to the client and removes its handlers after client exit" classname="run alias session" time="0.006969" file="tests/run.test.ts" line="155" assertions="4" />
+      <testcase name="forwards SIGHUP to the client and removes its handlers after client exit" classname="run alias session" time="0.006406" file="tests/run.test.ts" line="155" assertions="4" />
+      <testcase name="runs Claude Code with auto permission mode after switching" classname="run alias session" time="0.007374" file="tests/run.test.ts" line="178" assertions="6" />
+      <testcase name="isolates a Claude OAuth run from the global account state" classname="run alias session" time="0.010695" file="tests/run.test.ts" line="224" assertions="7" />
+      <testcase name="neutralizes global API settings env for an isolated OAuth run" classname="run alias session" time="0.008353" file="tests/run.test.ts" line="298" assertions="5" />
+      <testcase name="oauth settings writes stay private while shared skills and hooks load" classname="run alias session" time="0.009576" file="tests/run.test.ts" line="341" assertions="8" />
+      <testcase name="api-key settings writes stay private while shared skills and hooks load" classname="run alias session" time="0.008049" file="tests/run.test.ts" line="341" assertions="8" />
+      <testcase name="applies the OAuth profile default model to isolated runs" classname="run alias session" time="0.005999" file="tests/run.test.ts" line="377" assertions="1" />
+      <testcase name="runs Claude OAuth without inherited Anthropic API env" classname="run alias session" time="0.005835" file="tests/run.test.ts" line="416" assertions="1" />
+      <testcase name="disables the Claude attribution header only for a one-shot run" classname="run alias session" time="0.008192" file="tests/run.test.ts" line="458" assertions="2" />
+      <testcase name="runs Claude API key with the selected profile env" classname="run alias session" time="0.005294" file="tests/run.test.ts" line="509" assertions="5" />
+      <testcase name="outranks global settings.json routing for an isolated API-key run" classname="run alias session" time="0.010888" file="tests/run.test.ts" line="563" assertions="14" />
+      <testcase name="maps -model and saves it as the Claude account default" classname="run alias session" time="0.00632" file="tests/run.test.ts" line="637" assertions="3" />
+      <testcase name="RelayRouter GLM selection persists with its window and cheap side-query model" classname="run alias session" time="0.014847" file="tests/run.test.ts" line="680" assertions="32" />
+      <testcase name="expands a Claude --model shorthand into the canonical model id" classname="run alias session" time="0.006895" file="tests/run.test.ts" line="723" assertions="1" />
+      <testcase name="expands Codex sol and persists it for the next run" classname="run alias session" time="0.008919" file="tests/run.test.ts" line="758" assertions="4" />
+      <testcase name="defaults Codex autoreview off and applies overrides only in the launched session" classname="run alias session" time="0.014064" file="tests/run.test.ts" line="808" assertions="14" />
+      <testcase name="rejects autoreview for Claude before saving the model or switching" classname="run alias session" time="0.006713" file="tests/run.test.ts" line="879" assertions="4" />
+      <testcase name="maps an effort tier after the Claude model to --effort" classname="run alias session" time="0.005283" file="tests/run.test.ts" line="920" assertions="1" />
+      <testcase name="maps a bare Claude 5 model to opus with a quoted effort" classname="run alias session" time="0.005547" file="tests/run.test.ts" line="957" assertions="1" />
+      <testcase name="maps a bare fable alias to the latest Claude fable" classname="run alias session" time="0.005378" file="tests/run.test.ts" line="989" assertions="1" />
+      <testcase name="forwards a non-effort token following the model" classname="run alias session" time="0.00547" file="tests/run.test.ts" line="1025" assertions="1" />
+      <testcase name="maps Codex model shorthand and effort tiers to launch arguments" classname="run alias session" time="0.008838" file="tests/run.test.ts" line="1060" assertions="2" />
+      <testcase name="re-enables the attribution header for a one-shot Claude run" classname="run alias session" time="0.004355" file="tests/run.test.ts" line="1120" assertions="2" />
+      <testcase name="runs Claude API key aliases without changing the active global Claude auth" classname="run alias session" time="0.008253" file="tests/run.test.ts" line="1164" assertions="5" />
+      <testcase name="runs a non-default Codex account in a private CODEX_HOME without switching" classname="run alias session" time="0.010445" file="tests/run.test.ts" line="1218" assertions="18" />
+      <testcase name="runs the default Codex account on ~/.codex and saves its token rotation" classname="run alias session" time="0.004772" file="tests/run.test.ts" line="1296" assertions="6" />
+      <testcase name="private ChatGPT run resumes managed sessions with the selected provider before launching" classname="run alias session" time="0.247125" file="tests/run.test.ts" line="1340" assertions="13" />
+      <testcase name="default ChatGPT run resumes managed sessions with the selected provider before launching" classname="run alias session" time="0.213243" file="tests/run.test.ts" line="1340" assertions="13" />
+      <testcase name="relay run resumes managed sessions with the selected provider before launching" classname="run alias session" time="0.011017" file="tests/run.test.ts" line="1340" assertions="13" />
+      <testcase name="shares the sessions a Codex run created once it exits" classname="run alias session" time="0.220762" file="tests/run.test.ts" line="1423" assertions="5" />
+      <testcase name="saves Codex token rotation from a private run home" classname="run alias session" time="0.006721" file="tests/run.test.ts" line="1466" assertions="3" />
+      <testcase name="maps -model and saves it as the Codex account default" classname="run alias session" time="0.004911" file="tests/run.test.ts" line="1508" assertions="2" />
+      <testcase name="routes an api key alias through its relay in a private config" classname="run alias session" time="0.005145" file="tests/run.test.ts" line="1552" assertions="14" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/opencode-usage.test.ts" file="tests/opencode-usage.test.ts" tests="5" assertions="12" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="OpenCode Go usage" file="tests/opencode-usage.test.ts" line="13" tests="5" assertions="12" failures="0" skipped="0" time="0.007" hostname="manka-d-l-5104-holden">
+      <testcase name="maps all three official usage windows and sends the private Go key only as Bearer auth" classname="OpenCode Go usage" time="0.002821" file="tests/opencode-usage.test.ts" line="22" assertions="2" />
+      <testcase name="rejects malformed server data and degrades an invalid key to reconnect required" classname="OpenCode Go usage" time="0.002458" file="tests/opencode-usage.test.ts" line="68" assertions="2" />
+      <testcase name="reports an unsubscribed workspace without mislabeling it as a bad key" classname="OpenCode Go usage" time="0.002629" file="tests/opencode-usage.test.ts" line="85" assertions="1" />
+      <testcase name="probes a key: 401 invalid, 403 no subscription, network trouble unreachable" classname="OpenCode Go usage" time="0.001226" file="tests/opencode-usage.test.ts" line="99" assertions="5" />
+      <testcase name="probes a valid key and returns its usage windows" classname="OpenCode Go usage" time="0.000416" file="tests/opencode-usage.test.ts" line="130" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/subscription-refresh.test.ts" file="tests/subscription-refresh.test.ts" tests="1" assertions="4" failures="0" skipped="0" time="1.753" hostname="manka-d-l-5104-holden">
+    <testcase name="built subscription launcher never migrates missing free DS tiers to paid SG" classname="" time="1.753184" file="tests/subscription-refresh.test.ts" line="4" assertions="4" />
+  </testsuite>
+  <testsuite name="tests/refresh.test.ts" file="tests/refresh.test.ts" tests="7" assertions="41" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="refresh" file="tests/refresh.test.ts" line="96" tests="7" assertions="41" failures="0" skipped="0" time="0.027" hostname="manka-d-l-5104-holden">
+      <testcase name="refreshes a codex alias by resaving the refreshed auth snapshot" classname="refresh" time="0.006373" file="tests/refresh.test.ts" line="150" assertions="10" />
+      <testcase name="keeps active and saved auth unchanged after login to another account" classname="refresh" time="0.003603" file="tests/refresh.test.ts" line="259" assertions="4" />
+      <testcase name="refreshes a claude oauth alias by resaving the current credentials" classname="refresh" time="0.005215" file="tests/refresh.test.ts" line="346" assertions="6" />
+      <testcase name="replaces an OpenCode V2 key without launching the TUI or touching global auth.json" classname="refresh" time="0.00384" file="tests/refresh.test.ts" line="429" assertions="7" />
+      <testcase name="imports the local OpenCode V2 credential to replace a stale saved key" classname="refresh" time="0.005772" file="tests/refresh.test.ts" line="475" assertions="5" />
+      <testcase name="rejects an unchanged OpenCode V1 TUI capture instead of reporting refresh success" classname="refresh" time="0.003349" file="tests/refresh.test.ts" line="533" assertions="6" />
+      <testcase name="rejects an unchanged OpenCode V2 key instead of reporting a refresh" classname="refresh" time="0.002376" file="tests/refresh.test.ts" line="576" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/native-subscription-run.test.ts" file="tests/native-subscription-run.test.ts" tests="10" assertions="67" failures="0" skipped="0" time="3.719" hostname="manka-d-l-5104-holden">
+    <testcase name="cursor launches native frontend and preserves native arguments without creating proxy state" classname="" time="0.24545" file="tests/native-subscription-run.test.ts" line="45" assertions="12" />
+    <testcase name="Antigravity starts the native OAuth profile even without a proxy login or daemon" classname="" time="0.242605" file="tests/native-subscription-run.test.ts" line="74" assertions="5" />
+    <testcase name="Antigravity preserves native arguments and normalizes model effort without consulting the proxy catalog" classname="" time="0.898462" file="tests/native-subscription-run.test.ts" line="91" assertions="12" />
+    <testcase name="Antigravity aliases select separate persistent directories and clear inherited gateway auth" classname="" time="0.425233" file="tests/native-subscription-run.test.ts" line="112" assertions="11" />
+    <testcase name="Antigravity cannot use a forwarded flag to change the alias&apos;s profile directory" classname="" time="0.183512" file="tests/native-subscription-run.test.ts" line="140" assertions="6" />
+    <testcase name="Antigravity reports native executable failure without starting a proxy" classname="" time="0.095094" file="tests/native-subscription-run.test.ts" line="150" assertions="3" />
+    <testcase name="workbuddy bare run gives an explicit proxy instruction" classname="" time="0.096052" file="tests/native-subscription-run.test.ts" line="159" assertions="4" />
+    <testcase name="workbuddy-ai bare run gives an explicit proxy instruction" classname="" time="0.095578" file="tests/native-subscription-run.test.ts" line="159" assertions="4" />
+    <testcase name="workbuddy cc --model hy4free preserves explicit Claude routing and print arguments {&quot;args&quot;:[]}" classname="" time="0.731825" file="tests/native-subscription-run.test.ts" line="168" assertions="4" />
+    <testcase name="workbuddy cc --model hy4free preserves explicit Claude routing and print arguments {&quot;args&quot;:[&quot;-p&quot;,&quot;reply OK&quot;]}" classname="" time="0.709546" file="tests/native-subscription-run.test.ts" line="168" assertions="6" />
+  </testsuite>
+  <testsuite name="tests/release-guard.test.ts" file="tests/release-guard.test.ts" tests="3" assertions="8" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="check-release-state.sh" file="tests/release-guard.test.ts" line="77" tests="3" assertions="8" failures="0" skipped="0" time="0.662" hostname="manka-d-l-5104-holden">
+      <testcase name="passes when package.json version is ahead of the latest release" classname="check-release-state.sh" time="0.239723" file="tests/release-guard.test.ts" line="78" assertions="2" />
+      <testcase name="fails when main is ahead of the latest release without a version bump" classname="check-release-state.sh" time="0.205396" file="tests/release-guard.test.ts" line="101" assertions="4" />
+      <testcase name="ignores the workflow-generated Homebrew formula commit" classname="check-release-state.sh" time="0.218341" file="tests/release-guard.test.ts" line="121" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/import.test.ts" file="tests/import.test.ts" tests="1" assertions="4" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="importAccounts" file="tests/import.test.ts" line="35" tests="1" assertions="4" failures="0" skipped="0" time="0.003" hostname="manka-d-l-5104-holden">
+      <testcase name="imports new accounts and reports skipped duplicates and invalid aliases" classname="importAccounts" time="0.003666" file="tests/import.test.ts" line="40" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/claude-profiles.test.ts" file="tests/claude-profiles.test.ts" tests="12" assertions="34" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="claude profiles" file="tests/claude-profiles.test.ts" line="28" tests="12" assertions="34" failures="0" skipped="0" time="0.057" hostname="manka-d-l-5104-holden">
+      <testcase name="reapplies an active oauth profile when the real Claude config drifts" classname="claude profiles" time="0.005328" file="tests/claude-profiles.test.ts" line="34" assertions="3" />
+      <testcase name="seeds an isolated run with the freshest tokens of the active profile" classname="claude profiles" time="0.005159" file="tests/claude-profiles.test.ts" line="109" assertions="5" />
+      <testcase name="does not leak global account metadata into isolated config when profile metadata is missing" classname="claude profiles" time="0.005934" file="tests/claude-profiles.test.ts" line="169" assertions="1" />
+      <testcase name="refuses an isolated run for a profile without stored credentials" classname="claude profiles" time="0.003517" file="tests/claude-profiles.test.ts" line="213" assertions="1" />
+      <testcase name="keeps freshly refreshed live credentials when re-activating the same account" classname="claude profiles" time="0.004718" file="tests/claude-profiles.test.ts" line="232" assertions="3" />
+      <testcase name="restores the target org when two profiles share a login" classname="claude profiles" time="0.00686" file="tests/claude-profiles.test.ts" line="294" assertions="3" />
+      <testcase name="reapplies an active profile when the live org drifts under the same login" classname="claude profiles" time="0.005315" file="tests/claude-profiles.test.ts" line="358" assertions="2" />
+      <testcase name="does not corrupt a stale active profile snapshot when switching away" classname="claude profiles" time="0.007911" file="tests/claude-profiles.test.ts" line="411" assertions="3" />
+      <testcase name="applies the full Claude API config for api-key profiles" classname="claude profiles" time="0.003283" file="tests/claude-profiles.test.ts" line="497" assertions="2" />
+      <testcase name="keeps active Claude auth single-mode when switching between oauth and api key" classname="claude profiles" time="0.006307" file="tests/claude-profiles.test.ts" line="541" assertions="6" />
+      <testcase name="applies an oauth profile default model without API env" classname="claude profiles" time="0.004718" file="tests/claude-profiles.test.ts" line="589" assertions="2" />
+      <testcase name="reapplies an active api key profile when legacy oauth auth remains" classname="claude profiles" time="0.004324" file="tests/claude-profiles.test.ts" line="628" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/alias-store.test.ts" file="tests/alias-store.test.ts" tests="3" assertions="9" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="alias store" file="tests/alias-store.test.ts" line="12" tests="3" assertions="9" failures="0" skipped="0" time="0.001" hostname="manka-d-l-5104-holden">
+      <testcase name="returns a fresh fallback registry and writes secure files" classname="alias store" time="0.001555" file="tests/alias-store.test.ts" line="17" assertions="3" />
+      <testcase name="rejects duplicate targets and conflicting renames" classname="alias store" time="0.000961" file="tests/alias-store.test.ts" line="40" assertions="2" />
+      <testcase name="rejects reserved version flags as aliases" classname="alias store" time="0.000421" file="tests/alias-store.test.ts" line="63" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/claude-usage.test.ts" file="tests/claude-usage.test.ts" tests="15" assertions="19" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="Claude usage parser" file="tests/claude-usage.test.ts" line="14" tests="15" assertions="19" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="keeps over-limit legacy windows and renders the weekly token" classname="Claude usage parser" time="0.000457" file="tests/claude-usage.test.ts" line="15" assertions="3" />
+      <testcase name="reads the model-scoped weekly percentage and its own reset" classname="Claude usage parser" time="0.000056" file="tests/claude-usage.test.ts" line="25" assertions="1" />
+      <testcase name="keeps legacy responses unchanged without deriving a Fable quota" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="40" assertions="2" />
+      <testcase name="does not confuse another model or a session limit with Fable weekly" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="46" assertions="1" />
+      <testcase name="accepts zero usage and an unknown reset in a standalone Fable window" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="57" assertions="2" />
+      <testcase name="ignores invalid Fable percentage %s" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="63" assertions="1" />
+      <testcase name="ignores invalid Fable percentage 42" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="63" assertions="1" />
+      <testcase name="ignores invalid Fable percentage %s" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="63" assertions="1" />
+      <testcase name="ignores invalid Fable percentage %s" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="63" assertions="1" />
+      <testcase name="ignores invalid Fable percentage %s" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="63" assertions="1" />
+      <testcase name="ignores invalid Fable percentage %s" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="63" assertions="1" />
+      <testcase name="tolerates absent or malformed windows null" classname="Claude usage parser" time="0.000217" file="tests/claude-usage.test.ts" line="67" assertions="1" />
+      <testcase name="tolerates absent or malformed windows {}" classname="Claude usage parser" time="0.000007" file="tests/claude-usage.test.ts" line="67" assertions="1" />
+      <testcase name="tolerates absent or malformed windows {&quot;limits&quot;:{}}" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="67" assertions="1" />
+      <testcase name="tolerates absent or malformed windows {&quot;limits&quot;:[null,1,{}]}" classname="Claude usage parser" time="0" file="tests/claude-usage.test.ts" line="67" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/dist-version.test.ts" file="tests/dist-version.test.ts" tests="1" assertions="1" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="dist bundle metadata" file="tests/dist-version.test.ts" line="5" tests="1" assertions="1" failures="0" skipped="0" time="0.001" hostname="manka-d-l-5104-holden">
+      <testcase name="keeps the committed dist version in sync with package.json" classname="dist bundle metadata" time="0.001089" file="tests/dist-version.test.ts" line="6" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/opencode.test.ts" file="tests/opencode.test.ts" tests="38" assertions="308" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="OpenCode Go profiles" file="tests/opencode.test.ts" line="114" tests="38" assertions="308" failures="0" skipped="0" time="2.154" hostname="manka-d-l-5104-holden">
+      <testcase name="resolves Go display names and casing to the catalog model ID" classname="OpenCode Go profiles" time="0.000768" file="tests/opencode.test.ts" line="127" assertions="6" />
+      <testcase name="model command saves the catalog ID and rejects unknown Go models" classname="OpenCode Go profiles" time="0.002699" file="tests/opencode.test.ts" line="139" assertions="3" />
+      <testcase name="corrects a saved display-name default before launching" classname="OpenCode Go profiles" time="0.003423" file="tests/opencode.test.ts" line="158" assertions="3" />
+      <testcase name="V2 lists the live Go catalog in the picker without saving it as history" classname="OpenCode Go profiles" time="0.003942" file="tests/opencode.test.ts" line="181" assertions="3" />
+      <testcase name="V2 history drops a differently-cased spelling of the selected model" classname="OpenCode Go profiles" time="0.004439" file="tests/opencode.test.ts" line="197" assertions="2" />
+      <testcase name="stores only the Go credential in a private 0600 profile" classname="OpenCode Go profiles" time="0.003097" file="tests/opencode.test.ts" line="213" assertions="3" />
+      <testcase name="runs the native TUI with private auth and the shared session store" classname="OpenCode Go profiles" time="0.003612" file="tests/opencode.test.ts" line="228" assertions="8" />
+      <testcase name="validates Go model ids and reserves private XDG data for setup only" classname="OpenCode Go profiles" time="0.002143" file="tests/opencode.test.ts" line="284" assertions="5" />
+      <testcase name="detects supported V1 and V2 version output precisely" classname="OpenCode Go profiles" time="0.000862" file="tests/opencode.test.ts" line="301" assertions="4" />
+      <testcase name="builds a V2 config under the managed provider with a deny-by-default provider policy" classname="OpenCode Go profiles" time="0.000388" file="tests/opencode.test.ts" line="320" assertions="6" />
+      <testcase name="keeps an inherited provider deny after the managed-provider allow" classname="OpenCode Go profiles" time="0.000262" file="tests/opencode.test.ts" line="350" assertions="1" />
+      <testcase name="enables native free models without weakening explicit provider restrictions" classname="OpenCode Go profiles" time="0.000403" file="tests/opencode.test.ts" line="372" assertions="4" />
+      <testcase name="requires zero input, output and cache prices in every native model tier" classname="OpenCode Go profiles" time="0.000306" file="tests/opencode.test.ts" line="385" assertions="9" />
+      <testcase name="accepts native free models and protects their windows when switching from Go" classname="OpenCode Go profiles" time="0.303445" file="tests/opencode.test.ts" line="397" assertions="4" />
+      <testcase name="rejects invalid or colliding V2 config and fails closed without a Go model" classname="OpenCode Go profiles" time="0.001142" file="tests/opencode.test.ts" line="424" assertions="6" />
+      <testcase name="syncs a fake V2 key separately and uses alias-private database and XDG roots" classname="OpenCode Go profiles" time="0.00456" file="tests/opencode.test.ts" line="458" assertions="17" />
+      <testcase name="stores the selected key through the loopback credential API without argv or env leakage" classname="OpenCode Go profiles" time="0.308574" file="tests/opencode.test.ts" line="517" assertions="19" />
+      <testcase name="fails closed when OpenCode does not activate the synced alias key" classname="OpenCode Go profiles" time="0.305222" file="tests/opencode.test.ts" line="643" assertions="1" />
+      <testcase name="fails closed before POST when the effective default agent selects another provider" classname="OpenCode Go profiles" time="0.00249" file="tests/opencode.test.ts" line="701" assertions="2" />
+      <testcase name="retries the agent inventory until the effective default agent appears" classname="OpenCode Go profiles" time="0.404312" file="tests/opencode.test.ts" line="755" assertions="1" />
+      <testcase name="resolves the effective compaction buffer and model windows for the launch policy" classname="OpenCode Go profiles" time="0.30218" file="tests/opencode.test.ts" line="794" assertions="1" />
+      <testcase name="keeps auto-compaction on with a ~90% buffer below a 500k token window" classname="OpenCode Go profiles" time="0.000757" file="tests/opencode.test.ts" line="835" assertions="23" />
+      <testcase name="applies the small-window compaction buffer to the V2 run environment" classname="OpenCode Go profiles" time="0.005281" file="tests/opencode.test.ts" line="944" assertions="5" />
+      <testcase name="fails closed when the effective default agent never becomes available" classname="OpenCode Go profiles" time="0.104107" file="tests/opencode.test.ts" line="965" assertions="2" />
+      <testcase name="cleans only previously tracked claudex credentials and retains manual connections" classname="OpenCode Go profiles" time="0.306718" file="tests/opencode.test.ts" line="998" assertions="3" />
+      <testcase name="keeps prior Go models available for history within one alias" classname="OpenCode Go profiles" time="0.006354" file="tests/opencode.test.ts" line="1073" assertions="4" />
+      <testcase name="concurrent V2 launches union alias model history and malformed data fails closed" classname="OpenCode Go profiles" time="0.034202" file="tests/opencode.test.ts" line="1103" assertions="8" />
+      <testcase name="keeps model inventories and SQLite databases separate across aliases" classname="OpenCode Go profiles" time="0.006749" file="tests/opencode.test.ts" line="1134" assertions="4" />
+      <testcase name="runs V2 standalone after syncing the selected key and without exposing it to tools" classname="OpenCode Go profiles" time="0.00681" file="tests/opencode.test.ts" line="1156" assertions="9" />
+      <testcase name="runs a V2 headless one-shot in the current directory with the managed account and model" classname="OpenCode Go profiles" time="0.005766" file="tests/opencode.test.ts" line="1202" assertions="10" />
+      <testcase name="forwards supported V2 headless run flags and message positionals" classname="OpenCode Go profiles" time="0.005545" file="tests/opencode.test.ts" line="1251" assertions="3" />
+      <testcase name="refuses unsafe V2 headless run arguments before syncing or launching" classname="OpenCode Go profiles" time="0.00492" file="tests/opencode.test.ts" line="1308" assertions="78" />
+      <testcase name="V2 autoreview defaults off and toggles the completion-review plugin only for this launch" classname="OpenCode Go profiles" time="0.012457" file="tests/opencode.test.ts" line="1375" assertions="13" />
+      <testcase name="rejects V2 directory, resume, and unknown arguments before syncing or launching" classname="OpenCode Go profiles" time="0.003798" file="tests/opencode.test.ts" line="1421" assertions="24" />
+      <testcase name="fails closed before launching V2 when no Go model is selected" classname="OpenCode Go profiles" time="0.002905" file="tests/opencode.test.ts" line="1462" assertions="2" />
+      <testcase name="blocks a V2 launch when private credential synchronization fails" classname="OpenCode Go profiles" time="0.002977" file="tests/opencode.test.ts" line="1493" assertions="2" />
+      <testcase name="rejects V2 remote-server overrides before spawning OpenCode" classname="OpenCode Go profiles" time="0.002739" file="tests/opencode.test.ts" line="1519" assertions="2" />
+      <testcase name="rejects V2 server, config, and model routing overrides before spawning" classname="OpenCode Go profiles" time="0.003002" file="tests/opencode.test.ts" line="1542" assertions="8" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/codex-registry.test.ts" file="tests/codex-registry.test.ts" tests="3" assertions="13" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="codex registry" file="tests/codex-registry.test.ts" line="44" tests="3" assertions="13" failures="0" skipped="0" time="0.003" hostname="manka-d-l-5104-holden">
+      <testcase name="returns a fresh default registry" classname="codex registry" time="0.002547" file="tests/codex-registry.test.ts" line="50" assertions="2" />
+      <testcase name="updates active timestamps and clears active metadata on removal" classname="codex registry" time="0.000446" file="tests/codex-registry.test.ts" line="73" assertions="7" />
+      <testcase name="migrates missing codex default models on load" classname="codex registry" time="0.001212" file="tests/codex-registry.test.ts" line="92" assertions="4" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/install-script.test.ts" file="tests/install-script.test.ts" tests="2" assertions="7" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="install.sh" file="tests/install-script.test.ts" line="99" tests="2" assertions="7" failures="0" skipped="0" time="0.776" hostname="manka-d-l-5104-holden">
+      <testcase name="installs the latest release by default when one exists" classname="install.sh" time="0.512451" file="tests/install-script.test.ts" line="101" assertions="4" />
+      <testcase name="removes the existing global install before reinstalling a pinned version" classname="install.sh" time="0.264836" file="tests/install-script.test.ts" line="131" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/cliproxyapi.test.ts" file="tests/cliproxyapi.test.ts" tests="23" assertions="123" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="managed local CLIProxyAPI" file="tests/cliproxyapi.test.ts" line="110" tests="23" assertions="123" failures="0" skipped="0" time="12.606" hostname="manka-d-l-5104-holden">
+      <testcase name="creates a private loopback runtime with fixed subagent override" classname="managed local CLIProxyAPI" time="0.229522" file="tests/cliproxyapi.test.ts" line="133" assertions="21" />
+      <testcase name="starts the upstream binary in its private cwd without remote-store selectors" classname="managed local CLIProxyAPI" time="0.228851" file="tests/cliproxyapi.test.ts" line="189" assertions="4" />
+      <testcase name="keeps one staged Codex auth and rejects a different refreshed identity" classname="managed local CLIProxyAPI" time="0.135145" file="tests/cliproxyapi.test.ts" line="228" assertions="5" />
+      <testcase name="reports the real fixed OAuth callback-port collision before login" classname="managed local CLIProxyAPI" time="0.014121" file="tests/cliproxyapi.test.ts" line="250" assertions="1" />
+      <testcase name="refuses purge while a run lease is active, then removes only its profile" classname="managed local CLIProxyAPI" time="0.302383" file="tests/cliproxyapi.test.ts" line="265" assertions="6" />
+      <testcase name="a web-config delete is refused while a run lease is active" classname="managed local CLIProxyAPI" time="0.294138" file="tests/cliproxyapi.test.ts" line="286" assertions="7" />
+      <testcase name="uses an isolated Claude context without losing shared customizations" classname="managed local CLIProxyAPI" time="0.014179" file="tests/cliproxyapi.test.ts" line="326" assertions="8" />
+      <testcase name="runs Claude without --bare, clears inherited provider auth, and keeps the key out of argv" classname="managed local CLIProxyAPI" time="0.288595" file="tests/cliproxyapi.test.ts" line="364" assertions="15" />
+      <testcase name="doctor keeps basic checks local and uses a live request only when requested" classname="managed local CLIProxyAPI" time="0.79642" file="tests/cliproxyapi.test.ts" line="421" assertions="3" />
+      <testcase name="rejects old Antigravity binaries before startup, then doctor upgrades only the account binary" classname="managed local CLIProxyAPI" time="0.776732" file="tests/cliproxyapi.test.ts" line="447" assertions="6" />
+      <testcase name="a binary-appended server-id block is not config drift, but a real edit still is" classname="managed local CLIProxyAPI" time="1.055688" file="tests/cliproxyapi.test.ts" line="469" assertions="4" />
+      <testcase name="Antigravity gateway aliases route agy&apos;s tier-stripped Gemini names, and reach a daemon started before them" classname="managed local CLIProxyAPI" time="0.528375" file="tests/cliproxyapi.test.ts" line="496" assertions="12" />
+      <testcase name="a proxy that does not load refreshed Gemini aliases names the restart command" classname="managed local CLIProxyAPI" time="5.541511" file="tests/cliproxyapi.test.ts" line="544" assertions="1" />
+      <testcase name="keeps HTTP 400 distinct from a local proxy health failure" classname="managed local CLIProxyAPI" time="0.318738" file="tests/cliproxyapi.test.ts" line="564" assertions="2" />
+      <testcase name="keeps HTTP 401 distinct from a local proxy health failure" classname="managed local CLIProxyAPI" time="0.285355" file="tests/cliproxyapi.test.ts" line="564" assertions="2" />
+      <testcase name="keeps HTTP 429 distinct from a local proxy health failure" classname="managed local CLIProxyAPI" time="0.273743" file="tests/cliproxyapi.test.ts" line="564" assertions="2" />
+      <testcase name="keeps HTTP 503 distinct from a local proxy health failure" classname="managed local CLIProxyAPI" time="0.283717" file="tests/cliproxyapi.test.ts" line="564" assertions="2" />
+      <testcase name="a binary replacement refuses active leases and keeps profile and process intact" classname="managed local CLIProxyAPI" time="0.377261" file="tests/cliproxyapi.test.ts" line="579" assertions="3" />
+      <testcase name="a cancelled launch keeps its proxy lease until the client actually exits" classname="managed local CLIProxyAPI" time="0.374342" file="tests/cliproxyapi.test.ts" line="597" assertions="6" />
+      <testcase name="failed profile persistence stops the replacement instead of leaving mismatched state" classname="managed local CLIProxyAPI" time="0.487732" file="tests/cliproxyapi.test.ts" line="626" assertions="2" />
+      <testcase name="resolves local mapping without changing existing Claude shorthand" classname="managed local CLIProxyAPI" time="0.000985" file="tests/cliproxyapi.test.ts" line="636" assertions="6" />
+      <testcase name="uses the managed .env mapping for --model and the saved model command" classname="managed local CLIProxyAPI" time="0.005148" file="tests/cliproxyapi.test.ts" line="645" assertions="2" />
+      <testcase name="upgrades the legacy Luna default written into older .env files" classname="managed local CLIProxyAPI" time="0.004123" file="tests/cliproxyapi.test.ts" line="677" assertions="3" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/cliproxy-link.test.ts" file="tests/cliproxy-link.test.ts" tests="35" assertions="187" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="--cliproxy claudecode" file="tests/cliproxy-link.test.ts" line="153" tests="30" assertions="166" failures="0" skipped="0" time="11.245" hostname="manka-d-l-5104-holden">
+      <testcase name="maps Claude Code&apos;s auto-mode classifier ID to a listed Antigravity model" classname="--cliproxy claudecode" time="0.036073" file="tests/cliproxy-link.test.ts" line="154" assertions="1" />
+      <testcase name="agy waits for the remote catalog and maps a saved claude-opus-5-5 default" classname="--cliproxy claudecode" time="1.969445" file="tests/cliproxy-link.test.ts" line="193" assertions="7" />
+      <testcase name="Codex alias logs in once, only as the same ChatGPT account, then reuses the link" classname="--cliproxy claudecode" time="0.096207" file="tests/cliproxy-link.test.ts" line="225" assertions="8" />
+      <testcase name="a login for a different ChatGPT account is rejected and leaves nothing behind" classname="--cliproxy claudecode" time="0.097882" file="tests/cliproxy-link.test.ts" line="246" assertions="4" />
+      <testcase name="Codex runtime.yaml stays byte-for-byte what earlier releases generated" classname="--cliproxy claudecode" time="0.32272" file="tests/cliproxy-link.test.ts" line="254" assertions="2" />
+      <testcase name="OpenCode Go alias needs no login, routes both wire formats, and follows key changes" classname="--cliproxy claudecode" time="0.504442" file="tests/cliproxy-link.test.ts" line="294" assertions="18" />
+      <testcase name="an OpenCode subscription alias without a static key is refused" classname="--cliproxy claudecode" time="0.006862" file="tests/cliproxy-link.test.ts" line="332" assertions="2" />
+      <testcase name="agy needs the risk confirmation, then becomes an Antigravity alias with live model ids" classname="--cliproxy claudecode" time="0.840457" file="tests/cliproxy-link.test.ts" line="347" assertions="11" />
+      <testcase name="a regular Claude alias is told to run without --cliproxy" classname="--cliproxy claudecode" time="0.006598" file="tests/cliproxy-link.test.ts" line="382" assertions="2" />
+      <testcase name="legacy antigravity combination aliases reuse their saved profile with --cliproxy" classname="--cliproxy claudecode" time="0.013789" file="tests/cliproxy-link.test.ts" line="391" assertions="3" />
+      <testcase name="legacy workbuddy combination aliases reuse their saved profile with --cliproxy" classname="--cliproxy claudecode" time="0.01398" file="tests/cliproxy-link.test.ts" line="391" assertions="3" />
+      <testcase name="legacy workbuddy-ai combination aliases reuse their saved profile with --cliproxy" classname="--cliproxy claudecode" time="0.011805" file="tests/cliproxy-link.test.ts" line="391" assertions="3" />
+      <testcase name="legacy cursor combination aliases reuse their saved profile with --cliproxy" classname="--cliproxy claudecode" time="0.015856" file="tests/cliproxy-link.test.ts" line="391" assertions="3" />
+      <testcase name="agy repairs persisted bare IDs on reuse, renders the catalog and resolves explicit versions" classname="--cliproxy claudecode" time="0.484436" file="tests/cliproxy-link.test.ts" line="417" assertions="12" />
+      <testcase name="agy refreshes changed catalogs without restarting an active daemon and preserves valid user mappings" classname="--cliproxy claudecode" time="0.761396" file="tests/cliproxy-link.test.ts" line="444" assertions="7" />
+      <testcase name="agy rejects empty first-use catalogs without leaving an alias or private login" classname="--cliproxy claudecode" time="1.141265" file="tests/cliproxy-link.test.ts" line="475" assertions="4" />
+      <testcase name="bare workbuddy signs in to the region the user picks" classname="--cliproxy claudecode" time="0.011157" file="tests/cliproxy-link.test.ts" line="483" assertions="4" />
+      <testcase name="agy catalog failure on reuse leaves mappings and active sessions intact" classname="--cliproxy claudecode" time="1.167057" file="tests/cliproxy-link.test.ts" line="494" assertions="2" />
+      <testcase name="agy compatibility changes preserve active sessions and apply on the next idle launch" classname="--cliproxy claudecode" time="0.711515" file="tests/cliproxy-link.test.ts" line="508" assertions="7" />
+      <testcase name="-run --cliproxy launches Claude Code without switching Codex and saves the model on the link" classname="--cliproxy claudecode" time="0.273794" file="tests/cliproxy-link.test.ts" line="528" assertions="7" />
+      <testcase name="--cliproxy cx leaves the main model to Claude Code unless explicitly selected" classname="--cliproxy claudecode" time="0.279966" file="tests/cliproxy-link.test.ts" line="547" assertions="10" />
+      <testcase name="--cliproxy go leaves the main model to Claude Code unless explicitly selected" classname="--cliproxy claudecode" time="0.227054" file="tests/cliproxy-link.test.ts" line="547" assertions="10" />
+      <testcase name="--cliproxy agy leaves the main model to Claude Code unless explicitly selected" classname="--cliproxy claudecode" time="0.36363" file="tests/cliproxy-link.test.ts" line="547" assertions="10" />
+      <testcase name="cx only clears the inherited compact percentage for agy" classname="--cliproxy claudecode" time="0.27577" file="tests/cliproxy-link.test.ts" line="569" assertions="3" />
+      <testcase name="go only clears the inherited compact percentage for agy" classname="--cliproxy claudecode" time="0.266017" file="tests/cliproxy-link.test.ts" line="569" assertions="3" />
+      <testcase name="agy only clears the inherited compact percentage for agy" classname="--cliproxy claudecode" time="0.39782" file="tests/cliproxy-link.test.ts" line="569" assertions="3" />
+      <testcase name="local classifier setting %s outranks inherited settings without changing the global account" classname="--cliproxy claudecode" time="0.281059" file="tests/cliproxy-link.test.ts" line="587" assertions="4" />
+      <testcase name="local classifier setting 1 outranks inherited settings without changing the global account" classname="--cliproxy claudecode" time="0.285346" file="tests/cliproxy-link.test.ts" line="587" assertions="4" />
+      <testcase name="purging the upstream alias removes its Claude Code link, but not while a session runs" classname="--cliproxy claudecode" time="0.289139" file="tests/cliproxy-link.test.ts" line="614" assertions="5" />
+      <testcase name="list keeps OpenCode rows free of proxy state and model details" classname="--cliproxy claudecode" time="0.107972" file="tests/cliproxy-link.test.ts" line="631" assertions="4" />
+    </testsuite>
+    <testsuite name="upstream model picking" file="tests/cliproxy-link.test.ts" line="651" tests="5" assertions="21" failures="0" skipped="0" time="0.001" hostname="manka-d-l-5104-holden">
+      <testcase name="same-version tier selection is deliberate, supports max and preserves explicit tiers" classname="upstream model picking" time="0.000228" file="tests/cliproxy-link.test.ts" line="652" assertions="6" />
+      <testcase name="gateway aliases map exactly the names agy sends for tiered Gemini IDs" classname="upstream model picking" time="0.000242" file="tests/cliproxy-link.test.ts" line="673" assertions="5" />
+      <testcase name="Antigravity prefers the newest plain Claude ids and a Gemini Flash for haiku" classname="upstream model picking" time="0.000278" file="tests/cliproxy-link.test.ts" line="689" assertions="2" />
+      <testcase name="Antigravity moves retired Claude versions to the newest and keeps other choices" classname="upstream model picking" time="0.001113" file="tests/cliproxy-link.test.ts" line="709" assertions="6" />
+      <testcase name="OpenCode Go keeps listed defaults and falls back within a family" classname="upstream model picking" time="0.00012" file="tests/cliproxy-link.test.ts" line="730" assertions="2" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/opencode-native.test.ts" file="tests/opencode-native.test.ts" tests="4" assertions="13" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="native OpenCode credential import" file="tests/opencode-native.test.ts" line="43" tests="4" assertions="13" failures="0" skipped="0" time="0.395" hostname="manka-d-l-5104-holden">
+      <testcase name="Node reads SQLite without sqlite3 or experimental warnings and retains unrelated warnings" classname="native OpenCode credential import" time="0.325106" file="tests/opencode-native.test.ts" line="55" assertions="8" />
+      <testcase name="reads Go credentials active-first and ignores other integrations" classname="native OpenCode credential import" time="0.006757" file="tests/opencode-native.test.ts" line="80" assertions="1" />
+      <testcase name="honors OPENCODE_DB and reports an empty store without a database" classname="native OpenCode credential import" time="0.004558" file="tests/opencode-native.test.ts" line="121" assertions="3" />
+      <testcase name="reports unavailable for an unreadable database instead of failing setup" classname="native OpenCode credential import" time="0.060711" file="tests/opencode-native.test.ts" line="152" assertions="1" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/toml.test.ts" file="tests/toml.test.ts" tests="10" assertions="24" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="toml parser" file="tests/toml.test.ts" line="5" tests="10" assertions="24" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+      <testcase name="parses top-level scalars" classname="toml parser" time="0.000278" file="tests/toml.test.ts" line="6" assertions="1" />
+      <testcase name="parses table headers and nested values" classname="toml parser" time="0.000066" file="tests/toml.test.ts" line="23" assertions="1" />
+      <testcase name="handles quoted keys in table headers" classname="toml parser" time="0" file="tests/toml.test.ts" line="45" assertions="1" />
+      <testcase name="ignores comments and blank lines" classname="toml parser" time="0" file="tests/toml.test.ts" line="63" assertions="1" />
+      <testcase name="handles escaped characters in strings" classname="toml parser" time="0" file="tests/toml.test.ts" line="74" assertions="1" />
+      <testcase name="parses arrays" classname="toml parser" time="0.000086" file="tests/toml.test.ts" line="79" assertions="1" />
+      <testcase name="returns empty object for empty input" classname="toml parser" time="0" file="tests/toml.test.ts" line="94" assertions="2" />
+      <testcase name="parseScalarArray accepts well-formed scalar arrays" classname="toml parser" time="0.000027" file="tests/toml.test.ts" line="99" assertions="6" />
+      <testcase name="parseScalarArray rejects non-arrays and bare-word content" classname="toml parser" time="0.000094" file="tests/toml.test.ts" line="110" assertions="5" />
+      <testcase name="parses full codex config format" classname="toml parser" time="0" file="tests/toml.test.ts" line="118" assertions="5" />
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/list.test.ts" file="tests/list.test.ts" tests="27" assertions="108" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="list" file="tests/list.test.ts" line="189" tests="27" assertions="108" failures="0" skipped="0" time="0.699" hostname="manka-d-l-5104-holden">
+      <testcase name="groups proxy upstreams, hides ChatGPT proxies only in human views, and keeps empty sections hidden" classname="list" time="0.52581" file="tests/list.test.ts" line="208" assertions="34" />
+      <testcase name="shows Codex remaining quota from App Server used percentages" classname="list" time="0.003769" file="tests/list.test.ts" line="252" assertions="3" />
+      <testcase name="refreshes the displayed and stored Codex plan from current tokens" classname="list" time="0.001752" file="tests/list.test.ts" line="278" assertions="2" />
+      <testcase name="prefers the Codex plan returned by the live rate-limit response" classname="list" time="0.002766" file="tests/list.test.ts" line="289" assertions="2" />
+      <testcase name="shows a Codex App Server authentication failure as login expired" classname="list" time="0.002997" file="tests/list.test.ts" line="306" assertions="1" />
+      <testcase name="omits unavailable Codex API plan %s" classname="list" time="0.001901" file="tests/list.test.ts" line="318" assertions="2" />
+      <testcase name="omits unavailable Codex API plan unknown" classname="list" time="0.002083" file="tests/list.test.ts" line="318" assertions="2" />
+      <testcase name="skips usage for free-plan Codex accounts" classname="list" time="0.011192" file="tests/list.test.ts" line="331" assertions="2" />
+      <testcase name="--no-usage performs no network requests" classname="list" time="0.00868" file="tests/list.test.ts" line="346" assertions="2" />
+      <testcase name="shows OpenCode Go server quota without exposing credential metadata" classname="list" time="0.01394" file="tests/list.test.ts" line="359" assertions="8" />
+      <testcase name="does not call OpenCode Go quota endpoint with --no-usage" classname="list" time="0.009839" file="tests/list.test.ts" line="417" assertions="2" />
+      <testcase name="respects the registry api.usage=false kill switch for Codex" classname="list" time="0.012775" file="tests/list.test.ts" line="441" assertions="1" />
+      <testcase name="shows Claude 5h/weekly remaining quota from the oauth usage API" classname="list" time="0.019419" file="tests/list.test.ts" line="455" assertions="7" />
+      <testcase name="shows Fable quota through the usage cache, cached list, and JSON list" classname="list" time="0.02272" file="tests/list.test.ts" line="489" assertions="3" />
+      <testcase name="shows the Claude plan from the freshest matching local credentials" classname="list" time="0.010146" file="tests/list.test.ts" line="523" assertions="2" />
+      <testcase name="refreshes an expired Claude token and writes the snapshot back" classname="list" time="0.020662" file="tests/list.test.ts" line="559" assertions="8" />
+      <testcase name="shows one-api relay balance for api-key accounts" classname="list" time="0.016755" file="tests/list.test.ts" line="610" assertions="1" />
+      <testcase name="shows key and account balances together when relays.json has an access token" classname="list" time="0.009775" file="tests/list.test.ts" line="656" assertions="4" />
+      <testcase name="falls back to token-level billing when the relay access token is rejected" classname="list" time="0.008635" file="tests/list.test.ts" line="726" assertions="1" />
+      <testcase name="shows no balance when the relay answers with HTML" classname="list" time="0.006105" file="tests/list.test.ts" line="782" assertions="2" />
+      <testsuite name="usage cache" file="tests/list.test.ts" line="812" tests="7" assertions="19" failures="0" skipped="0" time="0.501" hostname="manka-d-l-5104-holden">
+        <testcase name="--cached renders the last refresh without network and starts a background refresh" classname="usage cache &amp;gt; list" time="0.009393" file="tests/list.test.ts" line="840" assertions="4" />
+        <testcase name="--cached does not start another refresh right after one" classname="usage cache &amp;gt; list" time="0.007124" file="tests/list.test.ts" line="862" assertions="3" />
+        <testcase name="a failed refresh keeps the last good quota and shows its age" classname="usage cache &amp;gt; list" time="0.011565" file="tests/list.test.ts" line="874" assertions="2" />
+        <testcase name="an expired login replaces the cached quota with the note" classname="usage cache &amp;gt; list" time="0.014255" file="tests/list.test.ts" line="888" assertions="2" />
+        <testcase name="list shows quota landed by the background refresh within the wait" classname="usage cache &amp;gt; list" time="0.109287" file="tests/list.test.ts" line="901" assertions="2" />
+        <testcase name="list stops waiting at the deadline and shows the cached quota" classname="usage cache &amp;gt; list" time="0.324083" file="tests/list.test.ts" line="916" assertions="3" />
+        <testcase name="only one refresher runs at a time" classname="usage cache &amp;gt; list" time="0.02737" file="tests/list.test.ts" line="929" assertions="3" />
+      </testsuite>
+    </testsuite>
+  </testsuite>
+  <testsuite name="tests/codex-usage.test.ts" file="tests/codex-usage.test.ts" tests="6" assertions="24" failures="0" skipped="0" time="0" hostname="manka-d-l-5104-holden">
+    <testsuite name="Codex App Server usage" file="tests/codex-usage.test.ts" line="98" tests="6" assertions="24" failures="0" skipped="0" time="0.015" hostname="manka-d-l-5104-holden">
+      <testcase name="keeps account/rateLimits values as used and displays remaining quota" classname="Codex App Server usage" time="0.001421" file="tests/codex-usage.test.ts" line="101" assertions="4" />
+      <testcase name="shows the weekly reset as local weekday and hour" classname="Codex App Server usage" time="0.000462" file="tests/codex-usage.test.ts" line="115" assertions="4" />
+      <testcase name="uses the official initialize and account/rateLimits protocol in isolation" classname="Codex App Server usage" time="0.004188" file="tests/codex-usage.test.ts" line="129" assertions="6" />
+      <testcase name="persists App Server token rotation to the snapshot and active auth" classname="Codex App Server usage" time="0.004317" file="tests/codex-usage.test.ts" line="198" assertions="5" />
+      <testcase name="persists token rotation even when the rate-limit request fails" classname="Codex App Server usage" time="0.003748" file="tests/codex-usage.test.ts" line="219" assertions="3" />
+      <testcase name="does not overwrite a newer active token from a concurrent Codex run" classname="Codex App Server usage" time="0.003987" file="tests/codex-usage.test.ts" line="236" assertions="2" />
+    </testsuite>
+  </testsuite>
+</testsuites>

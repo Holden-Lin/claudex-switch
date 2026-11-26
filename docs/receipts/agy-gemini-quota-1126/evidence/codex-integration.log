@@ -1,0 +1,14 @@
+$ bun test tests/run.test.ts --test-name-pattern "maps -model"
+bun test v1.3.5 (1e86cebd)
+
+tests/run.test.ts:
+(pass) run alias session > maps -model and saves it as the Claude account default [41.07ms]
+(pass) run alias session > maps -model 6.1 to gpt-6.1-sol in spawned Codex arguments and saved default [49.08ms]
+(pass) run alias session > maps -model 6 to gpt-6-sol in spawned Codex arguments and saved default [26.46ms]
+(pass) run alias session > maps -model gpt-5-mini to gpt-5-mini in spawned Codex arguments and saved default [32.77ms]
+
+ 4 pass
+ 32 filtered out
+ 0 fail
+ 9 expect() calls
+Ran 4 tests across 1 file. [291.00ms]
