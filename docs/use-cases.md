@@ -1,13 +1,13 @@
 # claudex-switch use cases
 
-claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. These guides explain where account state is stored and what a switch actually changes; the same `-run` flag does not mean the same isolation for every provider.
+claudex-switch is a local CLI account switcher and quota viewer for authorized Claude Code, Codex, and OpenCode Go accounts. These guides explain where account state is stored and what a switch actually changes; the same `--run` flag does not mean the same isolation for every provider.
 
 中文摘要：claudex-switch 在本机为 Claude Code、Codex 和 OpenCode Go 的已授权账号建立别名、查看可用额度并启动 CLI。各 provider 的认证、设置和会话隔离方式不同，请先看对应场景。
 
 ## Choose a task
 
 - [Manage several CLI accounts with aliases](./use-cases/multi-account-cli.md) — import or name existing local profiles and choose an account intentionally
-- [Run Claude Code with a profile credential](./use-cases/claude-parallel.md) — use `-run` for profile-specific auth, with explicit shared-state limits
+- [Run Claude Code with a profile credential](./use-cases/claude-parallel.md) — use `--run` for profile-specific auth, with explicit shared-state limits
 - [Switch Codex accounts and keep `/resume` visibility](./use-cases/codex-accounts.md) — understand global auth/config changes and provider metadata syncing
 - [Use OpenCode Go accounts on V1 and V2](./use-cases/opencode-go.md) — choose private Go credentials and compare V1 shared history with V2 per-alias history
 - [Check provider quota and relay balances](./use-cases/quota.md) — distinguish local inventory from live usage requests

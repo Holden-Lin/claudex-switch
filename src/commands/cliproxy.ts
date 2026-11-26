@@ -119,7 +119,7 @@ export async function resolveCLIProxyClaudeEntry(
       return entry;
     }
     throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
-      `Run ${chalk.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`,
+      `Run ${chalk.cyan(`claudex-switch ${entry.alias} --run`)} without --cliproxy.`,
     ]);
   }
 

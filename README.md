@@ -13,7 +13,7 @@
 
 ### 1. 凭据切换繁琐，多终端互踩
 - **痛点**：换号需要反复网页授权、手动替换配置文件或导出环境变量；如果一个终端在跑长任务，另一个终端切换账号就会覆盖全局凭据导致任务鉴权失败。
-- ⚡ **解法**：统一别名管理。`claudex-switch <alias>` 秒切全局默认账号；`claudex-switch <alias> -run` 以独立会话启动，凭证沙箱隔离，多终端真正并行不串号。
+- ⚡ **解法**：统一别名管理。`claudex-switch <alias>` 秒切全局默认账号；`claudex-switch <alias> --run` 以独立会话启动，凭证沙箱隔离，多终端真正并行不串号。
 
 ### 2. 历史记录丢失，会话上下文无法接续
 - **痛点**：在不同账号之间切换，或者在官方服务与中转站之间来回切换时，原有的历史会话往往无法在 `/resume` 中显示，前序项目的代码上下文直接丢失。
@@ -75,7 +75,7 @@ Claude 用量 API 返回 Fable 专属周窗口时，追加 `fable 58% Sun16`（�
 ### 3. 启动或切换账号
 - **方式 A（推荐）：独立会话运行（凭证隔离，不影响全局默认账号）**
   ```bash
-  claudex-switch work -run
+  claudex-switch work --run
   ```
 - **方式 B：切换全局默认账号**（含 WorkBuddy、agy 等本机代理账号）
   ```bash
@@ -86,9 +86,11 @@ Claude 用量 API 返回 Fable 专属周窗口时，追加 `fable 58% Sun16`（�
 
 Cursor 的 `--run` 启动 `cursor agent` 并沿用其原生登录。显式 `--cliproxy claudecode`（或 `cc`）启动 Claude Code 并使用已保存的代理登录，旧组合创建的别名也可用。WorkBuddy 的 `--run` 需要指定 `--cliproxy claudecode`。直接输入别名或 `use <alias>` 会将账号设为全局默认，之后裸 `claude` 使用该账号。Claude Code 的 `--run` 会话保留自己的模型和路由。`<alias> --help` / `-h` 只显示帮助。
 
-`claudex-switch agy cc` 是 `agy -run --cliproxy claudecode` 的快捷写法，也支持其他代理 / Codex / Go 别名。别名后无法识别的参数会报错，不会切换账号。Claude `-run` 的 `/model` 只保存到该账号的私有用户设置，不会改全局默认模型；技能、hooks 和 CLAUDE.md 仍可正常使用。
+`claudex-switch agy cc` 是 `agy --run --cliproxy claudecode` 的快捷写法，也支持其他代理 / Codex / Go 别名。别名后无法识别的参数会报错，不会切换账号。Claude `--run` 的 `/model` 只保存到该账号的私有用户设置，不会改全局默认模型；技能、hooks 和 CLAUDE.md 仍可正常使用。
 
-每次 `-run` 都重新读取当前共享用户设置，所以之后安装的 hooks 和权限规则会在下次启动生效。会话内的 `/model` 等用户设置写入会在重启时丢弃；用 `model` / `webconfig` 保存的账号配置保留。
+启动开关只支持 `--run`；旧的单杠写法会报错并提示改用 `--run`。重复的 `--run` 会被忽略，不会传给下游 CLI。
+
+每次 `--run` 都重新读取当前共享用户设置，所以之后安装的 hooks 和权限规则会在下次启动生效。会话内的 `/model` 等用户设置写入会在重启时丢弃；用 `model` / `webconfig` 保存的账号配置保留。
 
 ---
 
@@ -98,10 +100,10 @@ Cursor 的 `--run` 启动 `cursor agent` 并沿用其原生登录。显式 `--cl
 支持直观简写，启动即生效，并自动保存为该账号的偏好：
 ```bash
 # Claude 示例：裸数字直接映射 Opus（5.5 → claude-opus-5-5）
-claudex-switch work -run --model 5.5 max
+claudex-switch work --run --model 5.5 max
 
 # Codex 示例：支持 astra / sol / luna / terra（astra → gpt-6.2-astra，sol → gpt-6.2-sol，terra → gpt-6.1-terra）
-claudex-switch cx -run --model sol xhigh
+claudex-switch cx --run --model sol xhigh
 ```
 
 ### 2. 本地可视化网页配置（Web Config）
@@ -146,7 +148,7 @@ claudex-switch refresh <alias>
 |---|---|---|
 | `claudex-switch` | - | 打开交互式账号选择菜单 |
 | `claudex-switch list` | `ls` | 查看所有账号、当前状态、5h/周额度与 30 天用量走势 |
-| `claudex-switch <alias> -run` | - | **【推荐】** 用该账号独立启动会话（凭证隔离、不影响全局） |
+| `claudex-switch <alias> --run` | - | **【推荐】** 用该账号独立启动会话（凭证隔离、不影响全局） |
 | `claudex-switch <alias>` | `use` | 切换全局生效的默认账号（含本机 CLIProxyAPI 账号） |
 | `claudex-switch add <alias>` | - | 添加新账号（支持 OAuth 登录 / API Key / 中转站） |
 | `claudex-switch import` | - | 从 `claude-switch` / `codex-auth` 一键导入旧账号 |
@@ -158,7 +160,7 @@ claudex-switch refresh <alias>
 | `claudex-switch purge <alias>` | - | 彻底删除底层账号及其所有关联别名 |
 | `claudex-switch update` | - | 检查并升级到最新版本 |
 
-Codex 和 OpenCode 会话的 autoreview 默认关闭；需要时用 `claudex-switch <alias> -run --autoreview on` 为本次会话开启。
+Codex 和 OpenCode 会话的 autoreview 默认关闭；需要时用 `claudex-switch <alias> --run --autoreview on` 为本次会话开启。
 
 ---
 

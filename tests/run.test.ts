@@ -175,7 +175,7 @@ describe("run alias session", () => {
     expect(new Set(process.listeners(signal))).toEqual(before);
   });
 
-  test("runs Claude Code with auto permission mode after switching", async () => {
+  test("runs Claude Code with auto permission mode and consumes repeated --run flags", async () => {
     const creds: CredentialsFile = {
       claudeAiOauth: {
         accessToken: "access-token",
@@ -204,7 +204,7 @@ describe("run alias session", () => {
     const calls: SpawnCall[] = [];
     const exitCode = await runAliasSession(
       "holden",
-      ["--continue"],
+      ["--run", "--continue", "--run"],
       createSpawn(calls, 7),
     );
 

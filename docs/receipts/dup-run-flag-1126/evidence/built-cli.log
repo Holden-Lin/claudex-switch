@@ -1,0 +1,72 @@
+$ node dist/claudex-switch.js holdenx --run --model 6.1 --run
+  ● Default Codex account unchanged; this session uses /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/cxs-dup-run-built-2DdyYE/.claudex-switch/codex-run/dXNlci0xOjphY2N0LTE
+  ● Running codex --approve-for-me --model gpt-6.1-sol
+  ● Autoreview: off (default)
+forwarded: --approve-for-me
+forwarded: --model
+forwarded: gpt-6.1-sol
+
+exit=0
+$ node dist/claudex-switch.js use holdenx --run --run --model 6.1
+  ● Default Codex account unchanged; this session uses /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/cxs-dup-run-built-2DdyYE/.claudex-switch/codex-run/dXNlci0xOjphY2N0LTE
+  ● Running codex --approve-for-me --model gpt-6.1-sol
+  ● Autoreview: off (default)
+forwarded: --approve-for-me
+forwarded: --model
+forwarded: gpt-6.1-sol
+
+exit=0
+$ node dist/claudex-switch.js holdenx --run -model 6.1
+  ● Default Codex account unchanged; this session uses /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/cxs-dup-run-built-2DdyYE/.claudex-switch/codex-run/dXNlci0xOjphY2N0LTE
+  ● Running codex --approve-for-me --model gpt-6.1-sol
+  ● Autoreview: off (default)
+forwarded: --approve-for-me
+forwarded: --model
+forwarded: gpt-6.1-sol
+
+exit=0
+$ node dist/claudex-switch.js holdenx -run --model 6.1 --run
+  ✗ -run is no longer supported. Use --run instead.
+
+exit=1
+$ node dist/claudex-switch.js holdenx --run --model 6.1 -run
+  ✗ -run is no longer supported. Use --run instead.
+
+exit=1
+$ node dist/claudex-switch.js --help
+
+  claudex-switch — Manage Claude Code, Codex, and OpenCode accounts
+
+  Usage:
+    claudex-switch                     Interactive account picker
+    claudex-switch <alias>             Switch to an account
+    claudex-switch <alias> --run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
+    claudex-switch <alias> --run  Start the native CLI (AGY: per-alias profile; Cursor: cursor agent; WorkBuddy requires --cliproxy)
+    claudex-switch <alias> --run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
+    claudex-switch <alias> cc [args...]  Same as '<alias> --run --cliproxy claudecode'
+    claudex-switch add <alias>         Add a new account
+    claudex-switch use <alias>         Switch to an account
+    claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
+    claudex-switch rename <from> <to>  Rename an alias
+    claudex-switch model <alias> <model>  Update an account's default model (Claude: 5.5, sonnet5, fable; Codex: astra → gpt-6.2-astra, sol → gpt-6.2-sol, terra → gpt-6.1-terra, luna; OpenCode: provider/model)
+    claudex-switch remove <alias>      Remove an alias only
+    claudex-switch purge <alias>       Delete an account and all linked aliases
+    claudex-switch refresh <alias>     Refresh and resave an account login
+    claudex-switch doctor <alias> [--live] [--restart] [--binary <path>]  Check or update this account's local provider proxy (Antigravity / WorkBuddy / Cursor)
+    claudex-switch webconfig [--port <n>] [--no-open]  Open the local config UI
+    claudex-switch current             Show active accounts
+    claudex-switch import              Import existing accounts
+    claudex-switch update              Upgrade to the latest release
+    claudex-switch --version           Show version and auto-update to the latest release
+    claudex-switch help                Show this help
+
+  Shortcuts:
+    claudex-switch ls                  Same as 'list'
+    claudex-switch rm <alias>          Same as 'remove'
+    claudex-switch use <alias> --run [--autoreview <on|off>]  Same as '<alias> --run' (Codex defaults to --approve-for-me)
+    claudex-switch -V                  Same as '--version'
+
+  Autoreview defaults to off for Codex and OpenCode sessions; use --autoreview on to enable it for one session.
+
+
+exit=0

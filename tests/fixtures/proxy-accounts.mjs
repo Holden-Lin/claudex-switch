@@ -127,7 +127,7 @@ try {
   }
   console.log("menu: WorkBuddy / Antigravity / Cursor; WorkBuddy region: international / China");
   for (const alias of ["agy", "wb-ai", "wb-cn", "cursor"]) {
-    for (const launch of [["-run"], ["cc"]]) {
+    for (const launch of [["--run"], ["cc"]]) {
       const output = await run([alias, ...launch]);
       assert(output.includes("BARE_CLAUDE_OK"), output);
       console.log(`automatic proxy ${alias} ${launch[0]}: Claude Code reached local Messages endpoint`);
@@ -217,7 +217,7 @@ try {
   for (const [alias, options] of [["native", []], ["api", []], ["agy", []], ["cursor", ["cc"]]]) {
     const signal = join(home, `signal-${alias}`);
     await writeFile(signal, "before");
-    const task = start([alias, ...(options[0] === "cc" ? options : ["-run", ...options])], {
+    const task = start([alias, ...(options[0] === "cc" ? options : ["--run", ...options])], {
       CLAUDEX_SESSION_SIGNAL_FILE: signal, CLAUDEX_SESSION_ALIAS: alias,
     });
     await waitFor(task, '"phase":"before"');
@@ -254,7 +254,7 @@ try {
       const { phase: _first, ...initial } = reports[0];
       const { phase: _last, ...latest } = reports.at(-1);
       assert.deepEqual(latest, initial, `${alias} routing changed`);
-      console.log(`-run ${alias}: model/provider unchanged after ${target}`);
+      console.log(`--run ${alias}: model/provider unchanged after ${target}`);
     }
   }
   const globalBeforeWrite = await json(".claude/settings.json");
@@ -278,7 +278,7 @@ try {
   await put(".claude/settings.json", refreshed);
   for (const { alias, signal } of sessions) {
     await writeFile(signal, "relaunch");
-    const task = start([alias, "-run"], { CLAUDEX_SESSION_SIGNAL_FILE: signal, CLAUDEX_SESSION_ALIAS: alias });
+    const task = start([alias, "--run"], { CLAUDEX_SESSION_SIGNAL_FILE: signal, CLAUDEX_SESSION_ALIAS: alias });
     await waitFor(task, '"phase":"relaunch"');
     const report = JSON.parse(task.output().split("\n").find((line) => line.startsWith("SESSION_REPORT ")).slice(15));
     assert.deepEqual(report.hooks, refreshed.hooks);
@@ -304,7 +304,7 @@ try {
     assert.deepEqual(await tree(), before);
     console.log(`${args.join(" ")}: exit=1; all fixture files byte-identical`);
   }
-  console.log("PASS: add -> list -> global switch -> bare claude -> OAuth restore -> live -run reload isolation -> refreshed shared settings on relaunch");
+  console.log("PASS: add -> list -> global switch -> bare claude -> OAuth restore -> live --run reload isolation -> refreshed shared settings on relaunch");
 } finally {
   for (const task of launched) if (task.exitCode === null) task.kill("SIGTERM");
   // Only PIDs in our private fixture HOME can be signalled here.

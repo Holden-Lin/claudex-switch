@@ -320,7 +320,7 @@ export async function applyLocalCLIProxyAPIConfig(
 }
 
 // Claude Code applies `~/.claude/settings.json` env *over* the environment its
-// process was spawned with, so an isolated API-key `-run` cannot rely on child
+// process was spawned with, so an isolated API-key `--run` cannot rely on child
 // env alone: whatever routing the globally active profile left in settings.json
 // would silently win and send the session to the wrong provider. Write the
 // profile's own routing into a private higher-precedence settings file instead,
@@ -398,7 +398,7 @@ export async function getConfiguredModel(): Promise<string | undefined> {
 }
 
 // Env vars in the global settings.json override a spawned session's process
-// env, so an isolated OAuth `-run` must neutralize any Anthropic API config
+// env, so an isolated OAuth `--run` must neutralize any Anthropic API config
 // the active API-key profile wrote there. `--settings` env entries deep-merge
 // over settings.json, and Claude Code treats empty strings as unset.
 export async function getClaudeRunEnvOverrides(): Promise<SettingsEnv> {

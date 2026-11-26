@@ -13,7 +13,7 @@ When using Claude Code, Codex, or OpenCode for daily AI coding, developers often
 
 ### 1. Tedious Auth Switching & Multi-Terminal Conflicts
 - **The Pain**: Switching accounts requires repeating browser OAuth, modifying config files, or exporting environment variables. Running tasks in multiple terminals causes global credentials to overwrite each other, causing authentication failures or task aborts.
-- ⚡ **The Solution**: Unified alias management. `claudex-switch <alias>` instantly switches your default account; `claudex-switch <alias> -run` launches an isolated session with its own credential sandbox—true multi-terminal parallel runs without collision.
+- ⚡ **The Solution**: Unified alias management. `claudex-switch <alias>` instantly switches your default account; `claudex-switch <alias> --run` launches an isolated session with its own credential sandbox—true multi-terminal parallel runs without collision.
 
 ### 2. Lost History & Broken Context Resume
 - **The Pain**: When switching accounts or hopping between official endpoints and relays, historical sessions often vanish from `/resume`, breaking prior conversation context.
@@ -74,7 +74,7 @@ Displays account status, 5-hour / weekly remaining quota percentages (e.g., `5h 
 ### 3. Launch a Session or Switch Account
 - **Option A (Recommended): Isolated Session (does not alter global default, safe for parallel terminals)**
   ```bash
-  claudex-switch work -run
+  claudex-switch work --run
   ```
 - **Option B: Switch Global Default Account**
   ```bash
@@ -85,9 +85,11 @@ Displays account status, 5-hour / weekly remaining quota percentages (e.g., `5h 
 
 Cursor's `--run` starts `cursor agent` with its native sign-in. Explicit `--cliproxy claudecode` (or `cc`) starts Claude Code with the saved proxy login, including aliases created by older subscription menu entries. WorkBuddy requires `--cliproxy claudecode` with `--run`. Enter an alias or `use <alias>` to make the account the global default for bare `claude`. Claude Code sessions started with `--run` keep their own model and routing. `<alias> --help` / `-h` only prints help.
 
-`claudex-switch agy cc` is short for `agy -run --cliproxy claudecode`, also available for other proxy / Codex / Go aliases. Unrecognized arguments after an alias fail without switching accounts. In a Claude `-run` session, `/model` saves only to that account's private user settings; skills, hooks, and CLAUDE.md remain available.
+`claudex-switch agy cc` is short for `agy --run --cliproxy claudecode`, also available for other proxy / Codex / Go aliases. Unrecognized arguments after an alias fail without switching accounts. In a Claude `--run` session, `/model` saves only to that account's private user settings; skills, hooks, and CLAUDE.md remain available.
 
-Each `-run` reloads the current shared user settings, so new hooks and permission rules take effect on the next launch. In-session user settings changes, including `/model`, are discarded on relaunch; account configuration saved through `model` / `webconfig` is retained.
+Only `--run` is supported. The old single-dash spelling fails with a migration hint. Repeated `--run` flags are ignored and never forwarded to the client CLI.
+
+Each `--run` reloads the current shared user settings, so new hooks and permission rules take effect on the next launch. In-session user settings changes, including `/model`, are discarded on relaunch; account configuration saved through `model` / `webconfig` is retained.
 
 ---
 
@@ -97,10 +99,10 @@ Each `-run` reloads the current shared user settings, so new hooks and permissio
 Supports clean shorthand names, takes effect immediately, and saves as the account's default:
 ```bash
 # Claude: bare numbers map to Opus (5.5 → claude-opus-5-5)
-claudex-switch work -run --model 5.5 max
+claudex-switch work --run --model 5.5 max
 
 # Codex: supports astra / sol / luna / terra (astra → gpt-6.2-astra, sol → gpt-6.2-sol, terra → gpt-6.1-terra)
-claudex-switch cx -run --model sol xhigh
+claudex-switch cx --run --model sol xhigh
 ```
 
 ### 2. Local Visual Web Configuration (Web Config)
@@ -143,7 +145,7 @@ claudex-switch refresh <alias>
 |---|---|---|
 | `claudex-switch` | - | Open interactive account selection menu |
 | `claudex-switch list` | `ls` | List all accounts, active status, 5h/weekly quota, and 30-day trends |
-| `claudex-switch <alias> -run` | - | **[Recommended]** Launch isolated session (credential sandbox, no global conflict) |
+| `claudex-switch <alias> --run` | - | **[Recommended]** Launch isolated session (credential sandbox, no global conflict) |
 | `claudex-switch <alias>` | `use` | Switch active global default account (including local CLIProxyAPI) |
 | `claudex-switch add <alias>` | - | Add an account (OAuth, API Key, WorkBuddy, Antigravity, Cursor, or Relay) |
 | `claudex-switch import` | - | One-click import from `claude-switch` / `codex-auth` |
@@ -155,7 +157,7 @@ claudex-switch refresh <alias>
 | `claudex-switch purge <alias>` | - | Delete account data and all associated aliases |
 | `claudex-switch update` | - | Check and update to latest release |
 
-Autoreview defaults to off for Codex and OpenCode sessions. Use `claudex-switch <alias> -run --autoreview on` to enable it for one session.
+Autoreview defaults to off for Codex and OpenCode sessions. Use `claudex-switch <alias> --run --autoreview on` to enable it for one session.
 
 ---
 

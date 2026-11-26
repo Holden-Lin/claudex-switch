@@ -82,9 +82,9 @@ $ claudex-switch chatgpt --run
 2. 为每个账号生成稳定 UUID，作为独立存储和代理的标识；显示别名仅指向该 profile。重命名不搬迁登录态，删除别名后复用名称不会覆盖旧账号。
 3. CLIProxyAPI 自己完成 ChatGPT OAuth，不读取或复制现有 Codex 登录。先写临时认证目录，检查仅有一个有效 Codex 凭据，再替换。刷新时核验同一账号的单向身份指纹，登录失败、取消或换错账号不覆盖原登录。
 4. 每账号一个回环代理，同账号的多个会话复用它，不同账号不混池。生成配置固定监听 `127.0.0.1`，使用随机客户端密钥，禁用管理接口和控制面板；密钥不会放到命令行参数。
-5. 所有 `local-cliproxyapi` 账号（包括 WorkBuddy、agy）均可切为全局默认账号；新增只保存账号，编辑当前全局账号时同步设置。Antigravity 和 Cursor 的 `--run` 默认启动原生终端，WorkBuddy 需显式指定代理前端。使用 `--cliproxy claudecode`（或 `cc` 简写）启动 Claude Code 时，给 Claude 独立配置和凭据目录，通过私有 `--settings` 文件注入路由。预先覆盖全局切换可写入的路由键，并保留启动时的模型设置，所以 OAuth、API Key 和代理独立会话不受之后的全局切换影响。保留正常配置发现，不加 `--bare`；中和继承的 OAuth token、Bedrock/Vertex/Foundry 路由，避免走错账号。未使用 `-run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享 `settings.json`。
+5. 所有 `local-cliproxyapi` 账号（包括 WorkBuddy、agy）均可切为全局默认账号；新增只保存账号，编辑当前全局账号时同步设置。Antigravity 和 Cursor 的 `--run` 默认启动原生终端，WorkBuddy 需显式指定代理前端。使用 `--cliproxy claudecode`（或 `cc` 简写）启动 Claude Code 时，给 Claude 独立配置和凭据目录，通过私有 `--settings` 文件注入路由。预先覆盖全局切换可写入的路由键，并保留启动时的模型设置，所以 OAuth、API Key 和代理独立会话不受之后的全局切换影响。保留正常配置发现，不加 `--bare`；中和继承的 OAuth token、Bedrock/Vertex/Foundry 路由，避免走错账号。未使用 `--run`、或由旧版启动器启动的会话会跟随全局切换，因为 Claude Code 会重新加载共享 `settings.json`。
 
-所有 Claude `-run` 类型的用户 `settings.json` 在每次启动时从当前全局设置重建，再通过私有覆盖文件应用该账号的路由、模型和 env。全局 hooks、permissions、autoMode 规则和用户自定义键会进入下一次启动；旧符号链接和 v1.27.0 已生成的私有文件都会自动刷新。会话中的 `/model` 或其他用户设置写入只影响私有副本，不写回全局，下一次启动会被丢弃。要让设置长期生效，请修改共享用户设置，或用 `model` / `webconfig` 保存账号配置。此重建仅针对私有用户 `settings.json`，项目级配置写入仍正常保留。技能、agents、hooks 所需文件和 CLAUDE.md 继续共享，项目配置仍从启动目录发现。
+所有 Claude `--run` 类型的用户 `settings.json` 在每次启动时从当前全局设置重建，再通过私有覆盖文件应用该账号的路由、模型和 env。全局 hooks、permissions、autoMode 规则和用户自定义键会进入下一次启动；旧符号链接和 v1.27.0 已生成的私有文件都会自动刷新。会话中的 `/model` 或其他用户设置写入只影响私有副本，不写回全局，下一次启动会被丢弃。要让设置长期生效，请修改共享用户设置，或用 `model` / `webconfig` 保存账号配置。此重建仅针对私有用户 `settings.json`，项目级配置写入仍正常保留。技能、agents、hooks 所需文件和 CLAUDE.md 继续共享，项目配置仍从启动目录发现。
 6. 列表和普通 doctor 不请求上游模型。doctor 检查本机配置、认证文件、进程归属，运行中的代理另做本机鉴权探测；`--live` 明确只验证 Luna，不代表所有模型或剩余额度均可用。
 7. 并发启动、登录和生命周期操作用锁串行化；`--run` 持有会话租约，防止使用中被刷新、重启或清理。停止进程前核验其归属；不按模糊进程名杀进程。
 
@@ -120,7 +120,7 @@ Fable / Opus / Sonnet 映射适用于新账号；已有账号保留保存的映�
 
 ### agy 的 auto 模式不可用
 
-`claudex-switch agy cc` 等同于 `claudex-switch agy -run --cliproxy claudecode`，明确启动独立会话并传入 `--permission-mode auto`。其他未知尾随参数会报 usage，不会变成全局切换。
+`claudex-switch agy cc` 等同于 `claudex-switch agy --run --cliproxy claudecode`，明确启动独立会话并传入 `--permission-mode auto`。其他未知尾随参数会报 usage，不会变成全局切换。
 
 请先区分两种错误：启动时的 `auto mode ... unavailable` 是 Claude Code 的版本、模型、快速模式、账号视图或权限设置限制；执行工具时的 `cannot determine the safety` / `could not evaluate this action` 是分类请求没有得到有效结果。后者可能是模型 ID 不在代理目录、429 配额耗尽，或分类回复格式错误。Google / Antigravity 登录不会给 Claude Code 提供 Claude 订阅套餐视图；该连接使用本机网关身份。不同 Claude Code 版本的可用范围有变化，参见[官方 auto 模式说明](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)。不要把显示的 API 计费身份误当成 Antigravity 订阅失效。
 
@@ -172,7 +172,7 @@ CLIProxyAPI 7.2.x 的 Codex 授权地址固定回到 `localhost:1455/auth/callba
 - 实机：Claude Code 2.1.263、Homebrew CLIProxyAPI 7.2.150；另校验过官方 7.2.154 二进制及校验和。
 - 真实浏览器登录完成，真实 ChatGPT 上游分别通过 GPT-6、Terra、Luna 的最小调用；默认主模型恢复为 GPT-6。
 - 真实 Claude Explore 子代理读取测试项目的 CLAUDE.md 并返回标记；统计为启动 1、完成 1、失败 0、无权限拒绝，主对话及子代理分别使用 GPT-6 与私有 Terra 别名。
-- 原生代理配合本机假上游，直接检查转换后的请求体：主对话 `low` 保持不变，子代理为 Terra `max`；实际经过项目 `--run` 和 `-run` 两个入口，Agent/Skill 工具及项目指令发现保留，全局配置不被隔离运行改写。
+- 原生代理配合本机假上游，直接检查转换后的请求体：主对话 `low` 保持不变，子代理为 Terra `max`；实际经过项目 `--run` 和 `--run` 两个入口，Agent/Skill 工具及项目指令发现保留，全局配置不被隔离运行改写。
 - 原生生命周期测试覆盖同账号并发复用、不同账号密钥与端口隔离、权限、会话租约阻止清理、空闲清理不影响另一账号、受控重启。
 - 不把 Claude 输出中的估算美元金额当成 ChatGPT 订阅账单；本功能未实现该账号类型的额度查询。保留 MCP 配置发现不等于已经逐个调用用户所有外部 MCP 服务。
 
@@ -226,6 +226,6 @@ Claude Code ≥2.1.242 的 `/model` 菜单由本次目录生成，显示完整 I
 
 ### 验收记录（2026-10-13）
 
-- 自动化：`tests/cliproxy-link.test.ts` 12 项，覆盖首次登录与复用、换错账号零残留、Codex `runtime.yaml` 逐字节 golden、Go 双 wire 与会话头、key 轮换后空闲重启、订阅型 Go 拒绝、Antigravity 风险确认与模型选择、Claude 别名拒绝、`-run` 不切 Codex 且模型存到链接、purge 租约保护、list 标签。全量 304 项通过。
+- 自动化：`tests/cliproxy-link.test.ts` 12 项，覆盖首次登录与复用、换错账号零残留、Codex `runtime.yaml` 逐字节 golden、Go 双 wire 与会话头、key 轮换后空闲重启、订阅型 Go 拒绝、Antigravity 风险确认与模型选择、Claude 别名拒绝、`--run` 不切 Codex 且模型存到链接、purge 租约保护、list 标签。全量 304 项通过。
 - 实机（OpenCode Go，真实 key 型别名，CLIProxyAPI 7.3.15）：`-p` 短请求依次通过 `kimi-k3`（chat）、`minimax-m3`（Messages）、`glm-5.3` 与 `kimi-k3` 的 Read 工具调用；`doctor --live` 用 `deepseek-v4-flash` 通过。首次请求暴露的两个上游要求（`x-opencode-session`、Messages 路由读 `x-api-key`）已补上并实测。
 - 未实测：Codex 与 Antigravity 的真实浏览器 OAuth 需用户本人操作（fake 二进制已覆盖流程；CLIProxyAPI 源码确认 Codex 凭据 `account_id` 取自 id_token 的 `chatgpt_account_id`，Antigravity 凭据 `type: "antigravity"`、默认回调 51121）。

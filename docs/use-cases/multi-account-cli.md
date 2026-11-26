@@ -10,14 +10,14 @@ Use this when you regularly move among your own Claude Code, Codex, or OpenCode 
 claudex-switch import
 claudex-switch list --no-usage
 claudex-switch work
-claudex-switch work -run
+claudex-switch work --run
 ```
 
 `import` scans existing Claude profiles under `~/.claude-profiles/` and Codex accounts in `~/.codex/accounts/registry.json`. OpenCode Go accounts are added through `claudex-switch add <alias>` or imported from the current Go credential when offered. `list --no-usage` avoids quota HTTP requests; `list` without that flag can refresh OAuth credentials to report live quota.
 
 ## What selecting an account does
 
-The alias is only a name for a stored account target. A normal switch updates provider-specific active state: Claude writes its current credentials and settings, Codex updates the active auth/config, and OpenCode Go records the selected Go profile for `-run`. For the exact files and session behavior, read [Claude parallel launches](./claude-parallel.md), [Codex accounts](./codex-accounts.md), and [OpenCode Go](./opencode-go.md).
+The alias is only a name for a stored account target. A normal switch updates provider-specific active state: Claude writes its current credentials and settings, Codex updates the active auth/config, and OpenCode Go records the selected Go profile for `--run`. For the exact files and session behavior, read [Claude parallel launches](./claude-parallel.md), [Codex accounts](./codex-accounts.md), and [OpenCode Go](./opencode-go.md).
 
 `remove <alias>` removes the alias. `purge <alias>` deletes the underlying account profile and all aliases pointing to it; inspect the prompt before confirming. Don't use `purge` as a way to switch or troubleshoot.
 

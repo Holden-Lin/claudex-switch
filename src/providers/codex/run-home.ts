@@ -27,7 +27,7 @@ import type {
   CodexRegistryAccount,
 } from "../../types";
 
-// `<alias> -run` for a Codex account that isn't the global default runs with
+// `<alias> --run` for a Codex account that isn't the global default runs with
 // CODEX_HOME pointed at a private directory, so the default account in
 // ~/.codex stays selected. Only auth.json (and config.toml when the provider
 // routing differs) is private; every other entry links back into ~/.codex, so

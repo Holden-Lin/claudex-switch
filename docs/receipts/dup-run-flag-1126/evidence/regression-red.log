@@ -1,0 +1,124 @@
+$ bun test tests/run-flags.test.ts
+bun test v1.3.5 (1e86cebd)
+
+tests/run-flags.test.ts:
+25 |   ["agy", "-run", "--cliproxy", "claudecode"],
+26 |   ["cx", "cc", "-run"],
+27 | ])("rejects removed single-dash run before launching: %j", (...args) => {
+28 |   const result = run(args);
+29 |   expect(result.status).toBe(1);
+30 |   expect(result.stderr).toContain("-run is no longer supported. Use --run instead.");
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "-run is no longer supported. Use --run instead."
+Received: "\n  Unknown command: \"cx\"\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:30:25)
+(fail) rejects removed single-dash run before launching: "cx" [605.65ms]
+25 |   ["agy", "-run", "--cliproxy", "claudecode"],
+26 |   ["cx", "cc", "-run"],
+27 | ])("rejects removed single-dash run before launching: %j", (...args) => {
+28 |   const result = run(args);
+29 |   expect(result.status).toBe(1);
+30 |   expect(result.stderr).toContain("-run is no longer supported. Use --run instead.");
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "-run is no longer supported. Use --run instead."
+Received: "  ✗ Alias \"cx\" not found.\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:30:25)
+(fail) rejects removed single-dash run before launching: "use" [1840.16ms]
+25 |   ["agy", "-run", "--cliproxy", "claudecode"],
+26 |   ["cx", "cc", "-run"],
+27 | ])("rejects removed single-dash run before launching: %j", (...args) => {
+28 |   const result = run(args);
+29 |   expect(result.status).toBe(1);
+30 |   expect(result.stderr).toContain("-run is no longer supported. Use --run instead.");
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "-run is no longer supported. Use --run instead."
+Received: "\n  Unknown command: \"cx\"\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:30:25)
+(fail) rejects removed single-dash run before launching: "cx" [403.45ms]
+24 |   ["cx", "--run", "--model", "6.1", "-run"],
+25 |   ["agy", "-run", "--cliproxy", "claudecode"],
+26 |   ["cx", "cc", "-run"],
+27 | ])("rejects removed single-dash run before launching: %j", (...args) => {
+28 |   const result = run(args);
+29 |   expect(result.status).toBe(1);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:29:25)
+(fail) rejects removed single-dash run before launching: "agy" [512.22ms]
+25 |   ["agy", "-run", "--cliproxy", "claudecode"],
+26 |   ["cx", "cc", "-run"],
+27 | ])("rejects removed single-dash run before launching: %j", (...args) => {
+28 |   const result = run(args);
+29 |   expect(result.status).toBe(1);
+30 |   expect(result.stderr).toContain("-run is no longer supported. Use --run instead.");
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "-run is no longer supported. Use --run instead."
+Received: "  ✗ Alias \"cx\" not found.\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:30:25)
+(fail) rejects removed single-dash run before launching: "cx" [506.74ms]
+(pass) Codex CLI forwards canonical model without run flags: "cx" [1270.53ms]
+47 |       refresh_token: "fixture-refresh", account_id: "acct-1" }, last_refresh: "2026-11-26T00:00:00.000Z" });
+48 |   await mkdir(bin, { recursive: true });
+49 |   await writeFile(join(bin, "codex"), '#!/bin/sh\nprintf "argument: %s\\n" "$@"\n', { mode: 0o755 });
+50 |   const result = run(args);
+51 |   expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: "" });
+52 |   expect(result.stdout.split("\n").filter((line) => line.startsWith("argument: "))).toEqual([
+                                                                                         ^
+error: expect(received).toEqual(expected)
+
+  [
+    "argument: --approve-for-me",
+    "argument: --model",
+    "argument: gpt-6.1-sol",
++   "argument: --run",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:52:85)
+(fail) Codex CLI forwards canonical model without run flags: "cx" [619.93ms]
+47 |       refresh_token: "fixture-refresh", account_id: "acct-1" }, last_refresh: "2026-11-26T00:00:00.000Z" });
+48 |   await mkdir(bin, { recursive: true });
+49 |   await writeFile(join(bin, "codex"), '#!/bin/sh\nprintf "argument: %s\\n" "$@"\n', { mode: 0o755 });
+50 |   const result = run(args);
+51 |   expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: "" });
+52 |   expect(result.stdout.split("\n").filter((line) => line.startsWith("argument: "))).toEqual([
+                                                                                         ^
+error: expect(received).toEqual(expected)
+
+  [
+    "argument: --approve-for-me",
+    "argument: --model",
+    "argument: gpt-6.1-sol",
++   "argument: --run",
++   "argument: --run",
+  ]
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/dup-run-flag-1126/tests/run-flags.test.ts:52:85)
+(fail) Codex CLI forwards canonical model without run flags: "use" [887.11ms]
+
+ 1 pass
+ 7 fail
+ 15 expect() calls
+Ran 8 tests across 1 file. [6.76s]
+error: script "test" exited with code 1

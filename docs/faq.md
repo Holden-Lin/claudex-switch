@@ -1,6 +1,6 @@
 # Frequently asked questions
 
-中文摘要：本页说明支持的账号类型、`-run` 隔离边界、额度读取、JSON 清单与中转站配置。账号切换会写入 provider 对应的本地认证 / 配置；不会绕过登录、条款或额度。
+中文摘要：本页说明支持的账号类型、`--run` 隔离边界、额度读取、JSON 清单与中转站配置。账号切换会写入 provider 对应的本地认证 / 配置；不会绕过登录、条款或额度。
 
 ## What is claudex-switch?
 
@@ -14,9 +14,9 @@ It is an unofficial local CLI account switcher and quota viewer for authorized C
 
 The account flow and stored paths differ by provider. See the [use-case index](./use-cases.md).
 
-## Does `-run` isolate every provider the same way?
+## Does `--run` isolate every provider the same way?
 
-No. `-run` is provider-specific:
+No. `--run` is provider-specific:
 
 - Claude OAuth / API-key profiles use profile-specific auth for the launched Claude session. Claude settings, hooks, and history remain shared; it is not a separate project/workspace or operating-system user
 - Codex leaves the default account in `~/.codex` alone. The default account runs there directly; any other account runs with a private `CODEX_HOME` (`~/.claudex-switch/codex-run/<account>`) holding only its `auth.json`, plus a private `config.toml` when its provider differs; everything else links back to `~/.codex`. `--approve-for-me` is the default
@@ -28,9 +28,9 @@ Read the [Claude](./use-cases/claude-parallel.md), [Codex](./use-cases/codex-acc
 
 ## Does it preserve Codex history when switching providers?
 
-全局切换和 `-run` 都会将受管会话在 rollout 文件及 `state_5.sqlite` 中的 provider 元数据同步到所选账号。旧会话因此可用该账号继续，避免恢复时仍指向旧中转站或出现 “Model provider unavailable”。消息正文和未受管 provider 的会话保持原样；正在打开的 rollout 文件会跳过，请先退出原会话。`-run` 保留全局默认账号及配置。参见 [Codex 跨账号恢复示例](./use-cases/codex-accounts.md)。
+全局切换和 `--run` 都会将受管会话在 rollout 文件及 `state_5.sqlite` 中的 provider 元数据同步到所选账号。旧会话因此可用该账号继续，避免恢复时仍指向旧中转站或出现 “Model provider unavailable”。消息正文和未受管 provider 的会话保持原样；正在打开的 rollout 文件会跳过，请先退出原会话。`--run` 保留全局默认账号及配置。参见 [Codex 跨账号恢复示例](./use-cases/codex-accounts.md)。
 
-**切换 Codex 账号后看不到另一个 ChatGPT 账号的会话？** Codex 0.169 起，新会话只在创建它的 ChatGPT 账号的 `/resume` 中显示。claudex-switch 在全局切换、`-run` 启动前及 `-run` 退出后，会把受管账号所建会话改为共享（去掉 `account_scoped` 标记，保留创建者 id）。只用裸 `codex` 新建的会话，会在下一次运行 claudex-switch 切换或 `-run` 时共享。元数据修改保持 rollout 首行字节长度不变；若更长的中转 provider 名放不下，该旧会话保留原 provider，可回到创建它的账号恢复。
+**切换 Codex 账号后看不到另一个 ChatGPT 账号的会话？** Codex 0.169 起，新会话只在创建它的 ChatGPT 账号的 `/resume` 中显示。claudex-switch 在全局切换、`--run` 启动前及 `--run` 退出后，会把受管账号所建会话改为共享（去掉 `account_scoped` 标记，保留创建者 id）。只用裸 `codex` 新建的会话，会在下一次运行 claudex-switch 切换或 `--run` 时共享。元数据修改保持 rollout 首行字节长度不变；若更长的中转 provider 名放不下，该旧会话保留原 provider，可回到创建它的账号恢复。
 
 ## What does `list` show? Does it make a network request?
 
@@ -69,7 +69,7 @@ The copies hold no tokens or API keys; credentials stay in their own files.
 ## 中文速览
 
 - **是否官方工具？** 不是。它管理你已获授权的本地账号配置，不创建账号、不绕过认证，也不修改服务商额度
-- **`-run` 是否完全隔离？** 否。Claude 只隔离会话凭据，设置 / hooks / 历史共享；Codex 不切换默认账号，非默认账号用私有 `CODEX_HOME` 只隔离登录；OpenCode V1 共享正常 `/resume` 历史，V2 使用每个别名独立的 SQLite 数据库，不会自动共享或导入其他历史
+- **`--run` 是否完全隔离？** 否。Claude 只隔离会话凭据，设置 / hooks / 历史共享；Codex 不切换默认账号，非默认账号用私有 `CODEX_HOME` 只隔离登录；OpenCode V1 共享正常 `/resume` 历史，V2 使用每个别名独立的 SQLite 数据库，不会自动共享或导入其他历史
 - **能否离线检查？** `claudex-switch list --json --no-usage` 不请求额度、不刷新凭据、不切换账号；仍可能读取本地 profile / Keychain 元数据
 - **`remove` 和 `purge` 有何区别？** `remove` 只删别名，`purge` 会删除关联账号档案及指向它的所有别名
 - **别名或 Codex 账号表被覆盖怎么办？** 写 `aliases.json` / Codex `registry.json` 前会自动备份到 `~/.claudex-switch/backups/{aliases,codex-registry}/`（别名或账号有增删改时备份，否则每天至少一份，各留最近 20 份）；挑出事前最新的一份 `cp` 回原位，再跑 `claudex-switch list` 核对

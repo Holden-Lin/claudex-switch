@@ -225,7 +225,7 @@ describe("OpenCode Go profiles", () => {
     expect(fileMode((await stat(openCodeProfileAuthFile(PROFILE_ID))).mode)).toBe(0o600);
   });
 
-  test("runs the native TUI with private auth and the shared session store", async () => {
+  test("runs the native TUI with private auth and the shared session store, consuming repeated --run flags", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, CREDENTIAL);
     await saveAliases({
       version: 1,
@@ -247,7 +247,7 @@ describe("OpenCode Go profiles", () => {
       const calls: SpawnCall[] = [];
       const exitCode = await runAliasSession(
         "go-work",
-        ["--model", "opencode-go/kimi-k3", "--continue"],
+        ["--run", "--model", "opencode-go/kimi-k3", "--continue", "--run"],
         createSpawn(calls),
         () => ({ major: 1, minor: 18, patch: 30, raw: "1.18.30" }),
       );
@@ -271,7 +271,7 @@ describe("OpenCode Go profiles", () => {
         type: "go",
         defaultModel: "opencode-go/kimi-k3",
       });
-      // -run leaves the default account alone.
+      // --run leaves the default account alone.
       expect(await readOpenCodeState()).toEqual({ active: "default-profile" });
     } finally {
       if (previous === undefined) delete process.env.OPENCODE_AUTH_CONTENT;

@@ -104,7 +104,7 @@ export function claudeProfileAccountFile(name: string): string {
   return join(claudeProfileDir(name), "account.json");
 }
 
-// A private, higher-precedence settings file for an isolated API-key `-run`.
+// A private, higher-precedence settings file for an isolated API-key `--run`.
 // Claude Code lets `~/.claude/settings.json` env override a spawned process's
 // env, so an API profile's routing has to be injected here rather than only
 // through the child environment. It holds a secret, so it is never passed as
@@ -207,7 +207,7 @@ export function codexAccountAuthFile(accountKey: string): string {
   return join(CODEX_ACCOUNTS_DIR(), `${codexAccountFileKey(accountKey)}.auth.json`);
 }
 
-// Private CODEX_HOME for `<alias> -run` of an account that isn't the global
+// Private CODEX_HOME for `<alias> --run` of an account that isn't the global
 // default, so the launch never rewrites ~/.codex/auth.json.
 export function codexRunHome(accountKey: string): string {
   return join(CLAUDEX_DIR(), "codex-run", codexAccountFileKey(accountKey));

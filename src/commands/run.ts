@@ -89,7 +89,6 @@ import type {
   ProfileData,
 } from "../types";
 
-const RUN_FLAGS = new Set(["-run", "--run"]);
 const HEADER_FLAGS = new Set(["--attribution-header"]);
 const MODEL_FLAGS = new Set(["-model", "--model"]);
 const CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
@@ -117,7 +116,7 @@ type RunArgumentOptions = {
 };
 
 export function isRunFlag(value?: string): boolean {
-  return value !== undefined && RUN_FLAGS.has(value);
+  return value === "--run";
 }
 
 /**
@@ -249,7 +248,7 @@ function validateOpenCodeV2RunArgs(args: string[]): OpenCodeV2RunArgsCheck {
         ok: false,
         message:
           "OpenCode V2 aliases control the standalone server, config, and model selection.",
-        hint: "Remove -m; use -run --model opencode-go/<model> to select a Go model.",
+        hint: "Remove -m; use --run --model opencode-go/<model> to select a Go model.",
       };
     }
     if (arg === "--agent" || arg.startsWith("--agent=")) {
@@ -279,6 +278,11 @@ export async function runAliasSession(
   openCodeVersionDetector: () => OpenCodeVersion | null = detectOpenCodeVersion,
   openCodeCredentialSync?: OpenCodeV2CredentialSync,
 ): Promise<number> {
+  if (forwardedArgs.includes("-run")) {
+    error("-run is no longer supported. Use --run instead.");
+    return 1;
+  }
+  forwardedArgs = forwardedArgs.filter((arg) => !isRunFlag(arg));
   // Subscription aliases retain their legacy Claude profile storage, but that
   // storage does not choose the frontend. Only --cliproxy requests Claude.
   const nativeEntry = !forwardedArgs.includes("--cliproxy")
@@ -366,7 +370,7 @@ export async function runAliasSession(
   }
   if (isOpenCodeV2 && requestsUnsafeOpenCodeV2Override(runOptions.forwardedArgs)) {
     error("OpenCode V2 aliases control the standalone server, config, and model selection.");
-    hint("Remove --attach, --config, --standalone, or --model=<value>; use -run --model opencode-go/<model> to select a Go model.");
+    hint("Remove --attach, --config, --standalone, or --model=<value>; use --run --model opencode-go/<model> to select a Go model.");
     blank();
     return 1;
   }
@@ -987,7 +991,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
       if (!nextValue) {
         error(`Missing model name after ${arg}.`);
         hint(
-          `Example: ${chalk.cyan("claudex-switch <alias> -run --model 4.8 max")}`,
+          `Example: ${chalk.cyan("claudex-switch <alias> --run --model 4.8 max")}`,
         );
         blank();
         process.exit(1);
@@ -1015,7 +1019,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
       ) {
         error("Missing header toggle after --attribution-header.");
         hint(
-          `Example: ${chalk.cyan("claudex-switch <alias> -run --attribution-header false")}`,
+          `Example: ${chalk.cyan("claudex-switch <alias> --run --attribution-header false")}`,
         );
         blank();
         process.exit(1);
@@ -1034,7 +1038,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
             ? `--cliproxy currently supports: ${CLIPROXY_CLIENT_NAMES}`
             : "Missing client after --cliproxy.",
         );
-        hint(`Example: ${chalk.cyan("claudex-switch cx -run --cliproxy claudecode")}`);
+        hint(`Example: ${chalk.cyan("claudex-switch cx --run --cliproxy claudecode")}`);
         blank();
         process.exit(1);
       }
@@ -1048,7 +1052,7 @@ function parseRunArgumentOptions(args: string[]): RunArgumentOptions {
       if (nextValue !== "on" && nextValue !== "off") {
         error("Expected 'on' or 'off' after --autoreview.");
         hint(
-          `Example: ${chalk.cyan("claudex-switch cx -run --autoreview off")}`,
+          `Example: ${chalk.cyan("claudex-switch cx --run --autoreview off")}`,
         );
         blank();
         process.exit(1);

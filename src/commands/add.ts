@@ -212,7 +212,7 @@ async function addOpenCodeSubscription(alias: string): Promise<void> {
     await addAlias(alias, { provider: "opencode", profileId });
     await setActiveOpenCodeProfile(profileId);
     success(`${chalk.bold(alias)} created  ${profile.console!.email} · ${profile.console!.orgName}  Go subscription verified`);
-    hint(`Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to use this subscription (${profile.defaultModel}).`);
+    hint(`Run ${chalk.cyan(`claudex-switch ${alias} --run`)} to use this subscription (${profile.defaultModel}).`);
     blank();
   } catch (err) {
     await removeOpenCodeProfile(profileId);
@@ -292,11 +292,11 @@ async function addOpenCodeGo(alias: string): Promise<void> {
         ? "OpenCode V2 keeps /resume history private to this alias."
         : "OpenCode V1 Go aliases share /resume history.";
     hint(
-      `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`,
+      `Run ${chalk.cyan(`claudex-switch ${alias} --run`)} to start OpenCode's TUI with this account. ${historyHint}`,
     );
     if (openCodeVersion.major === 2) {
       hint(
-        `First run needs a Go model: ${chalk.cyan(`claudex-switch ${alias} -run --model opencode-go/<model>`)}; it is saved as this alias's default.`,
+        `First run needs a Go model: ${chalk.cyan(`claudex-switch ${alias} --run --model opencode-go/<model>`)}; it is saved as this alias's default.`,
       );
     }
     blank();

@@ -30,7 +30,7 @@ function expiresAt(creds: CredentialsFile | null): number {
 
 /**
  * Fetch 5h/weekly quota for an OAuth profile using its stored credentials.
- * Reads the freshest of the profile snapshot, the isolated `-run` live store,
+ * Reads the freshest of the profile snapshot, the isolated `--run` live store,
  * and (for the active profile, same session only) the global live store.
  * If the access token is expired it is refreshed and written back to every
  * store that held credentials, so no store is left with a rotated-out

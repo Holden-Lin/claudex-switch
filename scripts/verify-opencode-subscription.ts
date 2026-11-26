@@ -219,12 +219,12 @@ try {
   await writeFile(join(home, "list.json"), JSON.stringify(jsonList, null, 2));
   await writeFile(join(home, "list.txt"), textList);
   await report("PASS built CLI JSON and rendered text list show both subscription accounts and quota");
-  await runCli(["goa", "-run"]);
+  await runCli(["goa", "--run"]);
   const launch = JSON.parse(await readFile(capture, "utf8"));
   assert.equal(launch.database, paths.openCodeProfileV2DatabaseFile(profileA));
   assert.equal(launch.config.model, "opencode-go/minimax-m3");
   assert(launch.args.includes("--standalone"));
-  await report("PASS built CLI -run reaches TUI with A private database and selected Go model");
+  await report("PASS built CLI --run reaches TUI with A private database and selected Go model");
 
   const databaseA = paths.openCodeProfileV2DatabaseFile(profileA);
   const sqlite = new Database(databaseA);

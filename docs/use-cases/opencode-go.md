@@ -9,7 +9,7 @@ claudex-switch add go-second
 # 选择 OpenCode Subscription — browser login (Go / Go Plus)
 # 浏览器中登录第二个账号，选择持有 Go 订阅的 workspace，再授权
 
-claudex-switch go-second -run
+claudex-switch go-second --run
 claudex-switch list
 ```
 
@@ -20,15 +20,15 @@ macOS 优先在支持的浏览器中打开隐私窗口；若仍登录到旧账�
 ## 切换、模型与刷新
 
 ```sh
-claudex-switch go-first -run
-claudex-switch go-second -run
-claudex-switch go-second -run --model opencode-go/kimi-k3
-claudex-switch go-second -run run --format json "总结这个仓库" # V2 无交互一次性运行
+claudex-switch go-first --run
+claudex-switch go-second --run
+claudex-switch go-second --run --model opencode-go/kimi-k3
+claudex-switch go-second --run run --format json "总结这个仓库" # V2 无交互一次性运行
 claudex-switch model go-second opencode-go/minimax-m3
 claudex-switch refresh go-second
 ```
 
-订阅模型使用 `opencode-go/<model>`；Console 的 OAuth integration 是 `opencode`，但 Go 模型 provider 是 `opencode-go`，`opencode/<model>` 属于 Zen 路由。v1.18.0 误存的 `opencode/` 默认值和旧命令参数会在启动时转为 Go 路由，无需重新登录。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `-run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
+订阅模型使用 `opencode-go/<model>`；Console 的 OAuth integration 是 `opencode`，但 Go 模型 provider 是 `opencode-go`，`opencode/<model>` 属于 Zen 路由。v1.18.0 误存的 `opencode/` 默认值和旧命令参数会在启动时转为 Go 路由，无需重新登录。实际可用模型以所选 workspace 为准；启动会验证模型，不会把无效的 `--run --model` 保存成下一次默认模型。`model` 命令也先验证再保存。不支持 Claude / Codex 的 effort 参数。
 
 V2 模型选择器同时保留原生 OpenCode 免费模型，例如 `opencode/deepseek-v4.1-flash-free`。Go 模型仍使用所选别名的凭据；免费模型保留原生路由，不改成 Go 模型。免费资格以本机 OpenCode 的全部价格档位为准（输入、输出与缓存价格均为零），不按名称判断；订阅账号会隐藏原生付费及价格未知模型。用户显式禁用的 provider / 模型不会重新启用。命令行默认模型仍选 Go，进入 TUI 后用 `/models` 切换免费模型。
 
@@ -57,7 +57,7 @@ OpenCode 默认以 `--auto` 启动，会自动批准未明确拒绝的权限；�
 - V1 可显式复制旧 `auth.json` 中的 Go 凭据，或在私有 TUI 中 `/connect` 登录。常规启动通过 `OPENCODE_AUTH_CONTENT` 注入凭据，保留共享 `/resume` 历史。
 - V2 可显式导入本机 SQLite 中的 `opencode-go` 凭据，或遮蔽输入 key；只读取 Go，不静默导出其他 provider。保存前以 Go usage 端点验证，401 / 403 拒绝并重试；网络不可达时提示后仍允许保存，首次模型请求可能失败。
 - V2 key 保存在 claudex 私有 profile，启动前通过回环本地 API 同步到别名私有数据库；不经 argv 或子进程环境传入。首次启动仍需 `--model opencode-go/<model>`；`refresh` 保持替换 key 的行为。
-- key 别名的 `model` 与 `-run --model` 按官方 Go 目录校正模型 ID：TUI 显示名或大小写不同（如 `GLM-5.3-Flash`）自动转成目录 ID（`glm-5.3-flash`），目录中没有的模型直接拒绝并列出可选 ID；旧版误存的默认值在下次启动时自动更正。目录不可达时保留原输入。
+- key 别名的 `model` 与 `--run --model` 按官方 Go 目录校正模型 ID：TUI 显示名或大小写不同（如 `GLM-5.3-Flash`）自动转成目录 ID（`glm-5.3-flash`），目录中没有的模型直接拒绝并列出可选 ID；旧版误存的默认值在下次启动时自动更正。目录不可达时保留原输入。
 - V2 key 别名启动时把官方 Go 目录全部列入 TUI 模型选择器，可直接切换；目录不可达时只列该别名用过的模型（私有历史）。
 
 ## 验证范围

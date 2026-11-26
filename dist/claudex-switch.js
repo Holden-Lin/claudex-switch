@@ -19,7 +19,7 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// node_modules/yoctocolors-cjs/index.js
+// ../../node_modules/yoctocolors-cjs/index.js
 var require_yoctocolors_cjs = __commonJS((exports, module) => {
   var tty = __require("node:tty");
   var hasColors = tty?.WriteStream?.prototype?.hasColors?.() ?? false;
@@ -93,7 +93,7 @@ var require_yoctocolors_cjs = __commonJS((exports, module) => {
   module.exports = colors;
 });
 
-// node_modules/cli-width/index.js
+// ../../node_modules/cli-width/index.js
 var require_cli_width = __commonJS((exports, module) => {
   module.exports = cliWidth;
   function normalizeOpts(options) {
@@ -133,7 +133,7 @@ var require_cli_width = __commonJS((exports, module) => {
   }
 });
 
-// node_modules/ansi-regex/index.js
+// ../../node_modules/ansi-regex/index.js
 var require_ansi_regex = __commonJS((exports, module) => {
   module.exports = ({ onlyFirst = false } = {}) => {
     const pattern = [
@@ -144,13 +144,13 @@ var require_ansi_regex = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/strip-ansi/index.js
+// ../../node_modules/strip-ansi/index.js
 var require_strip_ansi = __commonJS((exports, module) => {
   var ansiRegex = require_ansi_regex();
   module.exports = (string) => typeof string === "string" ? string.replace(ansiRegex(), "") : string;
 });
 
-// node_modules/is-fullwidth-code-point/index.js
+// ../../node_modules/is-fullwidth-code-point/index.js
 var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   var isFullwidthCodePoint = (codePoint) => {
     if (Number.isNaN(codePoint)) {
@@ -165,14 +165,14 @@ var require_is_fullwidth_code_point = __commonJS((exports, module) => {
   module.exports.default = isFullwidthCodePoint;
 });
 
-// node_modules/emoji-regex/index.js
+// ../../node_modules/emoji-regex/index.js
 var require_emoji_regex = __commonJS((exports, module) => {
   module.exports = function() {
     return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73)\uDB40\uDC7F|\uD83D\uDC68(?:\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68\uD83C\uDFFB|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|[\u2695\u2696\u2708]\uFE0F|\uD83D[\uDC66\uDC67]|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708])\uFE0F|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C[\uDFFB-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)\uD83C\uDFFB|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB\uDFFC])|\uD83D\uDC69(?:\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB-\uDFFD])|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|(?:(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)\uFE0F|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\u200D[\u2640\u2642])|\uD83C\uDFF4\u200D\u2620)\uFE0F|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF4\uD83C\uDDF2|\uD83C\uDDF6\uD83C\uDDE6|[#\*0-9]\uFE0F\u20E3|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83D\uDC69(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270A-\u270D]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC70\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDCAA\uDD74\uDD7A\uDD90\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD36\uDDB5\uDDB6\uDDBB\uDDD2-\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5\uDEEB\uDEEC\uDEF4-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
   };
 });
 
-// node_modules/string-width/index.js
+// ../../node_modules/string-width/index.js
 var require_string_width = __commonJS((exports, module) => {
   var stripAnsi = require_strip_ansi();
   var isFullwidthCodePoint = require_is_fullwidth_code_point();
@@ -206,7 +206,7 @@ var require_string_width = __commonJS((exports, module) => {
   module.exports.default = stringWidth;
 });
 
-// node_modules/color-name/index.js
+// ../../node_modules/color-name/index.js
 var require_color_name = __commonJS((exports, module) => {
   module.exports = {
     aliceblue: [240, 248, 255],
@@ -360,7 +360,7 @@ var require_color_name = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/conversions.js
+// ../../node_modules/color-convert/conversions.js
 var require_conversions = __commonJS((exports, module) => {
   var cssKeywords = require_color_name();
   var reverseKeywords = {};
@@ -1029,7 +1029,7 @@ var require_conversions = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/route.js
+// ../../node_modules/color-convert/route.js
 var require_route = __commonJS((exports, module) => {
   var conversions = require_conversions();
   function buildGraph() {
@@ -1095,7 +1095,7 @@ var require_route = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/color-convert/index.js
+// ../../node_modules/color-convert/index.js
 var require_color_convert = __commonJS((exports, module) => {
   var conversions = require_conversions();
   var route = require_route();
@@ -1154,7 +1154,7 @@ var require_color_convert = __commonJS((exports, module) => {
   module.exports = convert;
 });
 
-// node_modules/ansi-styles/index.js
+// ../../node_modules/ansi-styles/index.js
 var require_ansi_styles = __commonJS((exports, module) => {
   var wrapAnsi16 = (fn, offset) => (...args) => {
     const code = fn(...args);
@@ -1290,7 +1290,7 @@ var require_ansi_styles = __commonJS((exports, module) => {
   });
 });
 
-// node_modules/wrap-ansi/index.js
+// ../../node_modules/wrap-ansi/index.js
 var require_wrap_ansi = __commonJS((exports, module) => {
   var stringWidth = require_string_width();
   var stripAnsi = require_strip_ansi();
@@ -1426,7 +1426,7 @@ var require_wrap_ansi = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/mute-stream/lib/index.js
+// ../../node_modules/mute-stream/lib/index.js
 var require_lib = __commonJS((exports, module) => {
   var Stream = __require("stream");
 
@@ -2700,7 +2700,7 @@ function pickOpenCodeGoModels(catalog) {
   };
 }
 
-// node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
+// ../../node_modules/@magpie-community/opencode-cursor-auth/native-session.mjs
 import { createHash as createHash2, randomBytes } from "node:crypto";
 var NATIVE_LIMITS = {
   resultWait: 120000,
@@ -3745,7 +3745,7 @@ class NativeSession {
 }
 var nativeSessions = new NativeSessionPool;
 
-// node_modules/@magpie-community/opencode-cursor-auth/index.mjs
+// ../../node_modules/@magpie-community/opencode-cursor-auth/index.mjs
 import { isDeepStrictEqual } from "node:util";
 import http2 from "node:http2";
 import { STATUS_CODES } from "node:http";
@@ -6230,7 +6230,7 @@ async function CursorAuthPlugin() {
   };
 }
 
-// node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
+// ../../node_modules/@magpie-community/opencode-workbuddy-auth/index.mjs
 import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir as homedir3 } from "node:os";
@@ -8393,14 +8393,14 @@ async function serveSubscriptionBridge(options) {
   return server;
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/key.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/key.js
 var isUpKey = (key, keybindings = []) => key.name === "up" || keybindings.includes("vim") && key.name === "k" || keybindings.includes("emacs") && key.ctrl && key.name === "p";
 var isDownKey = (key, keybindings = []) => key.name === "down" || keybindings.includes("vim") && key.name === "j" || keybindings.includes("emacs") && key.ctrl && key.name === "n";
 var isBackspaceKey = (key) => key.name === "backspace";
 var isTabKey = (key) => key.name === "tab";
 var isNumberKey = (key) => "1234567890".includes(key.name);
 var isEnterKey = (key) => key.name === "enter" || key.name === "return";
-// node_modules/@inquirer/core/dist/esm/lib/errors.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/errors.js
 class AbortPromptError extends Error {
   name = "AbortPromptError";
   message = "Prompt was aborted";
@@ -8426,10 +8426,10 @@ class HookError extends Error {
 class ValidationError extends Error {
   name = "ValidationError";
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
 import { AsyncResource as AsyncResource2 } from "node:async_hooks";
 
-// node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/hook-engine.js
 import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 var hookStorage = new AsyncLocalStorage;
 function createStore(rl) {
@@ -8534,7 +8534,7 @@ var effectScheduler = {
   }
 };
 
-// node_modules/@inquirer/core/dist/esm/lib/use-state.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-state.js
 function useState(defaultValue) {
   return withPointer((pointer) => {
     const setState = AsyncResource2.bind(function setState(newValue) {
@@ -8552,7 +8552,7 @@ function useState(defaultValue) {
   });
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/use-effect.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-effect.js
 function useEffect(cb, depArray) {
   withPointer((pointer) => {
     const oldDeps = pointer.get();
@@ -8564,10 +8564,10 @@ function useEffect(cb, depArray) {
   });
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/theme.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
 var import_yoctocolors_cjs = __toESM(require_yoctocolors_cjs(), 1);
 
-// node_modules/@inquirer/figures/dist/esm/index.js
+// ../../node_modules/@inquirer/figures/dist/esm/index.js
 import process2 from "node:process";
 function isUnicodeSupported() {
   if (process2.platform !== "win32") {
@@ -8856,7 +8856,7 @@ var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
 var esm_default = figures;
 var replacements = Object.entries(specialMainSymbols);
 
-// node_modules/@inquirer/core/dist/esm/lib/theme.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/theme.js
 var defaultTheme = {
   prefix: {
     idle: import_yoctocolors_cjs.default.blue("?"),
@@ -8877,7 +8877,7 @@ var defaultTheme = {
   }
 };
 
-// node_modules/@inquirer/core/dist/esm/lib/make-theme.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/make-theme.js
 function isPlainObject(value) {
   if (typeof value !== "object" || value === null)
     return false;
@@ -8905,7 +8905,7 @@ function makeTheme(...themes) {
   return deepMerge(...themesToMerge);
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-prefix.js
 function usePrefix({ status = "idle", theme }) {
   const [showLoader, setShowLoader] = useState(false);
   const [tick, setTick] = useState(0);
@@ -8935,7 +8935,7 @@ function usePrefix({ status = "idle", theme }) {
   const iconName = status === "loading" ? "idle" : status;
   return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-memo.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-memo.js
 function useMemo(fn, dependencies) {
   return withPointer((pointer) => {
     const prev = pointer.get();
@@ -8947,11 +8947,11 @@ function useMemo(fn, dependencies) {
     return prev.value;
   });
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-ref.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-ref.js
 function useRef(val) {
   return useState({ current: val })[0];
 }
-// node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/use-keypress.js
 function useKeypress(userHandler) {
   const signal = useRef(userHandler);
   signal.current = userHandler;
@@ -8969,7 +8969,7 @@ function useKeypress(userHandler) {
     };
   }, []);
 }
-// node_modules/@inquirer/core/dist/esm/lib/utils.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/utils.js
 var import_cli_width = __toESM(require_cli_width(), 1);
 var import_wrap_ansi = __toESM(require_wrap_ansi(), 1);
 function breakLines(content, width) {
@@ -8982,7 +8982,7 @@ function readlineWidth() {
   return import_cli_width.default({ defaultWidth: 80, output: readline().output });
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/pagination/use-pagination.js
 function usePointerPosition({ active, renderedItems, pageSize, loop }) {
   const state = useRef({
     lastPointer: active,
@@ -9048,12 +9048,12 @@ function usePagination({ items, active, renderItem, pageSize, loop = true }) {
   return pageBuffer.filter((line) => typeof line === "string").join(`
 `);
 }
-// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 var import_mute_stream = __toESM(require_lib(), 1);
 import * as readline2 from "node:readline";
 import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
-// node_modules/signal-exit/dist/mjs/signals.js
+// ../../node_modules/signal-exit/dist/mjs/signals.js
 var signals = [];
 signals.push("SIGHUP", "SIGINT", "SIGTERM");
 if (process.platform !== "win32") {
@@ -9063,7 +9063,7 @@ if (process.platform === "linux") {
   signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
 }
 
-// node_modules/signal-exit/dist/mjs/index.js
+// ../../node_modules/signal-exit/dist/mjs/index.js
 var processOk = (process3) => !!process3 && typeof process3 === "object" && typeof process3.removeListener === "function" && typeof process3.emit === "function" && typeof process3.reallyExit === "function" && typeof process3.listeners === "function" && typeof process3.kill === "function" && typeof process3.pid === "number" && typeof process3.on === "function";
 var kExitEmitter = Symbol.for("signal-exit emitter");
 var global = globalThis;
@@ -9261,10 +9261,10 @@ var {
   unload
 } = signalExitWrap(processOk(process3) ? new SignalExit(process3) : new SignalExitFallback);
 
-// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 import { stripVTControlCharacters } from "node:util";
 
-// node_modules/@inquirer/ansi/dist/esm/index.js
+// ../../node_modules/@inquirer/ansi/dist/esm/index.js
 var ESC = "\x1B[";
 var cursorLeft = ESC + "G";
 var cursorHide = ESC + "?25l";
@@ -9280,7 +9280,7 @@ var cursorTo = (x, y) => {
 var eraseLine = ESC + "2K";
 var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
 
-// node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/screen-manager.js
 var height = (content) => content.split(`
 `).length;
 var lastLine = (content) => content.split(`
@@ -9345,7 +9345,7 @@ class ScreenManager {
   }
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
 class PromisePolyfill extends Promise {
   static withResolver() {
     let resolve3;
@@ -9358,7 +9358,7 @@ class PromisePolyfill extends Promise {
   }
 }
 
-// node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/create-prompt.js
 function getCallSites() {
   const _prepareStackTrace = Error.prepareStackTrace;
   let result2 = [];
@@ -9444,7 +9444,7 @@ function createPrompt(view) {
   };
   return prompt;
 }
-// node_modules/@inquirer/core/dist/esm/lib/Separator.js
+// ../../node_modules/@inquirer/core/dist/esm/lib/Separator.js
 var import_yoctocolors_cjs2 = __toESM(require_yoctocolors_cjs(), 1);
 class Separator {
   separator = import_yoctocolors_cjs2.default.dim(Array.from({ length: 15 }).join(esm_default.line));
@@ -9458,7 +9458,7 @@ class Separator {
     return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
   }
 }
-// node_modules/@inquirer/confirm/dist/esm/index.js
+// ../../node_modules/@inquirer/confirm/dist/esm/index.js
 function getBooleanValue(value, defaultValue) {
   let answer2 = defaultValue !== false;
   if (/^(y|yes)/i.test(value))
@@ -9503,7 +9503,7 @@ var esm_default2 = createPrompt((config, done) => {
   const message = theme.style.message(config.message, status);
   return `${prefix} ${message}${defaultValue} ${formattedValue}`;
 });
-// node_modules/@inquirer/input/dist/esm/index.js
+// ../../node_modules/@inquirer/input/dist/esm/index.js
 var inputTheme = {
   validationFailureMode: "keep"
 };
@@ -9587,7 +9587,7 @@ var esm_default3 = createPrompt((config, done) => {
     error
   ];
 });
-// node_modules/@inquirer/password/dist/esm/index.js
+// ../../node_modules/@inquirer/password/dist/esm/index.js
 var esm_default4 = createPrompt((config, done) => {
   const { validate = () => true } = config;
   const theme = makeTheme(config.theme);
@@ -9635,7 +9635,7 @@ var esm_default4 = createPrompt((config, done) => {
   }
   return [[prefix, message, config.mask ? formattedValue : helpTip].join(" "), error];
 });
-// node_modules/@inquirer/select/dist/esm/index.js
+// ../../node_modules/@inquirer/select/dist/esm/index.js
 var import_yoctocolors_cjs3 = __toESM(require_yoctocolors_cjs(), 1);
 var selectTheme = {
   icon: { cursor: esm_default.pointer },
@@ -9799,7 +9799,7 @@ var esm_default5 = createPrompt((config, done) => {
 `).trimEnd();
   return `${lines}${cursorHide}`;
 });
-// node_modules/chalk/source/vendor/ansi-styles/index.js
+// ../../node_modules/chalk/source/vendor/ansi-styles/index.js
 var ANSI_BACKGROUND_OFFSET = 10;
 var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
 var wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
@@ -9976,7 +9976,7 @@ function assembleStyles() {
 var ansiStyles = assembleStyles();
 var ansi_styles_default = ansiStyles;
 
-// node_modules/chalk/source/vendor/supports-color/index.js
+// ../../node_modules/chalk/source/vendor/supports-color/index.js
 import process4 from "node:process";
 import os from "node:os";
 import tty from "node:tty";
@@ -10108,7 +10108,7 @@ var supportsColor = {
 };
 var supports_color_default = supportsColor;
 
-// node_modules/chalk/source/utilities.js
+// ../../node_modules/chalk/source/utilities.js
 function stringReplaceAll(string, substring, replacer) {
   let index = string.indexOf(substring);
   if (index === -1) {
@@ -10141,7 +10141,7 @@ function stringEncaseCRLFWithFirstIndex(string, prefix, postfix, index) {
   return returnValue;
 }
 
-// node_modules/chalk/source/index.js
+// ../../node_modules/chalk/source/index.js
 var { stdout: stdoutColor, stderr: stderrColor } = supports_color_default;
 var GENERATOR = Symbol("GENERATOR");
 var STYLER = Symbol("STYLER");
@@ -12473,7 +12473,6 @@ var RESERVED = new Set([
   "update",
   "webconfig",
   "help",
-  "-run",
   "--run",
   "--help",
   "-h",
@@ -14092,13 +14091,13 @@ function providerPatternMatches(pattern, providerID) {
 function modelForV2(config, selectedModel) {
   const candidate = selectedModel ?? config.model;
   if (typeof candidate !== "string" || !candidate.trim()) {
-    throw new Error("OpenCode V2 aliases require an OpenCode Go model. Set this alias's default model or pass -run --model opencode-go/<model> before starting the TUI.");
+    throw new Error("OpenCode V2 aliases require an OpenCode Go model. Set this alias's default model or pass --run --model opencode-go/<model> before starting the TUI.");
   }
   let normalized;
   try {
     normalized = normalizeOpenCodeGoModel(candidate);
   } catch {
-    throw new Error("OpenCode V2 aliases only bind credentials for OpenCode Go models. Set an opencode-go/<model> default or pass -run --model opencode-go/<model>; other-provider sessions are outside this alias's account-selection guarantee.");
+    throw new Error("OpenCode V2 aliases only bind credentials for OpenCode Go models. Set an opencode-go/<model> default or pass --run --model opencode-go/<model>; other-provider sessions are outside this alias's account-selection guarantee.");
   }
   return mapOpenCodeGoModelForV2(normalized);
 }
@@ -15363,7 +15362,7 @@ async function resolveCLIProxyClaudeEntry(aliasOrName, options = {}) {
       return entry;
     }
     throw new UserFacingError(`${entry.alias} is already a Claude account.`, [
-      `Run ${source_default.cyan(`claudex-switch ${entry.alias} -run`)} without --cliproxy.`
+      `Run ${source_default.cyan(`claudex-switch ${entry.alias} --run`)} without --cliproxy.`
     ]);
   }
   const target = entry.target;
@@ -15692,7 +15691,7 @@ async function addOpenCodeSubscription(alias) {
     await addAlias(alias, { provider: "opencode", profileId });
     await setActiveOpenCodeProfile(profileId);
     success2(`${source_default.bold(alias)} created  ${profile.console.email} · ${profile.console.orgName}  Go subscription verified`);
-    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to use this subscription (${profile.defaultModel}).`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} --run`)} to use this subscription (${profile.defaultModel}).`);
     blank();
   } catch (err) {
     await removeOpenCodeProfile(profileId);
@@ -15759,9 +15758,9 @@ async function addOpenCodeGo(alias) {
     blank();
     success2(`${source_default.bold(alias)} created  ${source_default.dim("OpenCode Go subscription")}`);
     const historyHint = openCodeVersion.major === 2 ? "OpenCode V2 keeps /resume history private to this alias." : "OpenCode V1 Go aliases share /resume history.";
-    hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to start OpenCode's TUI with this account. ${historyHint}`);
+    hint(`Run ${source_default.cyan(`claudex-switch ${alias} --run`)} to start OpenCode's TUI with this account. ${historyHint}`);
     if (openCodeVersion.major === 2) {
-      hint(`First run needs a Go model: ${source_default.cyan(`claudex-switch ${alias} -run --model opencode-go/<model>`)}; it is saved as this alias's default.`);
+      hint(`First run needs a Go model: ${source_default.cyan(`claudex-switch ${alias} --run --model opencode-go/<model>`)}; it is saved as this alias's default.`);
     }
     blank();
   } catch (err) {
@@ -16763,7 +16762,7 @@ async function switchOpenCode(alias, profileId) {
   await ensureOpenCodeProfileReady(alias, profileId);
   await setActiveOpenCodeProfile(profileId);
   success2(`Selected ${source_default.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`);
-  hint(`Run ${source_default.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
+  hint(`Run ${source_default.cyan(`claudex-switch ${alias} --run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`);
   blank();
 }
 async function ensureOpenCodeProfileReady(alias, profileId) {
@@ -16831,7 +16830,7 @@ async function switchCodex(alias, accountKey) {
   if (account.auth_mode === "apikey" && account.api_provider?.type === "custom") {
     const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
     if (!process.env[envKey]) {
-      hint(`Raw ${source_default.cyan("codex")} needs ${source_default.cyan(envKey)} in the shell; ${source_default.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`);
+      hint(`Raw ${source_default.cyan("codex")} needs ${source_default.cyan(envKey)} in the shell; ${source_default.cyan(`claudex-switch ${alias} --run`)} injects it automatically.`);
     }
   }
   blank();
@@ -16985,7 +16984,7 @@ async function model(aliasOrName, defaultModel) {
   const { model: modelPart, effort } = splitModelEffort(defaultModel);
   if (effort) {
     error("Effort levels aren't stored with the default model.");
-    hint(`Use ${source_default.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
+    hint(`Use ${source_default.cyan(`claudex-switch ${aliasOrName} --run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`);
     blank();
     process.exit(1);
   }
@@ -17141,13 +17140,12 @@ async function exists2(path) {
 }
 
 // src/commands/run.ts
-var RUN_FLAGS = new Set(["-run", "--run"]);
 var HEADER_FLAGS = new Set(["--attribution-header"]);
 var MODEL_FLAGS = new Set(["-model", "--model"]);
 var CLAUDE_ATTRIBUTION_HEADER_ENV = "CLAUDE_CODE_ATTRIBUTION_HEADER";
 var CODEX_COMPLETION_REVIEW_DISABLED_ENV = "CODEX_COMPLETION_REVIEW_DISABLED";
 function isRunFlag(value) {
-  return value !== undefined && RUN_FLAGS.has(value);
+  return value === "--run";
 }
 function isCliproxyRunInvocation(args) {
   return args.includes("--cliproxy") && isRunFlag(args[0]);
@@ -17235,7 +17233,7 @@ function validateOpenCodeV2RunArgs(args) {
       return {
         ok: false,
         message: "OpenCode V2 aliases control the standalone server, config, and model selection.",
-        hint: "Remove -m; use -run --model opencode-go/<model> to select a Go model."
+        hint: "Remove -m; use --run --model opencode-go/<model> to select a Go model."
       };
     }
     if (arg === "--agent" || arg.startsWith("--agent=")) {
@@ -17256,6 +17254,11 @@ function validateOpenCodeV2RunArgs(args) {
   return { ok: true };
 }
 async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = spawn7, openCodeVersionDetector = detectOpenCodeVersion, openCodeCredentialSync) {
+  if (forwardedArgs.includes("-run")) {
+    error("-run is no longer supported. Use --run instead.");
+    return 1;
+  }
+  forwardedArgs = forwardedArgs.filter((arg) => !isRunFlag(arg));
   const nativeEntry = !forwardedArgs.includes("--cliproxy") ? await resolveAliasOrExit(aliasOrName) : undefined;
   if (nativeEntry) {
     if (nativeEntry.target.provider === "claude") {
@@ -17322,7 +17325,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
   }
   if (isOpenCodeV2 && requestsUnsafeOpenCodeV2Override(runOptions.forwardedArgs)) {
     error("OpenCode V2 aliases control the standalone server, config, and model selection.");
-    hint("Remove --attach, --config, --standalone, or --model=<value>; use -run --model opencode-go/<model> to select a Go model.");
+    hint("Remove --attach, --config, --standalone, or --model=<value>; use --run --model opencode-go/<model> to select a Go model.");
     blank();
     return 1;
   }
@@ -17763,7 +17766,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim();
       if (!nextValue) {
         error(`Missing model name after ${arg}.`);
-        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --model 4.8 max")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> --run --model 4.8 max")}`);
         blank();
         process.exit(1);
       }
@@ -17782,7 +17785,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim().toLowerCase();
       if (!nextValue || !["true", "false", "1", "0"].includes(nextValue)) {
         error("Missing header toggle after --attribution-header.");
-        hint(`Example: ${source_default.cyan("claudex-switch <alias> -run --attribution-header false")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch <alias> --run --attribution-header false")}`);
         blank();
         process.exit(1);
       }
@@ -17794,7 +17797,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim();
       if (!nextValue || !isClaudeCodeClient(nextValue)) {
         error(nextValue ? `--cliproxy currently supports: ${CLIPROXY_CLIENT_NAMES}` : "Missing client after --cliproxy.");
-        hint(`Example: ${source_default.cyan("claudex-switch cx -run --cliproxy claudecode")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch cx --run --cliproxy claudecode")}`);
         blank();
         process.exit(1);
       }
@@ -17806,7 +17809,7 @@ function parseRunArgumentOptions(args) {
       const nextValue = args[index + 1]?.trim().toLowerCase();
       if (nextValue !== "on" && nextValue !== "off") {
         error("Expected 'on' or 'off' after --autoreview.");
-        hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
+        hint(`Example: ${source_default.cyan("claudex-switch cx --run --autoreview off")}`);
         blank();
         process.exit(1);
       }
@@ -22237,7 +22240,7 @@ async function doctor(aliasOrName, options = {}) {
   }
   const profileName = entry.target.provider === "claude" ? entry.target.profileName : await getLinkedClaudeProfile(entry.target);
   if (!profileName) {
-    fail(`Doctor checks local provider proxy accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`);
+    fail(`Doctor checks local provider proxy accounts. Run \`claudex-switch ${entry.alias} --run --cliproxy claudecode\` once to create one for this alias.`);
     return;
   }
   if (!await profileExists(profileName)) {
@@ -22357,10 +22360,10 @@ var HELP = `
   ${source_default.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
+    claudex-switch <alias> --run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch <alias> --run  Start the native CLI (AGY: per-alias profile; Cursor: cursor agent; WorkBuddy requires --cliproxy)
-    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
-    claudex-switch <alias> cc [args...]  Same as '<alias> -run --cliproxy claudecode'
+    claudex-switch <alias> --run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
+    claudex-switch <alias> cc [args...]  Same as '<alias> --run --cliproxy claudecode'
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -22380,7 +22383,7 @@ var HELP = `
   ${source_default.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
-    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run' (Codex defaults to --approve-for-me)
+    claudex-switch use <alias> --run [--autoreview <on|off>]  Same as '<alias> --run' (Codex defaults to --approve-for-me)
     claudex-switch -V                  Same as '--version'
 
   Autoreview defaults to off for Codex and OpenCode sessions; use --autoreview on to enable it for one session.
@@ -22506,6 +22509,11 @@ async function main() {
     args.splice(shortcutIndex, 1, "--run", "--cliproxy", "claudecode");
   }
   try {
+    if (command === "-run" || args.includes("-run")) {
+      error("-run is no longer supported. Use --run instead.");
+      process.exitCode = 1;
+      return;
+    }
     const runIndex = args.findIndex(isRunFlag);
     const ownArgs = runIndex < 0 ? args : args.slice(0, runIndex);
     if (isHelpCommand(command) || ownArgs.includes("--help") || ownArgs.includes("-h")) {
@@ -22523,8 +22531,8 @@ async function main() {
     if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
-        error("--autoreview can only be used with -run or --run.");
-        hint(`Example: ${source_default.cyan("claudex-switch cx -run --autoreview off")}`);
+        error("--autoreview can only be used with --run.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx --run --autoreview off")}`);
         blank();
         process.exit(1);
       }
@@ -22532,8 +22540,8 @@ async function main() {
     if (args.includes("--cliproxy") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
-        error("--cliproxy can only be used with -run or --run.");
-        hint(`Example: ${source_default.cyan("claudex-switch cx -run --cliproxy claudecode")}`);
+        error("--cliproxy can only be used with --run.");
+        hint(`Example: ${source_default.cyan("claudex-switch cx --run --cliproxy claudecode")}`);
         blank();
         process.exit(1);
       }
@@ -22559,7 +22567,7 @@ async function main() {
       case "use":
         if (!args[0]) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]]
+  Usage: claudex-switch use <alias> [--run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]]
 `));
           process.exit(1);
         }
@@ -22569,7 +22577,7 @@ async function main() {
         }
         if (args.length > 1) {
           console.error(source_default.red(`
-  Usage: claudex-switch use <alias> [-run [args...] | cc [args...]]
+  Usage: claudex-switch use <alias> [--run [args...] | cc [args...]]
 `));
           process.exit(1);
         }
@@ -22697,7 +22705,7 @@ async function main() {
           }
           if (args.length > 0) {
             console.error(source_default.red(`
-  Usage: claudex-switch <alias> [-run [args...] | cc [args...]]
+  Usage: claudex-switch <alias> [--run [args...] | cc [args...]]
 `));
             process.exit(1);
           }

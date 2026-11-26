@@ -258,7 +258,7 @@ export async function applyCodexApiProvider(
 
 /**
  * The global config with an account's provider routing applied, for a private
- * `-run` CODEX_HOME. Returns null when the routing already matches
+ * `--run` CODEX_HOME. Returns null when the routing already matches
  * ~/.codex/config.toml, so the caller can share that file (and keep the trust
  * and model edits Codex makes in-session). The model is left as is because
  * the launcher passes it on the command line.

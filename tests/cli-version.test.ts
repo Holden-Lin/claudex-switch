@@ -101,17 +101,17 @@ describe("cli version flags", () => {
   test.each([
     ["alias shortcut", ["cx", "--autoreview", "off"]],
     ["use command", ["use", "cx", "--autoreview", "off"]],
-  ])("requires -run for autoreview via %s", (_syntax, args) => {
+  ])("requires --run for autoreview via %s", (_syntax, args) => {
     const result = runCli(args);
     const output = `${result.stderr}${result.stdout}`;
 
     expect(result.status).toBe(1);
-    expect(output).toContain("--autoreview can only be used with -run or --run.");
+    expect(output).toContain("--autoreview can only be used with --run.");
   });
 
   test.each([
-    ["missing", ["cx", "-run", "--autoreview"]],
-    ["invalid", ["cx", "-run", "--autoreview", "sometimes"]],
+    ["missing", ["cx", "--run", "--autoreview"]],
+    ["invalid", ["cx", "--run", "--autoreview", "sometimes"]],
   ])("rejects a %s autoreview value before provider validation", async (_case, args) => {
     await resetTestHome();
     await saveAliases({
@@ -146,8 +146,8 @@ describe("cli version flags", () => {
     });
 
     for (const args of [
-      ["cx", "-run", "--autoreview", "on"],
-      ["use", "cx", "-run", "--autoreview", "off"],
+      ["cx", "--run", "--autoreview", "on"],
+      ["use", "cx", "--run", "--autoreview", "off"],
     ]) {
       const result = runCli(args);
       const output = `${result.stderr}${result.stdout}`;

@@ -525,7 +525,7 @@ describe("--cliproxy claudecode", () => {
     expect(await readFile(cliProxyAPIConfigFile(data.profileId), "utf8")).toContain("sensitive-words: []");
   });
 
-  test("-run --cliproxy launches Claude Code without switching Codex and saves the model on the link", async () => {
+  test("--run --cliproxy launches Claude Code without switching Codex and saves the model on the link", async () => {
     await resolveCLIProxyClaudeEntry("cx", options);
     const calls: Array<{ command: string; args: string[] }> = [];
     const code = await runAliasSession(

@@ -284,7 +284,7 @@ describe("webconfig snapshot", () => {
 
   test("leaves the alias alone when the account underneath cannot be removed", async () => {
     // Ordering contract: the account is removed before its aliases, so any
-    // refusal (here a corrupt profile id, as a held -run lease would be) must
+    // refusal (here a corrupt profile id, as a held --run lease would be) must
     // leave at least one alias pointing at a still-present account. Dropping
     // the aliases first would strand the account with no way to reach it.
     await writeClaudeProfile("proxy", {
@@ -491,7 +491,7 @@ describe("webconfig snapshot", () => {
       CLAUDE_CODE_AUTO_COMPACT_WINDOW: "786432",
     });
 
-    // The same routing must reach an isolated -run through its private,
+    // The same routing must reach an isolated --run through its private,
     // higher-precedence settings file, not only the global settings.
     const runSettingsFile = await prepareApiProfileClaudeSettings(
       "paste",

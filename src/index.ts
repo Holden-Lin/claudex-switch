@@ -37,10 +37,10 @@ const HELP = `
   ${chalk.dim("Usage:")}
     claudex-switch                     Interactive account picker
     claudex-switch <alias>             Switch to an account
-    claudex-switch <alias> -run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
+    claudex-switch <alias> --run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]  Switch, save the selected model, and run (Codex defaults to --approve-for-me)
     claudex-switch <alias> --run  Start the native CLI (AGY: per-alias profile; Cursor: cursor agent; WorkBuddy requires --cliproxy)
-    claudex-switch <alias> -run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
-    claudex-switch <alias> cc [args...]  Same as '<alias> -run --cliproxy claudecode'
+    claudex-switch <alias> --run --cliproxy claudecode [--model <model>]  Run Claude Code on Codex / OpenCode Go, agy, workbuddy, workbuddy-ai or cursor
+    claudex-switch <alias> cc [args...]  Same as '<alias> --run --cliproxy claudecode'
     claudex-switch add <alias>         Add a new account
     claudex-switch use <alias>         Switch to an account
     claudex-switch list [--json] [--no-usage] [--cached]  List accounts with remaining quota (--cached: instant, for shell startup)
@@ -60,7 +60,7 @@ const HELP = `
   ${chalk.dim("Shortcuts:")}
     claudex-switch ls                  Same as 'list'
     claudex-switch rm <alias>          Same as 'remove'
-    claudex-switch use <alias> -run [--autoreview <on|off>]  Same as '<alias> -run' (Codex defaults to --approve-for-me)
+    claudex-switch use <alias> --run [--autoreview <on|off>]  Same as '<alias> --run' (Codex defaults to --approve-for-me)
     claudex-switch -V                  Same as '--version'
 
   Autoreview defaults to off for Codex and OpenCode sessions; use --autoreview on to enable it for one session.
@@ -230,6 +230,11 @@ async function main(): Promise<void> {
   }
 
   try {
+    if (command === "-run" || args.includes("-run")) {
+      error("-run is no longer supported. Use --run instead.");
+      process.exitCode = 1;
+      return;
+    }
     const runIndex = args.findIndex(isRunFlag);
     const ownArgs = runIndex < 0 ? args : args.slice(0, runIndex);
     if (isHelpCommand(command) || ownArgs.includes("--help") || ownArgs.includes("-h")) {
@@ -249,9 +254,9 @@ async function main(): Promise<void> {
     if (args.includes("--autoreview") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
-        error("--autoreview can only be used with -run or --run.");
+        error("--autoreview can only be used with --run.");
         hint(
-          `Example: ${chalk.cyan("claudex-switch cx -run --autoreview off")}`,
+          `Example: ${chalk.cyan("claudex-switch cx --run --autoreview off")}`,
         );
         blank();
         process.exit(1);
@@ -261,9 +266,9 @@ async function main(): Promise<void> {
     if (args.includes("--cliproxy") && !jsonListCommand) {
       const runFlag = command === "use" ? args[1] : args[0];
       if (!isRunFlag(runFlag)) {
-        error("--cliproxy can only be used with -run or --run.");
+        error("--cliproxy can only be used with --run.");
         hint(
-          `Example: ${chalk.cyan("claudex-switch cx -run --cliproxy claudecode")}`,
+          `Example: ${chalk.cyan("claudex-switch cx --run --cliproxy claudecode")}`,
         );
         blank();
         process.exit(1);
@@ -295,7 +300,7 @@ async function main(): Promise<void> {
         if (!args[0]) {
           console.error(
             chalk.red(
-              "\n  Usage: claudex-switch use <alias> [-run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]]\n",
+              "\n  Usage: claudex-switch use <alias> [--run [--model <model> [effort]] [--attribution-header <true|false>] [--autoreview <on|off>] [args...]]\n",
             ),
           );
           process.exit(1);
@@ -305,7 +310,7 @@ async function main(): Promise<void> {
           process.exit(exitCode);
         }
         if (args.length > 1) {
-          console.error(chalk.red("\n  Usage: claudex-switch use <alias> [-run [args...] | cc [args...]]\n"));
+          console.error(chalk.red("\n  Usage: claudex-switch use <alias> [--run [args...] | cc [args...]]\n"));
           process.exit(1);
         }
         await use(args[0]);
@@ -446,7 +451,7 @@ async function main(): Promise<void> {
             process.exit(exitCode);
           }
           if (args.length > 0) {
-            console.error(chalk.red("\n  Usage: claudex-switch <alias> [-run [args...] | cc [args...]]\n"));
+            console.error(chalk.red("\n  Usage: claudex-switch <alias> [--run [args...] | cc [args...]]\n"));
             process.exit(1);
           }
           await use(command);

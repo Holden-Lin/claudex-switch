@@ -87,7 +87,7 @@ function modelForV2(config: JsonRecord, selectedModel?: string): string {
   const candidate = selectedModel ?? config.model;
   if (typeof candidate !== "string" || !candidate.trim()) {
     throw new Error(
-      "OpenCode V2 aliases require an OpenCode Go model. Set this alias's default model or pass -run --model opencode-go/<model> before starting the TUI.",
+      "OpenCode V2 aliases require an OpenCode Go model. Set this alias's default model or pass --run --model opencode-go/<model> before starting the TUI.",
     );
   }
 
@@ -96,7 +96,7 @@ function modelForV2(config: JsonRecord, selectedModel?: string): string {
     normalized = normalizeOpenCodeGoModel(candidate);
   } catch {
     throw new Error(
-      "OpenCode V2 aliases only bind credentials for OpenCode Go models. Set an opencode-go/<model> default or pass -run --model opencode-go/<model>; other-provider sessions are outside this alias's account-selection guarantee.",
+      "OpenCode V2 aliases only bind credentials for OpenCode Go models. Set an opencode-go/<model> default or pass --run --model opencode-go/<model>; other-provider sessions are outside this alias's account-selection guarantee.",
     );
   }
   return mapOpenCodeGoModelForV2(normalized);

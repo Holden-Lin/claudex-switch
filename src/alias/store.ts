@@ -25,7 +25,6 @@ const RESERVED = new Set([
   "update",
   "webconfig",
   "help",
-  "-run",
   "--run",
   "--help",
   "-h",

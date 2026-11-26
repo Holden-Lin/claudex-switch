@@ -46,7 +46,7 @@ export async function doctor(
       : await getLinkedClaudeProfile(entry.target);
   if (!profileName) {
     fail(
-      `Doctor checks local provider proxy accounts. Run \`claudex-switch ${entry.alias} -run --cliproxy claudecode\` once to create one for this alias.`,
+      `Doctor checks local provider proxy accounts. Run \`claudex-switch ${entry.alias} --run --cliproxy claudecode\` once to create one for this alias.`,
     );
     return;
   }

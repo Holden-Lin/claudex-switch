@@ -108,7 +108,7 @@ export async function model(
   if (effort) {
     error("Effort levels aren't stored with the default model.");
     hint(
-      `Use ${chalk.cyan(`claudex-switch ${aliasOrName} -run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`,
+      `Use ${chalk.cyan(`claudex-switch ${aliasOrName} --run --model "${modelPart} ${effort}"`)} for a one-shot effort override.`,
     );
     blank();
     process.exit(1);

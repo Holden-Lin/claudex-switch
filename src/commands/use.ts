@@ -76,7 +76,7 @@ async function switchOpenCode(alias: string, profileId: string): Promise<void> {
     `Selected ${chalk.bold(alias)}  ${formatProvider("opencode")}  ${formatType("subscription")}  ${formatPlan("Go")}`,
   );
   hint(
-    `Run ${chalk.cyan(`claudex-switch ${alias} -run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`,
+    `Run ${chalk.cyan(`claudex-switch ${alias} --run`)} to open OpenCode with this credential; session history behavior depends on the installed OpenCode version.`,
   );
   blank();
 }
@@ -194,7 +194,7 @@ async function switchCodex(
     const envKey = account.api_provider.env_key || "OPENAI_API_KEY";
     if (!process.env[envKey]) {
       hint(
-        `Raw ${chalk.cyan("codex")} needs ${chalk.cyan(envKey)} in the shell; ${chalk.cyan(`claudex-switch ${alias} -run`)} injects it automatically.`,
+        `Raw ${chalk.cyan("codex")} needs ${chalk.cyan(envKey)} in the shell; ${chalk.cyan(`claudex-switch ${alias} --run`)} injects it automatically.`,
       );
     }
   }

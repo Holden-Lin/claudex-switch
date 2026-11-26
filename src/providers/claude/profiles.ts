@@ -528,7 +528,7 @@ export async function readFreshestOAuthCredentials(
   );
 }
 
-// Seed the profile's isolated live credential store for a `-run` session
+// Seed the profile's isolated live credential store for a `--run` session
 // launched with CLAUDE_SECURESTORAGE_CONFIG_DIR pointing at the profile dir.
 // Also prepare a per-profile CLAUDE_CONFIG_DIR whose .claude.json contains the
 // target account metadata, so /status reads the same account that OAuth tokens
@@ -706,7 +706,7 @@ async function writeIsolatedLocalClaudeJson(name: string): Promise<void> {
   await writeJson(claudeProfileConfigJson(name), data);
 }
 
-// After an isolated `-run` session ends, fold any tokens it refreshed back
+// After an isolated `--run` session ends, fold any tokens it refreshed back
 // into the profile snapshot so later global switches restore a live refresh
 // token instead of a rotated-out one.
 export async function syncIsolatedOAuthSnapshot(name: string): Promise<void> {

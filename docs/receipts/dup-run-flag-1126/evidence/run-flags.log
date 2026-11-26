@@ -1,0 +1,17 @@
+$ bun test tests/run-flags.test.ts --timeout "30000"
+bun test v1.3.5 (1e86cebd)
+
+tests/run-flags.test.ts:
+(pass) rejects removed single-dash run before launching: "cx" [852.62ms]
+(pass) rejects removed single-dash run before launching: "use" [611.75ms]
+(pass) rejects removed single-dash run before launching: "cx" [454.60ms]
+(pass) rejects removed single-dash run before launching: "agy" [384.43ms]
+(pass) rejects removed single-dash run before launching: "cx" [436.06ms]
+(pass) Codex CLI forwards canonical model without run flags: "cx" [770.86ms]
+(pass) Codex CLI forwards canonical model without run flags: "cx" [725.06ms]
+(pass) Codex CLI forwards canonical model without run flags: "use" [578.06ms]
+
+ 8 pass
+ 0 fail
+ 16 expect() calls
+Ran 8 tests across 1 file. [4.96s]

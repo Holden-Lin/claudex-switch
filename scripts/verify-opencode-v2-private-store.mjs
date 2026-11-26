@@ -696,7 +696,7 @@ async function runProductLaunch(fixture, alias, captureName, overrides = {}) {
     eventsBefore = (await readFile(fixture.eventFile, "utf8")).split(/\r?\n/).filter(Boolean);
   } catch {}
   const env = { ...fixture.productEnv, ...overrides, CLAUDEX_TEST_CAPTURE_FILE: capturePath };
-  const result = spawnSync(process.execPath, [fixture.cliPath, alias, "-run"], {
+  const result = spawnSync(process.execPath, [fixture.cliPath, alias, "--run"], {
     cwd: fixture.projectDir,
     env,
     encoding: "utf8",
@@ -933,7 +933,7 @@ async function verifyProductLaunchContract(base) {
 
   // The refresh unit test covers the prompt/save command. Here, model the
   // committed result of refresh by rotating only the fake sidecar; the actual
-  // product -run path must sync that new value on its next launch.
+  // product --run path must sync that new value on its next launch.
   const refreshedPaths = productProfilePaths(fixture.home, fixture.profileA);
   await writeFile(
     refreshedPaths.auth,

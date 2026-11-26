@@ -1,0 +1,2 @@
+$ node ./scripts/validate-docs.mjs
+Documentation check passed: 14 required files, 78 Markdown files, local links resolve.

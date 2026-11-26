@@ -42,9 +42,9 @@ function run(args: string[], preload?: string) {
   });
 }
 
-test.each(["cursor"] as const)("%s launches native frontend and preserves native arguments without creating proxy state", async (upstream) => {
+test.each(["cursor"] as const)("%s launches native frontend and preserves native arguments, consuming repeated --run flags without creating proxy state", async (upstream) => {
   await seed(upstream);
-  const result = run(["--run", "--model", "native-model", "--effort", "xhigh", "-p", "hello"]);
+  const result = run(["--run", "--model", "native-model", "--effort", "xhigh", "--run", "-p", "hello", "--run"]);
   expect(result.status).toBe(0);
   const command = "cursor";
   expect(result.stdout).toContain(`Running ${command}${upstream === "cursor" ? " agent" : ""}`);
@@ -52,6 +52,7 @@ test.each(["cursor"] as const)("%s launches native frontend and preserves native
   if (upstream === "cursor") expect(result.stdout).toContain("cursor argument: agent");
   expect(result.stdout).toContain("native CLI's own login");
   expect(result.stdout).not.toContain("claude argument");
+  expect(result.stdout).not.toContain("cursor argument: --run");
   expect(await readFile(join(cliProxyAPIProfileDir(profile.profileId), "state.json"), "utf8").catch(() => null)).toBeNull();
 });
 
@@ -88,7 +89,7 @@ test("Antigravity starts the native OAuth profile even without a proxy login or 
   expect(await Bun.file(join(cliProxyAPIProfileDir(profile.profileId), "state.json")).exists()).toBe(false);
 });
 
-test("Antigravity preserves native arguments and normalizes model effort without consulting the proxy catalog", async () => {
+test("Antigravity consumes repeated --run flags, preserves native arguments and normalizes model effort without consulting the proxy catalog", async () => {
   await seed("antigravity");
   await inspectNativeAgy();
   for (const spelling of [
@@ -98,7 +99,7 @@ test("Antigravity preserves native arguments and normalizes model effort without
     ["--model=gemini-4-neon-xhigh"],
     ["--effort=xhigh", "--model", "gemini-4-neon"],
   ]) {
-    const result = run(["--run", ...spelling, "--settings", '{"colorScheme":"dark"}', "-p", "hello", "--mode", "plan"]);
+    const result = run(["--run", ...spelling, "--run", "--settings", '{"colorScheme":"dark"}', "-p", "hello", "--mode", "plan", "--run"]);
     expect({ spelling, code: result.status, error: result.stderr }).toEqual({ spelling, code: 0, error: "" });
     expect(nativeAgyOutput(result.stdout).args.slice(4)).toEqual([
       "--model", "gemini-4-neon-xhigh", "--settings", '{"colorScheme":"dark"}', "-p", "hello", "--mode", "plan",

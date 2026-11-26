@@ -1,0 +1,767 @@
+$ bun test --timeout "30000" --reporter junit --reporter-outfile /tmp/cxs-dup-run-suite-unrestricted.xml
+bun test v1.3.5 (1e86cebd)
+
+tests/model-shorthand.test.ts:
+(pass) resolveModelShorthand > expands a bare claude version into the opus series [1.04ms]
+(pass) resolveModelShorthand > accepts an explicit claude series prefix [0.09ms]
+(pass) resolveModelShorthand > expands a bare claude 5.x version into the opus series
+(pass) resolveModelShorthand > expands opus 5.5
+(pass) resolveModelShorthand > maps a bare fable alias to the latest fable
+(pass) resolveModelShorthand > keeps an explicit older fable version reachable
+(pass) resolveModelShorthand > keeps versioned fable aliases pinned [0.10ms]
+(pass) resolveModelShorthand > expands a bare codex version into the gpt series
+(pass) resolveModelShorthand > bare Codex 6.1 always selects sol
+(pass) resolveModelShorthand > bare Codex 6.2 always selects sol
+(pass) resolveModelShorthand > bare Codex 6 always selects sol [0.09ms]
+(pass) resolveModelShorthand > bare Codex 5.6 always selects sol
+(pass) resolveModelShorthand > maps aliased codex versions to their full model id
+(pass) resolveModelShorthand > named codex aliases track the newest generation of each tier [0.05ms]
+(pass) resolveModelShorthand > latest astra and sol aliases preserve older full model ids
+(pass) resolveModelShorthand > honors an explicitly typed gpt id verbatim
+(pass) resolveModelShorthand > accepts an explicit gpt prefix
+(pass) resolveModelShorthand > passes through fully qualified model ids unchanged
+(pass) resolveModelShorthand > trims whitespace and preserves empty input
+(pass) splitModelEffort > splits a trailing effort tier off the model [0.36ms]
+(pass) splitModelEffort > leaves non-effort suffixes untouched
+(pass) isModelEffort > recognizes effort tiers case-insensitively [0.14ms]
+(pass) providerEffortLevels > claude and codex support different tiers
+
+tests/codex-sessions.test.ts:
+(pass) syncCodexSessions providers > rewrites rollout first lines to the target provider [456.32ms]
+(pass) syncCodexSessions providers > stamps a missing provider only into reclaimed padding [487.81ms]
+(pass) syncCodexSessions providers > leaves malformed and non-session files alone [4.18ms]
+(pass) syncCodexSessions providers > updates thread rows in state_5.sqlite [14.62ms]
+(pass) syncCodexSessions providers > syncs rollouts even when no state DB exists [569.80ms]
+(pass) syncCodexSessions providers > is a no-op when everything already matches [8.66ms]
+(pass) syncCodexSessions providers > normalizes casing variants of managed providers [575.52ms]
+(pass) syncCodexSessions providers > repairs empty provider metadata in the DB without growing rollouts [16.61ms]
+(pass) syncCodexSessions providers > leaves sessions of unmanaged providers untouched [737.23ms]
+(pass) syncCodexSessions providers > skips a rollout another process holds open [487.19ms]
+(pass) syncCodexSessions providers > preserves rollout timestamps across a rewrite [377.94ms]
+(pass) syncCodexSessions sharing and byte offsets > shares sessions another managed ChatGPT account created [343.41ms]
+(pass) syncCodexSessions sharing and byte offsets > keeps the scope of unmanaged, creator-less and reverted sessions [5.05ms]
+(pass) syncCodexSessions sharing and byte offsets > pads a shorter provider so every later byte keeps its offset [405.98ms]
+(pass) syncCodexSessions sharing and byte offsets > never grows a first line: a longer provider is skipped with its thread row [10.05ms]
+(pass) syncCodexSessions sharing and byte offsets > reuses earlier padding, so a provider round trip restores the original bytes [1610.17ms]
+(pass) syncCodexSessions sharing and byte offsets > dropping the scope marker makes room for a longer provider [557.25ms]
+(pass) syncCodexSessions sharing and byte offsets > rewrites compressed rollouts in place and keeps their decoded size [769.74ms]
+(pass) syncCodexSessions sharing and byte offsets > restores rollouts an earlier sync shortened to Codex's history offset [427.86ms]
+(pass) syncCodexSessions sharing and byte offsets > a share-only pass leaves providers and thread rows alone [507.24ms]
+
+  ● Synced 1 session file(s) and 1 thread row(s) to provider "openai"
+  Managed sessions now resume with this account's provider.
+  ✓ Switched to cx  Codex  Plus  codex@example.com
+
+(pass) session visibility sync on switch > switching to a ChatGPT account re-stamps sessions to openai [367.50ms]
+
+tests/auto-update.test.ts:
+(pass) auto update > compares semantic versions correctly [0.38ms]
+(pass) auto update > extracts release versions from redirect URLs [0.36ms]
+(pass) auto update > falls back to the GitHub Releases API when the redirect is unavailable [2.99ms]
+(pass) auto update > reports when the installed version is already the latest [0.36ms]
+(pass) auto update > reports when an update is available [0.22ms]
+(pass) auto update > reports unknown when the latest release cannot be checked [0.16ms]
+(pass) auto update > detects a homebrew install from the executable path [0.21ms]
+(pass) auto update > detects a bun install from the executable path
+(pass) auto update > detects linked entrypoint ownership with Bun installed [7.96ms]
+(pass) auto update > detects resolved entrypoint ownership with Bun installed [6.25ms]
+(pass) auto update > detects npm entrypoint ownership with Bun installed [3.79ms]
+(pass) auto update > does not mis-detect bun when the executable path is outside bun [0.21ms]
+(pass) auto update > reports npm installs as unsupported [0.19ms]
+  ● Updating claudex-switch from v1.31.0 to v9.8.7
+  Running self-update before continuing...
+(pass) auto update > updates with bun and restarts the original command [0.69ms]
+(pass) auto update > manual update ignores the auto-update disable env flag [0.43ms]
+(pass) auto update > continues when auto update is disabled [0.05ms]
+
+tests/proxy-global-switch.test.ts:
+(pass) proxy accounts switch global Claude without redirecting isolated runs > starts/reuses the proxy, updates state, then restores OAuth and clears only managed env [511.23ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > CLI switches "workbuddy" [856.06ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > CLI switches "use" [1251.88ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > help "workbuddy" changes nothing [508.03ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > help "workbuddy" changes nothing [457.56ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > help "native" changes nothing [518.28ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > help "missing-alias" changes nothing [667.38ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > help "use" changes nothing [1192.14ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > invalid trailing arguments "workbuddy" never switch or write [832.21ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > invalid trailing arguments "native" never switch or write [653.89ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > invalid trailing arguments "workbuddy" never switch or write [1048.12ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > invalid trailing arguments "use" never switch or write [684.11ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > invalid trailing arguments "use" never switch or write [590.85ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > editing the active proxy reapplies its model and extra env [488.38ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > a missing proxy configuration leaves global settings, state and credentials untouched [212.57ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > every global proxy settings key is already covered by each run overlay before switching [695.12ms]
+(pass) proxy accounts switch global Claude without redirecting isolated runs > API key profiles still switch [222.40ms]
+
+tests/webconfig.test.ts:
+(pass) webconfig snapshot > names every alias a delete would also remove [18.12ms]
+(pass) webconfig snapshot > renames an alias without touching the account underneath [6.15ms]
+(pass) webconfig snapshot > rejects a rename to a bad or occupied alias [7.06ms]
+(pass) webconfig snapshot > deletes the account and every alias pointing at it [18.50ms]
+(pass) webconfig snapshot > deletes a codex account and its stored login file [8.81ms]
+(pass) webconfig snapshot > leaves the alias alone when the account underneath cannot be removed [5.17ms]
+(pass) webconfig snapshot > refuses to delete an alias that is already gone [2.89ms]
+(pass) webconfig snapshot > reports each account's editable fields and current env [5.84ms]
+(pass) webconfig snapshot > saves only the submitted accounts and keeps the rest untouched [7.90ms]
+(pass) webconfig snapshot > re-applies global settings when the edited account is active [13.91ms]
+(pass) webconfig snapshot > accepts a pasted export block verbatim, including subagent routing [6.90ms]
+(pass) webconfig snapshot > neutralizes another profile's custom env for an isolated OAuth run [15.00ms]
+(pass) webconfig snapshot > rejects invalid values without touching the profile [7.43ms]
+(pass) webconfig snapshot > clears the previous account's custom env on the next switch [19.77ms]
+(pass) webconfig snapshot > never removes env entries the user added by hand [34.09ms]
+(pass) webconfig snapshot > clears every custom env row on a local CLIProxyAPI profile [5.61ms]
+(pass) webconfig snapshot > refuses to blank a relay account's base URL [6.30ms]
+(pass) webconfig snapshot > writes codex edits to the registry, auth file and config.toml [66.06ms]
+(pass) webconfig account creation > creates a Claude API key account and makes it active [10.04ms]
+(pass) webconfig account creation > creates a Codex relay account and writes config.toml [34.63ms]
+(pass) webconfig account creation > uses the relay's model as its default model [8.94ms]
+(pass) webconfig account creation > accepts the official Codex provider without relay fields [15.80ms]
+(pass) webconfig account creation > refuses a Codex create that leaves the provider type unset [3.48ms]
+(pass) webconfig account creation > rejects a bad custom env key instead of silently dropping it [21.46ms]
+(pass) webconfig account creation > names the relay model field when a relay create omits it [1.90ms]
+(pass) webconfig account creation > rejects bad input before creating anything [6.57ms]
+(pass) webconfig account creation > refuses to import the same Codex API key twice [9.22ms]
+(pass) webconfig server > serves the page only with a valid token [23.60ms]
+(pass) webconfig server > rejects a foreign Host header [94.69ms]
+(pass) webconfig server > round-trips a save through the HTTP API [58.29ms]
+(pass) webconfig server > renames and deletes through the HTTP API [35.95ms]
+(pass) webconfig server > rejects a malformed save body [12.97ms]
+(pass) webconfig args > parses port and open flags [0.16ms]
+
+tests/opencode-console.test.ts:
+(pass) OpenCode browser subscriptions > validates subscription dates independently of quota data and pending cancellation [1.91ms]
+(pass) OpenCode browser subscriptions > clamps exhausted windows and leaves malformed windows unknown [0.49ms]
+(pass) OpenCode browser subscriptions > reads only native Console OAuth and pins the account/workspace instead of active selection [16.65ms]
+(pass) OpenCode browser subscriptions > uses each pinned token and workspace for quota and renders correct remaining percentages [224.23ms]
+(pass) OpenCode browser subscriptions > distinguishes unauthorized, no subscription, offline and missing quota [15.87ms]
+(pass) OpenCode browser subscriptions > restricts Console to available Go models, disables other models and retains permission settings [4.12ms]
+(pass) OpenCode browser subscriptions > keeps native free models beside Console Go while disabling paid and unknown models [1.13ms]
+(pass) OpenCode browser subscriptions > treats Console model settings as overlays while rejecting disabled, unknown and Zen routes [23.14ms]
+(pass) OpenCode browser subscriptions > maps v1.18.0 stored Zen defaults onto the Go route and never maps Go back to Zen [12.30ms]
+(pass) OpenCode browser subscriptions > offline list reports the effective Go default for old profiles without rewriting the saved account [33.52ms]
+(pass) OpenCode browser subscriptions > adds through the subscription menu without an API key and shows verified identity [145.82ms]
+
+  ● Sign in again as user_a@example.com and authorize org_a.
+  ✗ Login selected a different account or workspace
+(pass) OpenCode browser subscriptions > failed or wrong-account refresh keeps the saved metadata and default intact [13.77ms]
+  ✗ The selected model is unavailable
+
+(pass) OpenCode browser subscriptions > rejected run model does not replace the working default [22.89ms]
+(pass) OpenCode browser subscriptions > purge refuses a running subscription and keeps its alias and credential until release [207.35ms]
+  ● Running opencode --standalone --auto
+  ● Autoreview: off (default)
+  ● Running opencode --standalone --auto
+  ● Autoreview: off (default)
+  ✗ Failed to start opencode: test launch failure
+
+(pass) OpenCode browser subscriptions > run releases the native credential lease on normal exit and launch failure [13.01ms]
+
+tests/codex-config.test.ts:
+(pass) codex config arrays > rewriting config preserves mcp_servers args arrays [12.04ms]
+(pass) codex config arrays > activateCodexOfficialProvider removes top-level openai_base_url [1.68ms]
+(pass) codex config arrays > managed Codex accounts use file credentials for snapshot switching [1.47ms]
+(pass) codex config arrays > repairCodexStringifiedArrays fixes stringified args [2.04ms]
+(pass) codex config arrays > repairCodexStringifiedArrays fixes stringified top-level notify [1.51ms]
+(pass) codex config arrays > repairCodexStringifiedArrays fixes any array-typed key without an allowlist [1.45ms]
+(pass) codex config arrays > repairCodexStringifiedArrays repairs TOML arrays that aren't strict JSON [1.11ms]
+(pass) codex config arrays > repairCodexStringifiedArrays leaves real arrays and bracket-looking strings alone [1.08ms]
+(pass) codex config arrays > repairCodexStringifiedArrays is a no-op without a config file [0.47ms]
+
+tests/purge.test.ts:
+(pass) purge > removes linked aliases, registry entry, and auth snapshot for codex accounts [8.15ms]
+
+
+  ✓ go-main account purged
+
+(pass) purge > removes a private OpenCode Go profile and clears its active state [84.65ms]
+
+tests/add.test.ts:
+(pass) add > adds a codex chatgpt account through isolated browser auth [25.16ms]
+(pass) add > adds a codex api key with a custom provider config [89.25ms]
+(pass) add > adds a claude api key with model mapping config [94.21ms]
+(pass) add > imports the current OpenCode Go credential into a private TUI profile [11.94ms]
+(pass) add > adds an OpenCode V2 account from a masked key prompt without importing global auth [16.75ms]
+(pass) add > imports an existing local OpenCode V2 credential when explicitly selected [15.56ms]
+(pass) add > re-prompts until OpenCode Go accepts the entered key [9.25ms]
+(pass) add > offers relay account balance setup when the base URL is a one-api relay [19.99ms]
+(pass) add > does not save relay credentials the relay rejects [188.59ms]
+(pass) add > adds workbuddy through the shared subscription setup and shows the proxy launch command [5.12ms]
+(pass) add > adds antigravity through the shared subscription setup and shows the proxy launch command [1.05ms]
+(pass) add > adds cursor through the shared subscription setup and shows the proxy launch command [1.21ms]
+(pass) add > offers subscriptions independently of the Claude Code frontend [1.61ms]
+
+tests/subscription-profiles.test.ts:
+(pass) Claude Code subscription profiles > workbuddy real catalog refresh preserves missing free DS tiers and explicit SG still works [88.10ms]
+(pass) Claude Code subscription profiles > workbuddy-ai real catalog refresh preserves missing free DS tiers and explicit SG still works [18.23ms]
+(pass) Claude Code subscription profiles > paid-only WorkBuddy discovery leaves unchosen tiers unset and Cursor keeps its old behavior [0.87ms]
+(pass) Claude Code subscription profiles > an omitted saved free DS never silently falls back to the paid SG tier [8.05ms]
+(pass) Claude Code subscription profiles > free DS sessions keep classifier and all tier side calls off previously saved paid SG [12.40ms]
+(pass) Claude Code subscription profiles > workbuddy picker hides duplicate SG while explicit IDs and saved overrides still route [7.70ms]
+(pass) Claude Code subscription profiles > workbuddy-ai picker hides duplicate SG while explicit IDs and saved overrides still route [17.24ms]
+(pass) Claude Code subscription profiles > cursor picker hides duplicate SG while explicit IDs and saved overrides still route [9.37ms]
+(pass) Claude Code subscription profiles > cursor uses the account's exact model IDs and preserves older available versions [9.15ms]
+(pass) Claude Code subscription profiles > workbuddy uses the account's exact model IDs and preserves older available versions [158.06ms]
+(pass) Claude Code subscription profiles > workbuddy-ai uses the account's exact model IDs and preserves older available versions [8.06ms]
+(pass) Claude Code subscription profiles > compaction follows each model's subscription window instead of Claude Code's 200K guess [10.93ms]
+(pass) Claude Code subscription profiles > WorkBuddy's auto mode classifier runs on deepseek-v4.1-flash only inside its own session settings [28.87ms]
+(pass) Claude Code subscription profiles > subscription catalogs without windows keep Claude Code's defaults [5.83ms]
+(pass) Claude Code subscription profiles > Cursor Auto and opaque model IDs are selected only from its catalog [0.97ms]
+(pass) Claude Code subscription profiles > a priced catalog maps every tier to its widest free model and moves auto-picked paid tiers once [1.02ms]
+(pass) Claude Code subscription profiles > provider markers round-trip and unknown markers cannot silently become ChatGPT [1.66ms]
+
+tests/relayrouter-glm.test.ts:
+(pass) RelayRouter GLM profile settings > explicit profile preferences override generated window and side-query defaults [9.32ms]
+(pass) RelayRouter GLM profile settings > generated settings are tracked, isolated from other profiles, and removed on a global switch [78.46ms]
+(pass) RelayRouter GLM profile settings > does not change another endpoint: https://api.deepseek.com/anthropic [1.18ms]
+(pass) RelayRouter GLM profile settings > does not change another endpoint: https://api.relayrouter.org [0.75ms]
+(pass) RelayRouter GLM profile settings > does not change another endpoint: https://api.relayrouter.ai.example.com [0.79ms]
+(pass) RelayRouter GLM profile settings > does not change another endpoint: http://api.relayrouter.ai [0.96ms]
+
+tests/cliproxy-version.test.ts:
+(pass) CLIProxyAPI tool-history compatibility > parses the official help banner rather than config or log numbers [158.24ms]
+(pass) CLIProxyAPI tool-history compatibility > rejects an unverified tool-history runtime: 7.3.15
+(pass) CLIProxyAPI tool-history compatibility > rejects an unverified tool-history runtime: 7.3.18
+(pass) CLIProxyAPI tool-history compatibility > rejects an unverified tool-history runtime: 7.2.999
+(pass) CLIProxyAPI tool-history compatibility > rejects an unverified tool-history runtime: 7.3.19-rc1
+(pass) CLIProxyAPI tool-history compatibility > rejects an unverified tool-history runtime: %s
+(pass) CLIProxyAPI tool-history compatibility > recognizes versions containing the fix: 7.3.19
+(pass) CLIProxyAPI tool-history compatibility > recognizes versions containing the fix: 7.3.20
+(pass) CLIProxyAPI tool-history compatibility > recognizes versions containing the fix: 7.4.0
+(pass) CLIProxyAPI tool-history compatibility > recognizes versions containing the fix: 8.0.0
+
+tests/cliproxy-usage.test.ts:
+(pass) proxy quota > reads Gemini windows through live, cached and JSON list without a group prefix [502.91ms]
+(pass) proxy quota > reads WorkBuddy plan and credit units through the installed plugin and preserves them in cache [466.40ms]
+(pass) proxy quota > no-usage and cached failures omit placeholders and never make quota requests [253.89ms]
+(pass) proxy quota > antigravity reads a local email in list and current without quota requests [111.71ms]
+(pass) proxy quota > workbuddy reads a local email in list and current without quota requests [110.27ms]
+(pass) proxy quota > workbuddy-ai reads a local email in list and current without quota requests [228.23ms]
+(pass) proxy quota > cursor reads a local email in list and current without quota requests [72.76ms]
+(pass) proxy quota > workbuddy never treats an email-shaped nickname as login email [298.95ms]
+(pass) proxy quota > workbuddy-ai never treats an email-shaped nickname as login email [92.47ms]
+(pass) proxy quota > shows only Gemini quota for model claude-opus-5-5-high in live and cached output [257.32ms]
+(pass) proxy quota > shows only Gemini quota for model gpt-6.1 in live and cached output [342.42ms]
+(pass) proxy quota > shows only Gemini quota for model gemini-3.8-flash-high in live and cached output [269.59ms]
+(pass) proxy quota > shows only Gemini quota for model unknown-model in live and cached output [244.42ms]
+(pass) proxy quota > Claude/GPT-only quota omits unavailable Gemini windows without fallback [144.14ms]
+(pass) proxy quota > a refresh missing Gemini keeps the last valid Gemini quota [246.77ms]
+(pass) proxy quota > Gemini weekly-only summary does not invent a five-hour window [141.96ms]
+(pass) proxy quota > unavailable or expired upstream access returns no quota and does not write credentials [24.93ms]
+(pass) proxy quota > missing or malformed quota is never guessed as zero or unlimited [7.77ms]
+
+tests/relayrouter-transport.test.ts:
+(pass) RelayRouter session transport > Node runtime preserves responses and cancels the upstream when closing [1504.45ms]
+(pass) RelayRouter session transport > strips only assistant reasoning history at /v1/messages and preserves the streamed answer [13.65ms]
+(pass) RelayRouter session transport > strips only assistant reasoning history at /v1/messages/count_tokens and preserves the streamed answer [9.78ms]
+(pass) RelayRouter session transport > preserves another selected model and the upstream's denial/error response [48.15ms]
+(pass) RelayRouter session transport > rejects malformed bodies and unrelated paths without contacting the upstream [12.02ms]
+(pass) RelayRouter session transport > closing a session aborts an in-flight upstream response and removes the listener [13.20ms]
+
+tests/model.test.ts:
+(pass) model command > updates an active Claude OAuth profile default model [22.41ms]
+(pass) model command > updates an active Claude API key profile default model [19.64ms]
+(pass) model command > expands a Claude opus shorthand into the canonical model id [53.43ms]
+(pass) model command > updates an active Codex API key account default model using sol [18.39ms]
+
+tests/cli-version.test.ts:
+(pass) cli version flags > doctor help names provider proxies [653.19ms]
+(pass) cli version flags > rejects invalid doctor binary options: "doctor" [470.71ms]
+(pass) cli version flags > rejects invalid doctor binary options: "doctor" [503.37ms]
+(pass) cli version flags > rejects invalid doctor binary options: "doctor" [486.58ms]
+(pass) cli version flags > prints the current version for --version [687.74ms]
+(pass) cli version flags > prints the current version for -V [408.78ms]
+(pass) cli version flags > does not treat -version as a supported flag [787.34ms]
+(pass) cli version flags > blocks repo-local account commands without an isolated home [998.11ms]
+(pass) cli version flags > allows repo-local version checks without an isolated home [461.92ms]
+(pass) cli version flags > requires --run for autoreview via alias shortcut [550.40ms]
+(pass) cli version flags > requires --run for autoreview via use command [382.52ms]
+(pass) cli version flags > rejects a missing autoreview value before provider validation [503.96ms]
+(pass) cli version flags > rejects a invalid autoreview value before provider validation [568.72ms]
+(pass) cli version flags > accepts autoreview through both alias and use session syntaxes [870.90ms]
+
+tests/opencode-catalog.test.ts:
+(pass) OpenCode private model catalog > pins new public models before key and Console discovery with private snapshots [23.61ms]
+(pass) OpenCode private model catalog > reuses a fresh snapshot and refreshes a stale one before discovery [55.89ms]
+(pass) OpenCode private model catalog > keeps the last good snapshot on offline, invalid and HTTP failures [53.02ms]
+(pass) OpenCode private model catalog > honors explicit offline, custom file and catalog URL settings [48.31ms]
+(pass) OpenCode private model catalog > falls back to the native bundled catalog when the first refresh fails [2.60ms]
+
+tests/cliproxy-dispatch.test.ts:
+(pass) alias dispatch for --cliproxy > first-use cursor reaches plugin login and cancelled setup leaves no account [928.87ms]
+(pass) alias dispatch for --cliproxy > first-use workbuddy-ai reaches plugin login and cancelled setup leaves no account [616.46ms]
+(pass) alias dispatch for --cliproxy > first-use bare workbuddy asks for its region and names workbuddy-ai without a terminal [522.08ms]
+(pass) alias dispatch for --cliproxy > an alias that does not exist yet reaches the Antigravity setup [699.19ms]
+(pass) alias dispatch for --cliproxy > an unknown --cliproxy target reports the alias, not an unknown command [511.94ms]
+(pass) alias dispatch for --cliproxy > Antigravity without --cliproxy points at the proxy command [586.67ms]
+(pass) alias dispatch for --cliproxy > an unknown command without --cliproxy still fails as a command [501.55ms]
+
+tests/claude-classifier-fallback.test.ts:
+(pass) local proxy classifier fallback > tracks default or explicit classifier setting %s on activation [15.50ms]
+(pass) local proxy classifier fallback > tracks default or explicit classifier setting 1 on activation [26.29ms]
+(pass) local proxy classifier fallback > clears generated fallback when globally switching to api [4.74ms]
+(pass) local proxy classifier fallback > clears generated fallback when globally switching to oauth [4.03ms]
+(pass) local proxy classifier fallback > isolated API and OAuth settings neutralize active fallback and preserve explicit preferences [19.14ms]
+(pass) local proxy classifier fallback > direct profiles preserve a user-owned setting outside managed profile ownership [14.04ms]
+(pass) local proxy classifier fallback > inactive profile keys preserve user-owned launch values without exposing them in argv [15.33ms]
+
+tests/subscription-plugins.test.ts:
+(pass) subscription plugin adapter > reads the official billed model even when a zero-credit request used the base ID [12.52ms]
+(pass) subscription plugin adapter > workbuddy curates regional discovery without blocking explicit regional routing [45.47ms]
+(pass) subscription plugin adapter > workbuddy-ai curates regional discovery without blocking explicit regional routing [12.56ms]
+(pass) subscription plugin adapter > cursor curates regional discovery without blocking explicit regional routing [15.11ms]
+(pass) subscription plugin adapter > WorkBuddy AI never invents a free base DS from a paid SG-only catalog [14.50ms]
+(pass) subscription plugin adapter > workbuddy preserves catalog prices without inferring that a zero multiplier is free [5.60ms]
+(pass) subscription plugin adapter > workbuddy-ai preserves catalog prices without inferring that a zero multiplier is free [3.49ms]
+(pass) subscription plugin adapter > cursor preserves catalog prices without inferring that a zero multiplier is free [1.04ms]
+(pass) subscription plugin adapter > loads the three actual plugin factories and lists only OAuth methods offline [9.57ms]
+(pass) subscription plugin adapter > stores private atomic auth and stable hashed account identity [7.11ms]
+(pass) subscription plugin adapter > desktop login keeps only the plugin marker, with no imported rotating tokens [11.53ms]
+(pass) subscription plugin adapter > normalizes numeric account IDs and refuses an access token as an account identity [177.65ms]
+(pass) subscription plugin adapter > rejects configured fallback and empty catalogs rather than presenting guessed models [4.61ms]
+(pass) subscription plugin adapter > authenticates every endpoint and returns the plugin model IDs [7.87ms]
+(pass) subscription plugin adapter > streams without buffering, forwards session headers, and preserves upstream errors [13.36ms]
+(pass) subscription plugin adapter > WorkBuddy answers a non-stream chat by collecting its stream, and passes stream chats through [12.24ms]
+(pass) subscription plugin adapter > workbuddy keeps a non-stream classifier's budget for its verdict [6.43ms]
+(pass) subscription plugin adapter > workbuddy-ai keeps a non-stream classifier's budget for its verdict [6.58ms]
+(pass) subscription plugin adapter > preserves requested effort: {"upstream":"workbuddy-ai","stream":false,"reasoning_effort":"high"} [7.67ms]
+(pass) subscription plugin adapter > preserves requested effort: {"upstream":"workbuddy","stream":true} [5.31ms]
+(pass) subscription plugin adapter > preserves requested effort: {"upstream":"workbuddy-ai","stream":true,"reasoning_effort":"max"} [11.28ms]
+(pass) subscription plugin adapter > preserves requested effort: {"upstream":"cursor","stream":false} [56.51ms]
+(pass) subscription plugin adapter > reads WorkBuddy's written reset time in either language as seconds [0.49ms]
+(pass) subscription plugin adapter > WorkBuddy refusals: a written reset becomes Retry-After and 14018 names the free models [91.16ms]
+(pass) subscription plugin adapter > serializes concurrent auth.set updates and reads the latest auth on the next request [200.98ms]
+(pass) subscription plugin adapter > the real WorkBuddy plugin refresh callback persists rotated tokens once across parallel model calls [267.34ms]
+(pass) subscription plugin adapter > aborts an upstream stream when the downstream client disconnects [26.26ms]
+(pass) subscription plugin adapter > validates JSON, rejects oversized bodies, and hides internal exceptions [223.87ms]
+
+tests/codex-auth.test.ts:
+(pass) codex auth > decodes id tokens with OpenAI auth metadata [15.32ms]
+(pass) codex auth > decodes current chatgpt claim names and profile email [1.14ms]
+(pass) codex auth > reads the current plan from the access token before the id token [0.78ms]
+(pass) codex auth > snapshots and saves auth files with restricted permissions [5.87ms]
+(pass) codex auth > normalizes api key auth files to Codex CLI format [6.15ms]
+(pass) codex auth > syncs only a matching active account back to its snapshot [6.93ms]
+
+tests/package-manager-guard.test.ts:
+(pass) package manager guard > rejects npm installs with installer guidance [296.61ms]
+(pass) package manager guard > allows bun installs [223.63ms]
+
+tests/build-release-assets.test.ts:
+(pass) build-release-assets.sh > bundles the binary and license notices in every platform archive [1398.22ms]
+(pass) build-release-assets.sh > fails before packaging when a required license notice is absent [71.07ms]
+
+tests/codex-login.test.ts:
+(pass) isolated Codex login > runs standard browser login in a temporary CODEX_HOME [9.49ms]
+(pass) isolated Codex login > leaves existing global auth untouched when login is cancelled [5.94ms]
+
+tests/run-flags.test.ts:
+(pass) rejects removed single-dash run before launching: "cx" [1375.56ms]
+(pass) rejects removed single-dash run before launching: "use" [663.46ms]
+(pass) rejects removed single-dash run before launching: "cx" [610.53ms]
+(pass) rejects removed single-dash run before launching: "agy" [753.05ms]
+(pass) rejects removed single-dash run before launching: "cx" [417.17ms]
+(pass) Codex CLI forwards canonical model without run flags: "cx" [769.72ms]
+(pass) Codex CLI forwards canonical model without run flags: "cx" [617.03ms]
+(pass) Codex CLI forwards canonical model without run flags: "use" [761.07ms]
+
+tests/list-json.test.ts:
+(pass) list --json > emits one valid versioned JSON object for an empty inventory [581.11ms]
+(pass) list --json > advertises JSON inventory support in help without triggering auto-update [732.99ms]
+(pass) list --json > outputs stable allowlisted records for providers in deterministic order [616.28ms]
+(pass) list --json > offline JSON makes no network requests or local file changes [35.34ms]
+(pass) list --json > serializes quota windows as numeric data and omits provider error notes [10.67ms]
+(pass) list --json > handles missing credentials and legacy Claude profiles without profile.json [500.74ms]
+(pass) list --json > represents missing provider records without throwing or exposing raw errors [563.60ms]
+(pass) list --json > sends generic errors to stderr and never leaks an invalid option [410.66ms]
+(pass) list --json > keeps the default list command human-readable [316.34ms]
+
+tests/claude-opus-default.test.ts:
+(pass) Claude opus default > supplies Opus 5.5 for OAuth even with clean global settings [7.70ms]
+(pass) Claude opus default > uses default while preserving explicit API mapping %s [10.60ms]
+(pass) Claude opus default > uses default while preserving explicit API mapping relay-opus [34.87ms]
+
+tests/activity.test.ts:
+(pass) activity trend > sums tokens from all three tools and the user's committed source lines per day [831.37ms]
+(pass) activity trend > refreshes at most once per interval [57.56ms]
+(pass) activity trend > renders nothing before the first refresh finishes [1.43ms]
+(pass) activity trend > renders one sparkline column per day with totals and peaks [12.39ms]
+(pass) activity trend > shows its age once the cached trend is over an hour old [6.22ms]
+(pass) activity trend > in list > --cached prints the trend from the cache file without computing it [5.92ms]
+
+tests/render-formula.test.ts:
+(pass) render-formula.sh > renders release urls and checksums for every platform asset [214.94ms]
+
+tests/run.test.ts:
+(pass) run alias session > forwards SIGTERM to the client and removes its handlers after client exit [20.05ms]
+(pass) run alias session > forwards SIGHUP to the client and removes its handlers after client exit [21.62ms]
+(pass) run alias session > runs Claude Code with auto permission mode and consumes repeated --run flags [32.55ms]
+(pass) run alias session > isolates a Claude OAuth run from the global account state [23.58ms]
+(pass) run alias session > neutralizes global API settings env for an isolated OAuth run [20.61ms]
+(pass) run alias session > oauth settings writes stay private while shared skills and hooks load [22.86ms]
+(pass) run alias session > api-key settings writes stay private while shared skills and hooks load [16.51ms]
+(pass) run alias session > applies the OAuth profile default model to isolated runs [18.28ms]
+(pass) run alias session > runs Claude OAuth without inherited Anthropic API env [12.44ms]
+(pass) run alias session > disables the Claude attribution header only for a one-shot run [10.30ms]
+(pass) run alias session > runs Claude API key with the selected profile env [8.72ms]
+(pass) run alias session > outranks global settings.json routing for an isolated API-key run [17.88ms]
+(pass) run alias session > maps -model and saves it as the Claude account default [18.42ms]
+(pass) run alias session > RelayRouter GLM selection persists with its window and cheap side-query model [71.21ms]
+(pass) run alias session > expands a Claude --model shorthand into the canonical model id [19.70ms]
+(pass) run alias session > expands Codex sol and persists it for the next run [240.81ms]
+(pass) run alias session > defaults Codex autoreview off and applies overrides only in the launched session [30.18ms]
+(pass) run alias session > rejects autoreview for Claude before saving the model or switching [112.18ms]
+(pass) run alias session > maps an effort tier after the Claude model to --effort [7.07ms]
+(pass) run alias session > maps a bare Claude 5 model to opus with a quoted effort [100.27ms]
+(pass) run alias session > maps a bare fable alias to the latest Claude fable [44.07ms]
+(pass) run alias session > forwards a non-effort token following the model [14.19ms]
+(pass) run alias session > maps Codex model shorthand and effort tiers to launch arguments [48.76ms]
+(pass) run alias session > re-enables the attribution header for a one-shot Claude run [7.97ms]
+(pass) run alias session > runs Claude API key aliases without changing the active global Claude auth [15.37ms]
+(pass) run alias session > runs a non-default Codex account in a private CODEX_HOME without switching [43.50ms]
+(pass) run alias session > runs the default Codex account on ~/.codex and saves its token rotation [8.93ms]
+(pass) run alias session > private ChatGPT run resumes managed sessions with the selected provider before launching [1902.86ms]
+(pass) run alias session > default ChatGPT run resumes managed sessions with the selected provider before launching [434.22ms]
+(pass) run alias session > relay run resumes managed sessions with the selected provider before launching [167.26ms]
+(pass) run alias session > shares the sessions a Codex run created once it exits [734.75ms]
+(pass) run alias session > saves Codex token rotation from a private run home [13.96ms]
+(pass) run alias session > maps -model 6.1 to gpt-6.1-sol in spawned Codex arguments and saved default [6.07ms]
+(pass) run alias session > maps -model 6 to gpt-6-sol in spawned Codex arguments and saved default [8.69ms]
+(pass) run alias session > maps -model gpt-5-mini to gpt-5-mini in spawned Codex arguments and saved default [7.53ms]
+(pass) run alias session > routes an api key alias through its relay in a private config [22.94ms]
+
+tests/opencode-usage.test.ts:
+(pass) OpenCode Go usage > maps all three official usage windows and sends the private Go key only as Bearer auth [9.24ms]
+(pass) OpenCode Go usage > rejects malformed server data and degrades an invalid key to reconnect required [18.07ms]
+(pass) OpenCode Go usage > reports an unsubscribed workspace without mislabeling it as a bad key [4.61ms]
+(pass) OpenCode Go usage > probes a key: 401 invalid, 403 no subscription, network trouble unreachable [1.85ms]
+(pass) OpenCode Go usage > probes a valid key and returns its usage windows [1.11ms]
+
+tests/subscription-refresh.test.ts:
+(pass) built subscription launcher never migrates missing free DS tiers to paid SG [7629.72ms]
+
+tests/refresh.test.ts:
+(pass) refresh > refreshes a codex alias by resaving the refreshed auth snapshot [31.24ms]
+(pass) refresh > keeps active and saved auth unchanged after login to another account [14.71ms]
+(pass) refresh > refreshes a claude oauth alias by resaving the current credentials [19.23ms]
+(pass) refresh > replaces an OpenCode V2 key without launching the TUI or touching global auth.json [13.20ms]
+(pass) refresh > imports the local OpenCode V2 credential to replace a stale saved key [13.11ms]
+(pass) refresh > rejects an unchanged OpenCode V1 TUI capture instead of reporting refresh success [9.39ms]
+(pass) refresh > rejects an unchanged OpenCode V2 key instead of reporting a refresh [6.54ms]
+
+tests/native-subscription-run.test.ts:
+(pass) cursor launches native frontend and preserves native arguments, consuming repeated --run flags without creating proxy state [857.29ms]
+(pass) Antigravity starts the native OAuth profile even without a proxy login or daemon [757.88ms]
+(pass) Antigravity consumes repeated --run flags, preserves native arguments and normalizes model effort without consulting the proxy catalog [3570.54ms]
+(pass) Antigravity aliases select separate persistent directories and clear inherited gateway auth [2263.39ms]
+(pass) Antigravity cannot use a forwarded flag to change the alias's profile directory [1358.87ms]
+(pass) Antigravity reports native executable failure without starting a proxy [620.88ms]
+(pass) workbuddy bare run gives an explicit proxy instruction [600.74ms]
+(pass) workbuddy-ai bare run gives an explicit proxy instruction [579.14ms]
+(pass) workbuddy cc --model hy4free preserves explicit Claude routing and print arguments {"args":[]} [2037.47ms]
+(pass) workbuddy cc --model hy4free preserves explicit Claude routing and print arguments {"args":["-p","reply OK"]} [1914.83ms]
+
+tests/release-guard.test.ts:
+(pass) check-release-state.sh > passes when package.json version is ahead of the latest release [594.06ms]
+(pass) check-release-state.sh > fails when main is ahead of the latest release without a version bump [728.70ms]
+(pass) check-release-state.sh > ignores the workflow-generated Homebrew formula commit [656.78ms]
+
+tests/import.test.ts:
+(pass) importAccounts > imports new accounts and reports skipped duplicates and invalid aliases [61.33ms]
+
+tests/claude-profiles.test.ts:
+(pass) claude profiles > reapplies an active oauth profile when the real Claude config drifts [25.85ms]
+(pass) claude profiles > seeds an isolated run with the freshest tokens of the active profile [18.21ms]
+(pass) claude profiles > does not leak global account metadata into isolated config when profile metadata is missing [10.84ms]
+(pass) claude profiles > refuses an isolated run for a profile without stored credentials [133.07ms]
+(pass) claude profiles > keeps freshly refreshed live credentials when re-activating the same account [14.98ms]
+(pass) claude profiles > restores the target org when two profiles share a login [24.36ms]
+(pass) claude profiles > reapplies an active profile when the live org drifts under the same login [15.00ms]
+(pass) claude profiles > does not corrupt a stale active profile snapshot when switching away [22.50ms]
+(pass) claude profiles > applies the full Claude API config for api-key profiles [4.71ms]
+(pass) claude profiles > keeps active Claude auth single-mode when switching between oauth and api key [16.40ms]
+(pass) claude profiles > applies an oauth profile default model without API env [10.12ms]
+(pass) claude profiles > reapplies an active api key profile when legacy oauth auth remains [5.26ms]
+
+tests/alias-store.test.ts:
+(pass) alias store > returns a fresh fallback registry and writes secure files [17.43ms]
+(pass) alias store > rejects duplicate targets and conflicting renames [9.58ms]
+(pass) alias store > rejects reserved version flags as aliases [5.91ms]
+
+tests/claude-usage.test.ts:
+(pass) Claude usage parser > keeps over-limit legacy windows and renders the weekly token
+(pass) Claude usage parser > reads the model-scoped weekly percentage and its own reset
+(pass) Claude usage parser > keeps legacy responses unchanged without deriving a Fable quota
+(pass) Claude usage parser > does not confuse another model or a session limit with Fable weekly
+(pass) Claude usage parser > accepts zero usage and an unknown reset in a standalone Fable window
+(pass) Claude usage parser > ignores invalid Fable percentage %s [0.24ms]
+(pass) Claude usage parser > ignores invalid Fable percentage 42
+(pass) Claude usage parser > ignores invalid Fable percentage %s
+(pass) Claude usage parser > ignores invalid Fable percentage %s
+(pass) Claude usage parser > ignores invalid Fable percentage %s
+(pass) Claude usage parser > ignores invalid Fable percentage %s
+(pass) Claude usage parser > tolerates absent or malformed windows null [0.07ms]
+(pass) Claude usage parser > tolerates absent or malformed windows {} [0.02ms]
+(pass) Claude usage parser > tolerates absent or malformed windows {"limits":{}}
+(pass) Claude usage parser > tolerates absent or malformed windows {"limits":[null,1,{}]}
+
+tests/dist-version.test.ts:
+(pass) dist bundle metadata > keeps the committed dist version in sync with package.json [34.85ms]
+
+tests/opencode.test.ts:
+(pass) OpenCode Go profiles > resolves Go display names and casing to the catalog model ID [8.75ms]
+(pass) OpenCode Go profiles > model command saves the catalog ID and rejects unknown Go models [8.14ms]
+(pass) OpenCode Go profiles > corrects a saved display-name default before launching [6.61ms]
+(pass) OpenCode Go profiles > V2 lists the live Go catalog in the picker without saving it as history [11.91ms]
+(pass) OpenCode Go profiles > V2 history drops a differently-cased spelling of the selected model [18.62ms]
+(pass) OpenCode Go profiles > stores only the Go credential in a private 0600 profile [6.04ms]
+(pass) OpenCode Go profiles > runs the native TUI with private auth and the shared session store, consuming repeated --run flags [9.54ms]
+(pass) OpenCode Go profiles > validates Go model ids and reserves private XDG data for setup only [6.45ms]
+(pass) OpenCode Go profiles > detects supported V1 and V2 version output precisely [2.19ms]
+(pass) OpenCode Go profiles > builds a V2 config under the managed provider with a deny-by-default provider policy [5.99ms]
+(pass) OpenCode Go profiles > keeps an inherited provider deny after the managed-provider allow [1.03ms]
+(pass) OpenCode Go profiles > enables native free models without weakening explicit provider restrictions [0.63ms]
+(pass) OpenCode Go profiles > requires zero input, output and cache prices in every native model tier [0.67ms]
+(pass) OpenCode Go profiles > accepts native free models and protects their windows when switching from Go [315.72ms]
+(pass) OpenCode Go profiles > rejects invalid or colliding V2 config and fails closed without a Go model [6.02ms]
+(pass) OpenCode Go profiles > syncs a fake V2 key separately and uses alias-private database and XDG roots [91.58ms]
+(pass) OpenCode Go profiles > stores the selected key through the loopback credential API without argv or env leakage [376.96ms]
+(pass) OpenCode Go profiles > fails closed when OpenCode does not activate the synced alias key [397.69ms]
+(pass) OpenCode Go profiles > fails closed before POST when the effective default agent selects another provider [25.64ms]
+(pass) OpenCode Go profiles > retries the agent inventory until the effective default agent appears [415.96ms]
+(pass) OpenCode Go profiles > resolves the effective compaction buffer and model windows for the launch policy [314.84ms]
+(pass) OpenCode Go profiles > keeps auto-compaction on with a ~90% buffer below a 500k token window [1.16ms]
+(pass) OpenCode Go profiles > applies the small-window compaction buffer to the V2 run environment [11.03ms]
+(pass) OpenCode Go profiles > fails closed when the effective default agent never becomes available [108.04ms]
+(pass) OpenCode Go profiles > cleans only previously tracked claudex credentials and retains manual connections [416.72ms]
+(pass) OpenCode Go profiles > keeps prior Go models available for history within one alias [18.99ms]
+(pass) OpenCode Go profiles > concurrent V2 launches union alias model history and malformed data fails closed [39.30ms]
+(pass) OpenCode Go profiles > keeps model inventories and SQLite databases separate across aliases [30.99ms]
+(pass) OpenCode Go profiles > runs V2 standalone after syncing the selected key and without exposing it to tools [23.79ms]
+(pass) OpenCode Go profiles > runs a V2 headless one-shot in the current directory with the managed account and model [14.79ms]
+(pass) OpenCode Go profiles > forwards supported V2 headless run flags and message positionals [15.75ms]
+(pass) OpenCode Go profiles > refuses unsafe V2 headless run arguments before syncing or launching [14.45ms]
+(pass) OpenCode Go profiles > V2 autoreview defaults off and toggles the completion-review plugin only for this launch [38.02ms]
+(pass) OpenCode Go profiles > rejects V2 directory, resume, and unknown arguments before syncing or launching [7.88ms]
+(pass) OpenCode Go profiles > fails closed before launching V2 when no Go model is selected [4.80ms]
+(pass) OpenCode Go profiles > blocks a V2 launch when private credential synchronization fails [9.19ms]
+(pass) OpenCode Go profiles > rejects V2 remote-server overrides before spawning OpenCode [7.08ms]
+(pass) OpenCode Go profiles > rejects V2 server, config, and model routing overrides before spawning [6.55ms]
+
+tests/codex-registry.test.ts:
+(pass) codex registry > returns a fresh default registry [3.53ms]
+(pass) codex registry > updates active timestamps and clears active metadata on removal [2.38ms]
+(pass) codex registry > migrates missing codex default models on load [3.30ms]
+
+tests/install-script.test.ts:
+(pass) install.sh > installs the latest release by default when one exists [1259.64ms]
+(pass) install.sh > removes the existing global install before reinstalling a pinned version [773.18ms]
+
+tests/cliproxyapi.test.ts:
+(pass) managed local CLIProxyAPI > creates a private loopback runtime with fixed subagent override [304.13ms]
+(pass) managed local CLIProxyAPI > starts the upstream binary in its private cwd without remote-store selectors [562.68ms]
+(pass) managed local CLIProxyAPI > keeps one staged Codex auth and rejects a different refreshed identity [323.86ms]
+(pass) managed local CLIProxyAPI > reports the real fixed OAuth callback-port collision before login [17.44ms]
+(pass) managed local CLIProxyAPI > refuses purge while a run lease is active, then removes only its profile [360.52ms]
+(pass) managed local CLIProxyAPI > a web-config delete is refused while a run lease is active [391.38ms]
+(pass) managed local CLIProxyAPI > uses an isolated Claude context without losing shared customizations [57.73ms]
+(pass) managed local CLIProxyAPI > runs Claude without --bare, clears inherited provider auth, and keeps the key out of argv [773.47ms]
+(pass) managed local CLIProxyAPI > doctor keeps basic checks local and uses a live request only when requested [2572.18ms]
+(pass) managed local CLIProxyAPI > rejects old Antigravity binaries before startup, then doctor upgrades only the account binary [1073.13ms]
+(pass) managed local CLIProxyAPI > a binary-appended server-id block is not config drift, but a real edit still is [1488.20ms]
+(pass) managed local CLIProxyAPI > Antigravity gateway aliases route agy's tier-stripped Gemini names, and reach a daemon started before them [1209.43ms]
+(pass) managed local CLIProxyAPI > a proxy that does not load refreshed Gemini aliases names the restart command [5938.59ms]
+(pass) managed local CLIProxyAPI > keeps HTTP 400 distinct from a local proxy health failure [407.83ms]
+(pass) managed local CLIProxyAPI > keeps HTTP 401 distinct from a local proxy health failure [376.32ms]
+(pass) managed local CLIProxyAPI > keeps HTTP 429 distinct from a local proxy health failure [318.60ms]
+(pass) managed local CLIProxyAPI > keeps HTTP 503 distinct from a local proxy health failure [312.43ms]
+(pass) managed local CLIProxyAPI > a binary replacement refuses active leases and keeps profile and process intact [568.10ms]
+(pass) managed local CLIProxyAPI > a cancelled launch keeps its proxy lease until the client actually exits [768.39ms]
+(pass) managed local CLIProxyAPI > failed profile persistence stops the replacement instead of leaving mismatched state [642.45ms]
+(pass) managed local CLIProxyAPI > resolves local mapping without changing existing Claude shorthand [1.56ms]
+(pass) managed local CLIProxyAPI > uses the managed .env mapping for --model and the saved model command [19.11ms]
+(pass) managed local CLIProxyAPI > upgrades the legacy Luna default written into older .env files [7.18ms]
+
+tests/cliproxy-link.test.ts:
+(pass) --cliproxy claudecode > maps Claude Code's auto-mode classifier ID to a listed Antigravity model [20.56ms]
+(pass) --cliproxy claudecode > agy waits for the remote catalog and maps a saved claude-opus-5-5 default [2229.65ms]
+(pass) --cliproxy claudecode > Codex alias logs in once, only as the same ChatGPT account, then reuses the link [189.45ms]
+(pass) --cliproxy claudecode > a login for a different ChatGPT account is rejected and leaves nothing behind [164.77ms]
+(pass) --cliproxy claudecode > Codex runtime.yaml stays byte-for-byte what earlier releases generated [332.41ms]
+(pass) --cliproxy claudecode > OpenCode Go alias needs no login, routes both wire formats, and follows key changes [724.51ms]
+(pass) --cliproxy claudecode > an OpenCode subscription alias without a static key is refused [6.24ms]
+(pass) --cliproxy claudecode > agy needs the risk confirmation, then becomes an Antigravity alias with live model ids [2397.61ms]
+(pass) --cliproxy claudecode > a regular Claude alias is told to run without --cliproxy [39.21ms]
+(pass) --cliproxy claudecode > legacy antigravity combination aliases reuse their saved profile with --cliproxy [18.66ms]
+(pass) --cliproxy claudecode > legacy workbuddy combination aliases reuse their saved profile with --cliproxy [13.74ms]
+(pass) --cliproxy claudecode > legacy workbuddy-ai combination aliases reuse their saved profile with --cliproxy [14.06ms]
+(pass) --cliproxy claudecode > legacy cursor combination aliases reuse their saved profile with --cliproxy [21.49ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● Running claude --permission-mode auto --model claude-opus-5-5-high --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/ff605e4d-8ce5-4918-bb74-421734a46fa5/claude-settings.json
+(pass) --cliproxy claudecode > agy repairs persisted bare IDs on reuse, renders the catalog and resolves explicit versions [585.11ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+(pass) --cliproxy claudecode > agy refreshes changed catalogs without restarting an active daemon and preserves valid user mappings [799.65ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+(pass) --cliproxy claudecode > agy rejects empty first-use catalogs without leaving an alias or private login [1258.39ms]
+  ● First use: sign in to WorkBuddy AI (international) subscription.
+(pass) --cliproxy claudecode > bare workbuddy signs in to the region the user picks [26.38ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+(pass) --cliproxy claudecode > agy catalog failure on reuse leaves mappings and active sessions intact [1478.63ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+(pass) --cliproxy claudecode > agy compatibility changes preserve active sessions and apply on the next idle launch [1555.82ms]
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --model terra --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/0c59074b-acd0-4284-a914-9fb994e7736d/claude-settings.json
+(pass) --cliproxy claudecode > --run --cliproxy launches Claude Code without switching Codex and saves the model on the link [373.27ms]
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/73511744-bc9d-47ae-9b83-8fe2bc87884f/claude-settings.json
+(pass) --cliproxy claudecode > --cliproxy cx leaves the main model to Claude Code unless explicitly selected [345.89ms]
+  ✓ Linked go to Claude Code
+  opus/default → kimi-k3 · sonnet → glm-5.3 · haiku → deepseek-v4-flash
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/7e4f17bd-d2ef-4e08-be61-8067ae1eeae5/claude-settings.json
+(pass) --cliproxy claudecode > --cliproxy go leaves the main model to Claude Code unless explicitly selected [290.14ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/70b4fde4-95bc-4eb5-a18a-d8cf5ce87972/claude-settings.json
+(pass) --cliproxy claudecode > --cliproxy agy leaves the main model to Claude Code unless explicitly selected [642.88ms]
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/aac73a52-75dd-4513-9484-54f5eb3d3a44/claude-settings.json
+(pass) --cliproxy claudecode > cx only clears the inherited compact percentage for agy [503.80ms]
+  ✓ Linked go to Claude Code
+  opus/default → kimi-k3 · sonnet → glm-5.3 · haiku → deepseek-v4-flash
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/6e7771e3-027d-4964-ac42-3b5b65ae303b/claude-settings.json
+(pass) --cliproxy claudecode > go only clears the inherited compact percentage for agy [317.47ms]
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/95e02c25-a5bc-4ff7-a6eb-c737fd6eb1a0/claude-settings.json
+(pass) --cliproxy claudecode > agy only clears the inherited compact percentage for agy [651.50ms]
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/18b72410-bd78-4792-9833-b76f0876086a/claude-settings.json
+(pass) --cliproxy claudecode > local classifier setting %s outranks inherited settings without changing the global account [384.14ms]
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-H4sxt8/.claudex-switch/cliproxyapi/157040e3-b6c0-4a09-8b8d-f85ac5d12ad4/claude-settings.json
+(pass) --cliproxy claudecode > local classifier setting 1 outranks inherited settings without changing the global account [379.01ms]
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+(pass) --cliproxy claudecode > purging the upstream alias removes its Claude Code link, but not while a session runs [379.02ms]
+  ✓ Linked go to Claude Code
+  opus/default → kimi-k3 · sonnet → glm-5.3 · haiku → deepseek-v4-flash
+(pass) --cliproxy claudecode > list keeps OpenCode rows free of proxy state and model details [164.16ms]
+(pass) upstream model picking > same-version tier selection is deliberate, supports max and preserves explicit tiers [0.49ms]
+(pass) upstream model picking > gateway aliases map exactly the names agy sends for tiered Gemini IDs [12.94ms]
+(pass) upstream model picking > Antigravity prefers the newest plain Claude ids and a Gemini Flash for haiku [0.35ms]
+(pass) upstream model picking > Antigravity moves retired Claude versions to the newest and keeps other choices [0.74ms]
+(pass) upstream model picking > OpenCode Go keeps listed defaults and falls back within a family [0.26ms]
+
+tests/opencode-native.test.ts:
+(pass) native OpenCode credential import > Node reads SQLite without sqlite3 or experimental warnings and retains unrelated warnings [958.36ms]
+(pass) native OpenCode credential import > reads Go credentials active-first and ignores other integrations [12.82ms]
+(pass) native OpenCode credential import > honors OPENCODE_DB and reports an empty store without a database [4.81ms]
+(pass) native OpenCode credential import > reports unavailable for an unreadable database instead of failing setup [74.19ms]
+
+tests/toml.test.ts:
+(pass) toml parser > parses top-level scalars [0.35ms]
+(pass) toml parser > parses table headers and nested values [0.22ms]
+(pass) toml parser > handles quoted keys in table headers [0.10ms]
+(pass) toml parser > ignores comments and blank lines [0.05ms]
+(pass) toml parser > handles escaped characters in strings [0.02ms]
+(pass) toml parser > parses arrays [0.09ms]
+(pass) toml parser > returns empty object for empty input [0.07ms]
+(pass) toml parser > parseScalarArray accepts well-formed scalar arrays [0.10ms]
+(pass) toml parser > parseScalarArray rejects non-arrays and bare-word content [0.05ms]
+(pass) toml parser > parses full codex config format [0.13ms]
+
+tests/list.test.ts:
+(pass) list > groups proxy upstreams, hides ChatGPT proxies only in human views, and keeps empty sections hidden [864.51ms]
+(pass) list > shows Codex remaining quota from App Server used percentages [16.78ms]
+(pass) list > refreshes the displayed and stored Codex plan from current tokens [9.03ms]
+(pass) list > prefers the Codex plan returned by the live rate-limit response [15.39ms]
+(pass) list > shows a Codex App Server authentication failure as login expired [10.89ms]
+(pass) list > omits unavailable Codex API plan %s [7.53ms]
+(pass) list > omits unavailable Codex API plan unknown [5.66ms]
+(pass) list > skips usage for free-plan Codex accounts [14.78ms]
+(pass) list > --no-usage performs no network requests [6.79ms]
+(pass) list > shows OpenCode Go server quota without exposing credential metadata [11.71ms]
+(pass) list > does not call OpenCode Go quota endpoint with --no-usage [11.25ms]
+(pass) list > respects the registry api.usage=false kill switch for Codex [10.94ms]
+(pass) list > shows Claude 5h/weekly remaining quota from the oauth usage API [13.74ms]
+(pass) list > shows Fable quota through the usage cache, cached list, and JSON list [13.85ms]
+(pass) list > shows the Claude plan from the freshest matching local credentials [11.22ms]
+(pass) list > refreshes an expired Claude token and writes the snapshot back [21.70ms]
+(pass) list > shows one-api relay balance for api-key accounts [12.49ms]
+(pass) list > shows key and account balances together when relays.json has an access token [10.71ms]
+(pass) list > falls back to token-level billing when the relay access token is rejected [7.75ms]
+(pass) list > shows no balance when the relay answers with HTML [11.82ms]
+(pass) list > usage cache > --cached renders the last refresh without network and starts a background refresh [9.02ms]
+(pass) list > usage cache > --cached does not start another refresh right after one [11.61ms]
+(pass) list > usage cache > a failed refresh keeps the last good quota and shows its age [22.68ms]
+(pass) list > usage cache > an expired login replaces the cached quota with the note [18.52ms]
+(pass) list > usage cache > list shows quota landed by the background refresh within the wait [111.34ms]
+(pass) list > usage cache > list stops waiting at the deadline and shows the cached quota [320.34ms]
+(pass) list > usage cache > only one refresher runs at a time [29.66ms]
+
+tests/codex-usage.test.ts:
+(pass) Codex App Server usage > keeps account/rateLimits values as used and displays remaining quota [2.92ms]
+(pass) Codex App Server usage > shows the weekly reset as local weekday and hour [0.80ms]
+(pass) Codex App Server usage > uses the official initialize and account/rateLimits protocol in isolation [7.34ms]
+(pass) Codex App Server usage > persists App Server token rotation to the snapshot and active auth [11.02ms]
+(pass) Codex App Server usage > persists token rotation even when the rate-limit request fails [8.63ms]
+(pass) Codex App Server usage > does not overwrite a newer active token from a concurrent Codex run [7.81ms]
+
+ 552 pass
+ 0 fail
+ 2787 expect() calls
+Ran 552 tests across 49 files. [128.37s]
