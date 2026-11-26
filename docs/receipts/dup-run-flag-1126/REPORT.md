@@ -1,5 +1,20 @@
 需要用户：无
 
+v2 复验完成：在 ROOT 已 rebase 的 `12a407b` 上重新构建，全套 **562 通过、0 失败**。双杠启动开关与 main 的每次调用求值路径函数兼容，无需修改业务代码；构建产物无差异。本回执与 v2 证据提交后交 ROOT 审查，未发版、推送或修改其他 worktree。
+
+## v2：rebase 后验证（CXS-DUPRUN-1126-v2）
+
+- ROOT 本轮指令原文：「ROOT：防事故改动已合入 main（2e9ad77：路径改为每次调用时求值、测试写真实 HOME 直接报错、别名表写前备份）。我已把你的分支 rebase 到 main 上（现在 12a407b），无冲突。请在本 worktree 里 bun run build + 全套测试，确认 --run 只认双杠的改动在新路径函数下仍全绿；有问题就地修、提交，然后重发 FINAL（version CXS-DUPRUN-1126-v2）。」
+- 基线关系：`12a407b` 的父提交为 `2e9ad77`；开始时工作树干净。
+- `bun run build`：通过，164 个模块；生成文件与当前提交一致。完整输出：[v2/build.log](evidence/v2/build.log)。
+- `bun run test --timeout 30000 --reporter junit --reporter-outfile /tmp/cxs-dup-run-v2-suite.xml`：退出 0，562 通过、0 失败，50 个文件，2814 次断言。仍经 preload 隔离 HOME，沿用 v1 的 30 秒超时与测试所需回环网络权限。完整输出：[v2/suite.log](evidence/v2/suite.log)、[v2/suite.xml](evidence/v2/suite.xml)。本次无失败，不需要额外基线失败对照。
+- 原 `tests/run-flags.test.ts` 的 8 项真实 CLI 入口测试全部通过；Claude/OpenCode/AGY/Cursor 的重复开关测试也全部通过，具体名称见下方原实现回执。
+- 新路径与备份测试通过，包括 `paths follow a CLAUDEX_TEST_HOME set after import`、`a test run never resolves paths to the real home`、`aliases.json is copied before an alias change, not before a no-op rewrite`。证据同 v2 全套日志。
+- 成品入口再次实跑 6 个案例：重复 `--run`、`use`、`-model`、两处单杠拒绝、帮助输出。向假 Codex 传入的参数仍只有 `--approve-for-me --model gpt-6.1-sol`；单杠写法均返回 1 和 `Use --run instead.`。本轮特意**先导入存储模块，再设置临时 HOME**，并断言别名表、Codex registry 路径均在该临时 HOME 内后才写合成账号。完整输出：[v2/built-cli.log](evidence/v2/built-cli.log)。未运行真实账号会话。
+- `git diff --check`：通过。业务代码无需修复；仅更新本回执与 `evidence/v2/`，保留 v1 历史证据。没有新增需保留的忽略数据，未加锁；工作树仍交 ROOT 按 landing 流程审查和清理。
+
+## v1：原实现与验证记录（历史）
+
 已修复重复启动开关被转发的问题，并按追加合同只保留 `--run`。构建后的 CLI 已实跑：`holdenx --run --model 6.1 --run` 向 Codex 转发的参数只有 `--approve-for-me --model gpt-6.1-sol`。本分支全套 552 项通过，基线全套 544 项通过；未发版、打 tag、安装、推送或修改主 checkout，交 ROOT 审查上线。
 
 ## 合同与需求

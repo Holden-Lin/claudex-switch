@@ -1,0 +1,5 @@
+$ bun build ./src/index.ts --target node --outfile ./dist/claudex-switch.js
+Bundled 164 modules in 36ms
+
+  claudex-switch.js  0.83 MB  (entry point)
+
