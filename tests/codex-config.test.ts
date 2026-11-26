@@ -8,14 +8,14 @@ const { activateCodexOfficialProvider, repairCodexStringifiedArrays } =
   await import("../src/providers/codex/config");
 
 async function writeConfig(content: string): Promise<void> {
-  await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile(CODEX_CONFIG_FILE, content);
+  await mkdir(dirname(CODEX_CONFIG_FILE()), { recursive: true });
+  await writeFile(CODEX_CONFIG_FILE(), content);
 }
 
 describe("codex config arrays", () => {
   beforeEach(async () => {
-    assertIsolatedHome(CODEX_CONFIG_FILE);
-    await rm(CODEX_CONFIG_FILE, { force: true });
+    assertIsolatedHome(CODEX_CONFIG_FILE());
+    await rm(CODEX_CONFIG_FILE(), { force: true });
   });
 
   test("rewriting config preserves mcp_servers args arrays", async () => {
@@ -30,7 +30,7 @@ args = ["mcp", "--flag"]
 command = "/bin/cu"
 `);
     await activateCodexOfficialProvider();
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).toContain("args = []");
     expect(content).toContain('args = ["mcp", "--flag"]');
     expect(content).not.toContain('args = "');
@@ -42,7 +42,7 @@ openai_base_url = "https://relay.example.com/v1"
 model_reasoning_effort = "high"
 `);
     await activateCodexOfficialProvider();
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).not.toContain("openai_base_url");
     expect(content).toContain('model_reasoning_effort = "high"');
   });
@@ -52,7 +52,7 @@ model_reasoning_effort = "high"
 
     await activateCodexOfficialProvider();
 
-    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toContain(
+    expect(await readFile(CODEX_CONFIG_FILE(), "utf-8")).toContain(
       'cli_auth_credentials_store = "file"',
     );
   });
@@ -66,7 +66,7 @@ command = "/bin/node_repl"
 args = "[\\"mcp\\"]"
 `);
     expect(await repairCodexStringifiedArrays()).toBe(true);
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).toContain("args = []");
     expect(content).toContain('args = ["mcp"]');
   });
@@ -76,7 +76,7 @@ args = "[\\"mcp\\"]"
 notify = "[\\"/path/with spaces/SkyComputerUseClient\\", \\"turn-ended\\"]"
 `);
     expect(await repairCodexStringifiedArrays()).toBe(true);
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).toContain(
       'notify = ["/path/with spaces/SkyComputerUseClient", "turn-ended"]',
     );
@@ -96,7 +96,7 @@ exclude = "[\\"AWS_*\\", \\"AZURE_*\\"]"
 always_allowed_app_ids = "[\\"com.apple.Terminal\\"]"
 `);
     expect(await repairCodexStringifiedArrays()).toBe(true);
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).toContain('writable_roots = ["/tmp/cache"]');
     expect(content).toContain('exclude = ["AWS_*", "AZURE_*"]');
     expect(content).toContain('always_allowed_app_ids = ["com.apple.Terminal"]');
@@ -109,7 +109,7 @@ always_allowed_app_ids = "[\\"com.apple.Terminal\\"]"
 args = "[\\"mcp\\", \\"--flag\\",]"
 `);
     expect(await repairCodexStringifiedArrays()).toBe(true);
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).toContain('args = ["mcp", "--flag"]');
     expect(content).not.toContain('args = "');
   });
@@ -123,7 +123,7 @@ note = "[not an array]"
 prose = "see [1] for details"
 `);
     expect(await repairCodexStringifiedArrays()).toBe(false);
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(content).toContain('args = ["mcp"]');
     expect(content).toContain('note = "[not an array]"');
     expect(content).toContain('prose = "see [1] for details"');

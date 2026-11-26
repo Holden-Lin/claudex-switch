@@ -25,14 +25,14 @@ describe("Claude opus default", () => {
     expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
     expect(settings.env.CUSTOM_SETTING).toBe("keep");
     await applyOAuthConfig("opus");
-    expect((await readJson<Settings>(SETTINGS_FILE, { env: {} })).env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
+    expect((await readJson<Settings>(SETTINGS_FILE(), { env: {} })).env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-5");
   });
 
   test.each([undefined, "relay-opus"])("uses default while preserving explicit API mapping %s", async (defaultOpusModel) => {
     const config = { apiKey: "fake-key", model: "opus", defaultOpusModel };
     await applyApiConfig(config);
     const file = await prepareApiProfileClaudeSettings("api", config);
-    for (const path of [SETTINGS_FILE, file]) {
+    for (const path of [SETTINGS_FILE(), file]) {
       const settings = await readJson<Settings>(path, { env: {} });
       expect(settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe(defaultOpusModel ?? "claude-opus-5-5");
     }

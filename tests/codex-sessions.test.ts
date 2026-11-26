@@ -51,14 +51,14 @@ async function writeSession(
   firstLine: string,
   rest = `{"type":"event_msg","payload":{"type":"user_message"}}\n`,
 ): Promise<string> {
-  const fullPath = join(CODEX_DIR, relativePath);
+  const fullPath = join(CODEX_DIR(), relativePath);
   await mkdir(dirname(fullPath), { recursive: true });
   await writeFile(fullPath, `${firstLine}\n${rest}`);
   return fullPath;
 }
 
 function createStateDb(rows: Array<[string, string]>): void {
-  const db = new Database(join(CODEX_DIR, "state_5.sqlite"));
+  const db = new Database(join(CODEX_DIR(), "state_5.sqlite"));
   db.exec(
     "CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT, model_provider TEXT NOT NULL)",
   );
@@ -72,7 +72,7 @@ function createStateDb(rows: Array<[string, string]>): void {
 }
 
 function readProviders(): Array<{ id: string; model_provider: string }> {
-  const db = new Database(join(CODEX_DIR, "state_5.sqlite"), {
+  const db = new Database(join(CODEX_DIR(), "state_5.sqlite"), {
     readonly: true,
   });
   const rows = db
@@ -158,7 +158,7 @@ describe("syncCodexSessions providers", () => {
   });
 
   test("updates thread rows in state_5.sqlite", async () => {
-    await mkdir(CODEX_DIR, { recursive: true });
+    await mkdir(CODEX_DIR(), { recursive: true });
     createStateDb([
       ["t-1", "hybaliez"],
       ["t-2", "openai"],
@@ -353,7 +353,7 @@ function rolloutName(id: string, dir = "sessions/2026/11/15"): string {
 }
 
 function createHistoryDb(rows: Array<[string, number]>): void {
-  const db = new Database(join(CODEX_DIR, "thread_history_1.sqlite"));
+  const db = new Database(join(CODEX_DIR(), "thread_history_1.sqlite"));
   db.exec(
     "CREATE TABLE thread_history_projection_state (thread_id TEXT PRIMARY KEY, next_rollout_byte_offset INTEGER NOT NULL, next_rollout_ordinal INTEGER NOT NULL)",
   );
@@ -486,7 +486,7 @@ describe("syncCodexSessions sharing and byte offsets", () => {
     const id = "t-zst";
     const line = codexMetaLine({ id, provider: "hybaliez" });
     const plain = Buffer.from(`${line}\n${BODY}`);
-    const path = join(CODEX_DIR, `${rolloutName(id)}.zst`);
+    const path = join(CODEX_DIR(), `${rolloutName(id)}.zst`);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, zstdCompressSync(plain));
     const past = new Date("2026-06-01T00:00:00Z");

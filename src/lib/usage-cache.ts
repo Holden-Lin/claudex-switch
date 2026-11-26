@@ -45,7 +45,7 @@ export function emptyUsageCache(): UsageCache {
 
 export async function readUsageCache(): Promise<UsageCache> {
   try {
-    const parsed = JSON.parse(await readFile(USAGE_CACHE_FILE, "utf-8")) as UsageCache;
+    const parsed = JSON.parse(await readFile(USAGE_CACHE_FILE(), "utf-8")) as UsageCache;
     if (parsed?.version !== 1 || !parsed.entries || typeof parsed.entries !== "object") {
       return emptyUsageCache();
     }
@@ -57,15 +57,15 @@ export async function readUsageCache(): Promise<UsageCache> {
 
 /** Atomic replace so a concurrent reader never sees a half-written file. */
 export async function writeUsageCache(cache: UsageCache): Promise<void> {
-  await mkdir(CLAUDEX_DIR, { recursive: true });
-  const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
+  await mkdir(CLAUDEX_DIR(), { recursive: true });
+  const tmp = `${USAGE_CACHE_FILE()}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(cache, null, 2), { mode: 0o600 });
-  await rename(tmp, USAGE_CACHE_FILE);
+  await rename(tmp, USAGE_CACHE_FILE());
 }
 
 export async function usageCacheMtime(): Promise<number> {
   try {
-    return (await stat(USAGE_CACHE_FILE)).mtimeMs;
+    return (await stat(USAGE_CACHE_FILE())).mtimeMs;
   } catch {
     return 0;
   }
@@ -123,18 +123,18 @@ export function formatAge(ms: number): string {
 
 /** Returns a release function, or null when another refresher is running. */
 export async function acquireRefreshLock(): Promise<(() => Promise<void>) | null> {
-  await mkdir(CLAUDEX_DIR, { recursive: true });
+  await mkdir(CLAUDEX_DIR(), { recursive: true });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const handle = await open(USAGE_REFRESH_LOCK, "wx", 0o600);
+      const handle = await open(USAGE_REFRESH_LOCK(), "wx", 0o600);
       await handle.writeFile(`${process.pid} ${Date.now()}\n`);
       await handle.close();
       return async () => {
-        await unlink(USAGE_REFRESH_LOCK).catch(() => {});
+        await unlink(USAGE_REFRESH_LOCK()).catch(() => {});
       };
     } catch {
       if (!(await isRefreshLockStale())) return null;
-      await unlink(USAGE_REFRESH_LOCK).catch(() => {});
+      await unlink(USAGE_REFRESH_LOCK()).catch(() => {});
     }
   }
   return null;
@@ -142,7 +142,7 @@ export async function acquireRefreshLock(): Promise<(() => Promise<void>) | null
 
 export async function isRefreshRunning(): Promise<boolean> {
   try {
-    await stat(USAGE_REFRESH_LOCK);
+    await stat(USAGE_REFRESH_LOCK());
   } catch {
     return false;
   }
@@ -151,7 +151,7 @@ export async function isRefreshRunning(): Promise<boolean> {
 
 async function isRefreshLockStale(): Promise<boolean> {
   try {
-    return Date.now() - (await stat(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
+    return Date.now() - (await stat(USAGE_REFRESH_LOCK())).mtimeMs > LOCK_STALE_MS;
   } catch {
     return true;
   }

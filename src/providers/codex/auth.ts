@@ -13,14 +13,15 @@ import type {
   CodexRegistry,
   CodexRegistryAccount,
 } from "../../types";
+import { assertTestWriteTarget } from "../../lib/home-guard";
 
 async function ensureAccountsDir(): Promise<void> {
-  await mkdir(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir(CODEX_ACCOUNTS_DIR(), { recursive: true });
 }
 
 export async function readActiveAuth(): Promise<CodexAuthFile | null> {
-  if (!(await fileExists(CODEX_AUTH_FILE))) return null;
-  return readJson<CodexAuthFile | null>(CODEX_AUTH_FILE, null);
+  if (!(await fileExists(CODEX_AUTH_FILE()))) return null;
+  return readJson<CodexAuthFile | null>(CODEX_AUTH_FILE(), null);
 }
 
 export async function readAccountAuth(
@@ -42,10 +43,10 @@ export async function switchToAccount(accountKey: string): Promise<void> {
   if (auth?.auth_mode === "apikey") {
     const normalized = normalizeAuthForCodexCli(auth);
     await writeAuthFileIfChanged(srcPath, normalized);
-    await writeAuthFileIfChanged(CODEX_AUTH_FILE, normalized);
+    await writeAuthFileIfChanged(CODEX_AUTH_FILE(), normalized);
     return;
   }
-  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE, srcContent);
+  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE(), srcContent);
 }
 
 export async function saveAccountAuth(
@@ -87,6 +88,7 @@ async function writeRawAuthFileIfChanged(
 }
 
 async function writeRawAuthFile(path: string, content: string): Promise<void> {
+  assertTestWriteTarget(path);
   await mkdir(dirname(path), { recursive: true });
   const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
@@ -293,11 +295,11 @@ export async function removeAccountAuthFile(
 export async function snapshotActiveAuth(
   accountKey: string,
 ): Promise<void> {
-  if (!(await fileExists(CODEX_AUTH_FILE))) {
+  if (!(await fileExists(CODEX_AUTH_FILE()))) {
     throw new Error("No active Codex auth file found");
   }
   await ensureAccountsDir();
   const destPath = codexAccountAuthFile(accountKey);
-  await copyFile(CODEX_AUTH_FILE, destPath);
+  await copyFile(CODEX_AUTH_FILE(), destPath);
   await chmod(destPath, 0o600);
 }

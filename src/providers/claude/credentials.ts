@@ -18,7 +18,7 @@ function keychainEnabled(): boolean {
 }
 
 function useKeychain(path: string): boolean {
-  return keychainEnabled() && path === CREDENTIALS_FILE;
+  return keychainEnabled() && path === CREDENTIALS_FILE();
 }
 
 // Claude Code launched with CLAUDE_SECURESTORAGE_CONFIG_DIR=<dir> stores its
@@ -133,7 +133,7 @@ async function deleteJsonFile(path: string): Promise<void> {
 }
 
 export async function readCredentials(
-  path: string = CREDENTIALS_FILE,
+  path: string = CREDENTIALS_FILE(),
 ): Promise<CredentialsFile | null> {
   if (useKeychain(path)) {
     return readKeychain();
@@ -143,7 +143,7 @@ export async function readCredentials(
 
 export async function writeCredentials(
   creds: CredentialsFile,
-  path: string = CREDENTIALS_FILE,
+  path: string = CREDENTIALS_FILE(),
 ): Promise<void> {
   if (useKeychain(path)) {
     return writeKeychain(creds);
@@ -152,7 +152,7 @@ export async function writeCredentials(
 }
 
 export async function deleteCredentials(
-  path: string = CREDENTIALS_FILE,
+  path: string = CREDENTIALS_FILE(),
 ): Promise<void> {
   if (useKeychain(path)) {
     return deleteKeychain();

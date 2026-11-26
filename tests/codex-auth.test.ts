@@ -88,8 +88,8 @@ describe("codex auth", () => {
       last_refresh: "2026-04-06T00:00:00.000Z",
     };
 
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(authData, null, 2));
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(authData, null, 2));
 
     const weirdKey = "user::account/with spaces";
     await snapshotActiveAuth(weirdKey);
@@ -174,13 +174,13 @@ describe("codex auth", () => {
       last_refresh: "2026-08-02T00:00:00.000Z",
     });
     await saveAccountAuth(accountKey, auth("user-1", "old"));
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(auth("user-1", "new")));
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(auth("user-1", "new")));
 
     expect(await syncActiveAuthSnapshot(registry)).toBe(true);
     expect(await readAccountAuth(accountKey)).toEqual(auth("user-1", "new"));
 
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(auth("other-user", "bad")));
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(auth("other-user", "bad")));
     expect(await syncActiveAuthSnapshot(registry)).toBe(false);
     expect(await readAccountAuth(accountKey)).toEqual(auth("user-1", "new"));
   });

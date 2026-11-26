@@ -317,7 +317,7 @@ async function addOpenCodeGo(alias: string): Promise<void> {
 }
 
 async function addClaudeOAuth(alias: string): Promise<void> {
-  const creds = await readCredentials(CREDENTIALS_FILE);
+  const creds = await readCredentials(CREDENTIALS_FILE());
   const authStatus = readClaudeAuthStatus();
 
   if (creds || authStatus?.loggedIn) {
@@ -348,7 +348,7 @@ async function addClaudeOAuth(alias: string): Promise<void> {
       }
 
       const defaultModel = await promptClaudeDefaultModel();
-      await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
+      await addOAuthProfile(alias, CREDENTIALS_FILE(), { defaultModel });
       await addAlias(alias, { provider: "claude", profileName: alias });
       blank();
       success(`${chalk.bold(alias)} created from current Claude session`);
@@ -384,7 +384,7 @@ async function addClaudeOAuth(alias: string): Promise<void> {
   );
   cleanupBrowserScript(browserScript);
 
-  const newCreds = await readCredentials(CREDENTIALS_FILE);
+  const newCreds = await readCredentials(CREDENTIALS_FILE());
   if (exitCode !== 0 || !newCreds) {
     blank();
     error("Login failed or was cancelled.");
@@ -393,7 +393,7 @@ async function addClaudeOAuth(alias: string): Promise<void> {
   }
 
   const defaultModel = await promptClaudeDefaultModel();
-  await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
+  await addOAuthProfile(alias, CREDENTIALS_FILE(), { defaultModel });
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
   success(`${chalk.bold(alias)} created`);
@@ -508,7 +508,7 @@ async function maybeSetupRelayBalance(
 
     error("The relay rejected the token/user ID.");
     hint(
-      `Try again, press Enter to skip, or edit ${chalk.cyan(RELAYS_FILE)} later.`,
+      `Try again, press Enter to skip, or edit ${chalk.cyan(RELAYS_FILE())} later.`,
     );
   }
 }

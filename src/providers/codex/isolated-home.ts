@@ -13,8 +13,8 @@ export async function prepareIsolatedCodexHome(
   const home = await mkdtemp(join(tmpdir(), "claudex-codex-"));
   await chmod(home, 0o700);
 
-  if (await fileExists(CODEX_CONFIG_FILE)) {
-    await copyFile(CODEX_CONFIG_FILE, join(home, "config.toml"));
+  if (await fileExists(CODEX_CONFIG_FILE())) {
+    await copyFile(CODEX_CONFIG_FILE(), join(home, "config.toml"));
   }
 
   if (auth) {

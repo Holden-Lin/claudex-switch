@@ -24,15 +24,15 @@ describe("RelayRouter GLM profile settings", () => {
     };
     await applyApiConfig({ ...config, env });
     const privateFile = await prepareApiProfileClaudeSettings("relay", { ...config, env });
-    for (const path of [SETTINGS_FILE, privateFile]) {
+    for (const path of [SETTINGS_FILE(), privateFile]) {
       expect((await readJson<Settings>(path, { env: {} })).env).toMatchObject(env);
     }
   });
 
   test("generated settings are tracked, isolated from other profiles, and removed on a global switch", async () => {
     await applyApiConfig(config);
-    const settings = await readJson<Settings>(SETTINGS_FILE, { env: {} });
-    const { keys } = await readJson<{ keys: string[] }>(MANAGED_ENV_FILE, { keys: [] });
+    const settings = await readJson<Settings>(SETTINGS_FILE(), { env: {} });
+    const { keys } = await readJson<{ keys: string[] }>(MANAGED_ENV_FILE(), { keys: [] });
     for (const [key, value] of Object.entries(apiProfileExtraEnv(config))) {
       expect(keys).toContain(key);
       expect(settings.env[key]).toBe(value);
@@ -42,11 +42,11 @@ describe("RelayRouter GLM profile settings", () => {
     for (const key of keys) expect(other.env[key]).toBe("");
 
     await applyApiConfig({ ...config, model: "gpt-6-astra" });
-    const astra = await readJson<Settings>(SETTINGS_FILE, { env: {} });
+    const astra = await readJson<Settings>(SETTINGS_FILE(), { env: {} });
     expect(astra.env.ANTHROPIC_MODEL).toBe("gpt-6-astra");
     for (const key of keys) expect(astra.env[key]).toBeUndefined();
     await applyOAuthConfig();
-    expect((await readJson<Settings>(SETTINGS_FILE, { env: {} })).env).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" });
+    expect((await readJson<Settings>(SETTINGS_FILE(), { env: {} })).env).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" });
   });
 
   test.each([

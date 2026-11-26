@@ -75,7 +75,7 @@ async function writeFixtures(): Promise<void> {
     tokenCount(NOW, 250),
   ]);
 
-  const dbFile = join(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+  const dbFile = join(OPENCODE_GLOBAL_DATA_DIR(), "opencode.db");
   await mkdir(dirname(dbFile), { recursive: true });
   const db = new Database(dbFile);
   db.exec("CREATE TABLE session_message (id text PRIMARY KEY, type text, time_created integer, data text)");
@@ -159,8 +159,8 @@ describe("activity trend", () => {
         repos: 3,
         days: { [TODAY]: { tokens: 42_000, added: 12, deleted: 1 } },
       };
-      await mkdir(dirname(ACTIVITY_CACHE_FILE), { recursive: true });
-      await writeFile(ACTIVITY_CACHE_FILE, JSON.stringify(cache));
+      await mkdir(dirname(ACTIVITY_CACHE_FILE()), { recursive: true });
+      await writeFile(ACTIVITY_CACHE_FILE(), JSON.stringify(cache));
       const logs = spyOn(console, "log").mockImplementation(() => {});
 
       await list({ cached: true, background: true, spawnRefresh: () => {} });
@@ -169,7 +169,7 @@ describe("activity trend", () => {
       expect(out).toContain("Last 30 days");
       expect(out).toContain("42K");
       expect(out).toContain("+12 -1  3 repos");
-      expect(JSON.parse(await readFile(ACTIVITY_CACHE_FILE, "utf-8"))).toEqual(cache);
+      expect(JSON.parse(await readFile(ACTIVITY_CACHE_FILE(), "utf-8"))).toEqual(cache);
     });
   });
 });

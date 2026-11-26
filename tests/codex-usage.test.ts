@@ -200,8 +200,8 @@ describe("Codex App Server usage", () => {
     const refreshedAuth = makeAuth("refresh-new");
     await saveAccountAuth(accountKey, oldAuth);
     await saveRegistry(registry());
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(oldAuth, null, 2));
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(oldAuth, null, 2));
 
     const result = await fetchCodexUsage(
       accountKey,
@@ -221,8 +221,8 @@ describe("Codex App Server usage", () => {
     const refreshedAuth = makeAuth("refresh-new");
     await saveAccountAuth(accountKey, oldAuth);
     await saveRegistry(registry());
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(oldAuth, null, 2));
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(oldAuth, null, 2));
 
     const result = await fetchCodexUsage(accountKey, true, async () => {
       throw new CodexRateLimitsReadError("usage service unavailable", refreshedAuth);
@@ -239,8 +239,8 @@ describe("Codex App Server usage", () => {
     const activeAuth = makeAuth("refresh-active-newer");
     await saveAccountAuth(accountKey, oldAuth);
     await saveRegistry(registry());
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(activeAuth, null, 2));
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(activeAuth, null, 2));
 
     await fetchCodexUsage(
       accountKey,

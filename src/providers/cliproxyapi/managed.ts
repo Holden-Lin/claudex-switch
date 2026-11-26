@@ -73,6 +73,7 @@ import {
 } from "../subscription-plugins";
 import { select } from "@inquirer/prompts";
 import { info } from "../../lib/ui";
+import { assertTestWriteTarget } from "../../lib/home-guard";
 
 export const CLI_PROXY_API_DEFAULTS = {
   ...CLI_PROXY_API_UPSTREAMS.codex.defaults,
@@ -247,6 +248,7 @@ async function mkdirPrivate(path: string): Promise<void> {
 }
 
 async function writePrivate(path: string, data: string): Promise<void> {
+  assertTestWriteTarget(path);
   await writeFile(path, data, { mode: 0o600 });
   try {
     await chmod(path, 0o600);
@@ -1764,7 +1766,7 @@ export async function runManagedCLIProxyAPILogin(
 ): Promise<ManagedCLIProxyAPILoginResult> {
   assertProfileId(profile.profileId);
   const paths = profilePaths(profile.profileId);
-  await mkdirPrivate(CLI_PROXY_API_DIR);
+  await mkdirPrivate(CLI_PROXY_API_DIR());
   const upstream = (await readExistingManagedEnv(profile.profileId)).upstream;
   const spec = CLI_PROXY_API_UPSTREAMS[upstream];
   if (isSubscriptionUpstream(upstream)) {
@@ -1799,7 +1801,7 @@ export async function runManagedCLIProxyAPILogin(
   }
   const { loginFlag, authType, callbackPort } = spec;
 
-  return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
+  return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK(), async () => {
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
       throw new Error(
         "A Claude Code session launched by claudex-switch is still using this local provider proxy account. End it before refreshing the login.",

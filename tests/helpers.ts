@@ -21,7 +21,7 @@ export interface NativeOpenCodeCredentialRow {
 export async function createNativeOpenCodeCredentialDatabase(
   rows: NativeOpenCodeCredentialRow[],
 ): Promise<void> {
-  const file = join(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+  const file = join(OPENCODE_GLOBAL_DATA_DIR(), "opencode.db");
   await mkdir(dirname(file), { recursive: true });
   const db = new Database(file);
   try {

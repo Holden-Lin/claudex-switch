@@ -92,7 +92,7 @@ async function fetchKeyBalance(
 export async function getRelayConfig(
   origin: string,
 ): Promise<RelayConfig | null> {
-  const relays = await readJson<Record<string, RelayConfig>>(RELAYS_FILE, {});
+  const relays = await readJson<Record<string, RelayConfig>>(RELAYS_FILE(), {});
   const config = relays[origin];
   if (!config || typeof config.accessToken !== "string" || !config.accessToken) {
     return null;
@@ -104,10 +104,10 @@ export async function saveRelayConfig(
   origin: string,
   config: RelayConfig,
 ): Promise<void> {
-  const relays = await readJson<Record<string, RelayConfig>>(RELAYS_FILE, {});
+  const relays = await readJson<Record<string, RelayConfig>>(RELAYS_FILE(), {});
   relays[origin] = config;
-  await mkdir(dirname(RELAYS_FILE), { recursive: true });
-  await writeJsonSecure(RELAYS_FILE, relays);
+  await mkdir(dirname(RELAYS_FILE()), { recursive: true });
+  await writeJsonSecure(RELAYS_FILE(), relays);
 }
 
 export interface RelayStatus {

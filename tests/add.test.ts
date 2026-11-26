@@ -206,7 +206,7 @@ describe("add", () => {
 
     expect(await readActiveAuth()).toEqual(authData);
     expect(await readAccountAuth("user-9::acct-9")).toEqual(authData);
-    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const config = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(config).toContain('model = "gpt-5.4"');
     expect(config).not.toContain("model_provider =");
     const output = logSpy.mock.calls.flat().join("\n");
@@ -266,7 +266,7 @@ describe("add", () => {
       env_key: "OPENAI_API_KEY",
     });
 
-    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const config = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(config).toContain('model_provider = "admin"');
     expect(config).toContain('model = "gpt-5.4"');
     expect(config).toContain("[model_providers.admin]");
@@ -337,7 +337,7 @@ describe("add", () => {
       "input",
     ]);
 
-    const settings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    const settings = JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"));
     expect(settings).toEqual({
       model: "sonnet",
       env: {
@@ -364,9 +364,9 @@ describe("add", () => {
       expect(args).toEqual(["--version"]);
       return { status: 0, stdout: "1.18.30", stderr: "" };
     };
-    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE()), { recursive: true });
     await writeFile(
-      OPENCODE_GLOBAL_AUTH_FILE,
+      OPENCODE_GLOBAL_AUTH_FILE(),
       JSON.stringify({
         "opencode-go": { type: "api", key: "go-secret" },
         anthropic: { type: "api", key: "must-not-copy" },
@@ -400,11 +400,11 @@ describe("add", () => {
       expect(args).toEqual(["--version"]);
       return { status: 0, stdout: "opencode v2.0.6", stderr: "" };
     };
-    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE()), { recursive: true });
     const originalGlobalAuth = JSON.stringify({
       "opencode-go": { type: "api", key: "fake-global-v1-key" },
     });
-    await writeFile(OPENCODE_GLOBAL_AUTH_FILE, originalGlobalAuth);
+    await writeFile(OPENCODE_GLOBAL_AUTH_FILE(), originalGlobalAuth);
     passwordHandler = async () => " fake-v2-go-key ";
     spawnHandler = async (command) => {
       throw new Error(`V2 key setup should not launch OpenCode TUI: ${command}`);
@@ -422,7 +422,7 @@ describe("add", () => {
     expect(JSON.parse(await readFile(openCodeProfileAuthFile(target.profileId), "utf-8"))).toEqual({
       "opencode-go": { type: "api", key: "fake-v2-go-key" },
     });
-    expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE, "utf-8")).toBe(originalGlobalAuth);
+    expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE(), "utf-8")).toBe(originalGlobalAuth);
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("go-v2 created");
     expect(output).toContain("OpenCode V2 keeps /resume history private to this alias.");
@@ -575,7 +575,7 @@ describe("add", () => {
     expect(selfCall?.headers.Authorization).toBe("console-token");
     expect(selfCall?.headers["New-Api-User"]).toBe("7");
 
-    const relays = JSON.parse(await readFile(RELAYS_FILE, "utf-8"));
+    const relays = JSON.parse(await readFile(RELAYS_FILE(), "utf-8"));
     expect(relays).toEqual({
       "https://relay.example.com": {
         accessToken: "console-token",
@@ -634,7 +634,7 @@ describe("add", () => {
     // account still created, but no relay credentials persisted
     const aliases = await loadAliases();
     expect(aliases.aliases[0]?.alias).toBe("relayx");
-    await expect(readFile(RELAYS_FILE, "utf-8")).rejects.toThrow();
+    await expect(readFile(RELAYS_FILE(), "utf-8")).rejects.toThrow();
 
     const output = errorSpy.mock.calls.flat().join("\n");
     expect(output).toContain("rejected");

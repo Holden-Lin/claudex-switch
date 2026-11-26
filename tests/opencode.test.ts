@@ -211,8 +211,8 @@ describe("OpenCode Go profiles", () => {
   });
 
   test("stores only the Go credential in a private 0600 profile", async () => {
-    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
-    await writeJsonSecure(OPENCODE_GLOBAL_AUTH_FILE, {
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE()), { recursive: true });
+    await writeJsonSecure(OPENCODE_GLOBAL_AUTH_FILE(), {
       "opencode-go": CREDENTIAL,
       anthropic: { type: "api", key: "must-not-copy" },
     });
@@ -295,7 +295,7 @@ describe("OpenCode Go profiles", () => {
     expect(openCodeSetupEnvironment(PROFILE_ID).XDG_DATA_HOME).toContain(
       PROFILE_ID,
     );
-    expect(OPENCODE_STATE_FILE).toContain(".claudex-switch/opencode/state.json");
+    expect(OPENCODE_STATE_FILE()).toContain(".claudex-switch/opencode/state.json");
   });
 
   test("detects supported V1 and V2 version output precisely", () => {
@@ -457,8 +457,8 @@ describe("OpenCode Go profiles", () => {
 
   test("syncs a fake V2 key separately and uses alias-private database and XDG roots", async () => {
     await createOpenCodeGoProfile(PROFILE_ID, { type: "api", key: "fake-v2-loopback-key" });
-    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
-    await writeJsonSecure(OPENCODE_GLOBAL_AUTH_FILE, {
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE()), { recursive: true });
+    await writeJsonSecure(OPENCODE_GLOBAL_AUTH_FILE(), {
       "opencode-go": { type: "api", key: "fake-global-v1-key" },
     });
     const previousConfig = process.env.OPENCODE_CONFIG_CONTENT;

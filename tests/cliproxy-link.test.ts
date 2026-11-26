@@ -115,7 +115,7 @@ async function seedAccounts(): Promise<void> {
 async function localProfiles(): Promise<Array<{ name: string; data: LocalCLIProxyAPIProfileData }>> {
   let names: string[] = [];
   try {
-    names = await readdir(CLAUDE_PROFILES_DIR);
+    names = await readdir(CLAUDE_PROFILES_DIR());
   } catch {
     return [];
   }
@@ -197,8 +197,8 @@ describe("--cliproxy claudecode", () => {
     process.env.CLAUDEX_FAKE_MODELS = AGY_BUILT_IN;
     process.env.CLAUDEX_FAKE_MODELS_LATE = AGY_LIVE;
     process.env.CLAUDEX_FAKE_MODELS_LATE_MS = "1500";
-    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-    await writeFile(SETTINGS_FILE, JSON.stringify({ model: "claude-opus-5-5" }));
+    await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+    await writeFile(SETTINGS_FILE(), JSON.stringify({ model: "claude-opus-5-5" }));
     const calls: Array<{ command: string; args: string[] }> = [];
     await resolveCLIProxyClaudeEntry("agy", options);
     expect(await runAliasSession("agy", ["--cliproxy", "claudecode"], fakeClaudeSpawn(calls) as never)).toBe(0);
@@ -240,7 +240,7 @@ describe("--cliproxy claudecode", () => {
     process.env.CLAUDEX_FAKE_LOGIN_EXIT = "1";
     const again = await resolveCLIProxyClaudeEntry("cx", options);
     expect(again.target).toEqual(entry.target);
-    expect((await readFile(CLI_PROXY_API_LINKS_FILE, "utf-8")).includes(profileName)).toBe(true);
+    expect((await readFile(CLI_PROXY_API_LINKS_FILE(), "utf-8")).includes(profileName)).toBe(true);
   });
 
   test("a login for a different ChatGPT account is rejected and leaves nothing behind", async () => {
@@ -573,15 +573,15 @@ describe("--cliproxy claudecode", () => {
     await writeFile(claudeProfileDataFile(name), JSON.stringify({
       ...profile, env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40" },
     }));
-    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-    await writeFile(SETTINGS_FILE, JSON.stringify({ env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40" } }));
-    const before = await readFile(SETTINGS_FILE, "utf8");
+    await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+    await writeFile(SETTINGS_FILE(), JSON.stringify({ env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40" } }));
+    const before = await readFile(SETTINGS_FILE(), "utf8");
     const calls: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }> = [];
     expect(await runAliasSession(alias, ["--cliproxy", "claudecode"], fakeClaudeSpawn(calls) as never)).toBe(0);
     const args = calls[0]!.args;
     const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf8"));
     expect(settings.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe(alias === "agy" ? "" : "40");
-    expect(await readFile(SETTINGS_FILE, "utf8")).toBe(before);
+    expect(await readFile(SETTINGS_FILE(), "utf8")).toBe(before);
   });
 
   test.each([undefined, "1"])("local classifier setting %s outranks inherited settings without changing the global account", async (override) => {
@@ -592,9 +592,9 @@ describe("--cliproxy claudecode", () => {
       ...profile,
       env: { CLAUDE_CODE_AUTO_MODE_SERVER: override },
     }));
-    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-    await writeFile(SETTINGS_FILE, JSON.stringify({ env: { CLAUDE_CODE_AUTO_MODE_SERVER: "1" } }));
-    const globalBefore = await readFile(SETTINGS_FILE, "utf-8");
+    await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+    await writeFile(SETTINGS_FILE(), JSON.stringify({ env: { CLAUDE_CODE_AUTO_MODE_SERVER: "1" } }));
+    const globalBefore = await readFile(SETTINGS_FILE(), "utf-8");
     const previous = process.env.CLAUDE_CODE_AUTO_MODE_SERVER;
     process.env.CLAUDE_CODE_AUTO_MODE_SERVER = "1";
     try {
@@ -604,7 +604,7 @@ describe("--cliproxy claudecode", () => {
       const settings = JSON.parse(await readFile(args[args.indexOf("--settings") + 1]!, "utf-8"));
       expect(settings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe(override ?? "0");
       expect(calls[0]?.env?.CLAUDE_CODE_AUTO_MODE_SERVER).toBe(override ?? "0");
-      expect(await readFile(SETTINGS_FILE, "utf-8")).toBe(globalBefore);
+      expect(await readFile(SETTINGS_FILE(), "utf-8")).toBe(globalBefore);
     } finally {
       if (previous === undefined) delete process.env.CLAUDE_CODE_AUTO_MODE_SERVER;
       else process.env.CLAUDE_CODE_AUTO_MODE_SERVER = previous;

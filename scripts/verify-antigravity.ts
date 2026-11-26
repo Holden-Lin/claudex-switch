@@ -60,7 +60,7 @@ try {
   const shim = join(root, "bin/claude");
   await writeFile(shim, `#!/bin/sh\nexec '${claudePath.replaceAll("'", "'\\''")}' "$@"\n`, { mode: 0o700 });
   env.PATH = `${join(root, "bin")}:${realEnv.PATH}`;
-  await writeFile(paths.CLAUDE_JSON, JSON.stringify({ hasCompletedOnboarding: true, theme: "light" }));
+  await writeFile(paths.CLAUDE_JSON(), JSON.stringify({ hasCompletedOnboarding: true, theme: "light" }));
   await managed.initializeManagedCLIProxyAPI(profile.profileId, { upstream: "antigravity", models: {
     fableModel: "claude-opus-5-5", opusModel: "claude-opus-5-5", sonnetModel: "claude-sonnet-5-5", haikuModel: "gemini-3.8-flash",
   } });

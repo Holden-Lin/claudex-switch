@@ -19,7 +19,7 @@ import { nativeOpenCodeDatabaseFile, queryRows } from "../providers/opencode/nat
 // session logs (cache reads included) and source lines the user committed in
 // the repos those sessions ran in. Scanning ~300MB of logs and running git log
 // takes seconds, so only the detached refresher computes it, at most every
-// REFRESH_INTERVAL_MS; `list` itself only reads ACTIVITY_CACHE_FILE.
+// REFRESH_INTERVAL_MS; `list` itself only reads ACTIVITY_CACHE_FILE().
 
 export const ACTIVITY_DAYS = 30;
 const REFRESH_INTERVAL_MS = 10 * 60_000;
@@ -62,7 +62,7 @@ export function emptyActivityCache(): ActivityCache {
 
 export async function readActivityCache(): Promise<ActivityCache> {
   try {
-    const parsed = JSON.parse(await readFile(ACTIVITY_CACHE_FILE, "utf-8")) as ActivityCache;
+    const parsed = JSON.parse(await readFile(ACTIVITY_CACHE_FILE(), "utf-8")) as ActivityCache;
     if (parsed?.version !== 1 || !parsed.days || typeof parsed.days !== "object") {
       return emptyActivityCache();
     }
@@ -73,10 +73,10 @@ export async function readActivityCache(): Promise<ActivityCache> {
 }
 
 async function writeActivityCache(cache: ActivityCache): Promise<void> {
-  await mkdir(CLAUDEX_DIR, { recursive: true });
-  const tmp = `${ACTIVITY_CACHE_FILE}.${process.pid}.tmp`;
+  await mkdir(CLAUDEX_DIR(), { recursive: true });
+  const tmp = `${ACTIVITY_CACHE_FILE()}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(cache), { mode: 0o600 });
-  await rename(tmp, ACTIVITY_CACHE_FILE);
+  await rename(tmp, ACTIVITY_CACHE_FILE());
 }
 
 /** Local calendar day (YYYY-MM-DD) of a timestamp. */
@@ -163,9 +163,9 @@ async function recentJsonlFiles(roots: string[], since: number): Promise<string[
 }
 
 async function collectClaudeTokens(since: number, addTokens: AddTokens, cwds: Set<string>): Promise<void> {
-  const roots = [join(CLAUDE_DIR, "projects")];
-  for (const profile of await readdir(CLAUDE_PROFILES_DIR).catch(() => [])) {
-    roots.push(join(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
+  const roots = [join(CLAUDE_DIR(), "projects")];
+  for (const profile of await readdir(CLAUDE_PROFILES_DIR()).catch(() => [])) {
+    roots.push(join(CLAUDE_PROFILES_DIR(), profile, "config", "projects"));
   }
   // Claude Code writes one assistant message as several lines sharing its usage.
   const seen = new Set<string>();
@@ -198,7 +198,7 @@ async function collectClaudeTokens(since: number, addTokens: AddTokens, cwds: Se
 async function collectCodexTokens(since: number, addTokens: AddTokens, cwds: Set<string>): Promise<void> {
   // Private CODEX_HOMEs link their sessions dir back to ~/.codex/sessions.
   const files = await recentJsonlFiles(
-    [join(CODEX_DIR, "sessions"), join(CODEX_DIR, "archived_sessions")],
+    [join(CODEX_DIR(), "sessions"), join(CODEX_DIR(), "archived_sessions")],
     since,
   );
   for (const file of files) {
@@ -231,7 +231,7 @@ async function collectCodexTokens(since: number, addTokens: AddTokens, cwds: Set
 
 async function collectOpenCodeTokens(since: number, addTokens: AddTokens, cwds: Set<string>): Promise<void> {
   const dbs = [nativeOpenCodeDatabaseFile()];
-  for (const profileId of await readdir(OPENCODE_PROFILES_DIR).catch(() => [])) {
+  for (const profileId of await readdir(OPENCODE_PROFILES_DIR()).catch(() => [])) {
     dbs.push(openCodeProfileV2DatabaseFile(profileId));
   }
   const seen = new Set<string>();

@@ -33,7 +33,7 @@ describe("alias store", () => {
     const saved = await loadAliases();
     expect(saved.aliases.map((entry) => entry.alias)).toEqual(["work"]);
 
-    const stats = await stat(ALIAS_REGISTRY_FILE);
+    const stats = await stat(ALIAS_REGISTRY_FILE());
     expect(fileMode(stats.mode)).toBe(0o600);
   });
 

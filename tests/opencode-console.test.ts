@@ -271,7 +271,7 @@ describe("OpenCode browser subscriptions", () => {
     await saveOpenCodeConsoleProfile(A, profile());
     await seed(openCodeProfileV2DatabaseFile(A));
     await saveAliases({ version: 1, aliases: [{ alias: "go-a", target: { provider: "opencode", profileId: A } }] });
-    await mkdir(OPENCODE_LOCKS_DIR, { recursive: true });
+    await mkdir(OPENCODE_LOCKS_DIR(), { recursive: true });
     const release = await acquireProfileLock(openCodeProfileConsoleLock(A), "subscription account");
     try {
       await expect(purgeAccount("go-a")).rejects.toThrow("lock");

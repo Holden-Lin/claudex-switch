@@ -236,7 +236,7 @@ describe("list", () => {
       account.provider === "claude" && account.authMode === "local-cliproxyapi")).toBe(true);
     for (const [index, entry] of aliases.aliases.entries()) {
       expect(await aliasSection(entry)).toBe(index < 4 ? titles[index] : null);
-      await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: entry.alias }));
+      await writeFile(CLAUDE_STATE_FILE(), JSON.stringify({ active: entry.alias }));
       console.log.mockClear();
       await current();
       if (index < 4) expect(output()).toContain(`${titles[index]}:`);
@@ -535,9 +535,9 @@ describe("list", () => {
     });
     await writeClaudeOAuthProfile("work", snapshot);
     await mkdir(join(TEST_HOME, ".claude"), { recursive: true });
-    await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: "work" }));
+    await writeFile(CLAUDE_STATE_FILE(), JSON.stringify({ active: "work" }));
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({
         oauthAccount: {
           accountUuid: "uuid-1",
@@ -548,7 +548,7 @@ describe("list", () => {
     const live = makeClaudeCreds();
     live.claudeAiOauth.subscriptionType = "pro";
     live.claudeAiOauth.expiresAt = Date.now() + 3_600_000;
-    await writeCredentials(live, CREDENTIALS_FILE);
+    await writeCredentials(live, CREDENTIALS_FILE());
 
     await list({ usage: false });
 

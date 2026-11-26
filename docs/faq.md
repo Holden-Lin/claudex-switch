@@ -46,9 +46,30 @@ Yes, with different protocol requirements: a Claude API-key profile may use a Ba
 
 `claudex-switch remove <alias>` removes that alias only. `claudex-switch purge <alias>` deletes the linked stored account profile and every alias that points to it; the login may need to be created again. Don't run `purge` unless you intend to destroy that saved profile.
 
+## How do I restore aliases or the Codex account list from a backup?
+
+Before `aliases.json` or the Codex registry is rewritten, claudex-switch keeps a copy whenever an alias or account is added, removed, renamed or repointed, and at least once a day otherwise. The newest 20 copies of each are kept:
+
+- aliases: `~/.claudex-switch/backups/aliases/<UTC time>.json`
+- Codex registry: `~/.claudex-switch/backups/codex-registry/<UTC time>.json`
+
+To restore, pick the newest copy from before the damage and copy it back, then check the result:
+
+```bash
+ls ~/.claudex-switch/backups/aliases/
+cp ~/.claudex-switch/aliases.json ~/.claudex-switch/aliases.json.before-restore
+cp ~/.claudex-switch/backups/aliases/<UTC time>.json ~/.claudex-switch/aliases.json
+# Codex registry, if it was damaged too:
+cp ~/.claudex-switch/backups/codex-registry/<UTC time>.json ~/.codex/accounts/registry.json
+claudex-switch list
+```
+
+The copies hold no tokens or API keys; credentials stay in their own files.
+
 ## 中文速览
 
 - **是否官方工具？** 不是。它管理你已获授权的本地账号配置，不创建账号、不绕过认证，也不修改服务商额度
 - **`-run` 是否完全隔离？** 否。Claude 只隔离会话凭据，设置 / hooks / 历史共享；Codex 不切换默认账号，非默认账号用私有 `CODEX_HOME` 只隔离登录；OpenCode V1 共享正常 `/resume` 历史，V2 使用每个别名独立的 SQLite 数据库，不会自动共享或导入其他历史
 - **能否离线检查？** `claudex-switch list --json --no-usage` 不请求额度、不刷新凭据、不切换账号；仍可能读取本地 profile / Keychain 元数据
 - **`remove` 和 `purge` 有何区别？** `remove` 只删别名，`purge` 会删除关联账号档案及指向它的所有别名
+- **别名或 Codex 账号表被覆盖怎么办？** 写 `aliases.json` / Codex `registry.json` 前会自动备份到 `~/.claudex-switch/backups/{aliases,codex-registry}/`（别名或账号有增删改时备份，否则每天至少一份，各留最近 20 份）；挑出事前最新的一份 `cp` 回原位，再跑 `claudex-switch list` 核对

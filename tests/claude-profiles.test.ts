@@ -47,10 +47,10 @@ describe("claude profiles", () => {
       organizationUuid: "org-saved",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(savedCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(savedCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: savedAccount }, null, 2),
     );
     await addOAuthProfile("holden");
@@ -70,13 +70,13 @@ describe("claude profiles", () => {
       organizationUuid: "org-other",
     };
 
-    await writeCredentials(driftedCreds, CREDENTIALS_FILE);
+    await writeCredentials(driftedCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: driftedAccount }, null, 2),
     );
     await writeFile(
-      SETTINGS_FILE,
+      SETTINGS_FILE(),
       JSON.stringify({
         env: {
           ANTHROPIC_API_KEY: "sk-ant-stale",
@@ -96,11 +96,11 @@ describe("claude profiles", () => {
     await switchProfile("holden");
 
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(savedCreds);
-    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON(), {}))
       .toEqual({ oauthAccount: savedAccount });
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: { KEEP_ME: "1", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       theme: "dark",
     });
@@ -122,10 +122,10 @@ describe("claude profiles", () => {
       organizationUuid: "org-holden",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(snapshotCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(snapshotCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: account }, null, 2),
     );
     await addOAuthProfile("holden");
@@ -140,7 +140,7 @@ describe("claude profiles", () => {
         subscriptionType: "max",
       },
     };
-    await writeCredentials(refreshedCreds, CREDENTIALS_FILE);
+    await writeCredentials(refreshedCreds, CREDENTIALS_FILE());
 
     const context = await prepareIsolatedOAuthRun("holden");
 
@@ -162,7 +162,7 @@ describe("claude profiles", () => {
     ).toEqual({ oauthAccount: account });
     // The global live store itself stays untouched.
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(refreshedCreds);
   });
 
@@ -187,16 +187,16 @@ describe("claude profiles", () => {
       organizationUuid: "org-global",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: profileAccount, theme: "dark" }, null, 2),
     );
     await addOAuthProfile("legacy");
     await rm(claudeProfileAccountFile("legacy"), { force: true });
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: globalAccount, theme: "dark" }, null, 2),
     );
 
@@ -211,7 +211,7 @@ describe("claude profiles", () => {
   });
 
   test("refuses an isolated run for a profile without stored credentials", async () => {
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
     const emptyCreds: CredentialsFile = {
       claudeAiOauth: {
         accessToken: "seed-access",
@@ -220,7 +220,7 @@ describe("claude profiles", () => {
         scopes: [],
       },
     };
-    await writeCredentials(emptyCreds, CREDENTIALS_FILE);
+    await writeCredentials(emptyCreds, CREDENTIALS_FILE());
     await addOAuthProfile("ghost");
     await rm(claudeProfileCredentials("ghost"), { force: true });
 
@@ -245,10 +245,10 @@ describe("claude profiles", () => {
       organizationUuid: "org-holden",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(snapshotCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(snapshotCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: account }, null, 2),
     );
     await addOAuthProfile("holden");
@@ -264,11 +264,11 @@ describe("claude profiles", () => {
         subscriptionType: "max",
       },
     };
-    await writeCredentials(rotatedCreds, CREDENTIALS_FILE);
+    await writeCredentials(rotatedCreds, CREDENTIALS_FILE());
     // Force re-activation (mimics `--model` drift making the profile look
     // unapplied) so switchProfile does not early-return.
     await writeFile(
-      SETTINGS_FILE,
+      SETTINGS_FILE(),
       JSON.stringify({ model: "claude-opus-4-8" }, null, 2),
     );
 
@@ -277,7 +277,7 @@ describe("claude profiles", () => {
     // Live credentials must stay the rotated (valid) ones, not be clobbered by
     // the stale snapshot, otherwise the running session is forced to re-login.
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(rotatedCreds);
     // The on-disk snapshot is refreshed from the live credentials.
     expect(
@@ -286,7 +286,7 @@ describe("claude profiles", () => {
         null,
       ),
     ).toEqual(rotatedCreds);
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual(
       { env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" } },
     );
   });
@@ -307,10 +307,10 @@ describe("claude profiles", () => {
       emailAddress: "shared@example.com",
       organizationUuid: "org-1",
     };
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(org1Creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(org1Creds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: org1Account }, null, 2),
     );
     await addOAuthProfile("work-org1");
@@ -330,9 +330,9 @@ describe("claude profiles", () => {
       emailAddress: "shared@example.com",
       organizationUuid: "org-2",
     };
-    await writeCredentials(org2Creds, CREDENTIALS_FILE);
+    await writeCredentials(org2Creds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: org2Account }, null, 2),
     );
     await addOAuthProfile("work-org2");
@@ -342,9 +342,9 @@ describe("claude profiles", () => {
     await switchProfile("work-org1");
 
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(org1Creds);
-    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON(), {}))
       .toEqual({ oauthAccount: org1Account });
     // The org 1 snapshot must not be corrupted with the org 2 session.
     expect(
@@ -371,10 +371,10 @@ describe("claude profiles", () => {
       organizationUuid: "org-target",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(targetCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(targetCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: targetAccount }, null, 2),
     );
     await addOAuthProfile("holden");
@@ -393,18 +393,18 @@ describe("claude profiles", () => {
       emailAddress: "shared@example.com",
       organizationUuid: "org-drifted",
     };
-    await writeCredentials(driftedCreds, CREDENTIALS_FILE);
+    await writeCredentials(driftedCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: driftedAccount }, null, 2),
     );
 
     await switchProfile("holden");
 
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(targetCreds);
-    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON(), {}))
       .toEqual({ oauthAccount: targetAccount });
   });
 
@@ -424,10 +424,10 @@ describe("claude profiles", () => {
       organizationUuid: "org-holden",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(holdenCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(holdenCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: holdenAccount }, null, 2),
     );
     await addOAuthProfile("holden");
@@ -446,9 +446,9 @@ describe("claude profiles", () => {
       emailAddress: "satoshi@example.com",
       organizationUuid: "org-satoshi",
     };
-    await writeCredentials(satoshiCreds, CREDENTIALS_FILE);
+    await writeCredentials(satoshiCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: satoshiAccount }, null, 2),
     );
     await addOAuthProfile("satoshi");
@@ -469,9 +469,9 @@ describe("claude profiles", () => {
       emailAddress: "shared@example.com",
       organizationUuid: "org-drifted",
     };
-    await writeCredentials(driftedCreds, CREDENTIALS_FILE);
+    await writeCredentials(driftedCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: driftedAccount }, null, 2),
     );
 
@@ -490,7 +490,7 @@ describe("claude profiles", () => {
       ),
     ).toEqual(holdenAccount);
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(satoshiCreds);
   });
 
@@ -505,9 +505,9 @@ describe("claude profiles", () => {
       defaultHaikuModel: "claude-3-5-haiku-20241022",
     };
 
-    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
+    await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
     await writeFile(
-      SETTINGS_FILE,
+      SETTINGS_FILE(),
       JSON.stringify(
         {
           env: { KEEP_ME: "1", ANTHROPIC_API_KEY: "sk-ant-old" },
@@ -517,11 +517,11 @@ describe("claude profiles", () => {
         2,
       ),
     );
-    await chmod(SETTINGS_FILE, 0o644);
+    await chmod(SETTINGS_FILE(), 0o644);
 
     await addApiKeyProfile("api-work", config);
 
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: {
         KEEP_ME: "1",
         ANTHROPIC_API_KEY: "sk-ant-live",
@@ -535,7 +535,7 @@ describe("claude profiles", () => {
       model: "sonnet",
       theme: "dark",
     });
-    expect(fileMode((await stat(SETTINGS_FILE)).mode)).toBe(0o600);
+    expect(fileMode((await stat(SETTINGS_FILE())).mode)).toBe(0o600);
   });
 
   test("keeps active Claude auth single-mode when switching between oauth and api key", async () => {
@@ -554,10 +554,10 @@ describe("claude profiles", () => {
       organizationUuid: "org-oauth",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: account }, null, 2),
     );
     await addOAuthProfile("oauth");
@@ -565,23 +565,23 @@ describe("claude profiles", () => {
     await addApiKeyProfile("api", { apiKey: "sk-ant-live" });
 
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toBeNull();
-    expect(await readJson<Record<string, unknown>>(CLAUDE_JSON, {})).toEqual(
+    expect(await readJson<Record<string, unknown>>(CLAUDE_JSON(), {})).toEqual(
       {},
     );
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: { ANTHROPIC_API_KEY: "sk-ant-live", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
     });
 
     await switchProfile("oauth");
 
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(creds);
-    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON(), {}))
       .toEqual({ oauthAccount: account });
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual(
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual(
       { env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" } },
     );
   });
@@ -602,24 +602,24 @@ describe("claude profiles", () => {
       organizationUuid: "org-oauth",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: account }, null, 2),
     );
-    await addOAuthProfile("oauth-model", CREDENTIALS_FILE, {
+    await addOAuthProfile("oauth-model", CREDENTIALS_FILE(), {
       defaultModel: "claude-sonnet-4-20250514",
     });
 
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       model: "claude-sonnet-4-20250514",
     });
 
     await switchProfile("oauth-model");
 
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       model: "claude-sonnet-4-20250514",
     });
@@ -643,22 +643,22 @@ describe("claude profiles", () => {
       organizationUuid: "org-stale",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(staleCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(staleCreds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: staleAccount }, null, 2),
     );
 
     await switchProfile("api");
 
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toBeNull();
-    expect(await readJson<Record<string, unknown>>(CLAUDE_JSON, {})).toEqual(
+    expect(await readJson<Record<string, unknown>>(CLAUDE_JSON(), {})).toEqual(
       {},
     );
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: { ANTHROPIC_API_KEY: "sk-ant-live", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
     });
   });

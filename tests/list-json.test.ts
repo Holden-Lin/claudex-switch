@@ -151,7 +151,7 @@ async function writeClaudeFixture(): Promise<void> {
     claudeProfileAccountFile("work"),
     JSON.stringify({ emailAddress: EMAIL_SENTINEL }),
   );
-  await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: "work" }));
+  await writeFile(CLAUDE_STATE_FILE(), JSON.stringify({ active: "work" }));
 }
 
 async function writeCodexFixture(): Promise<void> {
@@ -170,7 +170,7 @@ async function writeCodexFixture(): Promise<void> {
     tokens: makeCodexTokens("pro"),
   };
   await writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
-  await writeFile(CODEX_AUTH_FILE, JSON.stringify(active, null, 2));
+  await writeFile(CODEX_AUTH_FILE(), JSON.stringify(active, null, 2));
   const relayPath = codexAccountAuthFile(CODEX_RELAY_ACCOUNT_KEY);
   await mkdir(dirname(relayPath), { recursive: true });
   await writeFile(
@@ -521,8 +521,8 @@ describe("list --json", () => {
         },
       ],
     });
-    await mkdir(dirname(CODEX_REGISTRY_FILE), { recursive: true });
-    await writeFile(CODEX_REGISTRY_FILE, "{ malformed json");
+    await mkdir(dirname(CODEX_REGISTRY_FILE()), { recursive: true });
+    await writeFile(CODEX_REGISTRY_FILE(), "{ malformed json");
     await mkdir(dirname(openCodeProfileDataFile(CODEX_PROFILE_ID)), {
       recursive: true,
     });
