@@ -1,0 +1,207 @@
+$ bun test tests/model-shorthand.test.ts tests/cliproxy-usage.test.ts
+bun test v1.3.5 (1e86cebd)
+
+tests/model-shorthand.test.ts:
+(pass) resolveModelShorthand > expands a bare claude version into the opus series [1.01ms]
+(pass) resolveModelShorthand > accepts an explicit claude series prefix [0.04ms]
+(pass) resolveModelShorthand > expands a bare claude 5.x version into the opus series
+(pass) resolveModelShorthand > expands opus 5.5
+(pass) resolveModelShorthand > maps a bare fable alias to the latest fable
+(pass) resolveModelShorthand > keeps an explicit older fable version reachable [0.06ms]
+(pass) resolveModelShorthand > keeps versioned fable aliases pinned [0.01ms]
+58 |     expect(resolveModelShorthand("claude", "fable-5")).toBe("claude-fable-5");
+59 |     expect(resolveModelShorthand("claude", "opus-5")).toBe("claude-opus-5");
+60 |   });
+61 | 
+62 |   test("expands a bare codex version into the gpt series", () => {
+63 |     expect(resolveModelShorthand("codex", "5.5")).toBe("gpt-5.5-sol");
+                                                       ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-5.5-sol"
+Received: "gpt-5.5"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/model-shorthand.test.ts:63:51)
+(fail) resolveModelShorthand > expands a bare codex version into the gpt series [1.52ms]
+64 |     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+65 |     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+66 |   });
+67 | 
+68 |   test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6.1-sol"
+Received: "gpt-6.1"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/model-shorthand.test.ts:69:53)
+(fail) resolveModelShorthand > bare Codex 6.1 always selects sol [0.06ms]
+64 |     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+65 |     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+66 |   });
+67 | 
+68 |   test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6.2-sol"
+Received: "gpt-6.2"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/model-shorthand.test.ts:69:53)
+(fail) resolveModelShorthand > bare Codex 6.2 always selects sol [0.03ms]
+64 |     expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+65 |     expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+66 |   });
+67 | 
+68 |   test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6-sol"
+Received: "gpt-6-astra"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/model-shorthand.test.ts:69:53)
+(fail) resolveModelShorthand > bare Codex 6 always selects sol
+(pass) resolveModelShorthand > bare Codex 5.6 always selects sol
+69 |     expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
+70 |   });
+71 | 
+72 |   test("maps aliased codex versions to their full model id", () => {
+73 |     expect(resolveModelShorthand("codex", "5.6")).toBe("gpt-5.6-sol");
+74 |     expect(resolveModelShorthand("codex", "6")).toBe("gpt-6-sol");
+                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "gpt-6-sol"
+Received: "gpt-6-astra"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/model-shorthand.test.ts:74:49)
+(fail) resolveModelShorthand > maps aliased codex versions to their full model id [0.02ms]
+(pass) resolveModelShorthand > named codex aliases track the newest generation of each tier [0.07ms]
+(pass) resolveModelShorthand > latest astra and sol aliases preserve older full model ids [0.02ms]
+(pass) resolveModelShorthand > honors an explicitly typed gpt id verbatim
+(pass) resolveModelShorthand > accepts an explicit gpt prefix [0.04ms]
+(pass) resolveModelShorthand > passes through fully qualified model ids unchanged
+(pass) resolveModelShorthand > trims whitespace and preserves empty input [0.05ms]
+(pass) splitModelEffort > splits a trailing effort tier off the model [0.29ms]
+(pass) splitModelEffort > leaves non-effort suffixes untouched [0.05ms]
+(pass) isModelEffort > recognizes effort tiers case-insensitively [0.01ms]
+(pass) providerEffortLevels > claude and codex support different tiers [0.03ms]
+
+tests/cliproxy-usage.test.ts:
+59 |     }) as typeof fetch;
+60 |     spyOn(console, "log").mockImplementation(() => {});
+61 |     await list();
+62 |     const output = console.log.mock.calls.flat().join("\n");
+63 |     expect(calls).toBe(1);
+64 |     expect(output).toContain(`5h 100% · wk 65%${formatWeeklyReset(Date.parse("2026-12-02T10:15:45Z"))}`);
+                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "5h 100% · wk 65% Wed10"
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/cliproxy-usage.test.ts:64:20)
+(fail) proxy quota > reads Gemini windows through live, cached and JSON list without a group prefix [419.24ms]
+(pass) proxy quota > reads WorkBuddy plan and credit units through the installed plugin and preserves them in cache [148.92ms]
+(pass) proxy quota > no-usage and cached failures omit placeholders and never make quota requests [65.17ms]
+(pass) proxy quota > antigravity reads a local email in list and current without quota requests [43.11ms]
+(pass) proxy quota > workbuddy reads a local email in list and current without quota requests [32.83ms]
+(pass) proxy quota > workbuddy-ai reads a local email in list and current without quota requests [34.49ms]
+(pass) proxy quota > cursor reads a local email in list and current without quota requests [42.56ms]
+(pass) proxy quota > workbuddy never treats an email-shaped nickname as login email [54.28ms]
+(pass) proxy quota > workbuddy-ai never treats an email-shaped nickname as login email [38.60ms]
+172 |       console.log.mockClear();
+173 |       await list(options);
+174 |       const output = console.log.mock.calls.flat().join("\n");
+175 |       expect(output).toContain(defaultModel);
+176 |       expect(output).toContain("5h 100% · wk 65%");
+177 |       expect(output).not.toMatch(/Claude\/GPT|Gemini 5h/);
+                               ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /Claude\/GPT|Gemini 5h/
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config  claude-opus-5-5-high  Claude/GPT 5h 37% · wk 21% Thu11 · Gemini 5h 100% · wk 65% Wed10\n\n  5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/cliproxy-usage.test.ts:177:26)
+(fail) proxy quota > shows only Gemini quota for model claude-opus-5-5-high in live and cached output [71.85ms]
+172 |       console.log.mockClear();
+173 |       await list(options);
+174 |       const output = console.log.mock.calls.flat().join("\n");
+175 |       expect(output).toContain(defaultModel);
+176 |       expect(output).toContain("5h 100% · wk 65%");
+177 |       expect(output).not.toMatch(/Claude\/GPT|Gemini 5h/);
+                               ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /Claude\/GPT|Gemini 5h/
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config  gpt-6.1  Claude/GPT 5h 37% · wk 21% Thu11 · Gemini 5h 100% · wk 65% Wed10\n\n  5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/cliproxy-usage.test.ts:177:26)
+(fail) proxy quota > shows only Gemini quota for model gpt-6.1 in live and cached output [66.34ms]
+172 |       console.log.mockClear();
+173 |       await list(options);
+174 |       const output = console.log.mock.calls.flat().join("\n");
+175 |       expect(output).toContain(defaultModel);
+176 |       expect(output).toContain("5h 100% · wk 65%");
+177 |       expect(output).not.toMatch(/Claude\/GPT|Gemini 5h/);
+                               ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /Claude\/GPT|Gemini 5h/
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config  gemini-3.8-flash-high  Gemini 5h 100% · wk 65% Wed10 · Claude/GPT 5h 37% · wk 21% Thu11\n\n  5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/cliproxy-usage.test.ts:177:26)
+(fail) proxy quota > shows only Gemini quota for model gemini-3.8-flash-high in live and cached output [65.51ms]
+172 |       console.log.mockClear();
+173 |       await list(options);
+174 |       const output = console.log.mock.calls.flat().join("\n");
+175 |       expect(output).toContain(defaultModel);
+176 |       expect(output).toContain("5h 100% · wk 65%");
+177 |       expect(output).not.toMatch(/Claude\/GPT|Gemini 5h/);
+                               ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /Claude\/GPT|Gemini 5h/
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config  unknown-model  Gemini 5h 100% · wk 65% Wed10 · Claude/GPT 5h 37% · wk 21% Thu11\n\n  5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/cliproxy-usage.test.ts:177:26)
+(fail) proxy quota > shows only Gemini quota for model unknown-model in live and cached output [65.51ms]
+182 |     await seed("antigravity");
+183 |     globalThis.fetch = (async () => Response.json({ groups: [quota.groups[0]] })) as typeof fetch;
+184 |     spyOn(console, "log").mockImplementation(() => {});
+185 |     await list();
+186 |     const output = console.log.mock.calls.flat().join("\n");
+187 |     expect(output).not.toMatch(/Claude\/GPT|5h 37%|wk 21%/);
+                             ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /Claude\/GPT|5h 37%|wk 21%/
+Received: "\n  Accounts\n\n  ── Antigravity ──\n    proxy  test@example.com  invalid config  Claude/GPT 5h 37% · wk 21% Thu11\n\n  5h/wk/mo = remaining quota in the 5-hour / weekly / monthly window\n"
+
+      at <anonymous> (/Users/holden/code/claudex-switch/.worktrees/agy-gemini-quota-1126/tests/cliproxy-usage.test.ts:187:24)
+(fail) proxy quota > Claude/GPT-only quota omits unavailable Gemini windows without fallback [168.69ms]
+(pass) proxy quota > unavailable or expired upstream access returns no quota and does not write credentials [4.19ms]
+(pass) proxy quota > missing or malformed quota is never guessed as zero or unlimited [1.18ms]
+
+11 tests failed:
+(fail) resolveModelShorthand > expands a bare codex version into the gpt series [1.52ms]
+(fail) resolveModelShorthand > bare Codex 6.1 always selects sol [0.06ms]
+(fail) resolveModelShorthand > bare Codex 6.2 always selects sol [0.03ms]
+(fail) resolveModelShorthand > bare Codex 6 always selects sol
+(fail) resolveModelShorthand > maps aliased codex versions to their full model id [0.02ms]
+(fail) proxy quota > reads Gemini windows through live, cached and JSON list without a group prefix [419.24ms]
+(fail) proxy quota > shows only Gemini quota for model claude-opus-5-5-high in live and cached output [71.85ms]
+(fail) proxy quota > shows only Gemini quota for model gpt-6.1 in live and cached output [66.34ms]
+(fail) proxy quota > shows only Gemini quota for model gemini-3.8-flash-high in live and cached output [65.51ms]
+(fail) proxy quota > shows only Gemini quota for model unknown-model in live and cached output [65.51ms]
+(fail) proxy quota > Claude/GPT-only quota omits unavailable Gemini windows without fallback [168.69ms]
+
+ 28 pass
+ 11 fail
+ 127 expect() calls
+Ran 39 tests across 2 files. [1429.00ms]
+error: script "test" exited with code 1
