@@ -36,6 +36,7 @@
 
 ## Next
 
+- [ ] (11-26) **测试 RelayRouter GLM selection persists… 在 v1.30.0 起就红** — 完成信号：bun test 全绿
 - [ ] v1.30.0：分别运行 `claudex-switch agylam42 --run` 和 `claudex-switch agy --run`，在各自 OAuth 页面完成一次登录，重开核对邮箱及 `/usage`。
 - [ ] (11-25) **修 main 上已红的 RelayRouter GLM 选择持久化测试** — 完成信号：bun test 全绿
   测试 `run alias session > RelayRouter GLM selection persists with its window and cheap side-query model` 在 v1.29.3 前的 main 上就失败；ROOT 11-25 合入 993960a 后全量 bun test 发现，旧 main 复现，非 CX-AGYRUNACCT 引入。
