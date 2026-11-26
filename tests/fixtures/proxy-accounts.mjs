@@ -157,7 +157,8 @@ try {
     console.log("BEFORE LIST\n" + before.output);
   }
   const rendered = await run(["list", "--cached"]);
-  assert(rendered.includes("Claude/GPT 5h 100% · wk 7% · Gemini 5h 92% · wk 40%"), rendered);
+  assert(rendered.includes("5h 92% · wk 40%"), rendered);
+  assert(!rendered.includes("Claude/GPT") && !rendered.includes("Gemini 5h"), rendered);
   assert.equal((rendered.match(/fixture@example.com/g) ?? []).length, 2, rendered);
   for (const title of ["Claude", "Antigravity", "WorkBuddy (China)", "WorkBuddy AI (international)", "Cursor"])
     assert(rendered.includes(`── ${title} ──`), rendered);

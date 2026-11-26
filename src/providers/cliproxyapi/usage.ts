@@ -18,14 +18,16 @@ export async function fetchCLIProxyAPIUsage(profile: LocalCLIProxyAPIProfileData
       return { usage: null, note: "usage n/a" };
     }
     // CLIProxyAPI owns token refresh; list never becomes another auth-file writer.
+    // Older client identities receive only the Claude/GPT summary buckets.
     const response = await fetch("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary", {
       method: "POST",
-      headers: { Authorization: `Bearer ${auth.access_token}`, "Content-Type": "application/json", "User-Agent": "antigravity/1.19.6 darwin/arm64" },
+      headers: { Authorization: `Bearer ${auth.access_token}`, "Content-Type": "application/json", "User-Agent": "antigravity/hub/2.25.0 darwin/arm64" },
       body: JSON.stringify({ project: auth.project_id }),
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return { usage: null, note: "usage n/a" };
-    const usage = parseAntigravityQuota(await response.json());
+    const parsed = parseAntigravityQuota(await response.json());
+    const usage = parsed?.groups?.some((group) => group.name === "Gemini") ? parsed : null;
     return { usage, note: usage ? null : "usage n/a" };
   } catch {
     return { usage: null, note: "usage n/a" };

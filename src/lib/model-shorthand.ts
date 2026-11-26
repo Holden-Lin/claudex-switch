@@ -29,12 +29,6 @@ const MODEL_EFFORT_LEVELS = new Set([
   ...CODEX_EFFORT_LEVELS,
 ]);
 
-// Codex model ids that differ from the bare gpt-<version> pattern.
-const CODEX_MODEL_ALIASES: Record<string, string> = {
-  "gpt-5.6": "gpt-5.6-sol",
-  "gpt-6": "gpt-6-astra",
-};
-
 // Named aliases track the newest generation of each tier; older ids remain reachable verbatim.
 const CODEX_NAMED_ALIASES: Record<string, string> = {
   astra: "gpt-6.2-astra",
@@ -101,10 +95,9 @@ export function resolveModelShorthand(
   const match = trimmed.match(CODEX_SHORTHAND);
   if (match) {
     const model = `gpt-${match[1]}`;
-    // An explicitly typed gpt-* id is honored verbatim — the alias table only
-    // expands bare version shorthands, so "gpt-5.6" remains requestable.
+    // Explicit GPT ids stay requestable; bare versions always select Sol.
     if (/^gpt/i.test(trimmed)) return model;
-    return CODEX_MODEL_ALIASES[model] ?? model;
+    return `${model}-sol`;
   }
   return trimmed;
 }

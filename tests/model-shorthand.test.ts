@@ -60,14 +60,18 @@ describe("resolveModelShorthand", () => {
   });
 
   test("expands a bare codex version into the gpt series", () => {
-    expect(resolveModelShorthand("codex", "5.5")).toBe("gpt-5.5");
-    expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4");
-    expect(resolveModelShorthand("codex", "5")).toBe("gpt-5");
+    expect(resolveModelShorthand("codex", "5.5")).toBe("gpt-5.5-sol");
+    expect(resolveModelShorthand("codex", "5.4")).toBe("gpt-5.4-sol");
+    expect(resolveModelShorthand("codex", "5")).toBe("gpt-5-sol");
+  });
+
+  test.each(["6.1", "6.2", "6", "5.6"])("bare Codex %s always selects sol", (version) => {
+    expect(resolveModelShorthand("codex", version)).toBe(`gpt-${version}-sol`);
   });
 
   test("maps aliased codex versions to their full model id", () => {
     expect(resolveModelShorthand("codex", "5.6")).toBe("gpt-5.6-sol");
-    expect(resolveModelShorthand("codex", "6")).toBe("gpt-6-astra");
+    expect(resolveModelShorthand("codex", "6")).toBe("gpt-6-sol");
     expect(resolveModelShorthand("codex", "gpt-5.6-sol")).toBe("gpt-5.6-sol");
     expect(resolveModelShorthand("codex", "gpt-5.6-luna")).toBe("gpt-5.6-luna");
   });
