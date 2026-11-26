@@ -49,9 +49,9 @@ async function writeClaudeProfile(
 }
 
 async function setActiveClaudeProfile(name: string | null): Promise<void> {
-  assertIsolatedHome(CLAUDE_STATE_FILE);
+  assertIsolatedHome(CLAUDE_STATE_FILE());
   await mkdir(join(TEST_HOME, ".claude-profiles"), { recursive: true });
-  await writeJson(CLAUDE_STATE_FILE, { active: name });
+  await writeJson(CLAUDE_STATE_FILE(), { active: name });
 }
 
 async function seedCodexAccount(alias: string): Promise<void> {
@@ -126,7 +126,7 @@ async function readSettings(): Promise<{
   env?: Record<string, string>;
   model?: string;
 }> {
-  return JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+  return JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"));
 }
 
 describe("webconfig snapshot", () => {
@@ -250,7 +250,7 @@ describe("webconfig snapshot", () => {
     });
 
     // Purging an active account clears the global active pointer.
-    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8"))).toEqual({
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE(), "utf-8"))).toEqual({
       active: null,
     });
 
@@ -615,7 +615,7 @@ describe("webconfig snapshot", () => {
       CLAUDE_CODE_EFFORT_LEVEL: "max",
       MY_OWN_FLAG: "1",
     });
-    expect(JSON.parse(await readFile(MANAGED_ENV_FILE, "utf-8")).keys).toEqual([
+    expect(JSON.parse(await readFile(MANAGED_ENV_FILE(), "utf-8")).keys).toEqual([
       "CLAUDE_CODE_EFFORT_LEVEL",
       "MY_OWN_FLAG",
     ]);
@@ -635,7 +635,7 @@ describe("webconfig snapshot", () => {
     await writeClaudeProfile("hand", { type: "api-key", apiKey: "sk-hand" });
     await setActiveClaudeProfile("hand");
     await mkdir(join(TEST_HOME, ".claude"), { recursive: true });
-    await writeJson(SETTINGS_FILE, {
+    await writeJson(SETTINGS_FILE(), {
       env: { MY_MANUAL_SETTING: "keep-me" },
     });
     await seedAliases([
@@ -791,7 +791,7 @@ describe("webconfig account creation", () => {
       CLAUDE_CODE_SUBAGENT_MODEL: "deepseek-v4-flash",
       CLAUDE_CODE_EFFORT_LEVEL: "max",
     });
-    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8"))).toEqual({
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE(), "utf-8"))).toEqual({
       active: "deepseek",
     });
   });

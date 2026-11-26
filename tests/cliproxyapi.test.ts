@@ -180,7 +180,7 @@ describe("managed local CLIProxyAPI", () => {
     expect(overridden.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("1");
 
     await applyLocalCLIProxyAPIConfig(await getLocalCLIProxyAPISettings(profile, runtime));
-    const globalSettings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    const globalSettings = JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"));
     expect(globalSettings.env.ANTHROPIC_API_KEY).toBe("");
     expect(globalSettings.env.ANTHROPIC_AUTH_TOKEN).toBe(runtime.apiKey);
     expect(globalSettings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
@@ -327,21 +327,21 @@ describe("managed local CLIProxyAPI", () => {
     const profile = makeProfile();
     const name = `cliproxy-${profile.profileId}`;
     await saveLocalProfile(name, profile);
-    await mkdir(join(CLAUDE_DIR, "skills", "fixture-skill"), {
+    await mkdir(join(CLAUDE_DIR(), "skills", "fixture-skill"), {
       recursive: true,
     });
-    await writeFile(join(CLAUDE_DIR, "skills", "fixture-skill", "SKILL.md"), "fixture");
+    await writeFile(join(CLAUDE_DIR(), "skills", "fixture-skill", "SKILL.md"), "fixture");
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: { emailAddress: "global@example.com" }, keep: true }),
     );
 
     const context = await prepareIsolatedLocalCLIProxyAPIRun(name);
-    const sharedBefore = await readFile(SETTINGS_FILE, "utf-8").catch(() => null);
+    const sharedBefore = await readFile(SETTINGS_FILE(), "utf-8").catch(() => null);
     const privateSettings = join(context.configDir, "settings.json");
     expect((await lstat(privateSettings)).isSymbolicLink()).toBe(false);
     await writeFile(privateSettings, JSON.stringify({ model: "private-proxy-model" }));
-    expect(await readFile(SETTINGS_FILE, "utf-8").catch(() => null)).toBe(sharedBefore);
+    expect(await readFile(SETTINGS_FILE(), "utf-8").catch(() => null)).toBe(sharedBefore);
     const updated = {
       model: "claude-opus-5-5",
       hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf updated-proxy-hook" }] }] },
@@ -349,10 +349,10 @@ describe("managed local CLIProxyAPI", () => {
       autoMode: { rules: ["shared proxy rule"] },
       env: { SHARED_PROXY_ONLY: "latest" },
     };
-    await writeFile(SETTINGS_FILE, JSON.stringify(updated));
+    await writeFile(SETTINGS_FILE(), JSON.stringify(updated));
     await prepareIsolatedLocalCLIProxyAPIRun(name);
     expect(JSON.parse(await readFile(privateSettings, "utf-8"))).toEqual(updated);
-    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf-8"))).toEqual(updated);
+    expect(JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"))).toEqual(updated);
     expect(context.secureStorageDir).toBe(claudeProfileSecureStorageDir(name));
     expect(fileMode((await stat(context.secureStorageDir)).mode)).toBe(0o700);
     expect(await lstat(join(context.configDir, "skills"))).toBeDefined();

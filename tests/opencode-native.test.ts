@@ -12,7 +12,7 @@ import {
 } from "../src/providers/opencode/native";
 import { resetTestHome } from "./helpers";
 
-const DB_FILE = join(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+const DB_FILE = join(OPENCODE_GLOBAL_DATA_DIR(), "opencode.db");
 const originalOpenCodeDb = process.env.OPENCODE_DB;
 
 type CredentialRow = {

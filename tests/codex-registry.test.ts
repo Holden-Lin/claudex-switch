@@ -90,9 +90,9 @@ describe("codex registry", () => {
   });
 
   test("migrates missing codex default models on load", async () => {
-    await mkdir(dirname(CODEX_REGISTRY_FILE), { recursive: true });
+    await mkdir(dirname(CODEX_REGISTRY_FILE()), { recursive: true });
     await writeFile(
-      CODEX_REGISTRY_FILE,
+      CODEX_REGISTRY_FILE(),
       JSON.stringify({
         schema_version: 3,
         active_account_key: null,
@@ -149,7 +149,7 @@ describe("codex registry", () => {
     expect(registry.accounts[0]?.default_model).toBe("gpt-5.4");
     expect(registry.accounts[1]?.default_model).toBe("gpt-4.1");
 
-    const persisted = JSON.parse(await readFile(CODEX_REGISTRY_FILE, "utf-8"));
+    const persisted = JSON.parse(await readFile(CODEX_REGISTRY_FILE(), "utf-8"));
     expect(persisted.accounts[0]?.default_model).toBe("gpt-5.4");
     expect(persisted.accounts[1]?.default_model).toBe("gpt-4.1");
   });

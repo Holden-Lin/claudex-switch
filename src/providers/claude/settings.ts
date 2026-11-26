@@ -95,16 +95,16 @@ export const CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS = [
 export type ClaudeEnvKey = (typeof CLAUDE_ENV_KEYS)[number];
 
 async function read(): Promise<Settings> {
-  return readJson<Settings>(SETTINGS_FILE, {});
+  return readJson<Settings>(SETTINGS_FILE(), {});
 }
 
 async function write(settings: Settings): Promise<void> {
-  await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-  await writeJsonSecure(SETTINGS_FILE, settings);
+  await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+  await writeJsonSecure(SETTINGS_FILE(), settings);
   try {
     // writeFile's mode only applies at creation. Local proxy activation writes
     // a generated client key here, so also repair legacy permissive files.
-    await chmod(SETTINGS_FILE, 0o600);
+    await chmod(SETTINGS_FILE(), 0o600);
   } catch {
     // Windows ACLs remain authoritative where POSIX chmod is unavailable.
   }
@@ -168,7 +168,7 @@ interface ManagedEnvRecord {
 // cleared on the next switch, so env entries the user added to settings.json
 // by hand survive untouched.
 async function readManagedExtraEnvKeys(): Promise<string[]> {
-  const record = await readJson<ManagedEnvRecord>(MANAGED_ENV_FILE, {
+  const record = await readJson<ManagedEnvRecord>(MANAGED_ENV_FILE(), {
     keys: [],
   });
   if (!Array.isArray(record.keys)) return [];
@@ -176,8 +176,8 @@ async function readManagedExtraEnvKeys(): Promise<string[]> {
 }
 
 async function writeManagedExtraEnvKeys(keys: string[]): Promise<void> {
-  await mkdir(dirname(MANAGED_ENV_FILE), { recursive: true });
-  await writeJson(MANAGED_ENV_FILE, { keys } satisfies ManagedEnvRecord);
+  await mkdir(dirname(MANAGED_ENV_FILE()), { recursive: true });
+  await writeJson(MANAGED_ENV_FILE(), { keys } satisfies ManagedEnvRecord);
 }
 
 export function isReservedClaudeEnvKey(key: string): boolean {
@@ -410,7 +410,7 @@ export async function getClaudeRunEnvOverrides(): Promise<SettingsEnv> {
   ]);
   // Another saved account can become global after this session starts. Its
   // extra keys must already be masked, even if it has never been activated.
-  const profiles = await readdir(CLAUDE_PROFILES_DIR).catch(() => [] as string[]);
+  const profiles = await readdir(CLAUDE_PROFILES_DIR()).catch(() => [] as string[]);
   for (const name of profiles) {
     const profile = await readJson<ProfileData>(claudeProfileDataFile(name), { type: "oauth" });
     const extra = profile.type === "api-key" ? apiProfileExtraEnv(profile) : normalizeCustomEnv(profile.env);

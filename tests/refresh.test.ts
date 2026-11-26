@@ -199,8 +199,8 @@ describe("refresh", () => {
       last_refresh: "2026-04-01T00:00:00.000Z",
     };
     await saveAccountAuth(accountKey, staleAuth);
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(staleAuth, null, 2));
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(staleAuth, null, 2));
 
     const refreshedAuth: CodexAuthFile = {
       auth_mode: "chatgpt",
@@ -242,7 +242,7 @@ describe("refresh", () => {
 
     expect(await readActiveAuth()).toEqual(refreshedAuth);
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
-    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toContain(
+    expect(await readFile(CODEX_CONFIG_FILE(), "utf-8")).toContain(
       'model = "gpt-5.4"',
     );
 
@@ -304,9 +304,9 @@ describe("refresh", () => {
       last_refresh: "2026-04-01T00:00:00.000Z",
     };
     await saveAccountAuth(accountKey, staleAuth);
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
     const original = JSON.stringify(staleAuth, null, 2);
-    await writeFile(CODEX_AUTH_FILE, original);
+    await writeFile(CODEX_AUTH_FILE(), original);
     const wrongAuth: CodexAuthFile = {
       auth_mode: "chatgpt",
       OPENAI_API_KEY: null,
@@ -338,7 +338,7 @@ describe("refresh", () => {
 
     await expect(refresh("satoshix")).rejects.toThrow("exit");
 
-    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(original);
+    expect(await readFile(CODEX_AUTH_FILE(), "utf-8")).toBe(original);
     expect(await readAccountAuth(accountKey)).toEqual(staleAuth);
     expect((await loadRegistry()).active_account_key).toBe(accountKey);
   });
@@ -356,7 +356,7 @@ describe("refresh", () => {
     };
     await saveAliases(aliases);
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
 
     const originalCreds: CredentialsFile = {
       claudeAiOauth: {
@@ -383,11 +383,11 @@ describe("refresh", () => {
     };
 
     await writeFile(
-      CREDENTIALS_FILE,
+      CREDENTIALS_FILE(),
       JSON.stringify(originalCreds, null, 2),
     );
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: account }, null, 2),
     );
     await addOAuthProfile("holden");
@@ -396,11 +396,11 @@ describe("refresh", () => {
       expect(command).toBe("claude");
       expect(args).toEqual(["auth", "login"]);
       await writeFile(
-        CREDENTIALS_FILE,
+        CREDENTIALS_FILE(),
         JSON.stringify(refreshedCreds, null, 2),
       );
       await writeFile(
-        CLAUDE_JSON,
+        CLAUDE_JSON(),
         JSON.stringify({ oauthAccount: account }, null, 2),
       );
     };
@@ -415,7 +415,7 @@ describe("refresh", () => {
         null,
       ),
     ).toEqual(refreshedCreds);
-    expect(await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null)).toEqual(
+    expect(await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null)).toEqual(
       refreshedCreds,
     );
     expect((await readState()).active).toBe("holden");
@@ -442,11 +442,11 @@ describe("refresh", () => {
         },
       ],
     });
-    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE), { recursive: true });
+    await mkdir(dirname(OPENCODE_GLOBAL_AUTH_FILE()), { recursive: true });
     const originalGlobalAuth = JSON.stringify({
       "opencode-go": { type: "api", key: "fake-native-key" },
     });
-    await writeFile(OPENCODE_GLOBAL_AUTH_FILE, originalGlobalAuth);
+    await writeFile(OPENCODE_GLOBAL_AUTH_FILE(), originalGlobalAuth);
     spawnSyncHandler = (command, args) => {
       expect(command).toBe("opencode");
       expect(args).toEqual(["--version"]);
@@ -463,7 +463,7 @@ describe("refresh", () => {
     expect(JSON.parse(await readFile(openCodeProfileAuthFile(profileId), "utf-8"))).toEqual({
       "opencode-go": { type: "api", key: "fake-v2-new-key" },
     });
-    expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE, "utf-8")).toBe(originalGlobalAuth);
+    expect(await readFile(OPENCODE_GLOBAL_AUTH_FILE(), "utf-8")).toBe(originalGlobalAuth);
     const output = logSpy.mock.calls.flat().join("\n");
     expect(output).toContain("OpenCode Go key replaced");
     expect(output).not.toContain("fake-v2-new-key");

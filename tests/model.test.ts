@@ -50,10 +50,10 @@ describe("model command", () => {
       organizationUuid: "org-oauth",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: account }, null, 2),
     );
     await addOAuthProfile("oauth-model");
@@ -74,7 +74,7 @@ describe("model command", () => {
       type: "oauth",
       defaultModel: "claude-sonnet-4-20250514",
     });
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
       model: "claude-sonnet-4-20250514",
     });
@@ -100,7 +100,7 @@ describe("model command", () => {
       apiKey: "sk-ant-live",
       model: "claude-opus-4-20250514",
     });
-    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE, {})).toEqual({
+    expect(await readJson<Record<string, unknown>>(SETTINGS_FILE(), {})).toEqual({
       env: {
         ANTHROPIC_API_KEY: "sk-ant-live",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5",
@@ -193,7 +193,7 @@ describe("model command", () => {
     const savedRegistry = await loadRegistry();
     expect(savedRegistry.accounts[0]?.default_model).toBe("gpt-6.2-sol");
 
-    const config = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const config = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     expect(config).toContain('model_provider = "admin"');
     expect(config).toContain('model = "gpt-6.2-sol"');
     expect(config).toContain('experimental_bearer_token = "sk-test"');

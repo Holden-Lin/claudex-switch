@@ -1,5 +1,6 @@
 import { mkdir } from "fs/promises";
-import { CLAUDEX_DIR, ALIAS_REGISTRY_FILE } from "../lib/paths";
+import { CLAUDEX_DIR, ALIAS_REGISTRY_FILE, ALIAS_BACKUP_DIR } from "../lib/paths";
+import { backupBeforeWrite } from "../lib/backup";
 import { readJson, writeJsonSecure } from "../lib/fs";
 import type { AliasRegistry, AliasEntry, AliasTarget } from "../types";
 
@@ -33,12 +34,12 @@ const RESERVED = new Set([
 ]);
 
 async function ensureDir(): Promise<void> {
-  await mkdir(CLAUDEX_DIR, { recursive: true });
+  await mkdir(CLAUDEX_DIR(), { recursive: true });
 }
 
 export async function loadAliases(): Promise<AliasRegistry> {
   const reg = await readJson<AliasRegistry>(
-    ALIAS_REGISTRY_FILE,
+    ALIAS_REGISTRY_FILE(),
     emptyRegistry(),
   );
   if (!Array.isArray(reg.aliases)) {
@@ -47,9 +48,14 @@ export async function loadAliases(): Promise<AliasRegistry> {
   return reg;
 }
 
+function aliasIdentity(reg: AliasRegistry): string {
+  return JSON.stringify((reg.aliases ?? []).map((entry) => [entry.alias, entry.target]));
+}
+
 export async function saveAliases(reg: AliasRegistry): Promise<void> {
   await ensureDir();
-  await writeJsonSecure(ALIAS_REGISTRY_FILE, reg);
+  await backupBeforeWrite(ALIAS_REGISTRY_FILE(), reg, ALIAS_BACKUP_DIR(), aliasIdentity);
+  await writeJsonSecure(ALIAS_REGISTRY_FILE(), reg);
 }
 
 export function findAlias(

@@ -55,10 +55,10 @@ describe("proxy accounts switch global Claude without redirecting isolated runs"
       env: { CLAUDE_CODE_EFFORT_LEVEL: "max" },
     };
     for (const [path, value] of [
-      [SETTINGS_FILE, { model: "claude-opus-5-5", env: { KEEP: "yes" } }],
-      [CREDENTIALS_FILE, { claudeAiOauth: { accessToken: "fixture-live" } }],
-      [CLAUDE_JSON, { oauthAccount: { accountUuid: "fixture-account" } }],
-      [CLAUDE_STATE_FILE, { active: "native" }],
+      [SETTINGS_FILE(), { model: "claude-opus-5-5", env: { KEEP: "yes" } }],
+      [CREDENTIALS_FILE(), { claudeAiOauth: { accessToken: "fixture-live" } }],
+      [CLAUDE_JSON(), { oauthAccount: { accountUuid: "fixture-account" } }],
+      [CLAUDE_STATE_FILE(), { active: "native" }],
       [claudeProfileDataFile("native"), { type: "oauth", defaultModel: "claude-opus-5-5" }],
       [claudeProfileCredentials("native"), { claudeAiOauth: { accessToken: "fixture-snapshot" } }],
       [claudeProfileDataFile("proxy-id"), proxy],
@@ -79,35 +79,35 @@ describe("proxy accounts switch global Claude without redirecting isolated runs"
   });
 
   test("starts/reuses the proxy, updates state, then restores OAuth and clears only managed env", async () => {
-    const credentials = await readFile(CREDENTIALS_FILE, "utf-8");
+    const credentials = await readFile(CREDENTIALS_FILE(), "utf-8");
     await switchProfile("proxy-id");
     const runtime = await ensureManagedCLIProxyAPI(proxy);
-    const settings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    const settings = JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"));
     expect(settings.env.ANTHROPIC_BASE_URL).toBe(runtime.baseUrl);
     expect(settings.env.ANTHROPIC_AUTH_TOKEN).toBe(runtime.apiKey);
     expect(settings.env.ANTHROPIC_API_KEY).toBe("");
     expect(settings.env.CLAUDE_CODE_AUTO_MODE_SERVER).toBe("0");
     expect(settings.env.CLAUDE_CODE_EFFORT_LEVEL).toBe("max");
-    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8")).active).toBe("proxy-id");
-    expect(JSON.parse(await readFile(CLAUDE_JSON, "utf-8")).oauthAccount).toBeUndefined();
-    await expect(readFile(CREDENTIALS_FILE)).rejects.toThrow();
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE(), "utf-8")).active).toBe("proxy-id");
+    expect(JSON.parse(await readFile(CLAUDE_JSON(), "utf-8")).oauthAccount).toBeUndefined();
+    await expect(readFile(CREDENTIALS_FILE())).rejects.toThrow();
     await switchProfile("proxy-id");
     expect((await ensureManagedCLIProxyAPI(proxy)).baseUrl).toBe(runtime.baseUrl);
 
     await switchProfile("native");
-    expect(await readFile(CREDENTIALS_FILE, "utf-8")).toBe(credentials);
-    expect(JSON.parse(await readFile(CLAUDE_JSON, "utf-8")).oauthAccount).toEqual({ accountUuid: "fixture-account" });
-    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf-8"))).toEqual({
+    expect(await readFile(CREDENTIALS_FILE(), "utf-8")).toBe(credentials);
+    expect(JSON.parse(await readFile(CLAUDE_JSON(), "utf-8")).oauthAccount).toEqual({ accountUuid: "fixture-account" });
+    expect(JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"))).toEqual({
       model: "claude-opus-5-5", env: { KEEP: "yes", ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5-5" },
     });
-    expect(JSON.parse(await readFile(MANAGED_ENV_FILE, "utf-8")).keys).toEqual([]);
+    expect(JSON.parse(await readFile(MANAGED_ENV_FILE(), "utf-8")).keys).toEqual([]);
   });
 
   test.each([["workbuddy"], ["use", "workbuddy"]])("CLI switches %j", async (...args) => {
     const result = cli(args);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Switched to workbuddy");
-    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8")).active).toBe("proxy-id");
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE(), "utf-8")).active).toBe("proxy-id");
   });
 
   test.each([
@@ -137,18 +137,18 @@ describe("proxy accounts switch global Claude without redirecting isolated runs"
     expect((await updateClaudeProfileConfig("proxy-id", {
       fields: { defaultModel: "custom-model" }, env: { CUSTOM_PROXY: "yes" },
     })).reapplied).toBe(true);
-    let settings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    let settings = JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"));
     expect(settings.model).toBe("custom-model");
     expect(settings.env.CUSTOM_PROXY).toBe("yes");
     expect(settings.env.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
     await updateProfileDefaultModel("proxy-id", "gpt-6.1-terra");
-    settings = JSON.parse(await readFile(SETTINGS_FILE, "utf-8"));
+    settings = JSON.parse(await readFile(SETTINGS_FILE(), "utf-8"));
     expect(settings.model).toBe("gpt-6.1-terra");
   });
 
   test("a missing proxy configuration leaves global settings, state and credentials untouched", async () => {
     await rm(cliProxyAPIEnvFile(proxy.profileId));
-    const paths = [SETTINGS_FILE, CLAUDE_STATE_FILE, CREDENTIALS_FILE, CLAUDE_JSON];
+    const paths = [SETTINGS_FILE(), CLAUDE_STATE_FILE(), CREDENTIALS_FILE(), CLAUDE_JSON()];
     const before = await Promise.all(paths.map((path) => readFile(path, "utf-8")));
     await expect(switchProfile("proxy-id")).rejects.toThrow();
     expect(await Promise.all(paths.map((path) => readFile(path, "utf-8")))).toEqual(before);
@@ -169,7 +169,7 @@ describe("proxy accounts switch global Claude without redirecting isolated runs"
       await withUserSettings("proxy-id", await prepareLocalCLIProxyAPIClaudeSettings(proxy, runtime, { inheritModel: true })),
     ];
     await switchProfile("proxy-id");
-    const global = await read(SETTINGS_FILE);
+    const global = await read(SETTINGS_FILE());
     const written = Object.keys(global.env).filter((key) => key !== "KEEP");
     for (const overlay of overlays) {
       expect(Object.hasOwn(overlay, "model")).toBe(true);
@@ -187,13 +187,13 @@ describe("proxy accounts switch global Claude without redirecting isolated runs"
       expect(effective.model).toBe(overlay.model);
     }
     await switchProfile("native");
-    expect((await read(SETTINGS_FILE)).model).toBe("claude-opus-5-5");
+    expect((await read(SETTINGS_FILE())).model).toBe("claude-opus-5-5");
   });
 
   test("API key profiles still switch", async () => {
     await writeJson(claudeProfileDataFile("native"), { type: "api-key", apiKey: "fixture-key", model: "sonnet" });
     await switchProfile("native");
-    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE, "utf-8")).active).toBe("native");
-    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf-8")).env.ANTHROPIC_API_KEY).toBe("fixture-key");
+    expect(JSON.parse(await readFile(CLAUDE_STATE_FILE(), "utf-8")).active).toBe("native");
+    expect(JSON.parse(await readFile(SETTINGS_FILE(), "utf-8")).env.ANTHROPIC_API_KEY).toBe("fixture-key");
   });
 });

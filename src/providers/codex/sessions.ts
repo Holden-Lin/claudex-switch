@@ -550,7 +550,7 @@ function sqlQuote(value: string): string {
 
 async function findCodexFile(candidates: string[]): Promise<string | null> {
   for (const candidate of candidates) {
-    const fullPath = join(CODEX_DIR, candidate);
+    const fullPath = join(CODEX_DIR(), candidate);
     if (await fileExists(fullPath)) return fullPath;
   }
   return null;
@@ -734,7 +734,7 @@ export async function syncCodexSessions(
   // Collect the rollouts that actually need an edit before touching any.
   const candidates: Candidate[] = [];
   for (const dirName of SESSION_DIRS) {
-    for (const file of await listRolloutFiles(join(CODEX_DIR, dirName))) {
+    for (const file of await listRolloutFiles(join(CODEX_DIR(), dirName))) {
       if (file.compressed && !canDecompress) continue;
       try {
         const first = await readFirstLine(file);

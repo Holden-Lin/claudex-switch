@@ -1,0 +1,46 @@
+bun test v1.3.5 (1e86cebd)
+
+tests/home-isolation-old.test.ts:
+27 |         process.execPath,
+28 |         [join(repo, "tests/fixtures/import-then-set-home.ts"), probeHome],
+29 |         { cwd: repo, env, encoding: "utf-8" },
+30 |       );
+31 |       expect(result.status).toBe(0);
+32 |       expect(await listFiles(standInRealHome)).toEqual([]);
+                                                    ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   ".claudex-switch",
++   ".claudex-switch/aliases.json",
++   ".codex",
++   ".codex/accounts",
++   ".codex/accounts/dXNlci0xOjphY2N0LTE.auth.json",
++   ".codex/accounts/registry.json",
++ ]
+
+- Expected  - 1
++ Received  + 8
+
+      at <anonymous> (/private/tmp/claude-502/-Users-holden-code-cc-chats/7c589ebc-e64b-4ae3-80fd-c170702def3e/scratchpad/old-a2cef6f/tests/home-isolation-old.test.ts:32:48)
+(fail) home isolation (old commit) > incident probe (import stores, then set HOME) writes only the probe home [23.79ms]
+52 |       process.execPath,
+53 |       ["-e", 'const p = await import("./src/lib/paths.ts"); console.log(p.ALIAS_REGISTRY_FILE());'],
+54 |       { cwd: repo, env, encoding: "utf-8" },
+55 |     );
+56 |     expect(result.status).not.toBe(0);
+57 |     expect(result.stderr).toContain("Refusing to use");
+                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Refusing to use"
+Received: "1 | const p = await import(\"./src/lib/paths.ts\"); console.log(p.ALIAS_REGISTRY_FILE());\n                                                                ^\nTypeError: p.ALIAS_REGISTRY_FILE is not a function. (In 'p.ALIAS_REGISTRY_FILE()', 'p.ALIAS_REGISTRY_FILE' is \"~/.claudex-switch/aliases.json\")\n      at /private/tmp/claude-502/-Users-holden-code-cc-chats/7c589ebc-e64b-4ae3-80fd-c170702def3e/scratchpad/old-a2cef6f/[eval]:1:61\n\nBun v1.3.5 (macOS arm64)\n"
+
+      at <anonymous> (/private/tmp/claude-502/-Users-holden-code-cc-chats/7c589ebc-e64b-4ae3-80fd-c170702def3e/scratchpad/old-a2cef6f/tests/home-isolation-old.test.ts:57:27)
+(fail) home isolation (old commit) > NODE_ENV=test with the real HOME is refused before any path is used [21.81ms]
+
+ 0 pass
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [67.00ms]

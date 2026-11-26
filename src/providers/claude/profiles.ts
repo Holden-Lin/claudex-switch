@@ -109,12 +109,12 @@ async function ensurePrivateDir(path: string): Promise<void> {
 }
 
 export async function readState(): Promise<ProfileState> {
-  return readJson<ProfileState>(CLAUDE_STATE_FILE, { active: null });
+  return readJson<ProfileState>(CLAUDE_STATE_FILE(), { active: null });
 }
 
 async function writeState(state: ProfileState): Promise<void> {
-  await ensureDir(CLAUDE_PROFILES_DIR);
-  await writeJson(CLAUDE_STATE_FILE, state);
+  await ensureDir(CLAUDE_PROFILES_DIR());
+  await writeJson(CLAUDE_STATE_FILE(), state);
 }
 
 async function readProfileData(name: string): Promise<ProfileData> {
@@ -129,9 +129,9 @@ async function writeProfileData(
 }
 
 export async function listProfiles(): Promise<ProfileInfo[]> {
-  await ensureDir(CLAUDE_PROFILES_DIR);
+  await ensureDir(CLAUDE_PROFILES_DIR());
   const state = await readState();
-  const entries = await readdir(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir(CLAUDE_PROFILES_DIR(), { withFileTypes: true });
   const profiles: ProfileInfo[] = [];
 
   for (const entry of entries) {
@@ -271,7 +271,7 @@ export async function updateClaudeProfileConfig(
 
 export async function addOAuthProfile(
   name: string,
-  fromCredentials: string = CREDENTIALS_FILE,
+  fromCredentials: string = CREDENTIALS_FILE(),
   config: ClaudeOAuthProfileConfig = {},
 ): Promise<void> {
   const data = normalizeOAuthProfileData(config);
@@ -384,11 +384,11 @@ export async function switchProfile(name: string): Promise<ProfileData> {
 }
 
 async function snapshotCurrentOAuthProfile(name: string): Promise<void> {
-  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  const currentCreds = await readCredentials(CREDENTIALS_FILE());
   if (currentCreds) {
     await ensureDir(claudeProfileDir(name));
     await copyCredentials(
-      CREDENTIALS_FILE,
+      CREDENTIALS_FILE(),
       claudeProfileCredentials(name),
     );
   }
@@ -425,13 +425,13 @@ async function activateProfile(
   if (targetData.type === "local-cliproxyapi") {
     const runtime = await ensureManagedCLIProxyAPI(targetData);
     const config = await getLocalCLIProxyAPISettings(targetData, runtime);
-    await deleteCredentials(CREDENTIALS_FILE);
+    await deleteCredentials(CREDENTIALS_FILE());
     await writeOAuthAccount(null);
     await applyLocalCLIProxyAPIConfig(config, targetData.env);
     return;
   }
   if (targetData.type === "api-key") {
-    await deleteCredentials(CREDENTIALS_FILE);
+    await deleteCredentials(CREDENTIALS_FILE());
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
     return;
@@ -455,7 +455,7 @@ async function restoreOAuthCredentials(name: string): Promise<void> {
   // copy: keep them and refresh the snapshot instead of clobbering the live
   // token, which would otherwise force the running session to log in again.
   if (savedAccount) {
-    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveCreds = await readCredentials(CREDENTIALS_FILE());
     const liveAccount = await readOAuthAccount();
     if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
       await snapshotCurrentOAuthProfile(name);
@@ -469,7 +469,7 @@ async function restoreOAuthCredentials(name: string): Promise<void> {
       `No credentials found at ${claudeProfileCredentials(name)}`,
     );
   }
-  await writeCredentials(creds, CREDENTIALS_FILE);
+  await writeCredentials(creds, CREDENTIALS_FILE());
   await writeOAuthAccount(savedAccount);
 }
 
@@ -503,7 +503,7 @@ export async function readOAuthCredentialStores(
       null,
     );
     if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      global = await readCredentials(CREDENTIALS_FILE);
+      global = await readCredentials(CREDENTIALS_FILE());
     }
   }
 
@@ -621,7 +621,7 @@ async function preparePrivateClaudeUserSettings(configDir: string): Promise<void
   }
   // Refresh hooks and permission rules on every launch. Session writes stay
   // private until the next launch replaces them from the shared source.
-  const settings = await readJson<Record<string, unknown>>(join(CLAUDE_DIR, "settings.json"), {});
+  const settings = await readJson<Record<string, unknown>>(join(CLAUDE_DIR(), "settings.json"), {});
   await writeJson(destination, settings);
   await chmod(destination, 0o600).catch(() => {});
 }
@@ -629,7 +629,7 @@ async function preparePrivateClaudeUserSettings(configDir: string): Promise<void
 async function linkSharedClaudeConfigEntries(configDir: string): Promise<void> {
   let entries;
   try {
-    entries = await readdir(CLAUDE_DIR, { withFileTypes: true });
+    entries = await readdir(CLAUDE_DIR(), { withFileTypes: true });
   } catch {
     return;
   }
@@ -637,7 +637,7 @@ async function linkSharedClaudeConfigEntries(configDir: string): Promise<void> {
   for (const entry of entries) {
     if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name)) continue;
 
-    const source = join(CLAUDE_DIR, entry.name);
+    const source = join(CLAUDE_DIR(), entry.name);
     const destination = join(configDir, entry.name);
     const type = entry.isDirectory()
       ? process.platform === "win32"
@@ -687,7 +687,7 @@ async function writeIsolatedClaudeJson(name: string): Promise<void> {
     claudeProfileAccountFile(name),
     null,
   );
-  const data = await readJson<Record<string, unknown>>(CLAUDE_JSON, {});
+  const data = await readJson<Record<string, unknown>>(CLAUDE_JSON(), {});
 
   if (account) {
     data.oauthAccount = account;
@@ -701,7 +701,7 @@ async function writeIsolatedClaudeJson(name: string): Promise<void> {
 async function writeIsolatedLocalClaudeJson(name: string): Promise<void> {
   // Preserve non-auth UI/customization metadata that Claude keeps here, but
   // never carry the globally active OAuth account into this API-key session.
-  const data = await readJson<Record<string, unknown>>(CLAUDE_JSON, {});
+  const data = await readJson<Record<string, unknown>>(CLAUDE_JSON(), {});
   delete data.oauthAccount;
   await writeJson(claudeProfileConfigJson(name), data);
 }
@@ -728,7 +728,7 @@ async function isProfileApplied(
 
   if (targetData.type === "api-key") {
     if (!sameApiConfig(targetData, await getApiConfig())) return false;
-    if (await readCredentials(CREDENTIALS_FILE)) return false;
+    if (await readCredentials(CREDENTIALS_FILE())) return false;
     if (await readOAuthAccount()) return false;
     return true;
   }
@@ -740,7 +740,7 @@ async function isProfileApplied(
   ) {
     return false;
   }
-  if (!(await readCredentials(CREDENTIALS_FILE))) return false;
+  if (!(await readCredentials(CREDENTIALS_FILE()))) return false;
 
   const savedAccount = await readJson<OAuthAccount | null>(
     claudeProfileAccountFile(name),
@@ -787,13 +787,13 @@ export async function snapshotActiveOAuthProfile(
     throw new Error(`Profile "${name}" is not an OAuth profile`);
   }
 
-  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  const currentCreds = await readCredentials(CREDENTIALS_FILE());
   if (!currentCreds) {
     throw new Error("No active Claude credentials found");
   }
 
   await ensureDir(claudeProfileDir(name));
-  await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
+  await copyCredentials(CREDENTIALS_FILE(), claudeProfileCredentials(name));
 
   const currentAccount = await readOAuthAccount();
   if (currentAccount) {

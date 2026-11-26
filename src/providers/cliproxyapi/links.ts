@@ -21,7 +21,7 @@ export function linkKey(target: LinkableTarget): string {
 }
 
 async function readLinks(): Promise<LinkFile> {
-  const file = await readJson<LinkFile | null>(CLI_PROXY_API_LINKS_FILE, null);
+  const file = await readJson<LinkFile | null>(CLI_PROXY_API_LINKS_FILE(), null);
   if (file?.version !== 1 || !file.links || typeof file.links !== "object") {
     return { version: 1, links: {} };
   }
@@ -29,8 +29,8 @@ async function readLinks(): Promise<LinkFile> {
 }
 
 async function writeLinks(file: LinkFile): Promise<void> {
-  await mkdir(CLAUDEX_DIR, { recursive: true });
-  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE, file);
+  await mkdir(CLAUDEX_DIR(), { recursive: true });
+  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE(), file);
 }
 
 export async function getLinkedClaudeProfile(target: LinkableTarget): Promise<string | null> {

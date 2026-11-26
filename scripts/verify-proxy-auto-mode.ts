@@ -46,8 +46,8 @@ await managed.runManagedCLIProxyAPILogin(profile);
 await profiles.saveLocalCLIProxyAPIProfile(name, profile);
 await saveAliases({ version: 1, aliases: [{ alias: "agy", target: { provider: "claude", profileName: name }, createdAt: 1 }] });
 await mkdir(join(home, ".claude"));
-await writeFile(paths.SETTINGS_FILE, JSON.stringify({ model: "claude-opus-5-5", ...(variant === "disabled" ? { permissions: { disableAutoMode: "disable" } } : {}) }));
-await writeFile(paths.CLAUDE_JSON, JSON.stringify({ hasCompletedOnboarding: true,
+await writeFile(paths.SETTINGS_FILE(), JSON.stringify({ model: "claude-opus-5-5", ...(variant === "disabled" ? { permissions: { disableAutoMode: "disable" } } : {}) }));
+await writeFile(paths.CLAUDE_JSON(), JSON.stringify({ hasCompletedOnboarding: true,
   projects: { [home]: { hasTrustDialogAccepted: true } } }));
 let child: ReturnType<typeof Bun.spawn> | undefined;
 try {

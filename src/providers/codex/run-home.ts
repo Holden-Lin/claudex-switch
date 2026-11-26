@@ -63,7 +63,7 @@ export async function prepareCodexRunHome(
   const home = codexRunHome(account.account_key);
   await mkdir(home, { recursive: true, mode: 0o700 });
   await chmod(home, 0o700);
-  await mkdir(CODEX_DIR, { recursive: true });
+  await mkdir(CODEX_DIR(), { recursive: true });
 
   // A previous run may have refreshed tokens after the snapshot was taken.
   await syncCodexRunAuth(account);
@@ -85,8 +85,8 @@ export async function prepareCodexRunHome(
   const configPath = join(home, CONFIG_FILE);
   await removeEntry(configPath);
   if (privateConfig === null) {
-    if (await fileExists(join(CODEX_DIR, CONFIG_FILE))) {
-      await linkEntry(join(CODEX_DIR, CONFIG_FILE), configPath);
+    if (await fileExists(join(CODEX_DIR(), CONFIG_FILE))) {
+      await linkEntry(join(CODEX_DIR(), CONFIG_FILE), configPath);
     }
   } else {
     await writeFile(configPath, privateConfig, { mode: 0o600 });
@@ -131,7 +131,7 @@ async function linkSharedEntries(home: string): Promise<void> {
   // move them into ~/.codex so the next default-account session sees them.
   for (const entry of await readdir(home, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name) || entry.isSymbolicLink()) continue;
-    const shared = join(CODEX_DIR, entry.name);
+    const shared = join(CODEX_DIR(), entry.name);
     if (await exists(shared)) continue;
     try {
       await rename(join(home, entry.name), shared);
@@ -140,9 +140,9 @@ async function linkSharedEntries(home: string): Promise<void> {
     }
   }
 
-  for (const entry of await readdir(CODEX_DIR, { withFileTypes: true })) {
+  for (const entry of await readdir(CODEX_DIR(), { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name)) continue;
-    await linkEntry(join(CODEX_DIR, entry.name), join(home, entry.name));
+    await linkEntry(join(CODEX_DIR(), entry.name), join(home, entry.name));
   }
 }
 

@@ -51,7 +51,7 @@ export async function fetchClaudeUsage(
       await writeIsolatedCredentials(next, claudeProfileDir(profileName));
     }
     if (global) {
-      await writeCredentials(next, CREDENTIALS_FILE);
+      await writeCredentials(next, CREDENTIALS_FILE());
     }
   };
 

@@ -50,11 +50,11 @@ export async function importAccounts(): Promise<void> {
 async function importClaudeProfiles(
   reg: AliasRegistry,
 ): Promise<{ imported: number; skipped: number }> {
-  if (!(await fileExists(CLAUDE_PROFILES_DIR))) return { imported: 0, skipped: 0 };
+  if (!(await fileExists(CLAUDE_PROFILES_DIR()))) return { imported: 0, skipped: 0 };
 
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir(CLAUDE_PROFILES_DIR(), { withFileTypes: true });
   // Profiles behind `--cliproxy` belong to their Codex / OpenCode alias.
   const linked = await linkedClaudeProfileNames();
 

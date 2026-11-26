@@ -18,7 +18,7 @@ function record(value: unknown): value is JsonRecord {
 export async function openCodeConsoleEnvironment(profileId: string): Promise<NodeJS.ProcessEnv> {
   const root = openCodeProfileV2RuntimeDir(profileId);
   const data = openCodeProfileV2DataHome(profileId);
-  for (const path of [root, data, join(data, "opencode"), join(root, "state"), join(root, "cache"), OPENCODE_LOCKS_DIR]) {
+  for (const path of [root, data, join(data, "opencode"), join(root, "state"), join(root, "cache"), OPENCODE_LOCKS_DIR()]) {
     await mkdir(path, { recursive: true, mode: 0o700 });
     await chmod(path, 0o700);
   }

@@ -72,9 +72,9 @@ describe("isolated Codex login", () => {
   });
 
   test("runs standard browser login in a temporary CODEX_HOME", async () => {
-    await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
-    await writeFile(CODEX_CONFIG_FILE, 'model = "gpt-5.4"\n');
-    await writeFile(CODEX_AUTH_FILE, "existing-global-auth");
+    await mkdir(dirname(CODEX_CONFIG_FILE()), { recursive: true });
+    await writeFile(CODEX_CONFIG_FILE(), 'model = "gpt-5.4"\n');
+    await writeFile(CODEX_AUTH_FILE(), "existing-global-auth");
     let isolatedHome = "";
 
     spawnHandler = async (command, args, options) => {
@@ -85,7 +85,7 @@ describe("isolated Codex login", () => {
         'cli_auth_credentials_store="file"',
       ]);
       isolatedHome = options.env?.CODEX_HOME ?? "";
-      expect(isolatedHome).not.toBe(dirname(CODEX_AUTH_FILE));
+      expect(isolatedHome).not.toBe(dirname(CODEX_AUTH_FILE()));
       expect(options.env?.OPENAI_API_KEY).toBeUndefined();
       expect(await readFile(join(isolatedHome, "config.toml"), "utf-8")).toContain(
         'model = "gpt-5.4"',
@@ -100,19 +100,19 @@ describe("isolated Codex login", () => {
     const result = await runIsolatedCodexLogin();
 
     expect(result).toEqual({ exitCode: 0, auth: authData });
-    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(
+    expect(await readFile(CODEX_AUTH_FILE(), "utf-8")).toBe(
       "existing-global-auth",
     );
     await expect(Bun.file(isolatedHome).exists()).resolves.toBe(false);
   });
 
   test("leaves existing global auth untouched when login is cancelled", async () => {
-    await mkdir(dirname(CODEX_AUTH_FILE), { recursive: true });
-    await writeFile(CODEX_AUTH_FILE, "existing-global-auth");
+    await mkdir(dirname(CODEX_AUTH_FILE()), { recursive: true });
+    await writeFile(CODEX_AUTH_FILE(), "existing-global-auth");
     spawnHandler = async () => 1;
 
     expect(await runIsolatedCodexLogin()).toEqual({ exitCode: 1, auth: null });
-    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(
+    expect(await readFile(CODEX_AUTH_FILE(), "utf-8")).toBe(
       "existing-global-auth",
     );
   });

@@ -1,0 +1,141 @@
+bun test v1.3.5 (1e86cebd)
+
+tests/codex-sessions.test.ts:
+
+  ● Synced 1 session file(s) and 1 thread row(s) to provider "openai"
+  Managed sessions now resume with this account's provider.
+  ✓ Switched to cx  Codex  Plus  codex@example.com
+
+
+tests/auto-update.test.ts:
+  ● Updating claudex-switch from v1.31.0 to v9.8.7
+  Running self-update before continuing...
+
+tests/opencode-console.test.ts:
+
+  ● Sign in again as user_a@example.com and authorize org_a.
+  ✗ Login selected a different account or workspace
+  ✗ The selected model is unavailable
+
+  ● Running opencode --standalone --auto
+  ● Autoreview: off (default)
+  ● Running opencode --standalone --auto
+  ● Autoreview: off (default)
+  ✗ Failed to start opencode: test launch failure
+
+
+tests/purge.test.ts:
+
+
+  ✓ go-main account purged
+
+
+tests/run.test.ts:
+714 |     }
+715 | 
+716 |     await runAliasSession("relayrouter", ["--model", "gpt-6-astra"], createSpawn(calls));
+717 |     expect(calls[2]?.env?.ANTHROPIC_MODEL).toBe("gpt-6-astra");
+718 |     expect(calls[2]?.env?.ANTHROPIC_BASE_URL).toBe("https://api.relayrouter.ai");
+719 |     expect(calls[2]?.env?.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBeUndefined();
+                                                                ^
+error: expect(received).toBeUndefined()
+
+Received: ""
+
+      at <anonymous> (~/code/claudex-switch/.worktrees/alias-restore-1126/tests/run.test.ts:719:59)
+(fail) run alias session > RelayRouter GLM selection persists with its window and cheap side-query model [9.09ms]
+
+tests/cliproxy-link.test.ts:
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● Running claude --permission-mode auto --model claude-opus-5-5-high --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/bb2c53d0-d375-4490-9d79-9a1eda18666b/claude-settings.json
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ● First use: sign in to WorkBuddy AI (international) subscription.
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --model terra --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/751d94b4-5c21-430e-a28e-a721dbc32ce9/claude-settings.json
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/61029b4f-9b9c-4a1e-bd64-c1c1f3135a4d/claude-settings.json
+  ✓ Linked go to Claude Code
+  opus/default → kimi-k3 · sonnet → glm-5.3 · haiku → deepseek-v4-flash
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/c08b4fef-e491-444d-9d13-9df16e45e7ee/claude-settings.json
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/fb742f0c-8eb3-4d9b-b695-4caa787f980e/claude-settings.json
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/2f4f837a-f115-463e-8021-21aa98787a46/claude-settings.json
+  ✓ Linked go to Claude Code
+  opus/default → kimi-k3 · sonnet → glm-5.3 · haiku → deepseek-v4-flash
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/3b61e3f3-45a0-45ed-b6ca-d39f4a44a1c3/claude-settings.json
+
+  ⚠ Google has suspended Antigravity access for accounts used through third-party proxies (Feb 2026), and its terms still forbid it.
+  Consider logging in with a Google account you can afford to lose Antigravity access on.
+  ● Opening Antigravity login in your browser...
+
+  ✓ Saved as alias agy  Antigravity subscription
+  opus/default → claude-opus-5-5-high · sonnet → claude-sonnet-5-5-high · haiku → gemini-3.8-flash-high
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/3e22da92-b94b-4a9d-b320-752f5e3f4752/claude-settings.json
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/39f7ab3b-6dc7-45fb-9c59-8991a2b21e75/claude-settings.json
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ● Running claude --permission-mode auto --settings /var/folders/s1/8fknnhhn2r94xkhvbnd9dhkh0000gp/T/claudex-switch-test-home-P81ZLU/.claudex-switch/cliproxyapi/f041a999-14cc-482c-9815-efc4c1c949c8/claude-settings.json
+  ● First use: Claude Code needs its own ChatGPT login for cx (once).
+  Sharing the Codex login would make each side invalidate the other's refresh token.
+
+  ✓ Linked cx to Claude Code
+  ✓ Linked go to Claude Code
+  opus/default → kimi-k3 · sonnet → glm-5.3 · haiku → deepseek-v4-flash
+
+ 543 pass
+ 1 fail
+ 2769 expect() calls
+Ran 544 tests across 48 files. [43.87s]

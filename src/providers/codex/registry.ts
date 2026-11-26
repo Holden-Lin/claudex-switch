@@ -1,5 +1,10 @@
 import { mkdir } from "fs/promises";
-import { CODEX_ACCOUNTS_DIR, CODEX_REGISTRY_FILE } from "../../lib/paths";
+import {
+  CODEX_ACCOUNTS_DIR,
+  CODEX_REGISTRY_BACKUP_DIR,
+  CODEX_REGISTRY_FILE,
+} from "../../lib/paths";
+import { backupBeforeWrite } from "../../lib/backup";
 import { fileExists, readJson, writeJson } from "../../lib/fs";
 import { resolveCodexModel } from "./config";
 import type { CodexRegistry, CodexRegistryAccount } from "../../types";
@@ -18,17 +23,17 @@ const DEFAULT_REGISTRY: CodexRegistry = {
 };
 
 async function ensureAccountsDir(): Promise<void> {
-  await mkdir(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir(CODEX_ACCOUNTS_DIR(), { recursive: true });
 }
 
 export async function loadRegistry(
   options: { persistNormalization?: boolean } = {},
 ): Promise<CodexRegistry> {
-  if (!(await fileExists(CODEX_REGISTRY_FILE))) {
+  if (!(await fileExists(CODEX_REGISTRY_FILE()))) {
     return JSON.parse(JSON.stringify(DEFAULT_REGISTRY)) as CodexRegistry;
   }
   const reg = await readJson<CodexRegistry>(
-    CODEX_REGISTRY_FILE,
+    CODEX_REGISTRY_FILE(),
     DEFAULT_REGISTRY,
   );
   // Ensure accounts is always an array
@@ -52,9 +57,30 @@ export async function loadRegistry(
   return reg;
 }
 
+// Who is in the registry and how each account runs; usage snapshots and
+// timestamps change on every refresh and are left out.
+function registryIdentity(reg: CodexRegistry): string {
+  return JSON.stringify({
+    active: reg.active_account_key,
+    accounts: (reg.accounts ?? []).map((a) => [
+      a.account_key,
+      a.alias,
+      a.auth_mode,
+      a.default_model ?? null,
+      a.api_provider ?? null,
+    ]),
+  });
+}
+
 export async function saveRegistry(reg: CodexRegistry): Promise<void> {
   await ensureAccountsDir();
-  await writeJson(CODEX_REGISTRY_FILE, reg);
+  await backupBeforeWrite(
+    CODEX_REGISTRY_FILE(),
+    reg,
+    CODEX_REGISTRY_BACKUP_DIR(),
+    registryIdentity,
+  );
+  await writeJson(CODEX_REGISTRY_FILE(), reg);
 }
 
 export function findAccountByKey(

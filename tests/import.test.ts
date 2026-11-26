@@ -66,7 +66,7 @@ describe("importAccounts", () => {
       "taken",
       "alreadyImported",
     ]) {
-      await mkdir(join(CLAUDE_PROFILES_DIR, profile), { recursive: true });
+      await mkdir(join(CLAUDE_PROFILES_DIR(), profile), { recursive: true });
     }
 
     const registry = createRegistry();

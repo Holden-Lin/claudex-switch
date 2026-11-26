@@ -33,7 +33,7 @@ function isRecord(value: unknown): value is JsonRecord {
 export function nativeOpenCodeDatabaseFile(): string {
   const override = process.env.OPENCODE_DB?.trim();
   if (override) return override;
-  return join(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+  return join(OPENCODE_GLOBAL_DATA_DIR(), "opencode.db");
 }
 
 export async function queryRows(

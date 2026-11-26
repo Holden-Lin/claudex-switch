@@ -1,4 +1,5 @@
 import { readFile, writeFile, access } from "fs/promises";
+import { assertTestWriteTarget } from "./home-guard";
 
 export async function fileExists(path: string): Promise<boolean> {
   try {
@@ -19,10 +20,12 @@ export async function readJson<T>(path: string, fallback: T): Promise<T> {
 }
 
 export async function writeJson(path: string, data: unknown): Promise<void> {
+  assertTestWriteTarget(path);
   await writeFile(path, JSON.stringify(data, null, 2));
 }
 
 /** Write JSON with restricted file permissions (0o600) for sensitive data */
 export async function writeJsonSecure(path: string, data: unknown): Promise<void> {
+  assertTestWriteTarget(path);
   await writeFile(path, JSON.stringify(data, null, 2), { mode: 0o600 });
 }

@@ -4,6 +4,7 @@ import { CODEX_CONFIG_FILE } from "../../lib/paths";
 import { fileExists } from "../../lib/fs";
 import { parseToml, parseScalarArray } from "../../lib/toml";
 import type { CodexApiProviderConfig } from "../../types";
+import { assertTestWriteTarget } from "../../lib/home-guard";
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.4";
 
@@ -48,9 +49,9 @@ function cloneConfig(value: unknown): CodexTomlConfig {
 }
 
 async function readCodexConfig(): Promise<CodexTomlConfig> {
-  if (!(await fileExists(CODEX_CONFIG_FILE))) return {};
+  if (!(await fileExists(CODEX_CONFIG_FILE()))) return {};
   try {
-    const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
     return cloneConfig(parseToml(content));
   } catch {
     return {};
@@ -298,8 +299,8 @@ export async function renderCodexRunConfig(
 // Array-of-tables (`[[...]]`) and map options like `env`/`env_http_headers` are
 // unaffected — they never round-tripped through the buggy inline serializer.
 export async function repairCodexStringifiedArrays(): Promise<boolean> {
-  if (!(await fileExists(CODEX_CONFIG_FILE))) return false;
-  const content = await readFile(CODEX_CONFIG_FILE, "utf-8");
+  if (!(await fileExists(CODEX_CONFIG_FILE()))) return false;
+  const content = await readFile(CODEX_CONFIG_FILE(), "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
 
@@ -323,22 +324,23 @@ export async function repairCodexStringifiedArrays(): Promise<boolean> {
   }
 
   if (changed) {
-    await writeFile(CODEX_CONFIG_FILE, lines.join("\n"), { mode: 0o600 });
+    await writeFile(CODEX_CONFIG_FILE(), lines.join("\n"), { mode: 0o600 });
   }
   return changed;
 }
 
 async function writeCodexConfig(config: CodexTomlConfig): Promise<void> {
+  assertTestWriteTarget(CODEX_CONFIG_FILE());
   const content = renderCodexConfig(config);
   try {
-    if ((await readFile(CODEX_CONFIG_FILE, "utf-8")) === content) {
-      await chmod(CODEX_CONFIG_FILE, 0o600);
+    if ((await readFile(CODEX_CONFIG_FILE(), "utf-8")) === content) {
+      await chmod(CODEX_CONFIG_FILE(), 0o600);
       return;
     }
   } catch {
     // Missing or unreadable config should be rewritten below.
   }
-  await mkdir(dirname(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile(CODEX_CONFIG_FILE, content, { mode: 0o600 });
-  await chmod(CODEX_CONFIG_FILE, 0o600);
+  await mkdir(dirname(CODEX_CONFIG_FILE()), { recursive: true });
+  await writeFile(CODEX_CONFIG_FILE(), content, { mode: 0o600 });
+  await chmod(CODEX_CONFIG_FILE(), 0o600);
 }

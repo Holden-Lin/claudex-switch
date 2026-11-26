@@ -66,12 +66,12 @@ export function normalizeOpenCodeGoModel(input: string): string {
 }
 
 export async function readOpenCodeState(): Promise<OpenCodeProfileState> {
-  return readJson<OpenCodeProfileState>(OPENCODE_STATE_FILE, emptyState());
+  return readJson<OpenCodeProfileState>(OPENCODE_STATE_FILE(), emptyState());
 }
 
 async function writeOpenCodeState(state: OpenCodeProfileState): Promise<void> {
-  await mkdir(OPENCODE_PROFILES_DIR, { recursive: true, mode: 0o700 });
-  await writeJsonSecure(OPENCODE_STATE_FILE, state);
+  await mkdir(OPENCODE_PROFILES_DIR(), { recursive: true, mode: 0o700 });
+  await writeJsonSecure(OPENCODE_STATE_FILE(), state);
 }
 
 export async function setActiveOpenCodeProfile(profileId: string): Promise<void> {
@@ -218,7 +218,7 @@ export async function saveOpenCodeGoCredential(
 
 /** Return only the Go credential, never the user's other OpenCode providers. */
 export async function readGlobalOpenCodeGoCredential(): Promise<unknown | null> {
-  const auth = await readJson<OpenCodeAuthFile>(OPENCODE_GLOBAL_AUTH_FILE, {});
+  const auth = await readJson<OpenCodeAuthFile>(OPENCODE_GLOBAL_AUTH_FILE(), {});
   const credential = auth[OPENCODE_GO_PROVIDER_ID];
   return isOpenCodeAuthInfo(credential) ? credential : null;
 }
@@ -233,7 +233,7 @@ export async function removeOpenCodeProfile(profileId: string): Promise<void> {
   const profile = await readJson<OpenCodeGoProfileData | null>(openCodeProfileDataFile(profileId), null);
   let release: (() => Promise<void>) | undefined;
   if (profile?.console) {
-    await mkdir(OPENCODE_LOCKS_DIR, { recursive: true, mode: 0o700 });
+    await mkdir(OPENCODE_LOCKS_DIR(), { recursive: true, mode: 0o700 });
     release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account", 100);
   }
   try {

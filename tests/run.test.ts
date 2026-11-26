@@ -185,8 +185,8 @@ describe("run alias session", () => {
         subscriptionType: "pro",
       },
     };
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
     await addOAuthProfile("holden");
 
     const aliases: AliasRegistry = {
@@ -242,16 +242,16 @@ describe("run alias session", () => {
       organizationUuid: "org-b",
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(makeCreds("token-a"), CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(makeCreds("token-a"), CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: accountA }, null, 2),
     );
     await addOAuthProfile("a");
-    await writeCredentials(makeCreds("token-b"), CREDENTIALS_FILE);
+    await writeCredentials(makeCreds("token-b"), CREDENTIALS_FILE());
     await writeFile(
-      CLAUDE_JSON,
+      CLAUDE_JSON(),
       JSON.stringify({ oauthAccount: accountB }, null, 2),
     );
     await addOAuthProfile("b");
@@ -274,7 +274,7 @@ describe("run alias session", () => {
     // The run must not touch the globally active account...
     const state = await readState();
     expect(state.active).toBe("a");
-    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveCreds = await readCredentials(CREDENTIALS_FILE());
     expect(liveCreds?.claudeAiOauth?.accessToken).toBe("token-a");
 
     // ...and the session must use the per-profile credential store.
@@ -290,7 +290,7 @@ describe("run alias session", () => {
         {},
       ),
     ).toEqual({ oauthAccount: accountB });
-    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON, {}))
+    expect(await readJson<{ oauthAccount?: OAuthAccount }>(CLAUDE_JSON(), {}))
       .toEqual({ oauthAccount: accountA });
     expect(calls[0]?.args).toEqual(["--permission-mode", "auto", ...oauthSettingsArgs("b")]);
   });
@@ -305,8 +305,8 @@ describe("run alias session", () => {
         subscriptionType: "pro",
       },
     };
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
     await addOAuthProfile("oauth");
     await addApiKeyProfile("api", {
       apiKey: "sk-ant-active",
@@ -339,27 +339,27 @@ describe("run alias session", () => {
   });
 
   test.each(["oauth", "api-key"] as const)("%s settings writes stay private while shared skills and hooks load", async (type) => {
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials({ claudeAiOauth: { accessToken: "fixture", refreshToken: "fixture", expiresAt: 4_102_444_800_000, scopes: [] } }, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials({ claudeAiOauth: { accessToken: "fixture", refreshToken: "fixture", expiresAt: 4_102_444_800_000, scopes: [] } }, CREDENTIALS_FILE());
     if (type === "oauth") await addOAuthProfile("private");
     else await addApiKeyProfile("private", { apiKey: "fixture-key" });
     const settings = { model: "claude-opus-5-5", hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf fixture" }] }] } };
-    await writeFile(SETTINGS_FILE, JSON.stringify(settings));
+    await writeFile(SETTINGS_FILE(), JSON.stringify(settings));
     const config = claudeProfileConfigDir("private");
     await mkdir(config, { recursive: true });
-    await symlink(SETTINGS_FILE, join(config, "settings.json"));
-    await mkdir(join(dirname(SETTINGS_FILE), "skills"), { recursive: true });
-    await writeFile(join(dirname(SETTINGS_FILE), "CLAUDE.md"), "fixture user instructions");
+    await symlink(SETTINGS_FILE(), join(config, "settings.json"));
+    await mkdir(join(dirname(SETTINGS_FILE()), "skills"), { recursive: true });
+    await writeFile(join(dirname(SETTINGS_FILE()), "CLAUDE.md"), "fixture user instructions");
     await saveAliases({ version: 1, aliases: [{ alias: "private", target: { provider: "claude", profileName: "private" }, createdAt: 1 }] });
     const calls: SpawnCall[] = [];
     await runAliasSession("private", [], createSpawn(calls));
     expect(calls[0]?.env?.CLAUDE_CONFIG_DIR).toBe(config);
     expect((await lstat(join(config, "settings.json"))).isSymbolicLink()).toBe(false);
     expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8")).hooks).toEqual(settings.hooks);
-    expect(await readlink(join(config, "skills"))).toBe(join(dirname(SETTINGS_FILE), "skills"));
+    expect(await readlink(join(config, "skills"))).toBe(join(dirname(SETTINGS_FILE()), "skills"));
     expect(await readFile(join(config, "CLAUDE.md"), "utf8")).toBe("fixture user instructions");
     await writeFile(join(config, "settings.json"), JSON.stringify({ ...settings, model: "private-only", sessionOnly: true }));
-    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf8"))).toEqual(settings);
+    expect(JSON.parse(await readFile(SETTINGS_FILE(), "utf8"))).toEqual(settings);
     const updated = {
       ...settings,
       hooks: { SessionStart: [{ hooks: [{ type: "command", command: "printf updated-hook" }] }] },
@@ -368,10 +368,10 @@ describe("run alias session", () => {
       env: { SHARED_ONLY: "latest" },
       sharedOnly: "preserved",
     };
-    await writeFile(SETTINGS_FILE, JSON.stringify(updated));
+    await writeFile(SETTINGS_FILE(), JSON.stringify(updated));
     await runAliasSession("private", [], createSpawn(calls));
     expect(JSON.parse(await readFile(join(config, "settings.json"), "utf8"))).toEqual(updated);
-    expect(JSON.parse(await readFile(SETTINGS_FILE, "utf8"))).toEqual(updated);
+    expect(JSON.parse(await readFile(SETTINGS_FILE(), "utf8"))).toEqual(updated);
   });
 
   test("applies the OAuth profile default model to isolated runs", async () => {
@@ -384,9 +384,9 @@ describe("run alias session", () => {
         subscriptionType: "pro",
       },
     };
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(creds, CREDENTIALS_FILE);
-    await addOAuthProfile("holden", CREDENTIALS_FILE, {
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(creds, CREDENTIALS_FILE());
+    await addOAuthProfile("holden", CREDENTIALS_FILE(), {
       defaultModel: "claude-opus-4-6",
     });
 
@@ -427,8 +427,8 @@ describe("run alias session", () => {
           subscriptionType: "pro",
         },
       };
-      await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-      await writeCredentials(creds, CREDENTIALS_FILE);
+      await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+      await writeCredentials(creds, CREDENTIALS_FILE());
       await addOAuthProfile("holden");
 
       await saveAliases({
@@ -468,8 +468,8 @@ describe("run alias session", () => {
           subscriptionType: "pro",
         },
       };
-      await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-      await writeCredentials(creds, CREDENTIALS_FILE);
+      await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+      await writeCredentials(creds, CREDENTIALS_FILE());
       await addOAuthProfile("holden");
 
       await saveAliases({
@@ -625,7 +625,7 @@ describe("run alias session", () => {
     // The globally active account is untouched by the isolated run.
     expect(await readState()).toEqual({ active: "other" });
     const globalSettings = await readJson<{ env?: Record<string, string> }>(
-      SETTINGS_FILE,
+      SETTINGS_FILE(),
       {},
     );
     expect(globalSettings.env?.ANTHROPIC_API_KEY).toBe("sk-ant-other");
@@ -686,7 +686,7 @@ describe("run alias session", () => {
     await saveAliases({ version: 1, aliases: [{
       alias: "relayrouter", target: { provider: "claude", profileName: "relayrouter" }, createdAt: 1,
     }] });
-    await writeFile(SETTINGS_FILE, JSON.stringify({ env: {
+    await writeFile(SETTINGS_FILE(), JSON.stringify({ env: {
       ANTHROPIC_MODEL: "gpt-6-astra", ANTHROPIC_SMALL_FAST_MODEL: "gpt-6-astra",
       CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40",
     } }));
@@ -802,7 +802,7 @@ describe("run alias session", () => {
       "gpt-6.2-sol",
     ]);
     // A non-default account never rewrites the shared config.
-    expect(await fileExists(CODEX_CONFIG_FILE)).toBe(false);
+    expect(await fileExists(CODEX_CONFIG_FILE())).toBe(false);
   });
 
   test("defaults Codex autoreview off and applies overrides only in the launched session", async () => {
@@ -1172,8 +1172,8 @@ describe("run alias session", () => {
       },
     };
 
-    await mkdir(dirname(CREDENTIALS_FILE), { recursive: true });
-    await writeCredentials(oauthCreds, CREDENTIALS_FILE);
+    await mkdir(dirname(CREDENTIALS_FILE()), { recursive: true });
+    await writeCredentials(oauthCreds, CREDENTIALS_FILE());
     await addOAuthProfile("holden");
     await addApiKeyProfile("api", {
       apiKey: "sk-ant-profile",
@@ -1211,7 +1211,7 @@ describe("run alias session", () => {
     expect(calls[0]?.env?.ANTHROPIC_API_KEY).toBe("sk-ant-profile");
     expect(await readState()).toEqual({ active: "holden" });
     expect(
-      await readJson<CredentialsFile | null>(CREDENTIALS_FILE, null),
+      await readJson<CredentialsFile | null>(CREDENTIALS_FILE(), null),
     ).toEqual(oauthCreds);
   });
 
@@ -1244,10 +1244,10 @@ describe("run alias session", () => {
     await saveAccountAuth(accountKey, auth);
     const defaultAuth = JSON.stringify(codexChatGptAuth("user-2", "acct-2"), null, 2);
     const defaultConfig = 'model = "gpt-default"\ncli_auth_credentials_store = "file"\n';
-    await mkdir(join(CODEX_DIR, "sessions"), { recursive: true });
-    await writeFile(join(CODEX_DIR, "sessions", "old.jsonl"), "{}\n");
-    await writeFile(CODEX_AUTH_FILE, defaultAuth);
-    await writeFile(CODEX_CONFIG_FILE, defaultConfig);
+    await mkdir(join(CODEX_DIR(), "sessions"), { recursive: true });
+    await writeFile(join(CODEX_DIR(), "sessions", "old.jsonl"), "{}\n");
+    await writeFile(CODEX_AUTH_FILE(), defaultAuth);
+    await writeFile(CODEX_CONFIG_FILE(), defaultConfig);
 
     const calls: SpawnCall[] = [];
     const exitCode = await runAliasSession(
@@ -1273,24 +1273,24 @@ describe("run alias session", () => {
 
     // The default account is untouched.
     expect((await loadRegistry()).active_account_key).toBe(defaultKey);
-    expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(defaultAuth);
-    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toBe(defaultConfig);
+    expect(await readFile(CODEX_AUTH_FILE(), "utf-8")).toBe(defaultAuth);
+    expect(await readFile(CODEX_CONFIG_FILE(), "utf-8")).toBe(defaultConfig);
     expect((await loadRegistry()).accounts[0]?.default_model).toBe("gpt-5");
 
     // Only the login is private; history and config are shared.
     expect(JSON.parse(await readFile(join(home, "auth.json"), "utf-8"))).toEqual(auth);
     expect(fileMode((await stat(join(home, "auth.json"))).mode)).toBe(0o600);
-    expect(await readlink(join(home, "sessions"))).toBe(join(CODEX_DIR, "sessions"));
-    expect(await readlink(join(home, "config.toml"))).toBe(CODEX_CONFIG_FILE);
+    expect(await readlink(join(home, "sessions"))).toBe(join(CODEX_DIR(), "sessions"));
+    expect(await readlink(join(home, "config.toml"))).toBe(CODEX_CONFIG_FILE());
     expect(await fileExists(join(home, "accounts"))).toBe(false);
-    expect(await readFile(join(CODEX_DIR, "history.jsonl"), "utf-8")).toBe("{}\n");
+    expect(await readFile(join(CODEX_DIR(), "history.jsonl"), "utf-8")).toBe("{}\n");
     expect((await lstat(join(home, "history.jsonl"))).isSymbolicLink()).toBe(true);
 
     // Purging the account removes its run home, never the shared entries.
     await purgeAccount("cx");
     expect(await fileExists(home)).toBe(false);
-    expect(await readFile(join(CODEX_DIR, "sessions", "old.jsonl"), "utf-8")).toBe("{}\n");
-    expect(await fileExists(join(CODEX_DIR, "history.jsonl"))).toBe(true);
+    expect(await readFile(join(CODEX_DIR(), "sessions", "old.jsonl"), "utf-8")).toBe("{}\n");
+    expect(await fileExists(join(CODEX_DIR(), "history.jsonl"))).toBe(true);
   });
 
   test("runs the default Codex account on ~/.codex and saves its token rotation", async () => {
@@ -1315,14 +1315,14 @@ describe("run alias session", () => {
       last_refresh: "2026-08-02T00:00:00.000Z",
     };
     await saveAccountAuth(accountKey, oldAuth);
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(oldAuth, null, 2));
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(oldAuth, null, 2));
 
     const calls: SpawnCall[] = [];
     const exitCode = await runAliasSession("cx", [], (command, args, options) => {
       calls.push({ command, args, stdio: options.stdio, env: options.env });
       const proc = new EventEmitter();
       queueMicrotask(async () => {
-        await writeFile(CODEX_AUTH_FILE, JSON.stringify(refreshedAuth, null, 2));
+        await writeFile(CODEX_AUTH_FILE(), JSON.stringify(refreshedAuth, null, 2));
         proc.emit("close", 0);
       });
       return proc as ChildProcess;
@@ -1372,8 +1372,8 @@ describe("run alias session", () => {
       const globalConfig = mode === "private ChatGPT"
         ? 'model_provider = "hybaliez"\nmodel = "gpt-5.4"\n[model_providers.hybaliez]\nname = "hybaliez"\nbase_url = "https://relay.example.com/v1"\nexperimental_bearer_token = "synthetic-relay-key"\n'
         : 'model = "gpt-6.1-sol"\ncli_auth_credentials_store = "file"\n';
-      await writeFile(CODEX_AUTH_FILE, globalAuth);
-      await writeFile(CODEX_CONFIG_FILE, globalConfig);
+      await writeFile(CODEX_AUTH_FILE(), globalAuth);
+      await writeFile(CODEX_CONFIG_FILE(), globalConfig);
       const history = '{"type":"event_msg","payload":{"type":"user_message","message":"Keep the saved conversation"}}\n';
       const rollouts = [
         ["sessions/old.jsonl", "old", previousProvider],
@@ -1381,14 +1381,14 @@ describe("run alias session", () => {
         ["sessions/local.jsonl", "local", "ollama"],
       ];
       for (const [path, id, provider] of rollouts) {
-        await mkdir(dirname(join(CODEX_DIR, path)), { recursive: true });
-        await writeFile(join(CODEX_DIR, path), `${JSON.stringify({ type: "session_meta", payload: { id, model_provider: provider } })}\n${history}`);
+        await mkdir(dirname(join(CODEX_DIR(), path)), { recursive: true });
+        await writeFile(join(CODEX_DIR(), path), `${JSON.stringify({ type: "session_meta", payload: { id, model_provider: provider } })}\n${history}`);
       }
       // A first line never grows (Codex addresses history by byte offset):
       // "openai" -> "hybaliez" has no room, so the relay run leaves those
       // sessions and their thread rows on their original provider.
       const expectedProvider = mode === "relay" ? previousProvider : targetProvider;
-      const db = new Database(join(CODEX_DIR, "state_5.sqlite"));
+      const db = new Database(join(CODEX_DIR(), "state_5.sqlite"));
       db.exec("CREATE TABLE threads (id TEXT PRIMARY KEY, model_provider TEXT NOT NULL)");
       db.prepare("INSERT INTO threads VALUES (?, ?)").run("old", previousProvider);
       db.prepare("INSERT INTO threads VALUES (?, ?)").run("local", "ollama");
@@ -1396,7 +1396,7 @@ describe("run alias session", () => {
 
       const calls: SpawnCall[] = [];
       const exitCode = await runAliasSession("cx", ["resume", "thread-45x"], (command, args, options) => {
-        const resumed = new Database(join(CODEX_DIR, "state_5.sqlite"), { readonly: true });
+        const resumed = new Database(join(CODEX_DIR(), "state_5.sqlite"), { readonly: true });
         try {
           expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'old'").get()).toEqual({ model_provider: expectedProvider });
           expect(resumed.prepare("SELECT model_provider FROM threads WHERE id = 'local'").get()).toEqual({ model_provider: "ollama" });
@@ -1409,13 +1409,13 @@ describe("run alias session", () => {
       expect(exitCode).toBe(0);
       expect(calls[0]?.args.slice(-2)).toEqual(["resume", "thread-45x"]);
       for (const [path, , provider] of rollouts) {
-        const content = await readFile(join(CODEX_DIR, path), "utf-8");
+        const content = await readFile(join(CODEX_DIR(), path), "utf-8");
         const [first, ...rest] = content.split("\n");
         expect(JSON.parse(first).payload.model_provider).toBe(provider === "ollama" ? provider : expectedProvider);
         expect(rest.join("\n")).toBe(history);
       }
-      expect(await readFile(CODEX_AUTH_FILE, "utf-8")).toBe(globalAuth);
-      expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toBe(globalConfig);
+      expect(await readFile(CODEX_AUTH_FILE(), "utf-8")).toBe(globalAuth);
+      expect(await readFile(CODEX_CONFIG_FILE(), "utf-8")).toBe(globalConfig);
       expect((await loadRegistry()).active_account_key).toBe(registry.active_account_key);
     },
   );
@@ -1439,9 +1439,9 @@ describe("run alias session", () => {
     await saveRegistry(registry);
     await saveAccountAuth(officialKey, codexChatGptAuth("user-1", "acct-1"));
     await saveAccountAuth(otherKey, codexChatGptAuth("user-2", "acct-2"));
-    await writeFile(CODEX_AUTH_FILE, JSON.stringify(codexChatGptAuth("user-2", "acct-2")));
+    await writeFile(CODEX_AUTH_FILE(), JSON.stringify(codexChatGptAuth("user-2", "acct-2")));
     const id = "01a1de15-6114-7540-9e96-8b4ddbf1b133";
-    const rollout = join(CODEX_DIR, "sessions", "2026", "11", "15", `rollout-2026-11-15T16-21-45-${id}.jsonl`);
+    const rollout = join(CODEX_DIR(), "sessions", "2026", "11", "15", `rollout-2026-11-15T16-21-45-${id}.jsonl`);
     const meta = JSON.stringify({
       type: "session_meta",
       payload: { account_scoped: true, creator_user_id: "user-1", creator_account_id: "acct-1", id, model_provider: "openai" },
@@ -1502,7 +1502,7 @@ describe("run alias session", () => {
 
     expect(exitCode).toBe(0);
     expect(await readAccountAuth(accountKey)).toEqual(refreshedAuth);
-    expect(await fileExists(CODEX_AUTH_FILE)).toBe(false);
+    expect(await fileExists(CODEX_AUTH_FILE())).toBe(false);
   });
 
   test.each([["6.1", "gpt-6.1-sol"], ["6", "gpt-6-sol"], ["gpt-5-mini", "gpt-5-mini"]])("maps -model %s to %s in spawned Codex arguments and saved default", async (input, expected) => {
@@ -1610,8 +1610,8 @@ describe("run alias session", () => {
     });
 
     const sharedConfig = 'model = "gpt-default"\napproval_policy = "never"\n';
-    await mkdir(CODEX_DIR, { recursive: true });
-    await writeFile(CODEX_CONFIG_FILE, sharedConfig);
+    await mkdir(CODEX_DIR(), { recursive: true });
+    await writeFile(CODEX_CONFIG_FILE(), sharedConfig);
 
     const calls: SpawnCall[] = [];
     const exitCode = await runAliasSession("custom-cx", [], createSpawn(calls));
@@ -1621,7 +1621,7 @@ describe("run alias session", () => {
     expect(calls[0]?.args).toEqual(["--approve-for-me", "--model", "gpt-5.4"]);
     expect(calls[0]?.env?.OPENAI_API_KEY).toBe("sk-test");
     expect(calls[0]?.env?.CODEX_HOME).toBe(codexRunHome(accountKey));
-    expect(await readFile(CODEX_CONFIG_FILE, "utf-8")).toBe(sharedConfig);
+    expect(await readFile(CODEX_CONFIG_FILE(), "utf-8")).toBe(sharedConfig);
 
     // The relay routing lives only in the run home's private config.
     const configPath = join(codexRunHome(accountKey), "config.toml");

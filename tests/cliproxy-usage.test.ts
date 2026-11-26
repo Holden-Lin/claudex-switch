@@ -142,7 +142,7 @@ describe("proxy quota", () => {
       expect(console.log.mock.calls.flat().join("\n")).toContain("test@example.com");
       const snapshot = await buildSnapshot();
       expect(snapshot.claude[0].label).toBe({ antigravity: "Antigravity", workbuddy: "WorkBuddy (China)", "workbuddy-ai": "WorkBuddy AI (international)", cursor: "Cursor" }[upstream]);
-      await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: "proxy" }));
+      await writeFile(CLAUDE_STATE_FILE(), JSON.stringify({ active: "proxy" }));
       console.log.mockClear();
       await current();
       expect(console.log.mock.calls.flat().join("\n")).toContain("test@example.com");
@@ -156,7 +156,7 @@ describe("proxy quota", () => {
     await list({ usage: false });
     const output = console.log.mock.calls.flat().join("\n");
     expect(output).not.toMatch(/nickname@example.com|12345|unknown|email|n\/a|null/);
-    await writeFile(CLAUDE_STATE_FILE, JSON.stringify({ active: "proxy" }));
+    await writeFile(CLAUDE_STATE_FILE(), JSON.stringify({ active: "proxy" }));
     console.log.mockClear();
     await current();
     expect(console.log.mock.calls.flat().join("\n")).not.toContain("nickname@example.com");

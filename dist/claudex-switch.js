@@ -1563,38 +1563,103 @@ import { join as join8 } from "path";
 // src/lib/paths.ts
 import { homedir } from "os";
 import { join } from "path";
-var HOME = process.env.CLAUDEX_TEST_HOME ?? homedir();
-var CLAUDE_DIR = join(HOME, ".claude");
-var CLAUDE_JSON = join(HOME, ".claude.json");
-var CREDENTIALS_FILE = join(CLAUDE_DIR, ".credentials.json");
-var SETTINGS_FILE = join(CLAUDE_DIR, "settings.json");
-var CLAUDE_PROFILES_DIR = join(HOME, ".claude-profiles");
-var CLAUDE_STATE_FILE = join(CLAUDE_PROFILES_DIR, "state.json");
-var CODEX_DIR = join(HOME, ".codex");
-var CODEX_AUTH_FILE = join(CODEX_DIR, "auth.json");
-var CODEX_CONFIG_FILE = join(CODEX_DIR, "config.toml");
-var CODEX_ACCOUNTS_DIR = join(CODEX_DIR, "accounts");
-var CODEX_REGISTRY_FILE = join(CODEX_ACCOUNTS_DIR, "registry.json");
-var CLAUDEX_DIR = join(HOME, ".claudex-switch");
-var ALIAS_REGISTRY_FILE = join(CLAUDEX_DIR, "aliases.json");
-var RELAYS_FILE = join(CLAUDEX_DIR, "relays.json");
-var MANAGED_ENV_FILE = join(CLAUDEX_DIR, "managed-env.json");
-var USAGE_CACHE_FILE = join(CLAUDEX_DIR, "usage-cache.json");
-var USAGE_REFRESH_LOCK = join(CLAUDEX_DIR, "usage-refresh.lock");
-var ACTIVITY_CACHE_FILE = join(CLAUDEX_DIR, "activity-cache.json");
-var CLI_PROXY_API_DIR = join(CLAUDEX_DIR, "cliproxyapi");
-var CLI_PROXY_API_LINKS_FILE = join(CLAUDEX_DIR, "cliproxy-links.json");
-var CLI_PROXY_API_LOGIN_LOCK = join(CLI_PROXY_API_DIR, "login.lock");
-var OPENCODE_PROFILES_DIR = join(CLAUDEX_DIR, "opencode", "profiles");
-var OPENCODE_STATE_FILE = join(CLAUDEX_DIR, "opencode", "state.json");
-var OPENCODE_LOCKS_DIR = join(CLAUDEX_DIR, "opencode", "locks");
-function openCodeProfileConsoleLock(profileId) {
-  return join(OPENCODE_LOCKS_DIR, `${profileId}.lock`);
+
+// src/lib/home-guard.ts
+import { spawnSync } from "child_process";
+import { tmpdir, userInfo } from "os";
+import { resolve, sep } from "path";
+function isTestRuntime() {
+  return Boolean(process.env.CLAUDEX_TEST_HOME) || false;
 }
-var OPENCODE_GLOBAL_DATA_DIR = join(process.env.XDG_DATA_HOME ?? join(HOME, ".local", "share"), "opencode");
-var OPENCODE_GLOBAL_AUTH_FILE = join(OPENCODE_GLOBAL_DATA_DIR, "auth.json");
+var realHomeCache;
+function realHomeDir() {
+  if (realHomeCache !== undefined)
+    return realHomeCache;
+  realHomeCache = null;
+  if (typeof Bun === "undefined") {
+    try {
+      realHomeCache = userInfo().homedir || null;
+    } catch {}
+    return realHomeCache;
+  }
+  try {
+    const result = spawnSync("/bin/sh", ["-c", 'eval echo ~"$(id -un)"'], {
+      encoding: "utf-8",
+      timeout: 5000
+    });
+    const home = result.status === 0 ? result.stdout.trim() : "";
+    realHomeCache = home.startsWith("/") ? home : null;
+  } catch {}
+  return realHomeCache;
+}
+function isInside(path, root) {
+  const target = resolve(path);
+  const base = resolve(root);
+  return target === base || target.startsWith(base.endsWith(sep) ? base : base + sep);
+}
+function refusal(what, realHome) {
+  return new Error(`Refusing to ${what}: this is a test run (CLAUDEX_TEST_HOME or NODE_ENV=test) ` + `and the path is inside the real home ${realHome}. ` + "Set CLAUDEX_TEST_HOME=$(mktemp -d) before the run; paths are resolved per call, " + "so setting it after import also works.");
+}
+function assertTestHomeIsolated(home) {
+  if (!isTestRuntime())
+    return home;
+  const realHome = realHomeDir();
+  if (realHome && resolve(home) === resolve(realHome)) {
+    throw refusal(`use ${home} as HOME`, realHome);
+  }
+  return home;
+}
+function assertTestWriteTarget(path) {
+  if (!isTestRuntime())
+    return;
+  const realHome = realHomeDir();
+  if (!realHome || !isInside(path, realHome))
+    return;
+  const testHome = process.env.CLAUDEX_TEST_HOME;
+  if (testHome && resolve(testHome) !== resolve(realHome) && isInside(path, testHome))
+    return;
+  if (!isInside(realHome, tmpdir()) && isInside(path, tmpdir()))
+    return;
+  throw refusal(`write ${path}`, realHome);
+}
+
+// src/lib/paths.ts
+function homeDir() {
+  return assertTestHomeIsolated(process.env.CLAUDEX_TEST_HOME || process.env.HOME || homedir());
+}
+var CLAUDE_DIR = () => join(homeDir(), ".claude");
+var CLAUDE_JSON = () => join(homeDir(), ".claude.json");
+var CREDENTIALS_FILE = () => join(CLAUDE_DIR(), ".credentials.json");
+var SETTINGS_FILE = () => join(CLAUDE_DIR(), "settings.json");
+var CLAUDE_PROFILES_DIR = () => join(homeDir(), ".claude-profiles");
+var CLAUDE_STATE_FILE = () => join(CLAUDE_PROFILES_DIR(), "state.json");
+var CODEX_DIR = () => join(homeDir(), ".codex");
+var CODEX_AUTH_FILE = () => join(CODEX_DIR(), "auth.json");
+var CODEX_CONFIG_FILE = () => join(CODEX_DIR(), "config.toml");
+var CODEX_ACCOUNTS_DIR = () => join(CODEX_DIR(), "accounts");
+var CODEX_REGISTRY_FILE = () => join(CODEX_ACCOUNTS_DIR(), "registry.json");
+var CLAUDEX_DIR = () => join(homeDir(), ".claudex-switch");
+var ALIAS_REGISTRY_FILE = () => join(CLAUDEX_DIR(), "aliases.json");
+var ALIAS_BACKUP_DIR = () => join(CLAUDEX_DIR(), "backups", "aliases");
+var CODEX_REGISTRY_BACKUP_DIR = () => join(CLAUDEX_DIR(), "backups", "codex-registry");
+var RELAYS_FILE = () => join(CLAUDEX_DIR(), "relays.json");
+var MANAGED_ENV_FILE = () => join(CLAUDEX_DIR(), "managed-env.json");
+var USAGE_CACHE_FILE = () => join(CLAUDEX_DIR(), "usage-cache.json");
+var USAGE_REFRESH_LOCK = () => join(CLAUDEX_DIR(), "usage-refresh.lock");
+var ACTIVITY_CACHE_FILE = () => join(CLAUDEX_DIR(), "activity-cache.json");
+var CLI_PROXY_API_DIR = () => join(CLAUDEX_DIR(), "cliproxyapi");
+var CLI_PROXY_API_LINKS_FILE = () => join(CLAUDEX_DIR(), "cliproxy-links.json");
+var CLI_PROXY_API_LOGIN_LOCK = () => join(CLI_PROXY_API_DIR(), "login.lock");
+var OPENCODE_PROFILES_DIR = () => join(CLAUDEX_DIR(), "opencode", "profiles");
+var OPENCODE_STATE_FILE = () => join(CLAUDEX_DIR(), "opencode", "state.json");
+var OPENCODE_LOCKS_DIR = () => join(CLAUDEX_DIR(), "opencode", "locks");
+function openCodeProfileConsoleLock(profileId) {
+  return join(OPENCODE_LOCKS_DIR(), `${profileId}.lock`);
+}
+var OPENCODE_GLOBAL_DATA_DIR = () => join(process.env.XDG_DATA_HOME ?? join(homeDir(), ".local", "share"), "opencode");
+var OPENCODE_GLOBAL_AUTH_FILE = () => join(OPENCODE_GLOBAL_DATA_DIR(), "auth.json");
 function claudeProfileDir(name) {
-  return join(CLAUDE_PROFILES_DIR, name);
+  return join(CLAUDE_PROFILES_DIR(), name);
 }
 function claudeProfileCredentials(name) {
   return join(claudeProfileDir(name), ".credentials.json");
@@ -1618,7 +1683,7 @@ function claudeProfileClaudeSettingsFile(name) {
   return join(claudeProfileDir(name), "claude-settings.json");
 }
 function cliProxyAPIProfileDir(profileId) {
-  return join(CLI_PROXY_API_DIR, profileId);
+  return join(CLI_PROXY_API_DIR(), profileId);
 }
 function cliProxyAPIAuthDir(profileId) {
   return join(cliProxyAPIProfileDir(profileId), "auth");
@@ -1639,10 +1704,10 @@ function cliProxyAPIStateFile(profileId) {
   return join(cliProxyAPIProfileDir(profileId), "state.json");
 }
 function cliProxyAPIStartupLock(profileId) {
-  return join(CLI_PROXY_API_DIR, "locks", `${profileId}.lock`);
+  return join(CLI_PROXY_API_DIR(), "locks", `${profileId}.lock`);
 }
 function openCodeProfileDir(profileId) {
-  return join(OPENCODE_PROFILES_DIR, profileId);
+  return join(OPENCODE_PROFILES_DIR(), profileId);
 }
 function openCodeProfileDataHome(profileId) {
   return join(openCodeProfileDir(profileId), "data");
@@ -1673,16 +1738,16 @@ function codexAccountFileKey(accountKey) {
   return needsEncoding ? Buffer.from(accountKey).toString("base64url") : accountKey;
 }
 function codexAccountAuthFile(accountKey) {
-  return join(CODEX_ACCOUNTS_DIR, `${codexAccountFileKey(accountKey)}.auth.json`);
+  return join(CODEX_ACCOUNTS_DIR(), `${codexAccountFileKey(accountKey)}.auth.json`);
 }
 function codexRunHome(accountKey) {
-  return join(CLAUDEX_DIR, "codex-run", codexAccountFileKey(accountKey));
+  return join(CLAUDEX_DIR(), "codex-run", codexAccountFileKey(accountKey));
 }
 
 // src/providers/claude/credentials.ts
 import { platform } from "os";
 import { createHash } from "crypto";
-import { spawnSync } from "child_process";
+import { spawnSync as spawnSync2 } from "child_process";
 import { rm } from "fs/promises";
 import { join as join2 } from "path";
 
@@ -1705,9 +1770,11 @@ async function readJson(path, fallback) {
   }
 }
 async function writeJson(path, data) {
+  assertTestWriteTarget(path);
   await writeFile(path, JSON.stringify(data, null, 2));
 }
 async function writeJsonSecure(path, data) {
+  assertTestWriteTarget(path);
   await writeFile(path, JSON.stringify(data, null, 2), { mode: 384 });
 }
 
@@ -1718,14 +1785,14 @@ function keychainEnabled() {
   return platform() === "darwin" && process.env.CLAUDEX_FORCE_FILE_CREDENTIALS !== "1";
 }
 function useKeychain(path) {
-  return keychainEnabled() && path === CREDENTIALS_FILE;
+  return keychainEnabled() && path === CREDENTIALS_FILE();
 }
 function isolatedKeychainService(dir) {
   const hash = createHash("sha256").update(dir.normalize("NFC")).digest("hex").slice(0, 8);
   return `${KEYCHAIN_SERVICE}-${hash}`;
 }
 function getKeychainAccount() {
-  return process.env.USER ?? spawnSync("whoami").stdout.toString().trim();
+  return process.env.USER ?? spawnSync2("whoami").stdout.toString().trim();
 }
 function parseKeychainCredentials(raw) {
   const payload = raw.trim();
@@ -1745,7 +1812,7 @@ function parseKeychainCredentials(raw) {
   }
 }
 async function readKeychain(service = KEYCHAIN_SERVICE) {
-  const result = spawnSync("security", [
+  const result = spawnSync2("security", [
     "find-generic-password",
     "-s",
     service,
@@ -1760,7 +1827,7 @@ async function readKeychain(service = KEYCHAIN_SERVICE) {
 async function writeKeychain(creds, service = KEYCHAIN_SERVICE) {
   const payload = JSON.stringify(creds);
   const account = getKeychainAccount();
-  const result = spawnSync("security", [
+  const result = spawnSync2("security", [
     "add-generic-password",
     "-U",
     "-s",
@@ -1775,7 +1842,7 @@ async function writeKeychain(creds, service = KEYCHAIN_SERVICE) {
   }
 }
 async function deleteKeychain(service = KEYCHAIN_SERVICE) {
-  const result = spawnSync("security", [
+  const result = spawnSync2("security", [
     "delete-generic-password",
     "-s",
     service,
@@ -1795,19 +1862,19 @@ async function writeJsonFile(creds, path) {
 async function deleteJsonFile(path) {
   await rm(path, { force: true });
 }
-async function readCredentials(path = CREDENTIALS_FILE) {
+async function readCredentials(path = CREDENTIALS_FILE()) {
   if (useKeychain(path)) {
     return readKeychain();
   }
   return readJsonFile(path);
 }
-async function writeCredentials(creds, path = CREDENTIALS_FILE) {
+async function writeCredentials(creds, path = CREDENTIALS_FILE()) {
   if (useKeychain(path)) {
     return writeKeychain(creds);
   }
   await writeJsonFile(creds, path);
 }
-async function deleteCredentials(path = CREDENTIALS_FILE) {
+async function deleteCredentials(path = CREDENTIALS_FILE()) {
   if (useKeychain(path)) {
     return deleteKeychain();
   }
@@ -1840,19 +1907,19 @@ async function deleteIsolatedCredentials(dir) {
 
 // src/providers/claude/account.ts
 async function readOAuthAccount() {
-  if (!await fileExists(CLAUDE_JSON))
+  if (!await fileExists(CLAUDE_JSON()))
     return null;
-  const data = await readJson(CLAUDE_JSON, {});
+  const data = await readJson(CLAUDE_JSON(), {});
   return data.oauthAccount ?? null;
 }
 async function writeOAuthAccount(account) {
-  const data = await readJson(CLAUDE_JSON, {});
+  const data = await readJson(CLAUDE_JSON(), {});
   if (account) {
     data.oauthAccount = account;
   } else {
     delete data.oauthAccount;
   }
-  await writeJson(CLAUDE_JSON, data);
+  await writeJson(CLAUDE_JSON(), data);
 }
 
 // src/providers/claude/settings.ts
@@ -1926,18 +1993,18 @@ async function startRelayrouterSession(upstreamBaseUrl) {
       request.socket.removeListener("close", disconnected);
     }
   });
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve2, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       server.removeListener("error", reject);
-      resolve();
+      resolve2();
     });
   });
   const address = server.address();
   return {
     baseUrl: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise((resolve) => {
-      server.close(() => resolve());
+    close: () => new Promise((resolve2) => {
+      server.close(() => resolve2());
       server.closeAllConnections();
     })
   };
@@ -2031,13 +2098,13 @@ var CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS = [
   "CLAUDE_CODE_USE_FOUNDRY"
 ];
 async function read() {
-  return readJson(SETTINGS_FILE, {});
+  return readJson(SETTINGS_FILE(), {});
 }
 async function write(settings) {
-  await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-  await writeJsonSecure(SETTINGS_FILE, settings);
+  await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+  await writeJsonSecure(SETTINGS_FILE(), settings);
   try {
-    await chmod(SETTINGS_FILE, 384);
+    await chmod(SETTINGS_FILE(), 384);
   } catch {}
 }
 function normalizeEnv(settings) {
@@ -2075,7 +2142,7 @@ function setTopLevelModel(settings, model) {
 }
 var CUSTOM_ENV_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 async function readManagedExtraEnvKeys() {
-  const record = await readJson(MANAGED_ENV_FILE, {
+  const record = await readJson(MANAGED_ENV_FILE(), {
     keys: []
   });
   if (!Array.isArray(record.keys))
@@ -2083,8 +2150,8 @@ async function readManagedExtraEnvKeys() {
   return record.keys.filter((key) => typeof key === "string");
 }
 async function writeManagedExtraEnvKeys(keys) {
-  await mkdir(dirname(MANAGED_ENV_FILE), { recursive: true });
-  await writeJson(MANAGED_ENV_FILE, { keys });
+  await mkdir(dirname(MANAGED_ENV_FILE()), { recursive: true });
+  await writeJson(MANAGED_ENV_FILE(), { keys });
 }
 function isReservedClaudeEnvKey(key) {
   return CLAUDE_ENV_KEYS.includes(key) || CLAUDE_LOCAL_PROXY_NEUTRALIZED_ENV_KEYS.includes(key);
@@ -2221,7 +2288,7 @@ async function getClaudeRunEnvOverrides() {
     ...Object.keys(localCLIProxyAPIExtraEnv()),
     ...await readManagedExtraEnvKeys()
   ]);
-  const profiles = await readdir(CLAUDE_PROFILES_DIR).catch(() => []);
+  const profiles = await readdir(CLAUDE_PROFILES_DIR()).catch(() => []);
   for (const name of profiles) {
     const profile = await readJson(claudeProfileDataFile(name), { type: "oauth" });
     const extra = profile.type === "api-key" ? apiProfileExtraEnv(profile) : normalizeCustomEnv(profile.env);
@@ -2265,7 +2332,7 @@ async function getApiConfig() {
 }
 
 // src/providers/cliproxyapi/managed.ts
-import { spawn, spawnSync as spawnSync4 } from "child_process";
+import { spawn, spawnSync as spawnSync5 } from "child_process";
 import { realpathSync } from "fs";
 import {
   chmod as chmod3,
@@ -2280,14 +2347,14 @@ import {
 } from "fs/promises";
 import { createServer as createServer3 } from "net";
 import { platform as platform4 } from "os";
-import { basename as basename2, dirname as dirname3, join as join7, resolve as resolve2 } from "path";
+import { basename as basename2, dirname as dirname3, join as join7, resolve as resolve3 } from "path";
 import { createHash as createHash6, randomBytes as randomBytes4, randomUUID as randomUUID3 } from "crypto";
 
 // src/lib/browser.ts
-import { spawnSync as spawnSync2 } from "child_process";
+import { spawnSync as spawnSync3 } from "child_process";
 import { platform as platform2 } from "os";
 import { join as join3 } from "path";
-import { tmpdir } from "os";
+import { tmpdir as tmpdir2 } from "os";
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 var MACOS_SCRIPT = `#!/bin/bash
 URL="$1"
@@ -2330,7 +2397,7 @@ fi
 function createPrivateBrowserScript() {
   if (platform2() !== "darwin")
     return null;
-  const path = join3(tmpdir(), `claudex-private-browser-${process.pid}.sh`);
+  const path = join3(tmpdir2(), `claudex-private-browser-${process.pid}.sh`);
   writeFileSync(path, MACOS_SCRIPT, { mode: 493 });
   return path;
 }
@@ -2344,7 +2411,7 @@ function cleanupBrowserScript(path) {
 function createOpenShimDir() {
   if (platform2() !== "darwin")
     return null;
-  const dir = join3(tmpdir(), `claudex-open-shim-${process.pid}`);
+  const dir = join3(tmpdir2(), `claudex-open-shim-${process.pid}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join3(dir, "open"), MACOS_OPEN_SHIM, { mode: 493 });
   return dir;
@@ -2375,7 +2442,7 @@ function openExternalUrl(url, privateWindow = false) {
   if (!openCommand)
     return false;
   try {
-    const result = spawnSync2(openCommand.command, openCommand.args, {
+    const result = spawnSync3(openCommand.command, openCommand.args, {
       stdio: "ignore"
     });
     return result.status === 0 && !result.error;
@@ -2387,7 +2454,7 @@ function openExternalUrl(url, privateWindow = false) {
 }
 
 // src/providers/cliproxyapi/version.ts
-import { spawnSync as spawnSync3 } from "child_process";
+import { spawnSync as spawnSync4 } from "child_process";
 var CLI_PROXY_API_ANTIGRAVITY_MIN_VERSION = "7.3.19";
 var CLI_PROXY_API_RECOMMENDED_VERSION = "7.3.20";
 function parseCLIProxyAPIVersion(output) {
@@ -2395,7 +2462,7 @@ function parseCLIProxyAPIVersion(output) {
 }
 function readCLIProxyAPIVersion(binaryPath) {
   try {
-    const result = spawnSync3(binaryPath, ["--help"], {
+    const result = spawnSync4(binaryPath, ["--help"], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 5000
@@ -3687,7 +3754,7 @@ import { Duplex } from "node:stream";
 import { createHash as createHash3, randomBytes as randomBytes2, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { readFile as readFile2, stat, readdir as readdir2, realpath } from "node:fs/promises";
-import { homedir as homedir2, platform as platform3, tmpdir as tmpdir2 } from "node:os";
+import { homedir as homedir2, platform as platform3, tmpdir as tmpdir3 } from "node:os";
 import { basename, dirname as dirname2, join as join4 } from "node:path";
 var ID = "cursor";
 var API = "https://api2.cursor.sh";
@@ -3705,8 +3772,8 @@ var EMPTY = Buffer.alloc(0);
 var enc = new TextEncoder;
 var exists = (p) => stat(p).then((s) => !s.isDirectory(), () => false);
 function run(file, args, { timeout = 1e4, env } = {}) {
-  return new Promise((resolve) => {
-    execFile(file, args, { timeout, env: env ?? process.env, maxBuffer: 8 << 20 }, (err, stdout) => resolve({ ok: !err, out: String(stdout ?? ""), code: typeof err?.code === "number" ? err.code : err ? -1 : 0 }));
+  return new Promise((resolve2) => {
+    execFile(file, args, { timeout, env: env ?? process.env, maxBuffer: 8 << 20 }, (err, stdout) => resolve2({ ok: !err, out: String(stdout ?? ""), code: typeof err?.code === "number" ? err.code : err ? -1 : 0 }));
   });
 }
 async function cursorExecutable() {
@@ -4781,7 +4848,7 @@ function toolDef(t) {
   d.bytes(3, pbValue(t.schema));
   return d.str(4, "magpie").str(5, t.name).str(6, t.schemaText).done();
 }
-var env = () => pb().str(1, GOOS).str(2, tmpdir2()).str(10, "UTC");
+var env = () => pb().str(1, GOOS).str(2, tmpdir3()).str(10, "UTC");
 var SESSION = "x-magpie-cursor-session";
 function sessionOf(input) {
   const s = String(input?.sessionID ?? "").trim();
@@ -5159,7 +5226,7 @@ function h2Blocked(e) {
 function openH2(base, headers, signal) {
   if (signal?.aborted)
     return Promise.resolve(cancelledOpen());
-  return new Promise((resolve) => {
+  return new Promise((resolve2) => {
     const u = new URL(base);
     const session = http2.connect(u.origin);
     let done = false;
@@ -5170,7 +5237,7 @@ function openH2(base, headers, signal) {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
       session.destroy();
-      resolve({ error: { status: h2Failed ? 502 : 410, message: e?.message ?? String(e) }, h2Failed, blocked: h2Failed && h2Blocked(e) });
+      resolve2({ error: { status: h2Failed ? 502 : 410, message: e?.message ?? String(e) }, h2Failed, blocked: h2Failed && h2Blocked(e) });
     };
     const abort = () => fail(new Error("the request was cancelled"), false);
     const timer = setTimeout(() => fail(Object.assign(new Error(`no answer over HTTP/2 in ${H2.wait / 1000}s`), { h2Timeout: true })), H2.wait);
@@ -5188,7 +5255,7 @@ function openH2(base, headers, signal) {
       done = true;
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
-      resolve({ session, req, status: Number(h[":status"]) });
+      resolve2({ session, req, status: Number(h[":status"]) });
     });
     signal?.addEventListener("abort", abort, { once: true });
     if (signal?.aborted)
@@ -5335,7 +5402,7 @@ function nativeTransport(req, close, fail, limits = NATIVE_LIMITS) {
     try {
       while (!closed && queue.length) {
         const packet = queue.shift();
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve2, reject) => {
           let written = false, drained = false, started = false, settled = false;
           const finish = (error) => {
             if (settled)
@@ -5345,7 +5412,7 @@ function nativeTransport(req, close, fail, limits = NATIVE_LIMITS) {
             req.removeListener("drain", drain);
             req.removeListener("error", failed);
             req.removeListener("close", lost);
-            error ? reject(error) : resolve();
+            error ? reject(error) : resolve2();
           };
           const check = () => {
             if (started && written && drained)
@@ -5407,13 +5474,13 @@ function nativeTransport(req, close, fail, limits = NATIVE_LIMITS) {
     room(size) {
       if (closed || fits(size))
         return Promise.resolve();
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve2, reject) => {
         const w = {
           size,
           done() {
             waiters.delete(w);
             clearTimeout(w.timer);
-            resolve();
+            resolve2();
           }
         };
         w.timer = setTimeout(() => {
@@ -7771,7 +7838,7 @@ var WorkBuddyAIAuthPlugin = makePlugin(SITES["workbuddy-ai"]);
 import { createHash as createHash5, randomUUID as randomUUID2, timingSafeEqual } from "node:crypto";
 import { chmod as chmod2, mkdir as mkdir2, readFile as readFile3, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
 import { createServer as createServer2 } from "node:http";
-import { join as join6, resolve } from "node:path";
+import { join as join6, resolve as resolve2 } from "node:path";
 import { Readable as Readable2 } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
 var FACTORIES = { cursor: CursorAuthPlugin, workbuddy: WorkBuddyAuthPlugin, "workbuddy-ai": WorkBuddyAIAuthPlugin };
@@ -7790,7 +7857,7 @@ function visibleSubscriptionModels(catalog2, upstream) {
   return catalog2.filter(({ id }) => !id.endsWith("-sg") || !ids.has(id.slice(0, -3)));
 }
 function authPath(directory) {
-  return join6(resolve(directory), SUBSCRIPTION_AUTH_FILE);
+  return join6(resolve2(directory), SUBSCRIPTION_AUTH_FILE);
 }
 async function readAuthFile(file, upstream) {
   let text;
@@ -7825,7 +7892,7 @@ async function saveAuth(directory, upstream, update, replace = false) {
     if (!replace && old?.source === "desktop")
       return;
     const auth = { ...old, ...update, type: "oauth" };
-    await mkdir2(resolve(directory), { recursive: true, mode: 448 });
+    await mkdir2(resolve2(directory), { recursive: true, mode: 448 });
     const temporary = `${file}.${process.pid}.${randomUUID2()}.tmp`;
     try {
       await writeFile2(temporary, JSON.stringify({ version: 1, upstream, auth }, null, 2) + `
@@ -7845,7 +7912,7 @@ async function saveAuth(directory, upstream, update, replace = false) {
   }
 }
 async function context(directory, upstream, options) {
-  const key = `${resolve(directory)}
+  const key = `${resolve2(directory)}
 ${upstream}`;
   const create = async () => {
     const plugin = await (options.pluginFactory ?? FACTORIES[upstream])({
@@ -8111,10 +8178,10 @@ async function bridgeResponse(input, ctx, pluginFetch, endpoint, options) {
       responseHeaders.set(name, value);
   });
   if (STREAM_ONLY.has(options.upstream) && upstream.status >= 400) {
-    const refusal = await workBuddyRefusal(await upstream.text(), () => freeModels(ctx));
-    if (upstream.status === 429 && refusal.retryAfter)
-      responseHeaders.set("retry-after", String(refusal.retryAfter));
-    return new Response(refusal.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+    const refusal2 = await workBuddyRefusal(await upstream.text(), () => freeModels(ctx));
+    if (upstream.status === 429 && refusal2.retryAfter)
+      responseHeaders.set("retry-after", String(refusal2.retryAfter));
+    return new Response(refusal2.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
   }
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
 }
@@ -9281,13 +9348,13 @@ class ScreenManager {
 // node_modules/@inquirer/core/dist/esm/lib/promise-polyfill.js
 class PromisePolyfill extends Promise {
   static withResolver() {
-    let resolve2;
+    let resolve3;
     let reject;
     const promise = new Promise((res, rej) => {
-      resolve2 = res;
+      resolve3 = res;
       reject = rej;
     });
-    return { promise, resolve: resolve2, reject };
+    return { promise, resolve: resolve3, reject };
   }
 }
 
@@ -9321,7 +9388,7 @@ function createPrompt(view) {
       output
     });
     const screen = new ScreenManager(rl);
-    const { promise, resolve: resolve2, reject } = PromisePolyfill.withResolver();
+    const { promise, resolve: resolve3, reject } = PromisePolyfill.withResolver();
     const cancel = () => reject(new CancelPromptError);
     if (signal) {
       const abort = () => reject(new AbortPromptError({ cause: signal.reason }));
@@ -9348,7 +9415,7 @@ function createPrompt(view) {
       cycle(() => {
         try {
           const nextView = view(config, (value) => {
-            setImmediate(() => resolve2(value));
+            setImmediate(() => resolve3(value));
           });
           if (nextView === undefined) {
             const callerFilename = callSites[1]?.getFileName();
@@ -10427,6 +10494,7 @@ async function mkdirPrivate(path) {
   } catch {}
 }
 async function writePrivate(path, data) {
+  assertTestWriteTarget(path);
   await writeFile3(path, data, { mode: 384 });
   try {
     await chmod3(path, 384);
@@ -11095,7 +11163,7 @@ async function processCommandLine(pid) {
     }
   }
   try {
-    const result2 = spawnSync4("ps", ["-p", String(pid), "-o", "command="], {
+    const result2 = spawnSync5("ps", ["-p", String(pid), "-o", "command="], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
@@ -11233,7 +11301,7 @@ function startProxy(binaryPath, configPath, managedDirectory, spawnCommand = spa
   const script = process.argv[1];
   const scriptEntrypoint = subscriptionProfileId && script && !script.includes("$bunfs") && (!process.versions.bun || /\.[cm]?[jt]s$/.test(realpathSync(script)));
   const args = subscriptionProfileId ? [
-    ...scriptEntrypoint ? [resolve2(script)] : [],
+    ...scriptEntrypoint ? [resolve3(script)] : [],
     "__subscription-proxy",
     subscriptionProfileId,
     binaryPath,
@@ -11252,7 +11320,7 @@ function startProxy(binaryPath, configPath, managedDirectory, spawnCommand = spa
 async function runManagedSubscriptionProxy(profileId, binaryPath, configPath) {
   const paths = profilePaths(profileId);
   const managed = await readExistingManagedEnv(profileId);
-  if (resolve2(configPath) !== paths.configFile || !isSubscriptionUpstream(managed.upstream) || !managed.subscriptionPort) {
+  if (resolve3(configPath) !== paths.configFile || !isSubscriptionUpstream(managed.upstream) || !managed.subscriptionPort) {
     throw new Error("Invalid managed subscription proxy invocation");
   }
   const server = await serveSubscriptionBridge({
@@ -11546,7 +11614,7 @@ async function hasManagedCLIProxyAPILogin(profileId) {
 async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expectedIdentity, expectedAccount) {
   assertProfileId(profile.profileId);
   const paths = profilePaths(profile.profileId);
-  await mkdirPrivate(CLI_PROXY_API_DIR);
+  await mkdirPrivate(CLI_PROXY_API_DIR());
   const upstream = (await readExistingManagedEnv(profile.profileId)).upstream;
   const spec = CLI_PROXY_API_UPSTREAMS[upstream];
   if (isSubscriptionUpstream(upstream)) {
@@ -11583,7 +11651,7 @@ async function runManagedCLIProxyAPILogin(profile, spawnCommand = spawn, expecte
     throw new Error(`${spec.label} accounts use an API key and have no local provider proxy login.`);
   }
   const { loginFlag, authType, callbackPort } = spec;
-  return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK, async () => {
+  return withStartupLock(profile.profileId, async () => withLock(CLI_PROXY_API_LOGIN_LOCK(), async () => {
     if (await managedCLIProxyAPIHasActiveLeases(profile.profileId)) {
       throw new Error("A Claude Code session launched by claudex-switch is still using this local provider proxy account. End it before refreshing the login.");
     }
@@ -11767,7 +11835,7 @@ async function cleanupFailedManagedCLIProxyAPI(profileId) {
 }
 function commandWorks(command) {
   try {
-    return spawnSync4(command, ["--help"], {
+    return spawnSync5(command, ["--help"], {
       stdio: "ignore"
     }).status === 0;
   } catch {
@@ -11776,11 +11844,11 @@ function commandWorks(command) {
 }
 function resolvedCommand(command) {
   if (command.includes("/") || command.includes("\\")) {
-    return resolve2(command);
+    return resolve3(command);
   }
   const locator = platform4() === "win32" ? "where" : "which";
   try {
-    const result2 = spawnSync4(locator, [command], {
+    const result2 = spawnSync5(locator, [command], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     });
@@ -11827,11 +11895,11 @@ async function ensurePrivateDir(path) {
   } catch {}
 }
 async function readState2() {
-  return readJson(CLAUDE_STATE_FILE, { active: null });
+  return readJson(CLAUDE_STATE_FILE(), { active: null });
 }
 async function writeState2(state) {
-  await ensureDir(CLAUDE_PROFILES_DIR);
-  await writeJson(CLAUDE_STATE_FILE, state);
+  await ensureDir(CLAUDE_PROFILES_DIR());
+  await writeJson(CLAUDE_STATE_FILE(), state);
 }
 async function readProfileData(name) {
   return readJson(claudeProfileDataFile(name), { type: "oauth" });
@@ -11911,7 +11979,7 @@ async function updateClaudeProfileConfig(name, patch) {
   }
   return { data: next, reapplied };
 }
-async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE, config = {}) {
+async function addOAuthProfile(name, fromCredentials = CREDENTIALS_FILE(), config = {}) {
   const data = normalizeOAuthProfileData(config);
   await ensureDir(claudeProfileDir(name));
   await copyCredentials(fromCredentials, claudeProfileCredentials(name));
@@ -11981,10 +12049,10 @@ async function switchProfile(name) {
   return targetData;
 }
 async function snapshotCurrentOAuthProfile(name) {
-  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  const currentCreds = await readCredentials(CREDENTIALS_FILE());
   if (currentCreds) {
     await ensureDir(claudeProfileDir(name));
-    await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
+    await copyCredentials(CREDENTIALS_FILE(), claudeProfileCredentials(name));
   }
   const currentAccount = await readOAuthAccount();
   if (currentAccount) {
@@ -12006,13 +12074,13 @@ async function activateProfile(name, targetData) {
   if (targetData.type === "local-cliproxyapi") {
     const runtime = await ensureManagedCLIProxyAPI(targetData);
     const config = await getLocalCLIProxyAPISettings(targetData, runtime);
-    await deleteCredentials(CREDENTIALS_FILE);
+    await deleteCredentials(CREDENTIALS_FILE());
     await writeOAuthAccount(null);
     await applyLocalCLIProxyAPIConfig(config, targetData.env);
     return;
   }
   if (targetData.type === "api-key") {
-    await deleteCredentials(CREDENTIALS_FILE);
+    await deleteCredentials(CREDENTIALS_FILE());
     await writeOAuthAccount(null);
     await applyApiConfig(targetData);
     return;
@@ -12023,7 +12091,7 @@ async function activateProfile(name, targetData) {
 async function restoreOAuthCredentials(name) {
   const savedAccount = await readJson(claudeProfileAccountFile(name), null);
   if (savedAccount) {
-    const liveCreds = await readCredentials(CREDENTIALS_FILE);
+    const liveCreds = await readCredentials(CREDENTIALS_FILE());
     const liveAccount = await readOAuthAccount();
     if (liveCreds && sameOAuthSession(savedAccount, liveAccount)) {
       await snapshotCurrentOAuthProfile(name);
@@ -12034,7 +12102,7 @@ async function restoreOAuthCredentials(name) {
   if (!creds) {
     throw new Error(`No credentials found at ${claudeProfileCredentials(name)}`);
   }
-  await writeCredentials(creds, CREDENTIALS_FILE);
+  await writeCredentials(creds, CREDENTIALS_FILE());
   await writeOAuthAccount(savedAccount);
 }
 function oauthExpiresAt(creds) {
@@ -12054,7 +12122,7 @@ async function readOAuthCredentialStores(name, includeMatchingGlobal) {
   if (includeMatchingGlobal) {
     const savedAccount = await readJson(claudeProfileAccountFile(name), null);
     if (savedAccount && sameOAuthSession(savedAccount, await readOAuthAccount())) {
-      global2 = await readCredentials(CREDENTIALS_FILE);
+      global2 = await readCredentials(CREDENTIALS_FILE());
     }
   }
   return { snapshot, isolated, global: global2 };
@@ -12127,21 +12195,21 @@ async function preparePrivateClaudeUserSettings(configDir) {
     if (stat3.isSymbolicLink())
       await unlink2(destination);
   } catch {}
-  const settings = await readJson(join8(CLAUDE_DIR, "settings.json"), {});
+  const settings = await readJson(join8(CLAUDE_DIR(), "settings.json"), {});
   await writeJson(destination, settings);
   await chmod4(destination, 384).catch(() => {});
 }
 async function linkSharedClaudeConfigEntries(configDir) {
   let entries;
   try {
-    entries = await readdir4(CLAUDE_DIR, { withFileTypes: true });
+    entries = await readdir4(CLAUDE_DIR(), { withFileTypes: true });
   } catch {
     return;
   }
   for (const entry of entries) {
     if (PROFILE_CONFIG_LINK_EXCLUDES.has(entry.name))
       continue;
-    const source = join8(CLAUDE_DIR, entry.name);
+    const source = join8(CLAUDE_DIR(), entry.name);
     const destination = join8(configDir, entry.name);
     const type = entry.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
     await ensureSymlinkOrCopy(source, destination, type);
@@ -12169,7 +12237,7 @@ async function ensureSymlinkOrCopy(source, destination, type) {
 }
 async function writeIsolatedClaudeJson(name) {
   const account = await readJson(claudeProfileAccountFile(name), null);
-  const data = await readJson(CLAUDE_JSON, {});
+  const data = await readJson(CLAUDE_JSON(), {});
   if (account) {
     data.oauthAccount = account;
   } else {
@@ -12178,7 +12246,7 @@ async function writeIsolatedClaudeJson(name) {
   await writeJson(claudeProfileConfigJson(name), data);
 }
 async function writeIsolatedLocalClaudeJson(name) {
-  const data = await readJson(CLAUDE_JSON, {});
+  const data = await readJson(CLAUDE_JSON(), {});
   delete data.oauthAccount;
   await writeJson(claudeProfileConfigJson(name), data);
 }
@@ -12198,7 +12266,7 @@ async function isProfileApplied(name, targetData) {
   if (targetData.type === "api-key") {
     if (!sameApiConfig(targetData, await getApiConfig()))
       return false;
-    if (await readCredentials(CREDENTIALS_FILE))
+    if (await readCredentials(CREDENTIALS_FILE()))
       return false;
     if (await readOAuthAccount())
       return false;
@@ -12209,7 +12277,7 @@ async function isProfileApplied(name, targetData) {
   if (normalizeOptionalValue(targetData.defaultModel) !== normalizeOptionalValue(await getConfiguredModel())) {
     return false;
   }
-  if (!await readCredentials(CREDENTIALS_FILE))
+  if (!await readCredentials(CREDENTIALS_FILE()))
     return false;
   const savedAccount = await readJson(claudeProfileAccountFile(name), null);
   if (!savedAccount)
@@ -12232,12 +12300,12 @@ async function snapshotActiveOAuthProfile(name) {
   if (data.type !== "oauth") {
     throw new Error(`Profile "${name}" is not an OAuth profile`);
   }
-  const currentCreds = await readCredentials(CREDENTIALS_FILE);
+  const currentCreds = await readCredentials(CREDENTIALS_FILE());
   if (!currentCreds) {
     throw new Error("No active Claude credentials found");
   }
   await ensureDir(claudeProfileDir(name));
-  await copyCredentials(CREDENTIALS_FILE, claudeProfileCredentials(name));
+  await copyCredentials(CREDENTIALS_FILE(), claudeProfileCredentials(name));
   const currentAccount = await readOAuthAccount();
   if (currentAccount) {
     await writeJson(claudeProfileAccountFile(name), currentAccount);
@@ -12328,10 +12396,64 @@ async function aliasSection(entry) {
 
 // src/index.ts
 import { existsSync, readFileSync as readFileSync2 } from "fs";
-import { basename as basename4, dirname as dirname8, join as join20, resolve as resolve3 } from "path";
+import { basename as basename4, dirname as dirname8, join as join21, resolve as resolve4 } from "path";
 
 // src/alias/store.ts
-import { mkdir as mkdir5 } from "fs/promises";
+import { mkdir as mkdir6 } from "fs/promises";
+
+// src/lib/backup.ts
+import { mkdir as mkdir5, readFile as readFile5, readdir as readdir5, unlink as unlink3, writeFile as writeFile4 } from "fs/promises";
+import { join as join9 } from "path";
+var BACKUP_KEEP = 20;
+var BACKUP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+function stamp(date) {
+  return date.toISOString().replace(/[:.]/g, "-");
+}
+function stampTime(name) {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2})-(\d{2})-(\d{2})-(\d{3})Z\.json$/.exec(name);
+  return match ? Date.parse(`${match[1]}:${match[2]}:${match[3]}.${match[4]}Z`) : NaN;
+}
+async function listBackups(dir) {
+  try {
+    return (await readdir5(dir)).filter((name) => !Number.isNaN(stampTime(name))).sort();
+  } catch {
+    return [];
+  }
+}
+async function backupBeforeWrite(file, next, dir, identity2) {
+  try {
+    let current2;
+    try {
+      current2 = await readFile5(file, "utf-8");
+    } catch {
+      return;
+    }
+    const backups = await listBackups(dir);
+    const newest2 = backups.at(-1);
+    let changed = true;
+    try {
+      changed = identity2(JSON.parse(current2)) !== identity2(next);
+    } catch {}
+    const stale2 = !newest2 || Date.now() - stampTime(newest2) > BACKUP_MAX_AGE_MS;
+    if (!changed && !stale2)
+      return;
+    let at = Date.now();
+    while (backups.includes(`${stamp(new Date(at))}.json`))
+      at++;
+    const target = join9(dir, `${stamp(new Date(at))}.json`);
+    assertTestWriteTarget(target);
+    await mkdir5(dir, { recursive: true, mode: 448 });
+    await writeFile4(target, current2, { mode: 384 });
+    const kept3 = [...backups, target.slice(dir.length + 1)].sort();
+    for (const name of kept3.slice(0, Math.max(0, kept3.length - BACKUP_KEEP))) {
+      await unlink3(join9(dir, name)).catch(() => {});
+    }
+  } catch (err) {
+    console.error(`claudex-switch: could not back up ${file} before writing: ${err.message}`);
+  }
+}
+
+// src/alias/store.ts
 function emptyRegistry() {
   return { version: 1, aliases: [] };
 }
@@ -12359,18 +12481,22 @@ var RESERVED = new Set([
   "-v"
 ]);
 async function ensureDir2() {
-  await mkdir5(CLAUDEX_DIR, { recursive: true });
+  await mkdir6(CLAUDEX_DIR(), { recursive: true });
 }
 async function loadAliases() {
-  const reg = await readJson(ALIAS_REGISTRY_FILE, emptyRegistry());
+  const reg = await readJson(ALIAS_REGISTRY_FILE(), emptyRegistry());
   if (!Array.isArray(reg.aliases)) {
     reg.aliases = [];
   }
   return reg;
 }
+function aliasIdentity(reg) {
+  return JSON.stringify((reg.aliases ?? []).map((entry) => [entry.alias, entry.target]));
+}
 async function saveAliases(reg) {
   await ensureDir2();
-  await writeJsonSecure(ALIAS_REGISTRY_FILE, reg);
+  await backupBeforeWrite(ALIAS_REGISTRY_FILE(), reg, ALIAS_BACKUP_DIR(), aliasIdentity);
+  await writeJsonSecure(ALIAS_REGISTRY_FILE(), reg);
 }
 function findAlias(reg, alias) {
   const lower = alias.toLowerCase();
@@ -12496,10 +12622,10 @@ async function renameAlias(currentAlias, nextAlias) {
 }
 
 // src/providers/codex/registry.ts
-import { mkdir as mkdir7 } from "fs/promises";
+import { mkdir as mkdir8 } from "fs/promises";
 
 // src/providers/codex/config.ts
-import { chmod as chmod5, mkdir as mkdir6, readFile as readFile5, writeFile as writeFile4 } from "fs/promises";
+import { chmod as chmod5, mkdir as mkdir7, readFile as readFile6, writeFile as writeFile5 } from "fs/promises";
 import { dirname as dirname4 } from "path";
 
 // src/lib/toml.ts
@@ -12700,10 +12826,10 @@ function cloneConfig(value) {
   return JSON.parse(JSON.stringify(value));
 }
 async function readCodexConfig() {
-  if (!await fileExists(CODEX_CONFIG_FILE))
+  if (!await fileExists(CODEX_CONFIG_FILE()))
     return {};
   try {
-    const content = await readFile5(CODEX_CONFIG_FILE, "utf-8");
+    const content = await readFile6(CODEX_CONFIG_FILE(), "utf-8");
     return cloneConfig(parseToml(content));
   } catch {
     return {};
@@ -12848,9 +12974,9 @@ async function renderCodexRunConfig(provider, apiKey) {
   return rendered === renderCodexConfig(original) ? null : rendered;
 }
 async function repairCodexStringifiedArrays() {
-  if (!await fileExists(CODEX_CONFIG_FILE))
+  if (!await fileExists(CODEX_CONFIG_FILE()))
     return false;
-  const content = await readFile5(CODEX_CONFIG_FILE, "utf-8");
+  const content = await readFile6(CODEX_CONFIG_FILE(), "utf-8");
   const lines = content.split(/\r?\n/);
   let changed = false;
   for (let i = 0;i < lines.length; i++) {
@@ -12873,22 +12999,23 @@ async function repairCodexStringifiedArrays() {
     changed = true;
   }
   if (changed) {
-    await writeFile4(CODEX_CONFIG_FILE, lines.join(`
+    await writeFile5(CODEX_CONFIG_FILE(), lines.join(`
 `), { mode: 384 });
   }
   return changed;
 }
 async function writeCodexConfig(config) {
+  assertTestWriteTarget(CODEX_CONFIG_FILE());
   const content = renderCodexConfig(config);
   try {
-    if (await readFile5(CODEX_CONFIG_FILE, "utf-8") === content) {
-      await chmod5(CODEX_CONFIG_FILE, 384);
+    if (await readFile6(CODEX_CONFIG_FILE(), "utf-8") === content) {
+      await chmod5(CODEX_CONFIG_FILE(), 384);
       return;
     }
   } catch {}
-  await mkdir6(dirname4(CODEX_CONFIG_FILE), { recursive: true });
-  await writeFile4(CODEX_CONFIG_FILE, content, { mode: 384 });
-  await chmod5(CODEX_CONFIG_FILE, 384);
+  await mkdir7(dirname4(CODEX_CONFIG_FILE()), { recursive: true });
+  await writeFile5(CODEX_CONFIG_FILE(), content, { mode: 384 });
+  await chmod5(CODEX_CONFIG_FILE(), 384);
 }
 
 // src/providers/codex/registry.ts
@@ -12905,13 +13032,13 @@ var DEFAULT_REGISTRY = {
   accounts: []
 };
 async function ensureAccountsDir() {
-  await mkdir7(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir8(CODEX_ACCOUNTS_DIR(), { recursive: true });
 }
 async function loadRegistry(options = {}) {
-  if (!await fileExists(CODEX_REGISTRY_FILE)) {
+  if (!await fileExists(CODEX_REGISTRY_FILE())) {
     return JSON.parse(JSON.stringify(DEFAULT_REGISTRY));
   }
-  const reg = await readJson(CODEX_REGISTRY_FILE, DEFAULT_REGISTRY);
+  const reg = await readJson(CODEX_REGISTRY_FILE(), DEFAULT_REGISTRY);
   if (!Array.isArray(reg.accounts)) {
     reg.accounts = [];
   }
@@ -12928,9 +13055,22 @@ async function loadRegistry(options = {}) {
   }
   return reg;
 }
+function registryIdentity(reg) {
+  return JSON.stringify({
+    active: reg.active_account_key,
+    accounts: (reg.accounts ?? []).map((a) => [
+      a.account_key,
+      a.alias,
+      a.auth_mode,
+      a.default_model ?? null,
+      a.api_provider ?? null
+    ])
+  });
+}
 async function saveRegistry(reg) {
   await ensureAccountsDir();
-  await writeJson(CODEX_REGISTRY_FILE, reg);
+  await backupBeforeWrite(CODEX_REGISTRY_FILE(), reg, CODEX_REGISTRY_BACKUP_DIR(), registryIdentity);
+  await writeJson(CODEX_REGISTRY_FILE(), reg);
 }
 function findAccountByKey(reg, accountKey) {
   return reg.accounts.find((a) => a.account_key === accountKey);
@@ -13015,14 +13155,14 @@ function managedSessionCreators(reg) {
 }
 
 // src/providers/opencode/profiles.ts
-import { chmod as chmod6, mkdir as mkdir8, rename as rename3, rm as rm5, writeFile as writeFile5 } from "fs/promises";
+import { chmod as chmod6, mkdir as mkdir9, rename as rename3, rm as rm5, writeFile as writeFile6 } from "fs/promises";
 import { randomUUID as randomUUID5 } from "crypto";
 import { dirname as dirname5 } from "path";
 
 // src/providers/opencode/native.ts
 import { execFile as execFile2 } from "child_process";
 import { promisify } from "util";
-import { join as join9 } from "path";
+import { join as join10 } from "path";
 var execFileAsync = promisify(execFile2);
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -13031,7 +13171,7 @@ function nativeOpenCodeDatabaseFile() {
   const override = process.env.OPENCODE_DB?.trim();
   if (override)
     return override;
-  return join9(OPENCODE_GLOBAL_DATA_DIR, "opencode.db");
+  return join10(OPENCODE_GLOBAL_DATA_DIR(), "opencode.db");
 }
 async function queryRows(dbPath, sql) {
   try {
@@ -13126,7 +13266,7 @@ async function readNativeOpenCodeGoCredentials() {
 
 // src/providers/opencode/lock.ts
 import { randomUUID as randomUUID4 } from "crypto";
-import { open as open2, readFile as readFile6, rm as rm4, stat as stat3 } from "fs/promises";
+import { open as open2, readFile as readFile7, rm as rm4, stat as stat3 } from "fs/promises";
 async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
   const timeoutAt = Date.now() + timeoutMs;
   const token = randomUUID4();
@@ -13137,7 +13277,7 @@ async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
       await handle.close();
       return async () => {
         try {
-          const current2 = JSON.parse(await readFile6(lockPath, "utf8"));
+          const current2 = JSON.parse(await readFile7(lockPath, "utf8"));
           if (current2.token === token)
             await rm4(lockPath, { force: true });
         } catch {}
@@ -13148,7 +13288,7 @@ async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
       }
     }
     try {
-      const owner = JSON.parse(await readFile6(lockPath, "utf8"));
+      const owner = JSON.parse(await readFile7(lockPath, "utf8"));
       if (typeof owner.pid === "number" && Number.isInteger(owner.pid)) {
         try {
           process.kill(owner.pid, 0);
@@ -13166,7 +13306,7 @@ async function acquireProfileLock(lockPath, resourceName, timeoutMs = 1e4) {
         }
       }
     } catch {}
-    await new Promise((resolve3) => setTimeout(resolve3, 25));
+    await new Promise((resolve4) => setTimeout(resolve4, 25));
   }
   throw new Error(`Timed out waiting for this alias's private OpenCode ${resourceName} lock.`);
 }
@@ -13185,7 +13325,7 @@ function isOpenCodeAuthInfo(value) {
 }
 async function ensureProfileDir(profileId) {
   const directory = openCodeProfileDir(profileId);
-  await mkdir8(directory, { recursive: true, mode: 448 });
+  await mkdir9(directory, { recursive: true, mode: 448 });
   await chmod6(directory, 448);
 }
 async function writeProfileData2(profileId, data) {
@@ -13203,11 +13343,11 @@ function normalizeOpenCodeGoModel(input) {
   return model;
 }
 async function readOpenCodeState() {
-  return readJson(OPENCODE_STATE_FILE, emptyState());
+  return readJson(OPENCODE_STATE_FILE(), emptyState());
 }
 async function writeOpenCodeState(state) {
-  await mkdir8(OPENCODE_PROFILES_DIR, { recursive: true, mode: 448 });
-  await writeJsonSecure(OPENCODE_STATE_FILE, state);
+  await mkdir9(OPENCODE_PROFILES_DIR(), { recursive: true, mode: 448 });
+  await writeJsonSecure(OPENCODE_STATE_FILE(), state);
 }
 async function setActiveOpenCodeProfile(profileId) {
   const state = await readOpenCodeState();
@@ -13279,17 +13419,17 @@ async function saveOpenCodeGoCredential(profileId, credential) {
     throw new Error("The saved OpenCode Go credential is invalid.");
   }
   const authFile2 = openCodeProfileAuthFile(profileId);
-  await mkdir8(openCodeProfileDataHome(profileId), {
+  await mkdir9(openCodeProfileDataHome(profileId), {
     recursive: true,
     mode: 448
   });
-  await mkdir8(dirname5(authFile2), {
+  await mkdir9(dirname5(authFile2), {
     recursive: true,
     mode: 448
   });
   const temporaryFile = `${authFile2}.${randomUUID5()}.tmp`;
   try {
-    await writeFile5(temporaryFile, JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2), { mode: 384, flag: "wx" });
+    await writeFile6(temporaryFile, JSON.stringify({ [OPENCODE_GO_PROVIDER_ID]: credential }, null, 2), { mode: 384, flag: "wx" });
     await chmod6(temporaryFile, 384);
     await rename3(temporaryFile, authFile2);
   } finally {
@@ -13297,7 +13437,7 @@ async function saveOpenCodeGoCredential(profileId, credential) {
   }
 }
 async function readGlobalOpenCodeGoCredential() {
-  const auth = await readJson(OPENCODE_GLOBAL_AUTH_FILE, {});
+  const auth = await readJson(OPENCODE_GLOBAL_AUTH_FILE(), {});
   const credential = auth[OPENCODE_GO_PROVIDER_ID];
   return isOpenCodeAuthInfo(credential) ? credential : null;
 }
@@ -13309,7 +13449,7 @@ async function removeOpenCodeProfile(profileId) {
   const profile = await readJson(openCodeProfileDataFile(profileId), null);
   let release;
   if (profile?.console) {
-    await mkdir8(OPENCODE_LOCKS_DIR, { recursive: true, mode: 448 });
+    await mkdir9(OPENCODE_LOCKS_DIR(), { recursive: true, mode: 448 });
     release = await acquireProfileLock(openCodeProfileConsoleLock(profileId), "subscription account", 100);
   }
   try {
@@ -13325,23 +13465,23 @@ async function removeOpenCodeProfile(profileId) {
 }
 
 // src/commands/add.ts
-import { spawn as spawn6, spawnSync as spawnSync7 } from "child_process";
+import { spawn as spawn6, spawnSync as spawnSync8 } from "child_process";
 import { platform as platform5 } from "os";
 
 // src/accounts/create.ts
 import { createHash as createHash7 } from "crypto";
 
 // src/providers/codex/auth.ts
-import { chmod as chmod7, copyFile as copyFile2, mkdir as mkdir9, readFile as readFile7, rename as rename4, unlink as unlink3, writeFile as writeFile6 } from "fs/promises";
+import { chmod as chmod7, copyFile as copyFile2, mkdir as mkdir10, readFile as readFile8, rename as rename4, unlink as unlink4, writeFile as writeFile7 } from "fs/promises";
 import { randomUUID as randomUUID6 } from "crypto";
 import { dirname as dirname6 } from "path";
 async function ensureAccountsDir2() {
-  await mkdir9(CODEX_ACCOUNTS_DIR, { recursive: true });
+  await mkdir10(CODEX_ACCOUNTS_DIR(), { recursive: true });
 }
 async function readActiveAuth() {
-  if (!await fileExists(CODEX_AUTH_FILE))
+  if (!await fileExists(CODEX_AUTH_FILE()))
     return null;
-  return readJson(CODEX_AUTH_FILE, null);
+  return readJson(CODEX_AUTH_FILE(), null);
 }
 async function readAccountAuth(accountKey) {
   const path = codexAccountAuthFile(accountKey);
@@ -13354,15 +13494,15 @@ async function switchToAccount(accountKey) {
   if (!await fileExists(srcPath)) {
     throw new Error(`Auth file not found for account: ${accountKey}`);
   }
-  const srcContent = await readFile7(srcPath, "utf-8");
+  const srcContent = await readFile8(srcPath, "utf-8");
   const auth = parseAuthContent(srcContent);
   if (auth?.auth_mode === "apikey") {
     const normalized = normalizeAuthForCodexCli(auth);
     await writeAuthFileIfChanged(srcPath, normalized);
-    await writeAuthFileIfChanged(CODEX_AUTH_FILE, normalized);
+    await writeAuthFileIfChanged(CODEX_AUTH_FILE(), normalized);
     return;
   }
-  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE, srcContent);
+  await writeRawAuthFileIfChanged(CODEX_AUTH_FILE(), srcContent);
 }
 async function saveAccountAuth(accountKey, authData) {
   await ensureAccountsDir2();
@@ -13377,7 +13517,7 @@ async function writeAuthFileIfChanged(path, authData) {
 }
 async function writeRawAuthFileIfChanged(path, content) {
   try {
-    if (await readFile7(path, "utf-8") === content) {
+    if (await readFile8(path, "utf-8") === content) {
       await chmod7(path, 384);
       return;
     }
@@ -13385,15 +13525,16 @@ async function writeRawAuthFileIfChanged(path, content) {
   await writeRawAuthFile(path, content);
 }
 async function writeRawAuthFile(path, content) {
-  await mkdir9(dirname6(path), { recursive: true });
+  assertTestWriteTarget(path);
+  await mkdir10(dirname6(path), { recursive: true });
   const tempPath = `${path}.${process.pid}.${randomUUID6()}.tmp`;
   try {
-    await writeFile6(tempPath, content, { mode: 384 });
+    await writeFile7(tempPath, content, { mode: 384 });
     await rename4(tempPath, path);
     await chmod7(path, 384);
   } catch (err) {
     try {
-      await unlink3(tempPath);
+      await unlink4(tempPath);
     } catch {}
     throw err;
   }
@@ -13497,7 +13638,7 @@ async function syncActiveAuthSnapshot(reg) {
 async function removeAccountAuthFile(accountKey) {
   const path = codexAccountAuthFile(accountKey);
   try {
-    await unlink3(path);
+    await unlink4(path);
   } catch {}
 }
 
@@ -13587,24 +13728,24 @@ async function assertAliasUsable(alias) {
 import { spawn as spawn2 } from "child_process";
 
 // src/providers/codex/isolated-home.ts
-import { chmod as chmod8, copyFile as copyFile3, mkdtemp, readFile as readFile8, rm as rm6, writeFile as writeFile7 } from "fs/promises";
-import { tmpdir as tmpdir3 } from "os";
-import { join as join10 } from "path";
+import { chmod as chmod8, copyFile as copyFile3, mkdtemp, readFile as readFile9, rm as rm6, writeFile as writeFile8 } from "fs/promises";
+import { tmpdir as tmpdir4 } from "os";
+import { join as join11 } from "path";
 var AUTH_FILE_NAME = "auth.json";
 async function prepareIsolatedCodexHome(auth = null) {
-  const home = await mkdtemp(join10(tmpdir3(), "claudex-codex-"));
+  const home = await mkdtemp(join11(tmpdir4(), "claudex-codex-"));
   await chmod8(home, 448);
-  if (await fileExists(CODEX_CONFIG_FILE)) {
-    await copyFile3(CODEX_CONFIG_FILE, join10(home, "config.toml"));
+  if (await fileExists(CODEX_CONFIG_FILE())) {
+    await copyFile3(CODEX_CONFIG_FILE(), join11(home, "config.toml"));
   }
   if (auth) {
-    await writeFile7(join10(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
+    await writeFile8(join11(home, AUTH_FILE_NAME), JSON.stringify(auth, null, 2), { mode: 384 });
   }
   return home;
 }
 async function readIsolatedCodexAuth(home) {
   try {
-    return JSON.parse(await readFile8(join10(home, AUTH_FILE_NAME), "utf-8"));
+    return JSON.parse(await readFile9(join11(home, AUTH_FILE_NAME), "utf-8"));
   } catch {
     return null;
   }
@@ -13625,8 +13766,8 @@ async function runIsolatedCodexLogin() {
   delete env3.CODEX_ACCESS_TOKEN;
   try {
     const proc = spawn2("codex", ["login", "-c", 'cli_auth_credentials_store="file"'], { stdio: "inherit", env: env3 });
-    const exitCode = await new Promise((resolve3, reject) => {
-      proc.on("close", resolve3);
+    const exitCode = await new Promise((resolve4, reject) => {
+      proc.on("close", resolve4);
       proc.on("error", reject);
     });
     const auth = exitCode === 0 ? await readIsolatedCodexAuth(codexHome) : null;
@@ -13638,7 +13779,7 @@ async function runIsolatedCodexLogin() {
 }
 
 // src/lib/oneapi.ts
-import { mkdir as mkdir10 } from "fs/promises";
+import { mkdir as mkdir11 } from "fs/promises";
 import { dirname as dirname7 } from "path";
 var FETCH_TIMEOUT_MS = 4000;
 var UNLIMITED_THRESHOLD_USD = 1e7;
@@ -13680,7 +13821,7 @@ async function fetchKeyBalance(origin, apiKey) {
   return null;
 }
 async function getRelayConfig(origin) {
-  const relays = await readJson(RELAYS_FILE, {});
+  const relays = await readJson(RELAYS_FILE(), {});
   const config = relays[origin];
   if (!config || typeof config.accessToken !== "string" || !config.accessToken) {
     return null;
@@ -13688,10 +13829,10 @@ async function getRelayConfig(origin) {
   return config;
 }
 async function saveRelayConfig(origin, config) {
-  const relays = await readJson(RELAYS_FILE, {});
+  const relays = await readJson(RELAYS_FILE(), {});
   relays[origin] = config;
-  await mkdir10(dirname7(RELAYS_FILE), { recursive: true });
-  await writeJsonSecure(RELAYS_FILE, relays);
+  await mkdir11(dirname7(RELAYS_FILE()), { recursive: true });
+  await writeJsonSecure(RELAYS_FILE(), relays);
 }
 async function detectRelay(origin) {
   const status = await getJson(`${origin}/api/status`, {});
@@ -13764,20 +13905,20 @@ async function getJson(url, headers) {
 }
 
 // src/providers/opencode/tui.ts
-import { spawn as spawn3, spawnSync as spawnSync5 } from "child_process";
+import { spawn as spawn3, spawnSync as spawnSync6 } from "child_process";
 async function runOpenCodeTui(profileId, spawnCommand = spawn3) {
   const proc = spawnCommand("opencode", [], {
     stdio: "inherit",
     env: openCodeSetupEnvironment(profileId)
   });
-  return new Promise((resolve3) => {
-    proc.once("error", () => resolve3(127));
-    proc.once("close", (code) => resolve3(code ?? 1));
+  return new Promise((resolve4) => {
+    proc.once("error", () => resolve4(127));
+    proc.once("close", (code) => resolve4(code ?? 1));
   });
 }
 
 // src/providers/opencode/version.ts
-import { spawnSync as spawnSync6 } from "child_process";
+import { spawnSync as spawnSync7 } from "child_process";
 function parseOpenCodeVersion(output) {
   const match = output.match(/(?:^|\s)v?(\d+)\.(\d+)\.(\d+)(?:[-+][\w.-]+)?(?=\s|$)/i);
   if (!match)
@@ -13794,7 +13935,7 @@ function isSupportedOpenCodeVersion(version) {
 }
 function detectOpenCodeVersion() {
   try {
-    const result2 = spawnSync6("opencode", ["--version"], {
+    const result2 = spawnSync7("opencode", ["--version"], {
       encoding: "utf-8",
       windowsHide: true,
       timeout: 5000,
@@ -13811,20 +13952,20 @@ ${result2.stderr ?? ""}`);
 
 // src/providers/opencode/console.ts
 import { spawn as spawn5 } from "child_process";
-import { chmod as chmod10, mkdir as mkdir12 } from "fs/promises";
-import { join as join13 } from "path";
+import { chmod as chmod10, mkdir as mkdir13 } from "fs/promises";
+import { join as join14 } from "path";
 
 // src/providers/opencode/catalog.ts
 import { createHash as createHash8, randomUUID as randomUUID7 } from "crypto";
-import { link, readFile as readFile9, rename as rename5, rm as rm7, stat as stat4, writeFile as writeFile8 } from "fs/promises";
-import { join as join11 } from "path";
+import { link, readFile as readFile10, rename as rename5, rm as rm7, stat as stat4, writeFile as writeFile9 } from "fs/promises";
+import { join as join12 } from "path";
 var OPENCODE_GO_CATALOG_URL = "https://opencode.ai/zen/go/v1/models";
 async function prepareOpenCodeModelCatalog(env3) {
   const offline = env3.OPENCODE_DISABLE_MODELS_FETCH;
   env3.OPENCODE_DISABLE_MODELS_FETCH = "1";
   if (env3.OPENCODE_MODELS_PATH || !env3.XDG_CACHE_HOME)
     return;
-  const path = join11(env3.XDG_CACHE_HOME, "claudex-models.json");
+  const path = join12(env3.XDG_CACHE_HOME, "claudex-models.json");
   let cached;
   let fresh2 = false;
   const valid = (data) => {
@@ -13834,7 +13975,7 @@ async function prepareOpenCodeModelCatalog(env3) {
     return !!provider && typeof provider === "object" && !Array.isArray(provider) && !!provider.models && typeof provider.models === "object" && !Array.isArray(provider.models) && Object.keys(provider.models).length > 0;
   };
   try {
-    const text = await readFile9(path, "utf8");
+    const text = await readFile10(path, "utf8");
     if (valid(JSON.parse(text)))
       cached = text;
     fresh2 = cached !== undefined && Date.now() - (await stat4(path)).mtimeMs < 5 * 60000;
@@ -13850,7 +13991,7 @@ async function prepareOpenCodeModelCatalog(env3) {
       if (response.ok) {
         const text = await response.text();
         if (valid(JSON.parse(text))) {
-          await writeFile8(temporary, text, { mode: 384 });
+          await writeFile9(temporary, text, { mode: 384 });
           await rename5(temporary, path);
           cached = text;
         }
@@ -13861,10 +14002,10 @@ async function prepareOpenCodeModelCatalog(env3) {
   }
   if (cached) {
     const digest = createHash8("sha256").update(cached).digest("hex");
-    const snapshot = join11(env3.XDG_CACHE_HOME, `claudex-models-${digest}.json`);
+    const snapshot = join12(env3.XDG_CACHE_HOME, `claudex-models-${digest}.json`);
     const temporary = `${path}.${randomUUID7()}.tmp`;
     try {
-      await writeFile8(temporary, cached, { mode: 384 });
+      await writeFile9(temporary, cached, { mode: 384 });
       try {
         await link(temporary, snapshot);
       } catch (error2) {
@@ -13909,8 +14050,8 @@ async function resolveOpenCodeGoModel(input) {
 // src/providers/opencode/runtime.ts
 import { randomBytes as randomBytes5, randomUUID as randomUUID8 } from "crypto";
 import { spawn as spawn4 } from "child_process";
-import { join as join12 } from "path";
-import { chmod as chmod9, mkdir as mkdir11, readFile as readFile10, rename as rename6, rm as rm8, writeFile as writeFile9 } from "fs/promises";
+import { join as join13 } from "path";
+import { chmod as chmod9, mkdir as mkdir12, readFile as readFile11, rename as rename6, rm as rm8, writeFile as writeFile10 } from "fs/promises";
 var OPENCODE_NATIVE_GO_KEY_ENV = "OPENCODE_API_KEY";
 var OPENCODE_FREE_PROVIDER_ID = "opencode";
 function isOpenCodeFreeModel(model) {
@@ -14042,7 +14183,7 @@ function restrictOpenCodeProviders(config, providerId) {
 async function readModelInventory(file) {
   let contents;
   try {
-    contents = await readFile10(file, "utf8");
+    contents = await readFile11(file, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return [];
@@ -14066,7 +14207,7 @@ async function readModelInventory(file) {
 async function writeModelInventory(file, models2) {
   const temporaryFile = `${file}.${randomUUID8()}.tmp`;
   try {
-    await writeFile9(temporaryFile, JSON.stringify(models2, null, 2), { flag: "wx", mode: 384 });
+    await writeFile10(temporaryFile, JSON.stringify(models2, null, 2), { flag: "wx", mode: 384 });
     await chmod9(temporaryFile, 384);
     await rename6(temporaryFile, file);
   } catch {
@@ -14083,7 +14224,7 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
   }
   const selectedGoModel = `${OPENCODE_GO_PROVIDER_ID}/${managedModel.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1)}`;
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
-  await mkdir11(runtimeRoot, { recursive: true, mode: 448 });
+  await mkdir12(runtimeRoot, { recursive: true, mode: 448 });
   await chmod9(runtimeRoot, 448);
   const inventoryFile = openCodeProfileV2ModelInventoryFile(profileId);
   const release = await acquireProfileLock(`${inventoryFile}.lock`, "model history");
@@ -14100,7 +14241,7 @@ async function rememberOpenCodeV2Model(profileId, source, selectedModel) {
 async function readOwnedCredentialIds(file) {
   let contents;
   try {
-    contents = await readFile10(file, "utf8");
+    contents = await readFile11(file, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return [];
@@ -14120,7 +14261,7 @@ async function readOwnedCredentialIds(file) {
 async function writeOwnedCredentialIds(file, credentialIds) {
   const temporaryFile = `${file}.${randomUUID8()}.tmp`;
   try {
-    await writeFile9(temporaryFile, JSON.stringify({ version: 1, credentialIds }, null, 2), {
+    await writeFile10(temporaryFile, JSON.stringify({ version: 1, credentialIds }, null, 2), {
       flag: "wx",
       mode: 384
     });
@@ -14153,7 +14294,7 @@ function serverUrlFromLine(line) {
   return url.origin;
 }
 function waitForLocalServer(child, timeoutMs) {
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve4, reject) => {
     let output = "";
     let settled = false;
     const finish = (error2, url) => {
@@ -14167,7 +14308,7 @@ function waitForLocalServer(child, timeoutMs) {
       if (error2)
         reject(error2);
       else
-        resolve3(url);
+        resolve4(url);
     };
     const onData = (chunk) => {
       output += chunk.toString();
@@ -14195,11 +14336,11 @@ function waitForLocalServer(child, timeoutMs) {
 function waitForChildClose(child, timeoutMs) {
   if (child.exitCode !== null || child.signalCode !== null)
     return Promise.resolve(true);
-  return new Promise((resolve3) => {
+  return new Promise((resolve4) => {
     const finish = (closed) => {
       clearTimeout(timer);
       child.off("close", onClose);
-      resolve3(closed);
+      resolve4(closed);
     };
     const onClose = () => finish(true);
     const timer = setTimeout(() => finish(false), timeoutMs);
@@ -14382,7 +14523,7 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
       agent = candidate;
       break;
     }
-    await new Promise((resolve3) => setTimeout(resolve3, 100));
+    await new Promise((resolve4) => setTimeout(resolve4, 100));
   }
   if (!agent) {
     throw new Error("OpenCode V2's configured default agent is unavailable in this location.");
@@ -14413,11 +14554,11 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
         method: "GET"
       });
     } catch {
-      await new Promise((resolve3) => setTimeout(resolve3, 100));
+      await new Promise((resolve4) => setTimeout(resolve4, 100));
       continue;
     }
     if (!response.ok) {
-      await new Promise((resolve3) => setTimeout(resolve3, 100));
+      await new Promise((resolve4) => setTimeout(resolve4, 100));
       continue;
     }
     const modelData = locationData(await responseJson(response));
@@ -14466,7 +14607,7 @@ async function verifyEffectiveOpenCodeRouting(fetcher, baseUrl2, password, manag
         freeModelIds
       };
     }
-    await new Promise((resolve3) => setTimeout(resolve3, 150));
+    await new Promise((resolve4) => setTimeout(resolve4, 150));
   }
   if (lastUnexpectedProvider) {
     throw new Error("OpenCode V2's effective provider inventory includes another provider; refusing this Go alias launch.");
@@ -14481,11 +14622,11 @@ async function waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password) {
     try {
       response = await fetchOpenCodeApi(fetcher, baseUrl2, path, password, { method: "GET" });
     } catch {
-      await new Promise((resolve3) => setTimeout(resolve3, 100));
+      await new Promise((resolve4) => setTimeout(resolve4, 100));
       continue;
     }
     if (response.status === 404 || response.status === 503) {
-      await new Promise((resolve3) => setTimeout(resolve3, 100));
+      await new Promise((resolve4) => setTimeout(resolve4, 100));
       continue;
     }
     if (!response.ok) {
@@ -14498,13 +14639,13 @@ async function waitForManagedIntegrationKeyMethod(fetcher, baseUrl2, password) {
     if (integration.methods.some((method) => isRecord2(method) && method.type === "key")) {
       return;
     }
-    await new Promise((resolve3) => setTimeout(resolve3, 100));
+    await new Promise((resolve4) => setTimeout(resolve4, 100));
   }
   throw new Error("OpenCode V2's managed Go key method did not become ready; refusing to launch.");
 }
 async function syncOpenCodeV2CredentialToPrivateDatabase(profileId, key, env3, spawnCommand = spawn4, fetcher = fetch) {
   const runtimeRoot = openCodeProfileV2RuntimeDir(profileId);
-  await mkdir11(runtimeRoot, { recursive: true, mode: 448 });
+  await mkdir12(runtimeRoot, { recursive: true, mode: 448 });
   await chmod9(runtimeRoot, 448);
   const credentialStateFile = openCodeProfileV2CredentialStateFile(profileId);
   const release = await acquireProfileLock(`${credentialStateFile}.lock`, "credential sync");
@@ -14588,15 +14729,15 @@ async function prepareOpenCodeV2RunEnvironment(profileId, selectedModel, credent
   const selectedManagedModelId = typeof managedConfig.model === "string" && managedConfig.model.startsWith(`${OPENCODE_V2_MANAGED_PROVIDER_ID}/`) ? managedConfig.model.slice(OPENCODE_V2_MANAGED_PROVIDER_ID.length + 1) : undefined;
   const privateRoot = openCodeProfileV2RuntimeDir(profileId);
   const dataHome = openCodeProfileV2DataHome(profileId);
-  const stateHome = join12(privateRoot, "state");
-  const cacheHome = join12(privateRoot, "cache");
-  const legacyAuthFile = join12(dataHome, "opencode", "auth.json");
+  const stateHome = join13(privateRoot, "state");
+  const cacheHome = join13(privateRoot, "cache");
+  const legacyAuthFile = join13(dataHome, "opencode", "auth.json");
   if (await fileExists(legacyAuthFile)) {
     throw new Error("OpenCode V2 found a legacy auth.json in this alias's private runtime data. It will not import that file into this alias's SQLite database; preserve or remove it before retrying.");
   }
-  await mkdir11(privateRoot, { recursive: true, mode: 448 });
+  await mkdir12(privateRoot, { recursive: true, mode: 448 });
   await chmod9(privateRoot, 448);
-  await Promise.all([dataHome, join12(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir11(path, { recursive: true, mode: 448 })));
+  await Promise.all([dataHome, join13(dataHome, "opencode"), stateHome, cacheHome].map((path) => mkdir12(path, { recursive: true, mode: 448 })));
   const env3 = { ...process.env };
   delete env3.OPENCODE_AUTH_CONTENT;
   delete env3[OPENCODE_NATIVE_GO_KEY_ENV];
@@ -14624,8 +14765,8 @@ function record(value) {
 async function openCodeConsoleEnvironment(profileId) {
   const root = openCodeProfileV2RuntimeDir(profileId);
   const data = openCodeProfileV2DataHome(profileId);
-  for (const path of [root, data, join13(data, "opencode"), join13(root, "state"), join13(root, "cache"), OPENCODE_LOCKS_DIR]) {
-    await mkdir12(path, { recursive: true, mode: 448 });
+  for (const path of [root, data, join14(data, "opencode"), join14(root, "state"), join14(root, "cache"), OPENCODE_LOCKS_DIR()]) {
+    await mkdir13(path, { recursive: true, mode: 448 });
     await chmod10(path, 448);
   }
   const env3 = { ...process.env };
@@ -14634,8 +14775,8 @@ async function openCodeConsoleEnvironment(profileId) {
   delete env3.OPENCODE_PASSWORD;
   env3.OPENCODE_DB = openCodeProfileV2DatabaseFile(profileId);
   env3.XDG_DATA_HOME = data;
-  env3.XDG_STATE_HOME = join13(root, "state");
-  env3.XDG_CACHE_HOME = join13(root, "cache");
+  env3.XDG_STATE_HOME = join14(root, "state");
+  env3.XDG_CACHE_HOME = join14(root, "cache");
   env3.OPENCODE_DISABLE_AUTOUPDATE = "1";
   await prepareOpenCodeModelCatalog(env3);
   return env3;
@@ -14732,7 +14873,7 @@ async function nativeModels(env3, credentialId) {
           }
         }
       }
-      await new Promise((resolve3) => setTimeout(resolve3, 100));
+      await new Promise((resolve4) => setTimeout(resolve4, 100));
     }
     throw new Error("OpenCode could not load this workspace's subscription models; reconnect or retry.");
   });
@@ -14829,7 +14970,7 @@ async function loginOpenCodeConsole(profileId, previous) {
   const stagedId = createOpenCodeProfileId();
   const stagedEnv = await openCodeConsoleEnvironment(stagedId);
   stagedEnv.OPENCODE_CONFIG_CONTENT = "{}";
-  stagedEnv.XDG_CONFIG_HOME = join13(openCodeProfileV2RuntimeDir(stagedId), "config");
+  stagedEnv.XDG_CONFIG_HOME = join14(openCodeProfileV2RuntimeDir(stagedId), "config");
   stagedEnv.OPENCODE_CONFIG_PROJECT_DISABLE = "1";
   delete stagedEnv.OPENCODE_CONFIG;
   delete stagedEnv.OPENCODE_CONFIG_DIR;
@@ -14838,8 +14979,8 @@ async function loginOpenCodeConsole(profileId, previous) {
     stagedEnv.PATH = `${shimDir}:${stagedEnv.PATH}`;
   try {
     const child = spawn5("opencode", ["auth", "login", "opencode", "--method", "device", "--standalone"], { stdio: "inherit", env: stagedEnv });
-    const code = await new Promise((resolve3, reject) => {
-      child.once("close", resolve3);
+    const code = await new Promise((resolve4, reject) => {
+      child.once("close", resolve4);
       child.once("error", () => reject(new Error("Could not start OpenCode subscription login.")));
     });
     if (code !== 0)
@@ -15141,20 +15282,20 @@ async function promptForKey(message) {
 }
 
 // src/providers/cliproxyapi/links.ts
-import { mkdir as mkdir13 } from "fs/promises";
+import { mkdir as mkdir14 } from "fs/promises";
 function linkKey(target) {
   return target.provider === "codex" ? `codex:${target.accountKey}` : `opencode:${target.profileId}`;
 }
 async function readLinks() {
-  const file = await readJson(CLI_PROXY_API_LINKS_FILE, null);
+  const file = await readJson(CLI_PROXY_API_LINKS_FILE(), null);
   if (file?.version !== 1 || !file.links || typeof file.links !== "object") {
     return { version: 1, links: {} };
   }
   return file;
 }
 async function writeLinks(file) {
-  await mkdir13(CLAUDEX_DIR, { recursive: true });
-  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE, file);
+  await mkdir14(CLAUDEX_DIR(), { recursive: true });
+  await writeJsonSecure(CLI_PROXY_API_LINKS_FILE(), file);
 }
 async function getLinkedClaudeProfile(target) {
   return (await readLinks()).links[linkKey(target)] ?? null;
@@ -15434,7 +15575,7 @@ function upstreamLabel(upstream) {
 
 // src/commands/add.ts
 function readClaudeAuthStatus() {
-  const result2 = spawnSync7("claude", ["auth", "status"], {
+  const result2 = spawnSync8("claude", ["auth", "status"], {
     encoding: "utf-8"
   });
   if (result2.status !== 0)
@@ -15636,7 +15777,7 @@ async function addOpenCodeGo(alias) {
   }
 }
 async function addClaudeOAuth(alias) {
-  const creds = await readCredentials(CREDENTIALS_FILE);
+  const creds = await readCredentials(CREDENTIALS_FILE());
   const authStatus = readClaudeAuthStatus();
   if (creds || authStatus?.loggedIn) {
     const sub = creds?.claudeAiOauth?.subscriptionType ?? authStatus?.subscriptionType ?? null;
@@ -15654,7 +15795,7 @@ async function addClaudeOAuth(alias) {
         process.exit(1);
       }
       const defaultModel2 = await promptClaudeDefaultModel();
-      await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel: defaultModel2 });
+      await addOAuthProfile(alias, CREDENTIALS_FILE(), { defaultModel: defaultModel2 });
       await addAlias(alias, { provider: "claude", profileName: alias });
       blank();
       success2(`${source_default.bold(alias)} created from current Claude session`);
@@ -15664,7 +15805,7 @@ async function addClaudeOAuth(alias) {
     if (authStatus?.loggedIn) {
       info("Logging out current Claude session...");
       blank();
-      const logout = spawnSync7("claude", ["auth", "logout"], {
+      const logout = spawnSync8("claude", ["auth", "logout"], {
         stdio: "inherit"
       });
       if (logout.status !== 0) {
@@ -15680,9 +15821,9 @@ async function addClaudeOAuth(alias) {
   const browserScript = createPrivateBrowserScript();
   const env3 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   const proc = spawn6("claude", ["auth", "login"], { stdio: "inherit", env: env3 });
-  const exitCode = await new Promise((resolve3) => proc.on("close", resolve3));
+  const exitCode = await new Promise((resolve4) => proc.on("close", resolve4));
   cleanupBrowserScript(browserScript);
-  const newCreds = await readCredentials(CREDENTIALS_FILE);
+  const newCreds = await readCredentials(CREDENTIALS_FILE());
   if (exitCode !== 0 || !newCreds) {
     blank();
     error("Login failed or was cancelled.");
@@ -15690,7 +15831,7 @@ async function addClaudeOAuth(alias) {
     process.exit(1);
   }
   const defaultModel = await promptClaudeDefaultModel();
-  await addOAuthProfile(alias, CREDENTIALS_FILE, { defaultModel });
+  await addOAuthProfile(alias, CREDENTIALS_FILE(), { defaultModel });
   await addAlias(alias, { provider: "claude", profileName: alias });
   blank();
   success2(`${source_default.bold(alias)} created`);
@@ -15731,7 +15872,7 @@ async function resolveCLIProxyAPIBinaryForAdd() {
 }
 function hasHomebrew() {
   try {
-    return spawnSync7("brew", ["--version"], { stdio: "ignore" }).status === 0;
+    return spawnSync8("brew", ["--version"], { stdio: "ignore" }).status === 0;
   } catch {
     return false;
   }
@@ -15773,7 +15914,7 @@ async function maybeSetupRelayBalance(baseUrl2) {
       return;
     }
     error("The relay rejected the token/user ID.");
-    hint(`Try again, press Enter to skip, or edit ${source_default.cyan(RELAYS_FILE)} later.`);
+    hint(`Try again, press Enter to skip, or edit ${source_default.cyan(RELAYS_FILE())} later.`);
   }
 }
 async function promptClaudeApiConfig() {
@@ -15834,7 +15975,7 @@ async function promptClaudeDefaultModel() {
   return normalized || undefined;
 }
 async function addCodexChatGPT(alias) {
-  const codexCheck = spawnSync7("codex", ["--version"], {
+  const codexCheck = spawnSync8("codex", ["--version"], {
     encoding: "utf-8"
   });
   const hasCodex = codexCheck.status === 0;
@@ -16044,26 +16185,26 @@ import { execFile as execFile3 } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import {
   open as open3,
-  readdir as readdir5,
-  readFile as readFile11,
+  readdir as readdir6,
+  readFile as readFile12,
   realpath as realpath2,
   rename as rename7,
   rm as rm9,
   stat as stat5,
   utimes,
-  writeFile as writeFile10
+  writeFile as writeFile11
 } from "fs/promises";
-import { basename as basename3, join as join14 } from "path";
+import { basename as basename3, join as join15 } from "path";
 import { pipeline as pipeline3 } from "stream/promises";
 import { promisify as promisify2 } from "util";
 import zlib from "zlib";
 var SESSION_DIRS = ["sessions", "archived_sessions"];
 var STATE_DB_CANDIDATES = [
-  join14("sqlite", "state_5.sqlite"),
+  join15("sqlite", "state_5.sqlite"),
   "state_5.sqlite"
 ];
 var HISTORY_DB_CANDIDATES = [
-  join14("sqlite", "thread_history_1.sqlite"),
+  join15("sqlite", "thread_history_1.sqlite"),
   "thread_history_1.sqlite"
 ];
 var PLAIN_SUFFIX = ".jsonl";
@@ -16078,12 +16219,12 @@ async function listRolloutFiles(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = await readdir5(dir, { withFileTypes: true });
+      entries = await readdir6(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = join14(dir, entry.name);
+      const fullPath = join15(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
       } else if (!entry.isFile() || entry.name.startsWith(".")) {
@@ -16348,21 +16489,21 @@ async function rewritePlainRollout(filePath, options, growBy) {
   const { size } = await stat5(filePath);
   await replaceFile(filePath, async (tmpPath, mode) => {
     const out = createWriteStream(tmpPath, { mode });
-    await new Promise((resolve3, reject) => {
-      out.write(edit.line + first.separator, (err) => err ? reject(err) : resolve3());
+    await new Promise((resolve4, reject) => {
+      out.write(edit.line + first.separator, (err) => err ? reject(err) : resolve4());
     });
     if (first.restOffset < size) {
       await pipeline3(createReadStream(filePath, { start: first.restOffset }), out);
     } else {
-      await new Promise((resolve3, reject) => {
-        out.end((err) => err ? reject(err) : resolve3());
+      await new Promise((resolve4, reject) => {
+        out.end((err) => err ? reject(err) : resolve4());
       });
     }
   });
   return edit;
 }
 async function rewriteCompressedRollout(filePath, options, growBy) {
-  const decoded = zlib.zstdDecompressSync(await readFile11(filePath));
+  const decoded = zlib.zstdDecompressSync(await readFile12(filePath));
   const newline = decoded.indexOf(10);
   if (newline === -1 || newline >= FIRST_LINE_MAX_BYTES)
     return null;
@@ -16375,7 +16516,7 @@ async function rewriteCompressedRollout(filePath, options, growBy) {
     decoded.subarray(first.restOffset)
   ]);
   await replaceFile(filePath, async (tmpPath, mode) => {
-    await writeFile10(tmpPath, zlib.zstdCompressSync(updated), { mode });
+    await writeFile11(tmpPath, zlib.zstdCompressSync(updated), { mode });
   });
   return edit;
 }
@@ -16409,7 +16550,7 @@ function sqlQuote(value) {
 }
 async function findCodexFile(candidates) {
   for (const candidate of candidates) {
-    const fullPath = join14(CODEX_DIR, candidate);
+    const fullPath = join15(CODEX_DIR(), candidate);
     if (await fileExists(fullPath))
       return fullPath;
   }
@@ -16531,7 +16672,7 @@ async function syncCodexSessions(options) {
   const keepIds = [];
   const candidates = [];
   for (const dirName of SESSION_DIRS) {
-    for (const file of await listRolloutFiles(join14(CODEX_DIR, dirName))) {
+    for (const file of await listRolloutFiles(join15(CODEX_DIR(), dirName))) {
       if (file.compressed && !canDecompress)
         continue;
       try {
@@ -16722,7 +16863,7 @@ async function syncCodexSessionVisibility(reg, account) {
 
 // src/commands/run.ts
 import { spawn as spawn7 } from "child_process";
-import { chmod as chmod12, mkdir as mkdir15 } from "node:fs/promises";
+import { chmod as chmod12, mkdir as mkdir16 } from "node:fs/promises";
 
 // src/lib/model-shorthand.ts
 var CLAUDE_SHORTHAND = /^(?:(opus|sonnet|haiku|fable)[-]?)?(\d+(?:\.\d+)*)$/i;
@@ -16879,21 +17020,21 @@ async function model(aliasOrName, defaultModel) {
 }
 
 // src/commands/run.ts
-import { join as join16 } from "path";
+import { join as join17 } from "path";
 
 // src/providers/codex/run-home.ts
 import {
   chmod as chmod11,
   lstat as lstat2,
-  mkdir as mkdir14,
-  readdir as readdir6,
+  mkdir as mkdir15,
+  readdir as readdir7,
   readlink as readlink2,
   rename as rename8,
   symlink as symlink2,
-  unlink as unlink4,
-  writeFile as writeFile11
+  unlink as unlink5,
+  writeFile as writeFile12
 } from "fs/promises";
-import { join as join15 } from "path";
+import { join as join16 } from "path";
 var AUTH_FILE = "auth.json";
 var CONFIG_FILE = "config.toml";
 var PRIVATE_ENTRIES = new Set([AUTH_FILE, CONFIG_FILE, "accounts"]);
@@ -16911,25 +17052,25 @@ async function isDefaultCodexAccount(reg, account) {
 }
 async function prepareCodexRunHome(account) {
   const home = codexRunHome(account.account_key);
-  await mkdir14(home, { recursive: true, mode: 448 });
+  await mkdir15(home, { recursive: true, mode: 448 });
   await chmod11(home, 448);
-  await mkdir14(CODEX_DIR, { recursive: true });
+  await mkdir15(CODEX_DIR(), { recursive: true });
   await syncCodexRunAuth(account);
   const auth = await readAccountAuth(account.account_key);
   if (!auth) {
     throw new Error(`Auth file not found for account: ${account.account_key}`);
   }
-  await writeFile11(join15(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
-  await chmod11(join15(home, AUTH_FILE), 384);
+  await writeFile12(join16(home, AUTH_FILE), JSON.stringify(normalizeAuthForCodexCli(auth), null, 2), { mode: 384 });
+  await chmod11(join16(home, AUTH_FILE), 384);
   const privateConfig = await renderCodexRunConfig(account.auth_mode === "apikey" ? account.api_provider : null, auth.auth_mode === "apikey" ? auth.OPENAI_API_KEY ?? undefined : undefined);
-  const configPath = join15(home, CONFIG_FILE);
+  const configPath = join16(home, CONFIG_FILE);
   await removeEntry(configPath);
   if (privateConfig === null) {
-    if (await fileExists(join15(CODEX_DIR, CONFIG_FILE))) {
-      await linkEntry(join15(CODEX_DIR, CONFIG_FILE), configPath);
+    if (await fileExists(join16(CODEX_DIR(), CONFIG_FILE))) {
+      await linkEntry(join16(CODEX_DIR(), CONFIG_FILE), configPath);
     }
   } else {
-    await writeFile11(configPath, privateConfig, { mode: 384 });
+    await writeFile12(configPath, privateConfig, { mode: 384 });
     await chmod11(configPath, 384);
   }
   await linkSharedEntries(home);
@@ -16938,7 +17079,7 @@ async function prepareCodexRunHome(account) {
 async function syncCodexRunAuth(account) {
   if (account.auth_mode !== "chatgpt")
     return;
-  const runAuth = await readJson(join15(codexRunHome(account.account_key), AUTH_FILE), null);
+  const runAuth = await readJson(join16(codexRunHome(account.account_key), AUTH_FILE), null);
   if (!runAuth || !authMatchesAccount(runAuth, account))
     return;
   const snapshot = await readAccountAuth(account.account_key);
@@ -16954,20 +17095,20 @@ async function finishCodexRunHome(account) {
   await linkSharedEntries(codexRunHome(account.account_key));
 }
 async function linkSharedEntries(home) {
-  for (const entry of await readdir6(home, { withFileTypes: true })) {
+  for (const entry of await readdir7(home, { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name) || entry.isSymbolicLink())
       continue;
-    const shared = join15(CODEX_DIR, entry.name);
+    const shared = join16(CODEX_DIR(), entry.name);
     if (await exists2(shared))
       continue;
     try {
-      await rename8(join15(home, entry.name), shared);
+      await rename8(join16(home, entry.name), shared);
     } catch {}
   }
-  for (const entry of await readdir6(CODEX_DIR, { withFileTypes: true })) {
+  for (const entry of await readdir7(CODEX_DIR(), { withFileTypes: true })) {
     if (PRIVATE_ENTRIES.has(entry.name))
       continue;
-    await linkEntry(join15(CODEX_DIR, entry.name), join15(home, entry.name));
+    await linkEntry(join16(CODEX_DIR(), entry.name), join16(home, entry.name));
   }
 }
 async function linkEntry(source, destination) {
@@ -16977,7 +17118,7 @@ async function linkEntry(source, destination) {
       return;
     if (await readlink2(destination) === source)
       return;
-    await unlink4(destination);
+    await unlink5(destination);
   } catch {}
   const sourceStat = await lstat2(source);
   const type = sourceStat.isDirectory() ? process.platform === "win32" ? "junction" : "dir" : "file";
@@ -16987,7 +17128,7 @@ async function linkEntry(source, destination) {
 }
 async function removeEntry(path) {
   try {
-    await unlink4(path);
+    await unlink5(path);
   } catch {}
 }
 async function exists2(path) {
@@ -17306,7 +17447,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
       localSettingsFile = await prepareLocalCLIProxyAPIClaudeSettings(profile, runtime, {
         inheritModel: inheritProxyModel,
         modelOverride: runOptions.modelOverride ? resolvedModel : undefined,
-        savedModel: (await readJson(join16(configDir, "settings.json"), {})).model
+        savedModel: (await readJson(join17(configDir, "settings.json"), {})).model
       });
     } catch (err) {
       try {
@@ -17382,7 +17523,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
     const source = runOptions.autoreviewOverride === undefined ? "default" : "this session";
     info(`Autoreview: ${autoreviewEnabled ? "on" : "off"} (${source})`);
   }
-  return new Promise((resolve3) => {
+  return new Promise((resolve4) => {
     let settled = false;
     let removeSignalHandlers = () => {};
     const finish = async (code) => {
@@ -17395,7 +17536,7 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
         await releaseOpenCode?.();
         await relayrouterSession?.close();
       } catch {}
-      resolve3(code);
+      resolve4(code);
     };
     let proc;
     try {
@@ -17454,8 +17595,8 @@ async function runAliasSession(aliasOrName, forwardedArgs = [], spawnCommand = s
 async function runNativeAntigravity(alias, profileName, forwardedArgs, spawnCommand) {
   try {
     const requested = splitNativeAgyModelArgs(forwardedArgs);
-    const directory = join16(claudeProfileDir(profileName), "agy-native");
-    await mkdir15(directory, { recursive: true, mode: 448 });
+    const directory = join17(claudeProfileDir(profileName), "agy-native");
+    await mkdir16(directory, { recursive: true, mode: 448 });
     if (process.platform !== "win32")
       await chmod12(directory, 448);
     const env3 = {
@@ -17527,13 +17668,13 @@ function runNativeSubscription(upstream, forwardedArgs, spawnCommand, env3) {
   if (upstream === "cursor")
     info("Using the native CLI's own login; the saved proxy alias login is only used with --cliproxy claudecode.");
   info(`Running ${source_default.cyan([command, ...args].join(" "))}`);
-  return new Promise((resolve3) => {
+  return new Promise((resolve4) => {
     let proc;
     try {
       proc = spawnCommand(command, args, { stdio: "inherit", ...env3 ? { env: env3 } : {} });
     } catch (err) {
       error(`Failed to start ${command}: ${err instanceof Error ? err.message : String(err)}`);
-      resolve3(1);
+      resolve4(1);
       return;
     }
     const signals2 = ["SIGINT", "SIGTERM", "SIGHUP"];
@@ -17552,11 +17693,11 @@ function runNativeSubscription(upstream, forwardedArgs, spawnCommand, env3) {
       cleanup();
       error(`Failed to start ${command}: ${err.message}`);
       hint(`Install ${upstream === "antigravity" ? "Antigravity CLI (agy)" : "Cursor CLI (cursor agent)"} and sign in, then retry.`);
-      resolve3(1);
+      resolve4(1);
     });
     proc.on("close", (code, signal) => {
       cleanup();
-      resolve3(code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1));
+      resolve4(code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGHUP" ? 129 : 1));
     });
   });
 }
@@ -17795,7 +17936,7 @@ async function fetchClaudeUsage(profileName, isActiveProfile) {
       await writeIsolatedCredentials(next, claudeProfileDir(profileName));
     }
     if (global2) {
-      await writeCredentials(next, CREDENTIALS_FILE);
+      await writeCredentials(next, CREDENTIALS_FILE());
     }
   };
   let refreshed2 = false;
@@ -17917,7 +18058,7 @@ async function refreshOAuthToken(creds) {
 
 // src/lib/usage-cache.ts
 import { spawn as spawn8 } from "child_process";
-import { mkdir as mkdir16, open as open4, readFile as readFile12, rename as rename9, stat as stat6, unlink as unlink5, writeFile as writeFile12 } from "fs/promises";
+import { mkdir as mkdir17, open as open4, readFile as readFile13, rename as rename9, stat as stat6, unlink as unlink6, writeFile as writeFile13 } from "fs/promises";
 var LOCK_STALE_MS = 2 * 60000;
 var TRANSIENT_NOTES = new Set(["usage n/a", "quota unavailable"]);
 function emptyUsageCache() {
@@ -17925,7 +18066,7 @@ function emptyUsageCache() {
 }
 async function readUsageCache() {
   try {
-    const parsed = JSON.parse(await readFile12(USAGE_CACHE_FILE, "utf-8"));
+    const parsed = JSON.parse(await readFile13(USAGE_CACHE_FILE(), "utf-8"));
     if (parsed?.version !== 1 || !parsed.entries || typeof parsed.entries !== "object") {
       return emptyUsageCache();
     }
@@ -17935,14 +18076,14 @@ async function readUsageCache() {
   }
 }
 async function writeUsageCache(cache) {
-  await mkdir16(CLAUDEX_DIR, { recursive: true });
-  const tmp = `${USAGE_CACHE_FILE}.${process.pid}.tmp`;
-  await writeFile12(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
-  await rename9(tmp, USAGE_CACHE_FILE);
+  await mkdir17(CLAUDEX_DIR(), { recursive: true });
+  const tmp = `${USAGE_CACHE_FILE()}.${process.pid}.tmp`;
+  await writeFile13(tmp, JSON.stringify(cache, null, 2), { mode: 384 });
+  await rename9(tmp, USAGE_CACHE_FILE());
 }
 async function usageCacheMtime() {
   try {
-    return (await stat6(USAGE_CACHE_FILE)).mtimeMs;
+    return (await stat6(USAGE_CACHE_FILE())).mtimeMs;
   } catch {
     return 0;
   }
@@ -17993,27 +18134,27 @@ function formatAge(ms) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 async function acquireRefreshLock() {
-  await mkdir16(CLAUDEX_DIR, { recursive: true });
+  await mkdir17(CLAUDEX_DIR(), { recursive: true });
   for (let attempt = 0;attempt < 2; attempt++) {
     try {
-      const handle = await open4(USAGE_REFRESH_LOCK, "wx", 384);
+      const handle = await open4(USAGE_REFRESH_LOCK(), "wx", 384);
       await handle.writeFile(`${process.pid} ${Date.now()}
 `);
       await handle.close();
       return async () => {
-        await unlink5(USAGE_REFRESH_LOCK).catch(() => {});
+        await unlink6(USAGE_REFRESH_LOCK()).catch(() => {});
       };
     } catch {
       if (!await isRefreshLockStale())
         return null;
-      await unlink5(USAGE_REFRESH_LOCK).catch(() => {});
+      await unlink6(USAGE_REFRESH_LOCK()).catch(() => {});
     }
   }
   return null;
 }
 async function isRefreshRunning() {
   try {
-    await stat6(USAGE_REFRESH_LOCK);
+    await stat6(USAGE_REFRESH_LOCK());
   } catch {
     return false;
   }
@@ -18021,7 +18162,7 @@ async function isRefreshRunning() {
 }
 async function isRefreshLockStale() {
   try {
-    return Date.now() - (await stat6(USAGE_REFRESH_LOCK)).mtimeMs > LOCK_STALE_MS;
+    return Date.now() - (await stat6(USAGE_REFRESH_LOCK())).mtimeMs > LOCK_STALE_MS;
   } catch {
     return true;
   }
@@ -18043,8 +18184,8 @@ function spawnBackgroundRefresh() {
 
 // src/lib/activity.ts
 import { execFile as execFile4 } from "child_process";
-import { mkdir as mkdir17, readdir as readdir7, readFile as readFile13, realpath as realpath3, rename as rename10, stat as stat7, writeFile as writeFile13 } from "fs/promises";
-import { join as join17 } from "path";
+import { mkdir as mkdir18, readdir as readdir8, readFile as readFile14, realpath as realpath3, rename as rename10, stat as stat7, writeFile as writeFile14 } from "fs/promises";
+import { join as join18 } from "path";
 import { promisify as promisify3 } from "util";
 var ACTIVITY_DAYS = 30;
 var REFRESH_INTERVAL_MS = 10 * 60000;
@@ -18088,7 +18229,7 @@ function emptyActivityCache() {
 }
 async function readActivityCache() {
   try {
-    const parsed = JSON.parse(await readFile13(ACTIVITY_CACHE_FILE, "utf-8"));
+    const parsed = JSON.parse(await readFile14(ACTIVITY_CACHE_FILE(), "utf-8"));
     if (parsed?.version !== 1 || !parsed.days || typeof parsed.days !== "object") {
       return emptyActivityCache();
     }
@@ -18098,10 +18239,10 @@ async function readActivityCache() {
   }
 }
 async function writeActivityCache(cache) {
-  await mkdir17(CLAUDEX_DIR, { recursive: true });
-  const tmp = `${ACTIVITY_CACHE_FILE}.${process.pid}.tmp`;
-  await writeFile13(tmp, JSON.stringify(cache), { mode: 384 });
-  await rename10(tmp, ACTIVITY_CACHE_FILE);
+  await mkdir18(CLAUDEX_DIR(), { recursive: true });
+  const tmp = `${ACTIVITY_CACHE_FILE()}.${process.pid}.tmp`;
+  await writeFile14(tmp, JSON.stringify(cache), { mode: 384 });
+  await rename10(tmp, ACTIVITY_CACHE_FILE());
 }
 function localDay(ms) {
   const d = new Date(ms);
@@ -18157,9 +18298,9 @@ async function recentJsonlFiles(roots, since) {
     if (seenDirs.has(real))
       return;
     seenDirs.add(real);
-    const entries = await readdir7(real, { withFileTypes: true }).catch(() => []);
+    const entries = await readdir8(real, { withFileTypes: true }).catch(() => []);
     await Promise.all(entries.map(async (entry) => {
-      const path = join17(real, entry.name);
+      const path = join18(real, entry.name);
       if (entry.isDirectory() || entry.isSymbolicLink()) {
         const info2 = await stat7(path).catch(() => null);
         if (info2?.isDirectory())
@@ -18179,13 +18320,13 @@ async function recentJsonlFiles(roots, since) {
   return [...files];
 }
 async function collectClaudeTokens(since, addTokens, cwds) {
-  const roots = [join17(CLAUDE_DIR, "projects")];
-  for (const profile of await readdir7(CLAUDE_PROFILES_DIR).catch(() => [])) {
-    roots.push(join17(CLAUDE_PROFILES_DIR, profile, "config", "projects"));
+  const roots = [join18(CLAUDE_DIR(), "projects")];
+  for (const profile of await readdir8(CLAUDE_PROFILES_DIR()).catch(() => [])) {
+    roots.push(join18(CLAUDE_PROFILES_DIR(), profile, "config", "projects"));
   }
   const seen = new Set;
   for (const file of await recentJsonlFiles(roots, since)) {
-    const text = await readFile13(file, "utf-8").catch(() => "");
+    const text = await readFile14(file, "utf-8").catch(() => "");
     for (const line of text.split(`
 `)) {
       if (!line.includes('"usage"'))
@@ -18211,9 +18352,9 @@ async function collectClaudeTokens(since, addTokens, cwds) {
   }
 }
 async function collectCodexTokens(since, addTokens, cwds) {
-  const files = await recentJsonlFiles([join17(CODEX_DIR, "sessions"), join17(CODEX_DIR, "archived_sessions")], since);
+  const files = await recentJsonlFiles([join18(CODEX_DIR(), "sessions"), join18(CODEX_DIR(), "archived_sessions")], since);
   for (const file of files) {
-    const text = await readFile13(file, "utf-8").catch(() => "");
+    const text = await readFile14(file, "utf-8").catch(() => "");
     let previous = 0;
     for (const line of text.split(`
 `)) {
@@ -18243,7 +18384,7 @@ async function collectCodexTokens(since, addTokens, cwds) {
 }
 async function collectOpenCodeTokens(since, addTokens, cwds) {
   const dbs = [nativeOpenCodeDatabaseFile()];
-  for (const profileId of await readdir7(OPENCODE_PROFILES_DIR).catch(() => [])) {
+  for (const profileId of await readdir8(OPENCODE_PROFILES_DIR()).catch(() => [])) {
     dbs.push(openCodeProfileV2DatabaseFile(profileId));
   }
   const seen = new Set;
@@ -18396,7 +18537,7 @@ var activeServers = 0;
 var serverWaiters = [];
 async function acquireServerSlot() {
   if (activeServers >= MAX_CONCURRENT_SERVERS) {
-    await new Promise((resolve3) => serverWaiters.push(resolve3));
+    await new Promise((resolve4) => serverWaiters.push(resolve4));
   }
   activeServers += 1;
   return () => {
@@ -18432,7 +18573,7 @@ async function requestRateLimits(codexHome, spawnAppServer) {
   delete env3.OPENAI_API_KEY;
   delete env3.CODEX_API_KEY;
   delete env3.CODEX_ACCESS_TOKEN;
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve4, reject) => {
     const proc = spawnAppServer("codex", ["app-server", "-c", 'cli_auth_credentials_store="file"'], { stdio: ["pipe", "pipe", "pipe"], env: env3 });
     const stdout = proc.stdout;
     const stdin = proc.stdin;
@@ -18454,7 +18595,7 @@ async function requestRateLimits(codexHome, spawnAppServer) {
       if (error2)
         reject(error2);
       else
-        resolve3(response ?? {});
+        resolve4(response ?? {});
     };
     const send = (message) => {
       stdin.write(`${JSON.stringify(message)}
@@ -18612,8 +18753,8 @@ function parseSnapshot(snapshot) {
 }
 
 // src/providers/cliproxyapi/usage.ts
-import { readFile as readFile14, readdir as readdir8 } from "node:fs/promises";
-import { join as join18 } from "node:path";
+import { readFile as readFile15, readdir as readdir9 } from "node:fs/promises";
+import { join as join19 } from "node:path";
 async function fetchCLIProxyAPIUsage(profile) {
   if (profile.upstream === "workbuddy" || profile.upstream === "workbuddy-ai") {
     return fetchSubscriptionUsage(cliProxyAPIProfileDir(profile.profileId), profile.upstream);
@@ -18622,10 +18763,10 @@ async function fetchCLIProxyAPIUsage(profile) {
     return { usage: null, note: null };
   try {
     const directory = cliProxyAPIAuthDir(profile.profileId);
-    const files = (await readdir8(directory)).filter((name) => name.endsWith(".json"));
+    const files = (await readdir9(directory)).filter((name) => name.endsWith(".json"));
     if (files.length !== 1)
       return { usage: null, note: "usage n/a" };
-    const auth = JSON.parse(await readFile14(join18(directory, files[0]), "utf8"));
+    const auth = JSON.parse(await readFile15(join19(directory, files[0]), "utf8"));
     if (auth.type !== "antigravity" || typeof auth.access_token !== "string" || !auth.access_token) {
       return { usage: null, note: "usage n/a" };
     }
@@ -18869,7 +19010,7 @@ async function renderWhileRefreshing(entries, baseInfos, activity, startedAt, wa
   let drawn = live ? redraw(initial, 0) : 0;
   let lastMtime = await usageCacheMtime();
   while (!finished() && Date.now() - startedAt < waitMs) {
-    await new Promise((resolve3) => setTimeout(resolve3, POLL_MS2));
+    await new Promise((resolve4) => setTimeout(resolve4, POLL_MS2));
     const mtime = await usageCacheMtime();
     if (mtime === lastMtime)
       continue;
@@ -19338,7 +19479,7 @@ async function rename11(currentAlias, nextAlias) {
 }
 
 // src/accounts/purge.ts
-import { rm as rm10, unlink as unlink6 } from "fs/promises";
+import { rm as rm10, unlink as unlink7 } from "fs/promises";
 async function planPurge(aliasName) {
   const reg = await loadAliases();
   const entry = findAlias(reg, aliasName);
@@ -19371,7 +19512,7 @@ async function purgeAccount(aliasName) {
       }
       const authFile2 = codexAccountAuthFile(entry.target.accountKey);
       if (await fileExists(authFile2)) {
-        await unlink6(authFile2);
+        await unlink7(authFile2);
       }
       await rm10(codexRunHome(entry.target.accountKey), {
         recursive: true,
@@ -19460,7 +19601,7 @@ async function current2() {
 }
 
 // src/commands/import.ts
-import { readdir as readdir9 } from "fs/promises";
+import { readdir as readdir10 } from "fs/promises";
 async function importAccounts() {
   blank();
   info("Scanning for existing accounts...");
@@ -19487,11 +19628,11 @@ async function importAccounts() {
   blank();
 }
 async function importClaudeProfiles(reg) {
-  if (!await fileExists(CLAUDE_PROFILES_DIR))
+  if (!await fileExists(CLAUDE_PROFILES_DIR()))
     return { imported: 0, skipped: 0 };
   let imported = 0;
   let skipped = 0;
-  const entries = await readdir9(CLAUDE_PROFILES_DIR, { withFileTypes: true });
+  const entries = await readdir10(CLAUDE_PROFILES_DIR(), { withFileTypes: true });
   const linked = await linkedClaudeProfileNames();
   for (const entry of entries) {
     if (!entry.isDirectory())
@@ -19871,8 +20012,8 @@ async function runLoginCommand(command, args) {
   const env3 = browserScript ? { ...process.env, BROWSER: browserScript } : undefined;
   try {
     const proc = spawn10(command, args, { stdio: "inherit", env: env3 });
-    return await new Promise((resolve3, reject) => {
-      proc.on("close", resolve3);
+    return await new Promise((resolve4, reject) => {
+      proc.on("close", resolve4);
       proc.on("error", reject);
     });
   } catch (err) {
@@ -19886,8 +20027,8 @@ async function runLoginCommand(command, args) {
 
 // src/lib/update.ts
 import { realpathSync as realpathSync2 } from "fs";
-import { join as join19 } from "path";
-import { spawnSync as spawnSync8 } from "child_process";
+import { join as join20 } from "path";
+import { spawnSync as spawnSync9 } from "child_process";
 // package.json
 var package_default = {
   name: "claudex-switch",
@@ -20002,7 +20143,7 @@ async function fetchLatestReleaseVersion(fetchImpl = fetch) {
     return null;
   }
 }
-function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync8) {
+function detectInstallMethod(argv = process.argv, execPath = process.execPath, runCommand = spawnSync9) {
   const brewPrefix = readCommandStdout(runCommand("brew", ["--prefix"], {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"]
@@ -20020,7 +20161,7 @@ function detectInstallMethod(argv = process.argv, execPath = process.execPath, r
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"]
     }));
-    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join19(bunGlobalBin, "claudex-switch")))) {
+    if (bunGlobalBin && (pathStartsWith(cliPath, bunGlobalBin) || pathStartsWith(realCliPath, bunGlobalBin) || realCliPath === resolveRealPath(join20(bunGlobalBin, "claudex-switch")))) {
       return "bun";
     }
   }
@@ -20067,7 +20208,7 @@ async function checkForLatestUpdate(options = {}, settings = {}) {
   const env3 = options.env ?? process.env;
   const execPath = options.execPath ?? process.execPath;
   const fetchLatestVersion = options.fetchLatestVersion ?? fetchLatestReleaseVersion;
-  const runCommand = options.runCommand ?? spawnSync8;
+  const runCommand = options.runCommand ?? spawnSync9;
   const respectDisableEnv = settings.respectDisableEnv ?? true;
   if (respectDisableEnv && (env3[SKIP_AUTO_UPDATE_ENV] === "1" || env3[DISABLE_AUTO_UPDATE_ENV] === "1")) {
     return {
@@ -21859,11 +22000,11 @@ async function startWebConfigServer(options = {}) {
       sendJson(res, 500, { error: "internal error" });
     });
   });
-  await new Promise((resolve3, reject) => {
+  await new Promise((resolve4, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? 0, host, () => {
       server.removeListener("error", reject);
-      resolve3();
+      resolve4();
     });
   });
   const address = server.address();
@@ -21876,9 +22017,9 @@ async function startWebConfigServer(options = {}) {
   };
 }
 function closeServer(server) {
-  return new Promise((resolve3) => {
+  return new Promise((resolve4) => {
     server.closeAllConnections?.();
-    server.close(() => resolve3());
+    server.close(() => resolve4());
   });
 }
 async function handleRequest(req, res, token, host) {
@@ -22073,11 +22214,11 @@ async function webconfig(args = []) {
   if (options.open !== false && !openExternalUrl(server.url)) {
     info("Could not open a browser automatically — open the link above.");
   }
-  await new Promise((resolve3) => {
+  await new Promise((resolve4) => {
     const stop = () => {
       server.close().then(() => {
         blank();
-        resolve3();
+        resolve4();
       });
     };
     process.once("SIGINT", stop);
@@ -22253,7 +22394,7 @@ function isHelpCommand(command) {
 function isRepoLocalEntrypoint(scriptPath) {
   if (!scriptPath)
     return false;
-  const entry = resolve3(scriptPath);
+  const entry = resolve4(scriptPath);
   const entryName = basename4(entry);
   const parentName = basename4(dirname8(entry));
   let root = null;
@@ -22264,7 +22405,7 @@ function isRepoLocalEntrypoint(scriptPath) {
   }
   if (!root)
     return false;
-  const packageFile = join20(root, "package.json");
+  const packageFile = join21(root, "package.json");
   if (!existsSync(packageFile))
     return false;
   try {

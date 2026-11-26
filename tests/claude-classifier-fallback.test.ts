@@ -26,12 +26,12 @@ const proxyConfig: LocalCLIProxyAPISettings = {
 };
 
 async function readSettings() {
-  return readJson<{ env?: Record<string, string> }>(SETTINGS_FILE, {});
+  return readJson<{ env?: Record<string, string> }>(SETTINGS_FILE(), {});
 }
 
 describe("local proxy classifier fallback", () => {
   beforeEach(async () => {
-    assertIsolatedHome(SETTINGS_FILE);
+    assertIsolatedHome(SETTINGS_FILE());
     await resetTestHome();
   });
   afterEach(resetTestHome);
@@ -39,7 +39,7 @@ describe("local proxy classifier fallback", () => {
   test.each([undefined, "1"])("tracks default or explicit classifier setting %s on activation", async (override) => {
     await applyLocalCLIProxyAPIConfig(proxyConfig, override ? { [AUTO_MODE_SERVER]: override } : undefined);
     expect((await readSettings()).env?.[AUTO_MODE_SERVER]).toBe(override ?? "0");
-    expect((await readJson<{ keys: string[] }>(MANAGED_ENV_FILE, { keys: [] })).keys).toContain(AUTO_MODE_SERVER);
+    expect((await readJson<{ keys: string[] }>(MANAGED_ENV_FILE(), { keys: [] })).keys).toContain(AUTO_MODE_SERVER);
   });
 
   test.each(["api", "oauth"])("clears generated fallback when globally switching to %s", async (kind) => {
@@ -47,12 +47,12 @@ describe("local proxy classifier fallback", () => {
     if (kind === "api") await applyApiConfig({ apiKey: "direct-key" });
     else await applyOAuthConfig();
     expect((await readSettings()).env?.[AUTO_MODE_SERVER]).toBeUndefined();
-    expect((await readJson<{ keys: string[] }>(MANAGED_ENV_FILE, { keys: [] })).keys).not.toContain(AUTO_MODE_SERVER);
+    expect((await readJson<{ keys: string[] }>(MANAGED_ENV_FILE(), { keys: [] })).keys).not.toContain(AUTO_MODE_SERVER);
   });
 
   test("isolated API and OAuth settings neutralize active fallback and preserve explicit preferences", async () => {
     await applyLocalCLIProxyAPIConfig(proxyConfig);
-    const globalBefore = await readFile(SETTINGS_FILE, "utf-8");
+    const globalBefore = await readFile(SETTINGS_FILE(), "utf-8");
     const neutralizer = JSON.parse(await readFile(await prepareOAuthProfileClaudeSettings("plain", { type: "oauth" }), "utf-8"));
     expect(neutralizer.env[AUTO_MODE_SERVER]).toBe("");
 
@@ -66,12 +66,12 @@ describe("local proxy classifier fallback", () => {
         expect(fileMode((await stat(file)).mode)).toBe(0o600);
       }
     }
-    expect(await readFile(SETTINGS_FILE, "utf-8")).toBe(globalBefore);
+    expect(await readFile(SETTINGS_FILE(), "utf-8")).toBe(globalBefore);
   });
 
   test("direct profiles preserve a user-owned setting outside managed profile ownership", async () => {
-    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-    await writeJson(SETTINGS_FILE, { env: { [AUTO_MODE_SERVER]: "1" } });
+    await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+    await writeJson(SETTINGS_FILE(), { env: { [AUTO_MODE_SERVER]: "1" } });
     await applyApiConfig({ apiKey: "direct-key" });
     expect((await readSettings()).env?.[AUTO_MODE_SERVER]).toBe("1");
     await applyOAuthConfig();
@@ -79,8 +79,8 @@ describe("local proxy classifier fallback", () => {
   });
 
   test("inactive profile keys preserve user-owned launch values without exposing them in argv", async () => {
-    await mkdir(dirname(SETTINGS_FILE), { recursive: true });
-    await writeJson(SETTINGS_FILE, { env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40", CUSTOM_TOKEN: "fixture-secret" } });
+    await mkdir(dirname(SETTINGS_FILE()), { recursive: true });
+    await writeJson(SETTINGS_FILE(), { env: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "40", CUSTOM_TOKEN: "fixture-secret" } });
     const { claudeProfileDataFile } = await import("../src/lib/paths");
     const file = claudeProfileDataFile("inactive");
     await mkdir(dirname(file), { recursive: true });
